@@ -1,0 +1,32 @@
+{
+  "inviteSkillSelections": {
+    "assistant": [
+      "\\\\?\\C:\\Users\\Administrator\\Desktop\\codingfile\\fst\\.golutra\\skills\\project-development-quality-maintainability"
+    ],
+    "member": [
+      "\\\\?\\C:\\Users\\Administrator\\Desktop\\codingfile\\fst\\.golutra\\skills\\project-development-quality-maintainability"
+    ]
+  },
+  "memberSequence": {},
+  "members": [
+    {
+      "autoStartTerminal": false,
+      "avatar": "css:orbit",
+      "id": "01J00000000000000000000000",
+      "name": "群主",
+      "role": "",
+      "roleKey": "members.roles.owner",
+      "roleType": "owner",
+      "status": "online"
+    }
+  ],
+  "projectId": "4cc1872032cbebbd9065732a34608cc91fd422b37ba9f9f772d4dc9bc3ad92aa",
+  "roadmap": {
+    "objective": "",
+    "tasks": []
+  },
+  "terminal": {
+    "recentClosedTabs": []
+  },
+  "version": 1
+}

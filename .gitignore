@@ -1,3 +1,36 @@
 资料/
 #资料
 .trae/
+
+# BitFun snapshot data - auto managed
+.bitfun/
+
+
+# Logs
+
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+frontend/logs/*
+frontend/node_modules/*
+frontend/node_modules
+frontend/dist
+frontend/dist-ssr
+frontend/*.local
+
+# Editor directories and files
+
+
+# Lock files
+
+
+# 编译包
+build/*/f*
+
+#一些傻逼的文件
+*nul*
+*null*
