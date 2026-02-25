@@ -3,6 +3,7 @@ package controllers
 import (
 	"fmt"
 	"fst/backend/app/models"
+	"fst/backend/app/services"
 	"fst/backend/internal/config"
 	"fst/backend/internal/db"
 	"fst/backend/utils"
@@ -65,17 +66,8 @@ type ResetPasswordConfirmRequest struct {
 	NewPassword string `json:"new_password" binding:"required"`
 }
 
-// Register 注册新用户
-// @Summary 用户注册
-// @Description 注册一个新用户
-// @Tags 认证
-// @Accept json
-// @Produce json
-// @Param request body RegisterRequest true "注册信息"
-// @Success 200 {object} utils.Response
-// @Failure 400 {object} utils.Response
-// @Failure 500 {object} utils.Response
-// @Router /auth/register [post]
+// Register 注册新用户 (已迁移到 public.AuthController)
+// Deprecated: 请使用 /api/v1/public/register
 func (ctrl *AuthController) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -119,8 +111,9 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 		return
 	}
 
-	// 极验人机验证
-	if config.GlobalConfig.GeetestEnabled {
+	// Geetest validation (runtime config)
+	geetestConfig := services.GetGlobalGeetestRuntimeConfig()
+	if geetestConfig.Enabled {
 		geetestReq := utils.GeetestValidateRequest{
 			LotNumber:     c.GetHeader("X-Geetest-Lot-Number"),
 			CaptchaOutput: c.GetHeader("X-Geetest-Captcha-Output"),
@@ -129,7 +122,7 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 			CaptchaID:     c.GetHeader("X-Geetest-Captcha-Id"),
 		}
 
-		valid, err := utils.ValidateGeetest(config.GlobalConfig.GeetestID, config.GlobalConfig.GeetestKey, geetestReq)
+		valid, err := utils.ValidateGeetest(geetestConfig.CaptchaID, geetestConfig.CaptchaKey, geetestReq)
 		if err != nil || !valid {
 			utils.Fail(c, 403, "Captcha validation failed")
 			return
@@ -257,18 +250,8 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 	utils.Success(c, gin.H{"message": "Verification code sent"})
 }
 
-// Login 用户登录
-// @Summary 用户登录
-// @Description 用户登录并获取 Token
-// @Tags 认证
-// @Accept json
-// @Produce json
-// @Param request body LoginRequest true "登录信息"
-// @Success 200 {object} utils.Response
-// @Failure 400 {object} utils.Response
-// @Failure 401 {object} utils.Response
-// @Failure 403 {object} utils.Response
-// @Router /auth/login [post]
+// Login 用户登录 (已迁移到 public.AuthController)
+// Deprecated: 请使用 /api/v1/public/login
 func (ctrl *AuthController) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -290,7 +273,8 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 		return
 	}
 
-	if config.GlobalConfig.GeetestEnabled {
+	geetestConfig := services.GetGlobalGeetestRuntimeConfig()
+	if geetestConfig.Enabled {
 		geetestReq := utils.GeetestValidateRequest{
 			LotNumber:     c.GetHeader("X-Geetest-Lot-Number"),
 			CaptchaOutput: c.GetHeader("X-Geetest-Captcha-Output"),
@@ -299,7 +283,7 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 			CaptchaID:     c.GetHeader("X-Geetest-Captcha-Id"),
 		}
 
-		valid, err := utils.ValidateGeetest(config.GlobalConfig.GeetestID, config.GlobalConfig.GeetestKey, geetestReq)
+		valid, err := utils.ValidateGeetest(geetestConfig.CaptchaID, geetestConfig.CaptchaKey, geetestReq)
 		if err != nil || !valid {
 			utils.Fail(c, 403, "Captcha validation failed")
 			return

@@ -167,6 +167,7 @@
   },
   "route": {
     "appRoot": "Home",
+    "login": "Login",
     "cardList": "Card list",
     "draggableList": "Draggable list",
     "commonList": "Common list",
@@ -199,7 +200,21 @@
     "setting": "System settings",
     "userCenter": "Personal Center",
     "accountSetting": "User settings",
-    "cascader": "Administrative region selection"
+    "cascader": "Administrative region selection",
+    "admin-root": "Admin Panel",
+    "admin-dashboard": "Dashboard",
+    "admin-users": "User Management",
+    "admin-user-detail": "User Detail",
+    "admin-email-templates": "Email Templates",
+    "admin-logs": "Operation Logs",
+    "admin-settings": "System Settings",
+    "仪表盘": "Dashboard",
+    "用户管理": "User Management",
+    "用户详情": "User Detail",
+    "邮件模板": "Email Templates",
+    "操作日志": "Operation Logs",
+    "系统设置": "System Settings",
+    "管理后台": "Admin Panel"
   },
   "http": {
     "400": "Syntax error in the request",

@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"fst/backend/utils"
-	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,21 +12,21 @@ func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+			utils.Fail(c, 401, "Authorization header is required")
 			c.Abort()
 			return
 		}
 
 		parts := strings.SplitN(authHeader, " ", 2)
 		if !(len(parts) == 2 && parts[0] == "Bearer") {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header format must be Bearer {token}"})
+			utils.Fail(c, 401, "Authorization header format must be Bearer {token}")
 			c.Abort()
 			return
 		}
 
 		claims, err := utils.ParseToken(parts[1])
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+			utils.Fail(c, 401, "Invalid or expired token")
 			c.Abort()
 			return
 		}
@@ -37,14 +37,69 @@ func AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
+// AdminOnly 验证用户是否为管理员
+// 这是核心安全防护：即使前端守卫被绕过，后端也会拦截非管理员请求
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exists := c.Get("role")
 		if !exists || role != "admin" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Admin access only"})
+			// 记录可疑访问（可用于安全审计）
+			userID, _ := c.Get("userID")
+			path := c.Request.URL.Path
+			method := c.Request.Method
+			clientIP := c.ClientIP()
+
+			// 输出安全警告日志
+			gin.DefaultWriter.Write([]byte(
+				"[SECURITY WARNING] " + time.Now().Format(time.RFC3339) +
+					" | Non-admin access attempt | UserID: " +
+					strings.Trim(strings.ReplaceAll(strings.ReplaceAll(
+						strings.ReplaceAll(userID.(string), "\n", ""), "\r", ""), "\t", ""), " \"'") +
+					" | IP: " + clientIP +
+					" | Method: " + method +
+					" | Path: " + path + "\n",
+			))
+
+			utils.Fail(c, 403, "Admin access only")
 			c.Abort()
 			return
 		}
+		c.Next()
+	}
+}
+
+// RequireRole 通用角色验证中间件
+// 可用于验证多种角色权限
+func RequireRole(allowedRoles ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, exists := c.Get("role")
+		if !exists {
+			utils.Fail(c, 403, "Role not found")
+			c.Abort()
+			return
+		}
+
+		roleStr, ok := role.(string)
+		if !ok {
+			utils.Fail(c, 403, "Invalid role type")
+			c.Abort()
+			return
+		}
+
+		allowed := false
+		for _, r := range allowedRoles {
+			if roleStr == r {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			utils.Fail(c, 403, "Insufficient permissions")
+			c.Abort()
+			return
+		}
+
 		c.Next()
 	}
 }

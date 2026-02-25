@@ -4,13 +4,19 @@
  */
 import { request } from '@/service/http'
 
-// 管理端 API 路径前缀（需与后端 ADMIN_PATH 保持一致）
-// 说明：
-// - 前端路由前缀使用 VITE_ADMIN_BASE_PATH
-// - 后端管理端 API 也使用同一前缀：/api/v1{ADMIN_PATH}/...
-// - 为了每次打包可动态修改路径，这里不允许硬编码 /admin
-const ADMIN_PATH = import.meta.env.VITE_ADMIN_API_PATH || import.meta.env.VITE_ADMIN_BASE_PATH || '/admin'
+// 管理端 API 路径固定为 /admin（与后端保持一致）
+const ADMIN_PATH = '/admin'
 const BASE_URL = `/api/v1${ADMIN_PATH}/users`
+
+// 用户简要信息类型
+export interface UserSimpleInfo {
+  id: number
+  username: string
+  nickname: string
+  email: string
+  role: string
+  status: number
+}
 
 export const adminUserApi = {
   // 用户列表
@@ -66,5 +72,13 @@ export const adminUserApi = {
   // 重置用户密码
   resetPassword(id: number, password: string) {
     return request.Put(`${BASE_URL}/${id}/password`, { password })
+  },
+
+  // 批量获取用户简要信息
+  // 返回 map[id]UserSimpleInfo，方便通过 ID 快速查找
+  async batchSimpleInfo(ids: number[]): Promise<Record<number, UserSimpleInfo>> {
+    if (!ids.length) return {}
+    const res = await request.Post(`${BASE_URL}/batch-simple`, { ids })
+    return res.data?.users || {}
   },
 }

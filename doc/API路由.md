@@ -106,7 +106,7 @@ func SetupRoutes(router *gin.Engine) {
         api.GET("/role/list", systemCtrl.GetRoleList)
         api.GET("/dict/list", systemCtrl.GetDictList)
         
-        // ========== 调试路由 ==========
+        // ========== 兼容提示路由 ==========
         api.GET("/login", func(c *gin.Context) {
             utils.Fail(c, 405, "Please use POST method to login")
         })
@@ -130,6 +130,24 @@ func SetupRoutes(router *gin.Engine) {
     }
 }
 ```
+
+### 调试相关接口（管理员）
+
+后端调试能力由 `backend/app/controllers/admin/debug_controller.go` 提供，并挂载在管理员路由组下。
+
+- 路由前缀：`/api/v1/admin/debug`
+- 典型接口：
+  - `GET /goroutines/stats`
+  - `POST /gc`
+  - `GET /pprof/profile`
+  - `GET /pprof/heap`
+  - `GET /pprof/goroutine`
+  - `GET /pprof/allocs`
+  - `GET /pprof/block`
+  - `GET /pprof/mutex`
+  - `GET /pprof/trace`
+
+> 说明：前端已取消侧边栏独立“调试”页面，调试能力统一放在“系统设置”页面中。
 
 ### 路由注册
 
@@ -405,6 +423,15 @@ func (ctrl *UserController) CreateUser(c *gin.Context) {
 
 ---
 
+## 变更记录
+
+### 2026-02-24
+- 前端管理端侧边栏移除独立“调试”页面入口，调试能力统一放在“系统设置”页面。
+- 补充管理员调试接口说明（`/api/v1/admin/debug/*`）和典型端点。
+- 路由示例中“调试路由”命名调整为“兼容提示路由”，避免与管理员调试接口概念混淆。
+
+---
+
 ## 路由分组
 
 ### 分组策略
@@ -613,6 +640,6 @@ func (ctrl *UserController) GetUser(c *gin.Context) {
 
 ---
 
-> 📝 **最后更新**: 2026-02-04
+> 📝 **最后更新**: 2026-02-24
 > 
 > 如有疑问，请参考 `backend/routes/routes.go` 源代码。

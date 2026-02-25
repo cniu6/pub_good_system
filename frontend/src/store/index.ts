@@ -6,6 +6,7 @@ export * from './app/index'
 export * from './auth'
 export * from './router'
 export * from './tab'
+export * from './settings'
 
 // 安装pinia全局状态库
 export function installPinia(app: App) {

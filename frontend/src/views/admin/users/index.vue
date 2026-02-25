@@ -1,8 +1,8 @@
 <template>
-  <div class="admin-users">
-    <n-card title="用户管理">
-      <!-- 搜索栏 -->
-      <n-space class="mb-4">
+  <n-card title="用户管理">
+    <!-- 搜索栏 -->
+    <n-space vertical>
+      <n-space>
         <n-input v-model:value="searchForm.keyword" placeholder="搜索用户名/邮箱" clearable style="width: 200px" />
         <n-select v-model:value="searchForm.status" :options="statusOptions" placeholder="状态" clearable style="width: 120px" />
         <n-button type="primary" @click="handleSearch">搜索</n-button>
@@ -19,41 +19,41 @@
         @update:page="handlePageChange"
         @update:page-size="handlePageSizeChange"
       />
+    </n-space>
 
-      <!-- 用户表单弹窗 -->
-      <n-modal v-model:show="showModal" :title="modalTitle" preset="card" style="width: 600px">
-        <n-form ref="formRef" :model="formData" :rules="formRules" label-placement="left" label-width="80px">
-          <n-form-item label="用户名" path="username">
-            <n-input v-model:value="formData.username" placeholder="请输入用户名" :disabled="isEdit" />
-          </n-form-item>
-          <n-form-item v-if="!isEdit" label="密码" path="password">
-            <n-input v-model:value="formData.password" type="password" placeholder="请输入密码" show-password-on="click" />
-          </n-form-item>
-          <n-form-item label="邮箱" path="email">
-            <n-input v-model:value="formData.email" placeholder="请输入邮箱" />
-          </n-form-item>
-          <n-form-item label="昵称" path="nickname">
-            <n-input v-model:value="formData.nickname" placeholder="请输入昵称" />
-          </n-form-item>
-<n-form-item label="手机" path="mobile">
-            <n-input v-model:value="formData.mobile" placeholder="请输入手机号" />
-          </n-form-item>
-          <n-form-item label="状态" path="status">
-            <n-radio-group v-model:value="formData.status">
-              <n-radio :value="1">启用</n-radio>
-              <n-radio :value="0">禁用</n-radio>
-            </n-radio-group>
-          </n-form-item>
-        </n-form>
-        <template #footer>
-          <n-space justify="end">
-            <n-button @click="showModal = false">取消</n-button>
-            <n-button type="primary" @click="handleSubmit" :loading="submitting">确定</n-button>
-          </n-space>
-        </template>
-      </n-modal>
-    </n-card>
-  </div>
+    <!-- 用户表单弹窗 -->
+    <n-modal v-model:show="showModal" :title="modalTitle" preset="card" style="width: 600px">
+      <n-form ref="formRef" :model="formData" :rules="formRules" label-placement="left" label-width="80px">
+        <n-form-item label="用户名" path="username">
+          <n-input v-model:value="formData.username" placeholder="请输入用户名" :disabled="isEdit" />
+        </n-form-item>
+        <n-form-item v-if="!isEdit" label="密码" path="password">
+          <n-input v-model:value="formData.password" type="password" placeholder="请输入密码" show-password-on="click" />
+        </n-form-item>
+        <n-form-item label="邮箱" path="email">
+          <n-input v-model:value="formData.email" placeholder="请输入邮箱" />
+        </n-form-item>
+        <n-form-item label="昵称" path="nickname">
+          <n-input v-model:value="formData.nickname" placeholder="请输入昵称" />
+        </n-form-item>
+        <n-form-item label="手机" path="mobile">
+          <n-input v-model:value="formData.mobile" placeholder="请输入手机号" />
+        </n-form-item>
+        <n-form-item label="状态" path="status">
+          <n-radio-group v-model:value="formData.status">
+            <n-radio :value="1">启用</n-radio>
+            <n-radio :value="0">禁用</n-radio>
+          </n-radio-group>
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showModal = false">取消</n-button>
+          <n-button type="primary" @click="handleSubmit" :loading="submitting">确定</n-button>
+        </n-space>
+      </template>
+    </n-modal>
+  </n-card>
 </template>
 
 <script setup lang="ts">
@@ -322,11 +322,4 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
-.admin-users {
-  padding: 16px;
-}
-.mb-4 {
-  margin-bottom: 16px;
-}
-</style>
+<style scoped></style>

@@ -35,5 +35,5 @@ function createLazyModule<T extends Record<string, (...args: any[]) => any>>(
 export const adminApi = {
   user: createLazyModule(() => import('./user').then(m => m.adminUserApi)),
   log: createLazyModule(() => import('./log').then(m => m.adminLogApi)),
+  settings: createLazyModule(() => import('./settings').then(m => m.adminSettingsApi)),
 }
-

@@ -288,3 +288,73 @@ func (s *UserService) IncrementLoginFailure(user_id uint64) error {
 	_, err := db.DB.Exec("UPDATE users SET login_failure = login_failure + 1, update_time = ? WHERE id = ?", now, user_id)
 	return err
 }
+
+// IncrementLoginFailureWithLock 增加登录失败次数（带自动锁定）
+func (s *UserService) IncrementLoginFailureWithLock(user_id uint64, max_failures, lock_duration_minutes int) error {
+	now := time.Now().Unix()
+	lock_until := now + int64(lock_duration_minutes*60)
+
+	// 先增加失败次数
+	_, err := db.DB.Exec("UPDATE users SET login_failure = login_failure + 1, update_time = ? WHERE id = ?", now, user_id)
+	if err != nil {
+		return err
+	}
+
+	// 检查是否达到锁定阈值
+	var current_failure int
+	err = db.DB.Get(&current_failure, "SELECT login_failure FROM users WHERE id = ?", user_id)
+	if err != nil {
+		return err
+	}
+
+	if current_failure >= max_failures {
+		// 锁定账户
+		_, err = db.DB.Exec("UPDATE users SET lock_until = ? WHERE id = ?", lock_until, user_id)
+	}
+
+	return err
+}
+
+// ClearLockUntil 清除账户锁定
+func (s *UserService) ClearLockUntil(user_id uint64) error {
+	_, err := db.DB.Exec("UPDATE users SET lock_until = NULL, login_failure = 0 WHERE id = ?", user_id)
+	return err
+}
+
+// UserSimpleInfo 用户简要信息（用于批量查询返回）
+type UserSimpleInfo struct {
+	ID       uint64 `json:"id"`
+	Username string `json:"username"`
+	Nickname string `json:"nickname"`
+	Email    string `json:"email"`
+	Role     string `json:"role"`
+	Status   uint8  `json:"status"`
+}
+
+// BatchGetUserSimpleInfo 批量获取用户简要信息
+// 返回 map[id]UserSimpleInfo，方便前端通过 ID 快速查找
+func (s *UserService) BatchGetUserSimpleInfo(userIDs []uint64) (map[uint64]UserSimpleInfo, error) {
+	if len(userIDs) == 0 {
+		return make(map[uint64]UserSimpleInfo), nil
+	}
+
+	query := "SELECT id, username, nickname, email, role, status FROM users WHERE id IN (?) AND delete_time IS NULL"
+	query, args, err := sqlx.In(query, userIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	var users []UserSimpleInfo
+	err = db.DB.Select(&users, query, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	// 转换为 map
+	result := make(map[uint64]UserSimpleInfo)
+	for _, user := range users {
+		result[user.ID] = user
+	}
+
+	return result, nil
+}

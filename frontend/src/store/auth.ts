@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { unref } from 'vue'
 import { router } from '@/router'
+import { buildAdminEntryUrl, getAdminBasePath } from '@/router/constants'
+import { getRuntimeRouteMode } from '@/router/runtime-mode'
 import { fetchLogin, fetchUpdateToken } from '@/service'
 import { local } from '@/utils'
 import { useRouteStore } from './router'
@@ -94,7 +96,8 @@ export const useAuthStore = defineStore('auth-store', {
 
       // 添加路由和菜单
       const routeStore = useRouteStore()
-      await routeStore.initAuthRoute()
+      const routeMode = getRuntimeRouteMode()
+      await routeStore.initAuthRoute(routeMode)
 
       // 进行重定向跳转
       const route = unref(router.currentRoute)
@@ -104,9 +107,15 @@ export const useAuthStore = defineStore('auth-store', {
       // 如果重定向路径是根路径，且用户是管理员，可以重定向到管理端
       // 否则重定向到主页
       if (redirectPath === '/' && (data as any).role === 'admin') {
-        const adminPath = import.meta.env.VITE_ADMIN_BASE_PATH || '/system-mgr'
-        router.push({ path: adminPath })
-      } else {
+        const adminPath = getAdminBasePath()
+        if (routeMode === 'user') {
+          window.location.replace(buildAdminEntryUrl(adminPath))
+        }
+        else {
+          router.push({ path: '/dashboard' })
+        }
+      }
+      else {
         router.push({ path: redirectPath })
       }
 

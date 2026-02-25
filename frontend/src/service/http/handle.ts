@@ -1,4 +1,4 @@
-import { fetchUpdateToken } from '@/service'
+import { fetchUpdateToken } from '../api/login'
 import { useAuthStore } from '@/store'
 import { local } from '@/utils'
 import {
@@ -33,9 +33,10 @@ export function handleResponseError(response: Response) {
  * @description:
  * @param {Record} data 接口返回的后台数据
  * @param {Service} config 后台字段配置
+ * @param {boolean} noErrorTip 是否不显示错误提示
  * @return {*}
  */
-export function handleBusinessError(data: Record<string, any>, config: Required<Service.BackendConfig>) {
+export function handleBusinessError(data: Record<string, any>, config: Required<Service.BackendConfig>, noErrorTip?: boolean) {
   const { codeKey, msgKey } = config
   const error: Service.RequestError = {
     errorType: 'Business Error',
@@ -44,7 +45,9 @@ export function handleBusinessError(data: Record<string, any>, config: Required<
     data: data.data,
   }
 
-  showError(error)
+  if (!noErrorTip) {
+    showError(error)
+  }
 
   return error
 }

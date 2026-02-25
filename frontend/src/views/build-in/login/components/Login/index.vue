@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FormInst } from 'naive-ui'
-import { useAuthStore } from '@/store'
+import { useAuthStore, useSettingsStore } from '@/store'
 import { local } from '@/utils'
 import GeetestCaptcha from '@/components/common/GeetestCaptcha.vue'
 import { geetestManager } from '@/utils/geetest'
@@ -8,8 +8,16 @@ import { geetestManager } from '@/utils/geetest'
 const emit = defineEmits(['update:modelValue'])
 
 const authStore = useAuthStore()
-const isGeetestEnabled = computed(() => geetestManager.isEnabled())
-const isCaptchaVerified = ref(!geetestManager.isEnabled())
+const settingsStore = useSettingsStore()
+
+// 极验是否启用：以后端配置为准
+const isGeetestEnabled = computed(() => settingsStore.geetestEnabled)
+// 检查是否配置了 captchaId（从后端获取）
+const hasCaptchaId = computed(() => Boolean(settingsStore.geetestCaptchaId))
+// 综合判断：后端启用 且 有配置 captchaId
+const shouldShowCaptcha = computed(() => isGeetestEnabled.value && hasCaptchaId.value)
+
+const isCaptchaVerified = ref(false)
 const captchaKey = ref(0)
 
 function toOtherForm(type: any) {
@@ -41,7 +49,8 @@ const isLoading = ref(false)
 const formRef = ref<FormInst | null>(null)
 
 async function handleLogin() {
-  if (isGeetestEnabled.value && !isCaptchaVerified.value) {
+  // 只有当需要显示验证码且未验证时才提示
+  if (shouldShowCaptcha.value && !isCaptchaVerified.value) {
     window.$message.warning(t('login.captchaRequired'))
     return
   }
@@ -95,16 +104,23 @@ watch(() => formValue.value.account, (val) => {
 })
 
 watch(() => [formValue.value.account, formValue.value.pwd], () => {
-  if (geetestManager.isEnabled()) {
+  if (shouldShowCaptcha.value) {
     isCaptchaVerified.value = false
     geetestManager.clearCaptchaResult()
   }
 })
 
 watchEffect(() => {
-  if (!geetestManager.isEnabled())
+  if (!shouldShowCaptcha.value)
     isCaptchaVerified.value = true
 })
+
+// 监听后端配置变化，初始化验证状态
+watch(shouldShowCaptcha, (show) => {
+  if (!show) {
+    isCaptchaVerified.value = true
+  }
+}, { immediate: true })
 onMounted(() => {
   checkUserAccount()
 })
@@ -146,7 +162,7 @@ function checkUserAccount() {
             {{ $t('login.forgotPassword') }}
           </n-button>
         </div>
-        <GeetestCaptcha v-if="isGeetestEnabled" :key="captchaKey" @success="onGeetestSuccess" @error="onGeetestError" />
+        <GeetestCaptcha v-if="shouldShowCaptcha" :key="captchaKey" @success="onGeetestSuccess" @error="onGeetestError" />
         <n-button block type="primary" size="large" :loading="isLoading" :disabled="isLoading" @click="handleLogin">
           {{ $t('login.signIn') }}
         </n-button>

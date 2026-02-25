@@ -13,14 +13,14 @@ import type { RouteRecordRaw } from 'vue-router'
 
 /**
  * 获取管理端路由配置
- * @param basePath 管理端路径前缀（从环境变量读取，VITE_ADMIN_BASE_PATH）
+ * 管理端只使用 hash 内部路由（/#/dashboard）
  */
-export function getAdminRoutes(basePath: string): RouteRecordRaw[] {
+export function getAdminRoutes(): RouteRecordRaw[] {
   return [
     {
-      path: basePath,
+      path: '/',
       name: 'admin-root',
-      redirect: `${basePath}/dashboard`,
+      redirect: '/dashboard',
       component: () => import('@/layouts/index.vue'),
       meta: {
         title: '管理后台',
@@ -53,7 +53,16 @@ export function getAdminRoutes(basePath: string): RouteRecordRaw[] {
           meta: {
             title: '用户详情',
             hide: true,
-            activeMenu: `${basePath}/users`,
+            activeMenu: '/users',
+          },
+        },
+        {
+          path: 'email-templates',
+          name: 'admin-email-templates',
+          component: () => import('@/views/admin/email-templates/index.vue'),
+          meta: {
+            title: '邮件模板',
+            icon: 'icon-park-outline:mail',
           },
         },
         {
