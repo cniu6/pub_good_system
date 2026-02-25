@@ -3,6 +3,8 @@ package routes
 import (
 	"fst/backend/app/controllers"
 	"fst/backend/app/controllers/admin"
+	"fst/backend/app/controllers/public"
+	"fst/backend/app/controllers/user"
 	_ "fst/backend/docs"
 	"fst/backend/internal/config"
 	"fst/backend/internal/middleware"
@@ -13,20 +15,51 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
+// ========================================
+// 初始化控制器（延迟初始化避免循环依赖）
+// ========================================
+
+var (
+	publicAuthCtrl     *public.AuthController
+	publicSettingsCtrl *public.SettingsController
+	userProfileCtrl    *user.ProfileController
+	systemCtrl         *controllers.SystemController
+	adminUserCtrl      *admin.UserController
+	adminLogCtrl       *admin.LogController
+	adminEmailTplCtrl  *admin.EmailTemplateController
+	adminSettingsCtrl  *admin.SettingsController
+	adminDebugCtrl     *admin.DebugController
+)
+
+// initControllers 初始化所有控制器
+func initControllers() {
+	publicAuthCtrl = public.NewAuthController()
+	publicSettingsCtrl = public.NewSettingsController()
+	userProfileCtrl = user.NewProfileController()
+	systemCtrl = &controllers.SystemController{}
+	adminUserCtrl = admin.NewUserController()
+	adminLogCtrl = admin.NewLogController()
+	adminEmailTplCtrl = admin.NewEmailTemplateController()
+	adminSettingsCtrl = admin.NewSettingsController()
+	adminDebugCtrl = admin.NewDebugController()
+}
+
 func SetupRoutes(router *gin.Engine) {
-	// 控制器初始化
-	authCtrl := &controllers.AuthController{}
-	systemCtrl := &controllers.SystemController{}
+	// ========================================
+	// 初始化控制器
+	// ========================================
+	initControllers()
 
-	// Admin 控制器
-	adminUserCtrl := admin.NewUserController()
-	adminLogCtrl := admin.NewLogController()
-
+	// ========================================
 	// Swagger 文档
+	// ========================================
 	if config.GlobalConfig.EnableSwagger {
 		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
+	// ========================================
+	// API 路由
+	// ========================================
 	api := router.Group("/api")
 	{
 		// ========================================
@@ -37,46 +70,19 @@ func SetupRoutes(router *gin.Engine) {
 			// ----------------------------------------
 			// 公共接口 (无需登录)
 			// ----------------------------------------
-			public := v1.Group("/public")
+			publicGroup := v1.Group("/public")
 			{
-				// 认证相关
-				public.POST("/login", authCtrl.Login)
-				public.POST("/register", authCtrl.Register)
-				public.POST("/send-register-code", authCtrl.SendRegisterCode)
-				public.POST("/forgot-password", authCtrl.SendResetEmail)
-				public.POST("/reset-password", authCtrl.ResetPasswordConfirm)
-			public.POST("/refresh-token", authCtrl.UpdateToken)
+				publicAuthCtrl.RegisterRoutes(publicGroup)
+				publicSettingsCtrl.RegisterRoutes(publicGroup)
 			}
 
 			// ----------------------------------------
 			// 用户接口 (需要登录)
 			// ----------------------------------------
-			user := v1.Group("/user")
-			// 注册验证码接口支持 /api/v1/user/send-register-code (前端常用)
-			user.POST("/send-register-code", authCtrl.SendRegisterCode)
-
-			user.Use(middleware.AuthMiddleware())
+			userGroup := v1.Group("/user")
+			userGroup.Use(middleware.AuthMiddleware())
 			{
-				// 个人信息
-				user.GET("/profile", func(c *gin.Context) {
-					userID, exists := c.Get("userID")
-					if !exists {
-						utils.Fail(c, 401, "用户未登录")
-						return
-					}
-					utils.Success(c, gin.H{"userID": userID})
-				})
-				user.PUT("/profile", func(c *gin.Context) {
-					// TODO: 更新个人资料
-					utils.Success(c, nil)
-				})
-				user.PUT("/password", func(c *gin.Context) {
-					// TODO: 修改密码
-					utils.Success(c, nil)
-				})
-
-// 用户路由
-				user.GET("/routes", authCtrl.GetUserRoutes)
+				userProfileCtrl.RegisterRoutes(userGroup)
 			}
 
 			// ----------------------------------------
@@ -90,13 +96,8 @@ func SetupRoutes(router *gin.Engine) {
 
 			// ----------------------------------------
 			// 管理后台接口 (需要管理员权限)
-			// 路径可通过 .env 配置: ADMIN_PATH
 			// ----------------------------------------
-			adminPath := config.GlobalConfig.AdminPath
-			if adminPath == "" {
-				adminPath = "/admin"
-			}
-			adminGroup := v1.Group(adminPath)
+			adminGroup := v1.Group("/admin")
 			adminGroup.Use(middleware.AuthMiddleware())
 			adminGroup.Use(middleware.AdminOnly())
 			{
@@ -112,8 +113,9 @@ func SetupRoutes(router *gin.Engine) {
 					users.GET("", adminUserCtrl.List)
 					users.GET("/:id", adminUserCtrl.Detail)
 					users.POST("", adminUserCtrl.Create)
+					users.POST("/batch-simple", adminUserCtrl.BatchGetSimpleInfo) // 批量获取用户简要信息
 					users.PUT("/:id", adminUserCtrl.Update)
-				users.DELETE("/:id", adminUserCtrl.Delete)
+					users.DELETE("/:id", adminUserCtrl.Delete)
 					users.PUT("/:id/status", adminUserCtrl.UpdateStatus)
 					users.PUT("/:id/password", adminUserCtrl.ResetPassword)
 				}
@@ -122,27 +124,53 @@ func SetupRoutes(router *gin.Engine) {
 				logs := adminGroup.Group("/logs")
 				{
 					logs.GET("", adminLogCtrl.List)
-					logs.GET("/stats", adminLogCtrl.Stats)
 					logs.POST("/clean", adminLogCtrl.Clean)
 				}
+
+				// ----- 邮件模板 -----
+				emailTemplates := adminGroup.Group("/email-templates")
+				{
+					emailTemplates.GET("", adminEmailTplCtrl.List)
+					emailTemplates.GET("/:id", adminEmailTplCtrl.Detail)
+					emailTemplates.PUT("/:id", adminEmailTplCtrl.Update)
+					emailTemplates.POST("/:id/preview", adminEmailTplCtrl.Preview)
+					emailTemplates.POST("/:id/reset", adminEmailTplCtrl.Reset)
+				}
+
+				// ----- 系统配置 -----
+				adminSettingsCtrl.RegisterRoutes(adminGroup)
+
+				// ----- 调试工具 -----
+				adminDebugCtrl.RegisterRoutes(adminGroup)
 			}
 		}
 
 		// ========================================
 		// 兼容旧接口 (逐步废弃)
-		// 统一为 /api/v1 前缀，保留旧路径行为
 		// ========================================
-		v1.POST("/login", authCtrl.Login)
-		v1.POST("/register", authCtrl.Register)
-		v1.POST("/updateToken", authCtrl.UpdateToken)
-		v1.GET("/getUserRoutes", authCtrl.GetUserRoutes)
-		v1.GET("/userPage", systemCtrl.GetUserPage)
-		// 提示使用正确的请求方法
-		v1.GET("/login", func(c *gin.Context) {
-			utils.Fail(c, 405, "请使用 POST 方法登录")
-		})
-		v1.GET("/register", func(c *gin.Context) {
-			utils.Fail(c, 405, "请使用 POST 方法注册")
-		})
+		{
+			// 认证相关 - 指向新的公共接口
+			v1.POST("/login", func(c *gin.Context) {
+				c.Redirect(307, "/api/v1/public/login")
+			})
+			v1.POST("/register", func(c *gin.Context) {
+				c.Redirect(307, "/api/v1/public/register")
+			})
+			v1.POST("/updateToken", func(c *gin.Context) {
+				c.Redirect(307, "/api/v1/public/refresh-token")
+			})
+			v1.GET("/getUserRoutes", func(c *gin.Context) {
+				c.Redirect(307, "/api/v1/user/routes")
+			})
+			v1.GET("/userPage", systemCtrl.GetUserPage)
+
+			// 提示使用正确的请求方法
+			v1.GET("/login", func(c *gin.Context) {
+				utils.Fail(c, 405, "请使用 POST 方法登录")
+			})
+			v1.GET("/register", func(c *gin.Context) {
+				utils.Fail(c, 405, "请使用 POST 方法注册")
+			})
+		}
 	}
 }

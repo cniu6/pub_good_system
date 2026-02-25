@@ -1,6 +1,5 @@
 <template>
-  <div class="admin-user-detail">
-    <n-card :title="`用户详情 - ${user?.username || ''}`">
+  <n-card :title="`用户详情 - ${user?.username || ''}`">
       <n-descriptions bordered :column="2">
         <n-descriptions-item label="ID">{{ user?.id }}</n-descriptions-item>
         <n-descriptions-item label="用户名">{{ user?.username }}</n-descriptions-item>
@@ -14,12 +13,11 @@
         </n-descriptions-item>
       </n-descriptions>
 
-      <n-space class="mt-4">
+      <n-space>
         <n-button @click="$router.back()">返回</n-button>
         <n-button type="primary" @click="handleEdit">编辑</n-button>
       </n-space>
     </n-card>
-  </div>
 </template>
 
 <script setup lang="ts">
@@ -51,11 +49,4 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
-.admin-user-detail {
-  padding: 16px;
-}
-.mt-4 {
-  margin-top: 16px;
-}
-</style>
+<style scoped></style>

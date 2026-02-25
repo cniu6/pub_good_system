@@ -79,7 +79,7 @@ func InitConfig() {
 		GeetestID:       geetestID,
 		GeetestKey:      geetestKey,
 		JWTSecret:       getEnv("JWT_SECRET", "secret"),
-		AdminPath:       getEnv("ADMIN_PATH", "/system-mgr"),
+		AdminPath:       "/admin",
 		CorsOrigins:     getEnv("CORS_ORIGINS", ""),
 		EnableSwagger:   enableSwagger,
 		FrontendURL:     getEnv("FRONTEND_URL", ""),

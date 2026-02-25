@@ -137,7 +137,7 @@ func GetOperationLogList(query *OperationLogQuery) ([]OperationLog, int64, error
 	}
 	offset := (query.Page - 1) * query.PageSize
 
-	list_query := "SELECT * FROM operation_logs " + where + " ORDER BY id DESC LIMIT ? OFFSET ?"
+	list_query := "SELECT * FROM operation_logs " + where + " ORDER BY create_time DESC, id DESC LIMIT ? OFFSET ?"
 	args = append(args, query.PageSize, offset)
 
 	err = db.DB.Select(&logs, list_query, args...)
@@ -159,10 +159,10 @@ func DeleteOperationLogsBefore(before_time int64) (int64, error) {
 
 // GetOperationLogStats 获取操作日志统计
 type LogStats struct {
-	TotalCount   int64 `db:"total_count" json:"total_count"`
-	TodayCount   int64 `db:"today_count" json:"today_count"`
-	ModuleStats  []ModuleStat  `json:"module_stats"`
-	MethodStats  []MethodStat  `json:"method_stats"`
+	TotalCount  int64        `db:"total_count" json:"total_count"`
+	TodayCount  int64        `db:"today_count" json:"today_count"`
+	ModuleStats []ModuleStat `json:"module_stats"`
+	MethodStats []MethodStat `json:"method_stats"`
 }
 
 type ModuleStat struct {

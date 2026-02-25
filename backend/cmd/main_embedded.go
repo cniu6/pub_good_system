@@ -10,6 +10,7 @@ import (
 	"fst/backend/internal/db"
 	"fst/backend/internal/middleware"
 	"fst/backend/routes"
+	"fst/backend/utils"
 	"io/fs"
 	"log"
 	"net/http"
@@ -86,7 +87,7 @@ func main() {
 			router.NoRoute(func(c *gin.Context) {
 				path := c.Request.URL.Path
 				if strings.HasPrefix(path, "/api") {
-					c.JSON(404, gin.H{"error": "API not found"})
+					utils.Fail(c, 404, "API not found")
 					return
 				}
 				// Serve static or index.html

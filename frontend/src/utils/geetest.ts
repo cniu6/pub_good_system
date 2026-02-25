@@ -10,14 +10,6 @@ interface GeetestResult {
 class GeetestManager {
   private static instance: GeetestManager
   private currentCaptchaResult: GeetestResult | null = null
-  private isGeetestEnabled: boolean = (() => {
-    const id = import.meta.env.VITE_GEETEST_CAPTCHA_ID || import.meta.env.VITE_GEETEST_ID
-    if (!id)
-      return false
-    if (/your[_-]?geetest[_-]?id/i.test(id))
-      return false
-    return true
-  })()
 
   static getInstance(): GeetestManager {
     if (!GeetestManager.instance) {
@@ -26,9 +18,9 @@ class GeetestManager {
     return GeetestManager.instance
   }
 
-  // 检查极验是否启用
-  isEnabled(): boolean {
-    return this.isGeetestEnabled
+  // 检查验证结果是否存在（用于判断是否已完成验证）
+  hasCaptchaResult(): boolean {
+    return this.currentCaptchaResult !== null
   }
 
   // 设置验证结果
@@ -50,7 +42,7 @@ class GeetestManager {
   generateGeetestHeaders(): Record<string, string> {
     const result = this.getCaptchaResult()
 
-    if (!result || !this.isGeetestEnabled) {
+    if (!result) {
       return {}
     }
 
@@ -79,10 +71,6 @@ class GeetestManager {
 
   // 验证并返回请求头，如果验证无效则清除结果
   getValidGeetestHeaders(): Record<string, string> {
-    if (!this.isGeetestEnabled) {
-      return {}
-    }
-
     if (!this.isCaptchaValid()) {
       this.clearCaptchaResult()
       return {}

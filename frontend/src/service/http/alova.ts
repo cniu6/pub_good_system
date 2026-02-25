@@ -21,10 +21,17 @@ const { onAuthRequired, onResponseRefreshToken } = createServerTokenAuthenticati
   refreshTokenOnSuccess: {
     // 当服务端返回401时，表示token过期
     isExpired: async (response, method) => {
-      const res = await response.clone().json()
+      let businessCode: unknown
+      try {
+        const res = await response.clone().json() as Record<string, unknown>
+        businessCode = res.code
+      }
+      catch {
+        businessCode = undefined
+      }
 
       const isExpired = method.meta && method.meta.isExpired
-      return (response.status === 401 || res.code === 401) && !isExpired
+      return (Number(businessCode) === 401 || response.status === 401) && !isExpired
     },
 
     // 当token过期时触发，在此函数中触发刷新token
@@ -87,7 +94,7 @@ export function createAlovaInstance(
             return handleServiceResult(apiData)
 
           // 业务请求失败
-          const errorResult = handleBusinessError(apiData, _backendConfig)
+          const errorResult = handleBusinessError(apiData, _backendConfig, method.meta?.noErrorTip)
           return handleServiceResult(errorResult, false)
         }
         // 接口请求失败

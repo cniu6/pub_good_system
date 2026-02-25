@@ -142,6 +142,7 @@
   },
   "route": {
     "appRoot": "首页",
+    "login": "登录",
     "dashboard": "仪表盘",
     "workbench": "工作台",
     "monitor": "监控页",
@@ -175,7 +176,21 @@
     "userCenter": "个人中心",
     "about": "关于",
     "cascader": "省市区联动",
-    "dict": "字典示例"
+    "dict": "字典示例",
+    "admin-root": "管理后台",
+    "admin-dashboard": "仪表盘",
+    "admin-users": "用户管理",
+    "admin-user-detail": "用户详情",
+    "admin-email-templates": "邮件模板",
+    "admin-logs": "操作日志",
+    "admin-settings": "系统设置",
+    "仪表盘": "仪表盘",
+    "用户管理": "用户管理",
+    "用户详情": "用户详情",
+    "邮件模板": "邮件模板",
+    "操作日志": "操作日志",
+    "系统设置": "系统设置",
+    "管理后台": "管理后台"
   },
   "home": {
     "nav": {

@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
-import { useRouter } from 'vue-router'
 import type { MenuOption } from 'naive-ui'
+import type { AppRouteMode } from '@/router'
 import { router } from '@/router'
+import { getAdminBasePath } from '@/router/constants'
 import { staticRoutes } from '@/router/routes.static'
-import { getAdminRoutes } from '@/router/admin.routes'
 import { fetchUserRoutes } from '@/service'
 import { local, $t } from '@/utils'
 import { createAdminMenus, createMenus, createRoutes, generateCacheRoutes } from './helper'
@@ -17,8 +17,9 @@ interface RoutesStatus {
   cacheRoutes: string[]
   menuMode: 'user' | 'admin'
 }
+
 export const useRouteStore = defineStore('route-store', {
-state: (): RoutesStatus => {
+  state: (): RoutesStatus => {
     return {
       isInitAuthRoute: false,
       activeMenu: null,
@@ -42,21 +43,23 @@ state: (): RoutesStatus => {
     resetRoutes() {
       if (router.hasRoute('appRoot'))
         router.removeRoute('appRoot')
+      if (router.hasRoute('admin-root'))
+        router.removeRoute('admin-root')
     },
-    // set the currently highlighted menu key
     setActiveMenu(key: string) {
       this.activeMenu = key
     },
-    // 设置菜单模式（用户端/管理端）
-    setMenuMode(path: string) {
-      const adminPath = import.meta.env.VITE_ADMIN_BASE_PATH || '/admin'
-      this.menuMode = path.startsWith(adminPath) ? 'admin' : 'user'
+    setMenuMode(path: string, mode: AppRouteMode = 'user') {
+      if (mode === 'admin') {
+        this.menuMode = 'admin'
+        return
+      }
+      const adminPath = getAdminBasePath()
+      this.menuMode = (path === adminPath || path.startsWith(`${adminPath}/`)) ? 'admin' : 'user'
     },
-
     async initRouteInfo() {
       if (import.meta.env.VITE_ROUTE_LOAD_MODE === 'dynamic') {
         try {
-          // Get user's route
           const result = await fetchUserRoutes({
             id: 1,
           })
@@ -72,48 +75,63 @@ state: (): RoutesStatus => {
           throw error
         }
       }
-      else {
-        this.rowRoutes = staticRoutes
-        return staticRoutes
-      }
+
+      this.rowRoutes = staticRoutes
+      return staticRoutes
     },
-    async initAuthRoute() {
+    async initAuthRoute(mode: AppRouteMode = 'user') {
       this.isInitAuthRoute = false
 
       try {
-        // Initialize route information
-        const rowRoutes = await this.initRouteInfo()
-        if (!rowRoutes) {
-          const error = new Error('Failed to get route information')
-          window.$message.error($t(`app.getRouteError`))
-          throw error
+        if (mode === 'user') {
+          const rowRoutes = await this.initRouteInfo()
+          if (!rowRoutes) {
+            const error = new Error('Failed to get route information')
+            window.$message.error($t('app.getRouteError'))
+            throw error
+          }
+          this.rowRoutes = rowRoutes
+
+          const routes = createRoutes(rowRoutes)
+          router.addRoute(routes)
+
+          this.menus = createMenus(rowRoutes)
+          this.cacheRoutes = generateCacheRoutes(rowRoutes)
         }
-        this.rowRoutes = rowRoutes
+        else {
+          // 管理端入口仅加载管理端路由，避免与普通用户路由冲突
+          this.rowRoutes = []
+          this.menus = []
+          this.cacheRoutes = []
+        }
 
-// Generate actual route and insert
-        const routes = createRoutes(rowRoutes)
-        router.addRoute(routes)
-
-        // Generate side menu
-        this.menus = createMenus(rowRoutes)
-
-        // Generate the route cache
-        this.cacheRoutes = generateCacheRoutes(rowRoutes)
-
-        // 如果用户是管理员，加载管理端路由和菜单
         const roleValue = local.get('role')
         const roles = Array.isArray(roleValue) ? roleValue : (roleValue ? [roleValue] : [])
-        if (roles.includes('admin')) {
-          const adminPath = import.meta.env.VITE_ADMIN_BASE_PATH || '/admin'
-          const adminRoutes = getAdminRoutes(adminPath)
-          adminRoutes.forEach(route => router.addRoute(route))
-          this.adminMenus = createAdminMenus(adminRoutes)
+
+        if (mode === 'admin' && roles.includes('admin')) {
+          try {
+            const adminModule = await import(
+              /* webpackChunkName: "admin-core" */
+              /* vite: {"chunkName": "admin-core"} */
+              '@/router/admin.routes'
+            ) as any
+            const adminRoutes = adminModule.getAdminRoutes() as any[]
+            for (const route of adminRoutes) {
+              router.addRoute(route as any)
+            }
+            this.adminMenus = createAdminMenus(adminRoutes as any)
+          }
+          catch (error) {
+            console.error('[Security] Failed to load admin routes:', error)
+          }
+        }
+        else {
+          this.adminMenus = []
         }
 
         this.isInitAuthRoute = true
       }
       catch (error) {
-        // 重置状态并重新抛出错误
         this.isInitAuthRoute = false
         throw error
       }

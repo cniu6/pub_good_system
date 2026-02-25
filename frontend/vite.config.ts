@@ -1,11 +1,34 @@
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig, loadEnv } from 'vite'
 import { createVitePlugins } from './build/plugins'
+
+function normalizeAdminEntryDir(path: string | undefined): string {
+  const raw = (path || '/system-mgr').trim()
+  const normalized = raw.replace(/^\/+|\/+$/g, '')
+  return normalized || 'system-mgr'
+}
+
+function ensureAdminEntryHtml(rootDir: string, adminEntryDir: string): string {
+  const templatePath = resolve(rootDir, 'system-mgr/index.html')
+  const targetPath = resolve(rootDir, adminEntryDir, 'index.html')
+
+  if (!existsSync(targetPath)) {
+    if (!existsSync(templatePath))
+      throw new Error(`[vite] Missing admin entry template: ${templatePath}`)
+    mkdirSync(resolve(rootDir, adminEntryDir), { recursive: true })
+    copyFileSync(templatePath, targetPath)
+  }
+
+  return targetPath
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // 根据当前工作目录中的 `mode` 加载 .env 文件
   const env = loadEnv(mode, __dirname, '') as ImportMetaEnv
+  const adminEntryDir = normalizeAdminEntryDir(env.VITE_ADMIN_BASE_PATH)
+  const adminEntryHtml = ensureAdminEntryHtml(__dirname, adminEntryDir)
 
   return {
     base: env.VITE_BASE_URL,
@@ -32,6 +55,10 @@ export default defineConfig(({ mode }) => {
       reportCompressedSize: false,
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
+        input: {
+          user: resolve(__dirname, 'index.html'),
+          admin: adminEntryHtml,
+        },
         output: {
           /**
            * 管理端 JS 隔离打包策略
