@@ -1,89 +1,323 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/store'
+import { fetchUserProfile, fetchUpdateProfile } from '@/service'
+import ProfileTab from './components/ProfileTab.vue'
+import ApiTab from './components/ApiTab.vue'
+import NovaIcon from '@/components/common/NovaIcon.vue'
 
 const authStore = useAuthStore()
 
-const { userInfo } = authStore
-const formRef = ref()
-const formValue = ref({
-  user: {
-    name: '',
-    age: '',
-  },
-  phone: '',
+const userInfo = computed(() => authStore.userInfo)
+
+const activeTab = ref('profile')
+
+const showAvatarModal = ref(false)
+const avatarForm = ref({
+  currentAvatar: '',
+  newAvatar: '',
 })
-const rules = {
-  user: {
-    name: {
-      required: true,
-      message: '请输入姓名',
-      trigger: 'blur',
-    },
-    age: {
-      required: true,
-      message: '请输入年龄',
-      trigger: ['input', 'blur'],
-    },
-  },
-  phone: {
-    required: true,
-    message: '请输入电话号码',
-    trigger: ['input'],
-  },
+
+function openAvatarModal() {
+  avatarForm.value.currentAvatar = userInfo.value?.avatar || ''
+  avatarForm.value.newAvatar = userInfo.value?.avatar || ''
+  showAvatarModal.value = true
 }
 
-function handleValidateClick() {
-  formRef.value?.validate((errors: any) => {
-    if (!errors)
-      window.$message.success('验证通过')
-    else window.$message.error('验证不通过')
-  })
+async function handleAvatarSubmit() {
+  try {
+    const nextAvatar = avatarForm.value.newAvatar.trim()
+    if (nextAvatar && !/^https?:\/\//i.test(nextAvatar)) {
+      window.$message.error('头像 URL 仅支持 http/https 协议')
+      return
+    }
+    const response = await fetchUpdateProfile({ avatar: nextAvatar })
+    if (response.isSuccess) {
+      authStore.updateUserInfo({ avatar: nextAvatar })
+      showAvatarModal.value = false
+      window.$message.success('头像更新成功')
+    }
+  }
+  catch (error) {
+    console.error('更新头像失败', error)
+    window.$message.error('更新头像失败')
+  }
 }
+
+async function refreshUserInfo() {
+  try {
+    const response = await fetchUserProfile()
+    if (response.isSuccess && response.data) {
+      authStore.updateUserInfo(response.data)
+    }
+  }
+  catch (error) {
+    console.error('获取用户信息失败', error)
+  }
+}
+
+watch(activeTab, () => {
+  refreshUserInfo()
+})
+
+onMounted(() => {
+  refreshUserInfo()
+})
+
+onActivated(() => {
+  refreshUserInfo()
+})
 </script>
 
 <template>
-  <n-space vertical>
-    <n-card title="个人信息">
-      <n-space size="large">
-        <n-avatar round :size="128" :src="userInfo?.avatar" />
+  <div class="user-center">
+    <!-- 用户信息头部 -->
+    <n-card class="user-header mb-4">
+      <div class="user-info-container">
+        <div class="user-avatar-section">
+          <n-avatar
+            :size="80"
+            :src="userInfo?.avatar"
+            :img-props="{ referrerpolicy: 'no-referrer' }"
+            class="user-avatar clickable-avatar"
+            @click="openAvatarModal"
+          >
+            <NovaIcon v-if="!userInfo?.avatar" icon="icon-park-outline:user" :size="40" />
+          </n-avatar>
+        </div>
 
-        <n-descriptions label-placement="left" :column="2" :title="`傍晚好，${userInfo?.nickname}，这里是简单的个人中心模板`">
-          <n-descriptions-item label="id">
-            {{ userInfo?.id }}
-          </n-descriptions-item>
-          <n-descriptions-item label="用户名">
-            {{ userInfo?.userName }}
-          </n-descriptions-item>
-          <n-descriptions-item label="真实名称">
-            {{ userInfo?.nickname }}
-          </n-descriptions-item>
-          <n-descriptions-item label="角色">
-            {{ userInfo?.role }}
-          </n-descriptions-item>
-        </n-descriptions>
-      </n-space>
-    </n-card>
-    <n-card title="信息修改">
-      <n-space justify="center">
-        <n-form ref="formRef" class="w-500px" :label-width="80" :model="formValue" :rules="rules">
-          <n-form-item label="姓名" path="user.name">
-            <n-input v-model:value="formValue.user.name" placeholder="输入姓名" />
-          </n-form-item>
-          <n-form-item label="年龄" path="user.age">
-            <n-input v-model:value="formValue.user.age" placeholder="输入年龄" />
-          </n-form-item>
-          <n-form-item label="电话号码" path="phone">
-            <n-input v-model:value="formValue.phone" placeholder="电话号码" />
-          </n-form-item>
-          <n-form-item>
-            <n-button type="primary" attr-type="button" block @click="handleValidateClick">
-              验证
+        <div class="user-details-section">
+          <n-h3 class="user-name">
+            {{ userInfo?.nickname || userInfo?.userName || '用户' }}
+          </n-h3>
+          <n-text depth="3" class="user-email ml-2">
+            {{ userInfo?.email || '暂无邮箱' }}
+          </n-text>
+          <n-space class="ml-3" size="small">
+            <n-tag type="info" size="small">
+              ID: {{ userInfo?.id || 'N/A' }}
+            </n-tag>
+            <n-tag type="warning" size="small">
+              余额: ¥{{ userInfo?.money ? Number(userInfo.money).toFixed(2) : '0.00' }}
+            </n-tag>
+            <n-tag type="primary" size="small">
+              积分: {{ userInfo?.score || '0' }}
+            </n-tag>
+          </n-space>
+
+          <n-grid class="mt-2 ml-3" cols="2 m:4" :x-gap="3" :y-gap="12" responsive="screen" style="padding: 1%;">
+            <n-grid-item>
+              <n-text depth="3" class="info-item">
+                <NovaIcon class="info-icon" icon="icon-park-outline:level" :size="16" />
+                等级: {{ userInfo?.level || '0' }}
+              </n-text>
+            </n-grid-item>
+            <n-grid-item>
+              <n-text depth="3" class="info-item">
+                <NovaIcon class="info-icon" icon="icon-park-outline:crown" :size="16" />
+                角色: {{ userInfo?.role === 'admin' ? '管理员' : '普通用户' }}
+              </n-text>
+            </n-grid-item>
+            <n-grid-item>
+              <n-text depth="3" class="info-item">
+                <NovaIcon class="info-icon" icon="icon-park-outline:check-one" :size="16" />
+                状态: {{ userInfo?.status === 1 ? '正常' : '禁用' }}
+              </n-text>
+            </n-grid-item>
+            <n-grid-item>
+              <n-text depth="3" class="info-item">
+                <NovaIcon class="info-icon" icon="icon-park-outline:quote" :size="16" />
+                {{ userInfo?.motto || '暂无签名' }}
+              </n-text>
+            </n-grid-item>
+          </n-grid>
+        </div>
+
+        <div class="user-actions-section">
+          <n-space vertical class="w-full">
+            <n-button type="primary" block @click="activeTab = 'profile'">
+              编辑资料
             </n-button>
-          </n-form-item>
-        </n-form>
-      </n-space>
+          </n-space>
+        </div>
+      </div>
     </n-card>
-  </n-space>
+
+    <!-- 标签栏导航 -->
+    <n-card>
+      <n-tabs
+        v-model:value="activeTab"
+        type="line"
+        animated
+      >
+        <n-tab-pane name="profile" tab="个人资料">
+          <ProfileTab />
+        </n-tab-pane>
+        <n-tab-pane name="api" tab="API 管理">
+          <ApiTab />
+        </n-tab-pane>
+      </n-tabs>
+    </n-card>
+
+    <!-- 头像修改对话框 -->
+    <n-modal v-model:show="showAvatarModal" preset="dialog" title="修改头像">
+      <n-space vertical size="large">
+        <div>
+          <n-text depth="3">
+            当前头像
+          </n-text>
+          <div class="avatar-preview mt-2">
+            <n-avatar :size="80" :src="avatarForm.currentAvatar" :img-props="{ referrerpolicy: 'no-referrer' }">
+              <NovaIcon v-if="!avatarForm.currentAvatar" icon="icon-park-outline:user" :size="40" />
+            </n-avatar>
+            <n-input
+              :value="avatarForm.currentAvatar"
+              readonly
+              placeholder="当前头像 URL"
+              class="mt-2"
+              disabled
+            />
+          </div>
+        </div>
+
+        <n-divider />
+
+        <div>
+          <n-text depth="3">
+            新头像
+          </n-text>
+          <div class="avatar-preview mt-2">
+            <n-avatar :size="80" :src="avatarForm.newAvatar" :img-props="{ referrerpolicy: 'no-referrer' }">
+              <NovaIcon v-if="!avatarForm.newAvatar" icon="icon-park-outline:user" :size="40" />
+            </n-avatar>
+            <n-input
+              v-model:value="avatarForm.newAvatar"
+              type="textarea"
+              placeholder="请输入新的头像 URL（最多250字符）"
+              :maxlength="250"
+              :rows="3"
+              class="mt-2"
+            />
+          </div>
+        </div>
+      </n-space>
+
+      <template #action>
+        <n-space>
+          <n-button @click="showAvatarModal = false">
+            取消
+          </n-button>
+          <n-button type="primary" @click="handleAvatarSubmit">
+            保存
+          </n-button>
+        </n-space>
+      </template>
+    </n-modal>
+  </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.user-info-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.user-avatar-section {
+  flex-shrink: 0;
+}
+
+.user-details-section {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-name {
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+
+.user-email {
+  display: block;
+  margin-bottom: 12px;
+  word-break: break-all;
+}
+
+.user-actions-section {
+  flex-shrink: 0;
+  min-width: 120px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+}
+
+.info-icon {
+  margin-right: 6px;
+  font-size: 14px;
+}
+
+.clickable-avatar {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.clickable-avatar:hover {
+  transform: scale(1.05);
+  filter: brightness(1.1);
+}
+
+.avatar-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .user-header :deep(.n-card__content) {
+    padding: 16px;
+  }
+
+  .user-info-container {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 16px;
+  }
+
+  .user-avatar-section {
+    order: 1;
+  }
+
+  .user-details-section {
+    order: 2;
+    width: 100%;
+  }
+
+  .user-actions-section {
+    order: 3;
+    width: 100%;
+    min-width: unset;
+  }
+
+  .user-actions-section .n-space {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .user-header :deep(.n-card__content) {
+    padding: 12px;
+  }
+
+  .user-avatar-section .user-avatar {
+    --n-size: 60px !important;
+  }
+
+  .user-name {
+    font-size: 18px;
+  }
+}
+</style>

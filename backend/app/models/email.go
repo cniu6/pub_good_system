@@ -39,6 +39,114 @@ func CreateEmailLog(to, subject, content, tplName string, status int, errorMsg s
 	return err
 }
 
+// EmailLogQuery 邮件日志查询参数
+type EmailLogQuery struct {
+	Page         int    `form:"page" json:"page"`
+	PageSize     int    `form:"page_size" json:"page_size"`
+	ToEmail      string `form:"to_email" json:"to_email"`
+	TemplateName string `form:"template_name" json:"template_name"`
+	Status       int    `form:"status" json:"status"` // -1=全部, 0=失败, 1=成功
+	StartTime    string `form:"start_time" json:"start_time"`
+	EndTime      string `form:"end_time" json:"end_time"`
+}
+
+// GetEmailLogList 分页查询邮件日志
+func GetEmailLogList(q *EmailLogQuery) ([]EmailLog, int64, error) {
+	var logs []EmailLog
+	var total int64
+
+	where := "WHERE 1=1"
+	args := []interface{}{}
+
+	if q.ToEmail != "" {
+		where += " AND to_email LIKE ?"
+		args = append(args, "%"+q.ToEmail+"%")
+	}
+	if q.TemplateName != "" {
+		where += " AND template_name = ?"
+		args = append(args, q.TemplateName)
+	}
+	if q.Status >= 0 {
+		where += " AND status = ?"
+		args = append(args, q.Status)
+	}
+	if q.StartTime != "" {
+		where += " AND created_at >= ?"
+		args = append(args, q.StartTime)
+	}
+	if q.EndTime != "" {
+		where += " AND created_at <= ?"
+		args = append(args, q.EndTime)
+	}
+
+	err := db.DB.Get(&total, "SELECT COUNT(*) FROM email_logs "+where, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if q.Page <= 0 {
+		q.Page = 1
+	}
+	if q.PageSize <= 0 {
+		q.PageSize = 20
+	}
+	offset := (q.Page - 1) * q.PageSize
+
+	list_sql := "SELECT id, to_email, subject, template_name, status, error_msg, created_at FROM email_logs " +
+		where + " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?"
+	args = append(args, q.PageSize, offset)
+
+	err = db.DB.Select(&logs, list_sql, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return logs, total, nil
+}
+
+// GetEmailLogByID 根据 ID 获取邮件日志详情（含 content）
+func GetEmailLogByID(id uint64) (*EmailLog, error) {
+	var log EmailLog
+	err := db.DB.Get(&log, "SELECT * FROM email_logs WHERE id = ?", id)
+	if err != nil {
+		return nil, err
+	}
+	return &log, nil
+}
+
+// DeleteEmailLogsBefore 删除指定时间之前的邮件日志
+func DeleteEmailLogsBefore(before string) (int64, error) {
+	result, err := db.DB.Exec("DELETE FROM email_logs WHERE created_at < ?", before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+// GetEmailLogStats 邮件日志统计
+func GetEmailLogStats() (total int64, success int64, fail int64, err error) {
+	err = db.DB.Get(&total, "SELECT COUNT(*) FROM email_logs")
+	if err != nil {
+		return
+	}
+	err = db.DB.Get(&success, "SELECT COUNT(*) FROM email_logs WHERE status = 1")
+	if err != nil {
+		return
+	}
+	fail = total - success
+	return
+}
+
+// GetEmailTemplateNames 获取所有模板名（去重），用于前端筛选
+func GetEmailTemplateNames() ([]string, error) {
+	var names []string
+	err := db.DB.Select(&names, "SELECT DISTINCT template_name FROM email_logs WHERE template_name != '' ORDER BY template_name")
+	if err != nil {
+		return nil, err
+	}
+	return names, nil
+}
+
 // CreateEmailTemplate 创建邮件模板
 func CreateEmailTemplate(tpl *EmailTemplate) error {
 	query := `INSERT INTO email_templates (name, lang, title, subject, content, description, variables, status) 

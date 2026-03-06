@@ -9,7 +9,7 @@ tmp_dir = "build/tmp"
 # 构建前执行的命令
 pre_cmd = [
     "go run backend/app/plugins/gen_plugins.go",
-    "cd backend && swag init -g cmd/main.go -o docs --parseDependency --parseInternal"
+    "cd backend && swag init -g cmd/main.go -o docs --parseDependency --parseInternal --quiet"
 ]
 
 # 主程序入口
