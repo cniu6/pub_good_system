@@ -208,7 +208,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "获取操作日志列表（分页）",
+                "description": "获取操作日志列表（分页），仅支持简单分页浏览",
                 "consumes": [
                     "application/json"
                 ],
@@ -233,30 +233,6 @@
                         "description": "每页数量",
                         "name": "page_size",
                         "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "用户ID",
-                        "name": "user_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "操作类型",
-                        "name": "action",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "开始时间(时间戳)",
-                        "name": "start_time",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "结束时间(时间戳)",
-                        "name": "end_time",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -276,7 +252,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "清理指定时间之前的操作日志",
+                "description": "清理指定时间之前的操作日志，用于控制日志数量",
                 "consumes": [
                     "application/json"
                 ],
@@ -312,14 +288,14 @@
                 }
             }
         },
-        "/api/v1/admin/logs/stats": {
+        "/api/v1/admin/settings": {
             "get": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "获取操作日志统计数据",
+                "description": "获取所有系统配置，按分类分组",
                 "consumes": [
                     "application/json"
                 ],
@@ -327,9 +303,296 @@
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-操作日志"
+                    "Admin-系统配置"
                 ],
-                "summary": "获取操作日志统计",
+                "summary": "获取所有系统配置",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/app_controllers_admin.SettingsListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "创建一个新的自定义配置项",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-系统配置"
+                ],
+                "summary": "创建新配置",
+                "parameters": [
+                    {
+                        "description": "配置信息",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app_controllers_admin.CreateSettingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/settings/batch": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "批量更新多个配置项的值",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-系统配置"
+                ],
+                "summary": "批量更新配置",
+                "parameters": [
+                    {
+                        "description": "配置键值对",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app_controllers_admin.BatchUpdateSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/settings/category/{category}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取指定分类下的所有配置项",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-系统配置"
+                ],
+                "summary": "获取指定分类的配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "分类名称",
+                        "name": "category",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/settings/{key}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据键名获取配置详情",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-系统配置"
+                ],
+                "summary": "获取单个配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "配置键名",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "更新指定配置项的值",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-系统配置"
+                ],
+                "summary": "更新单个配置值",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "配置键名",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "配置值",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app_controllers_admin.UpdateSettingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "删除指定的自定义配置项",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-系统配置"
+                ],
+                "summary": "删除配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "配置键名",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/settings/{key}/meta": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "更新配置项的完整信息（包括值和元数据）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-系统配置"
+                ],
+                "summary": "更新配置元数据",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "配置键名",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "配置信息",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app_controllers_admin.UpdateSettingMetaRequest"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -420,6 +683,52 @@
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/fst_backend_app_services.UserCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/users/batch-simple": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据用户ID列表批量获取用户简要信息（用户名、昵称等），用于日志等场景显示用户名",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-用户管理"
+                ],
+                "summary": "批量获取用户简要信息",
+                "parameters": [
+                    {
+                        "description": "用户ID列表 {ids: [1, 2, 3]}",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            }
                         }
                     }
                 ],
@@ -723,6 +1032,38 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/public/app-config": {
+            "get": {
+                "description": "获取前端应用需要的公开配置信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Public-配置"
+                ],
+                "summary": "获取应用配置",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/app_controllers_public.AppConfigResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -1215,6 +1556,58 @@
         }
     },
     "definitions": {
+        "app_controllers_admin.BatchUpdateSettingsRequest": {
+            "type": "object",
+            "required": [
+                "settings"
+            ],
+            "properties": {
+                "settings": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "app_controllers_admin.CreateSettingRequest": {
+            "type": "object",
+            "required": [
+                "key",
+                "label"
+            ],
+            "properties": {
+                "category": {
+                    "description": "basic, security, email, custom",
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_editable": {
+                    "type": "boolean"
+                },
+                "is_public": {
+                    "type": "boolean"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "type": {
+                    "description": "string, number, boolean, json",
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "app_controllers_admin.EmailPreviewRequest": {
             "type": "object",
             "required": [
@@ -1246,6 +1639,93 @@
                     "type": "integer"
                 },
                 "subject": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_admin.SettingsListResponse": {
+            "type": "object",
+            "properties": {
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/fst_backend_app_models.SettingsGroup"
+                    }
+                }
+            }
+        },
+        "app_controllers_admin.UpdateSettingMetaRequest": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_editable": {
+                    "type": "boolean"
+                },
+                "is_public": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_admin.UpdateSettingRequest": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_public.AppConfigResponse": {
+            "type": "object",
+            "properties": {
+                "allow_register": {
+                    "description": "功能开关",
+                    "type": "boolean"
+                },
+                "copyright": {
+                    "type": "string"
+                },
+                "default_lang": {
+                    "description": "语言配置",
+                    "type": "string"
+                },
+                "geetest_captcha_id": {
+                    "description": "极验配置",
+                    "type": "string"
+                },
+                "geetest_enabled": {
+                    "type": "boolean"
+                },
+                "icp": {
+                    "type": "string"
+                },
+                "site_desc": {
+                    "type": "string"
+                },
+                "site_logo": {
+                    "type": "string"
+                },
+                "site_name": {
+                    "description": "基本配置",
+                    "type": "string"
+                },
+                "version": {
                     "type": "string"
                 }
             }
@@ -1384,6 +1864,50 @@
                     "type": "string"
                 },
                 "nickname": {
+                    "type": "string"
+                }
+            }
+        },
+        "fst_backend_app_models.SettingDTO": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_editable": {
+                    "type": "boolean"
+                },
+                "is_public": {
+                    "type": "boolean"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "value": {}
+            }
+        },
+        "fst_backend_app_models.SettingsGroup": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/fst_backend_app_models.SettingDTO"
+                    }
+                },
+                "label": {
                     "type": "string"
                 }
             }

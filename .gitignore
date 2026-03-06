@@ -1,36 +1,33 @@
-资料/
-#资料
+# IDE / 编辑器
 .trae/
-
-# BitFun snapshot data - auto managed
 .bitfun/
+.golutra/
+.vscode/
+.idea/
 
+# 参考资料 (不纳入版本控制)
+资料/
 
-# Logs
+# 构建产物
+build/*/fst*
 
+# 日志
 *.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 
-frontend/logs/*
-frontend/node_modules/*
-frontend/node_modules
-frontend/dist
-frontend/dist-ssr
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
 frontend/*.local
+# 管理端入口 HTML 由 vite.config.ts 根据 VITE_ADMIN_BASE_PATH 自动生成，无需提交
+# 模板源文件位于 frontend/_admin-entry/index.html
+frontend/system-mgr/
 
-# Editor directories and files
-
-
-# Lock files
-
-
-# 编译包
-build/*/f*
-
-#一些傻逼的文件
+# Windows 垃圾文件
 *nul*
 *null*
+Thumbs.db
+Desktop.ini

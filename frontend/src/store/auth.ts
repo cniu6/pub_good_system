@@ -30,6 +30,16 @@ export const useAuthStore = defineStore('auth-store', {
     },
   },
   actions: {
+    /** 更新本地用户信息 */
+    updateUserInfo(info: Partial<Api.Login.Info>) {
+      if (this.userInfo) {
+        this.userInfo = { ...this.userInfo, ...info }
+      } else {
+        this.userInfo = info as Api.Login.Info
+      }
+      local.set('userInfo', this.userInfo)
+    },
+
     /* 登录退出，重置用户信息等 */
     async logout() {
       // 清除自动刷新定时器

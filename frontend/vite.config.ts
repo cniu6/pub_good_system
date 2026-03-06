@@ -10,7 +10,7 @@ function normalizeAdminEntryDir(path: string | undefined): string {
 }
 
 function ensureAdminEntryHtml(rootDir: string, adminEntryDir: string): string {
-  const templatePath = resolve(rootDir, 'system-mgr/index.html')
+  const templatePath = resolve(rootDir, '_admin-entry/index.html')
   const targetPath = resolve(rootDir, adminEntryDir, 'index.html')
 
   if (!existsSync(targetPath)) {

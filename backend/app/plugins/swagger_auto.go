@@ -179,6 +179,7 @@ func runSwagInit(backendDir string) error {
 		"-o", "docs",
 		"--parseDependency",
 		"--parseInternal",
+		"--quiet",
 	}
 
 	cmd := exec.Command(swagPath, args...)

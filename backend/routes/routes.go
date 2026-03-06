@@ -20,15 +20,16 @@ import (
 // ========================================
 
 var (
-	publicAuthCtrl     *public.AuthController
-	publicSettingsCtrl *public.SettingsController
-	userProfileCtrl    *user.ProfileController
-	systemCtrl         *controllers.SystemController
-	adminUserCtrl      *admin.UserController
-	adminLogCtrl       *admin.LogController
-	adminEmailTplCtrl  *admin.EmailTemplateController
-	adminSettingsCtrl  *admin.SettingsController
-	adminDebugCtrl     *admin.DebugController
+	publicAuthCtrl      *public.AuthController
+	publicSettingsCtrl  *public.SettingsController
+	userProfileCtrl     *user.ProfileController
+	systemCtrl          *controllers.SystemController
+	adminUserCtrl       *admin.UserController
+	adminLogCtrl        *admin.LogController
+	adminEmailTplCtrl   *admin.EmailTemplateController
+	adminEmailLogCtrl   *admin.EmailLogController
+	adminSettingsCtrl   *admin.SettingsController
+	adminDebugCtrl      *admin.DebugController
 )
 
 // initControllers 初始化所有控制器
@@ -40,6 +41,7 @@ func initControllers() {
 	adminUserCtrl = admin.NewUserController()
 	adminLogCtrl = admin.NewLogController()
 	adminEmailTplCtrl = admin.NewEmailTemplateController()
+	adminEmailLogCtrl = admin.NewEmailLogController()
 	adminSettingsCtrl = admin.NewSettingsController()
 	adminDebugCtrl = admin.NewDebugController()
 }
@@ -127,15 +129,25 @@ func SetupRoutes(router *gin.Engine) {
 					logs.POST("/clean", adminLogCtrl.Clean)
 				}
 
-				// ----- 邮件模板 -----
-				emailTemplates := adminGroup.Group("/email-templates")
-				{
-					emailTemplates.GET("", adminEmailTplCtrl.List)
-					emailTemplates.GET("/:id", adminEmailTplCtrl.Detail)
-					emailTemplates.PUT("/:id", adminEmailTplCtrl.Update)
-					emailTemplates.POST("/:id/preview", adminEmailTplCtrl.Preview)
-					emailTemplates.POST("/:id/reset", adminEmailTplCtrl.Reset)
-				}
+			// ----- 邮件模板 -----
+			emailTemplates := adminGroup.Group("/email-templates")
+			{
+				emailTemplates.GET("", adminEmailTplCtrl.List)
+				emailTemplates.GET("/:id", adminEmailTplCtrl.Detail)
+				emailTemplates.PUT("/:id", adminEmailTplCtrl.Update)
+				emailTemplates.POST("/:id/preview", adminEmailTplCtrl.Preview)
+				emailTemplates.POST("/:id/reset", adminEmailTplCtrl.Reset)
+			}
+
+			// ----- 邮件发送记录 -----
+			emailLogs := adminGroup.Group("/email-logs")
+			{
+				emailLogs.GET("", adminEmailLogCtrl.List)
+				emailLogs.GET("/stats", adminEmailLogCtrl.Stats)
+				emailLogs.GET("/template-names", adminEmailLogCtrl.TemplateNames)
+				emailLogs.GET("/:id", adminEmailLogCtrl.Detail)
+				emailLogs.POST("/clean", adminEmailLogCtrl.Clean)
+			}
 
 				// ----- 系统配置 -----
 				adminSettingsCtrl.RegisterRoutes(adminGroup)

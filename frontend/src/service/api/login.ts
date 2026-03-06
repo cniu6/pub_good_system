@@ -62,3 +62,8 @@ export function fetchUpdateProfile(data: any) {
 export function fetchChangePassword(data: { old_password: string, new_password: string }) {
   return request.Put<Service.ResponseResult<any>>('/api/v1/user/password', data)
 }
+
+/** 重置API密钥 */
+export function fetchResetApiKey() {
+  return request.Post<Service.ResponseResult<{ apikey: string }>>('/api/v1/user/resetapikey')
+}

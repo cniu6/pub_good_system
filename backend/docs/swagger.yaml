@@ -1,5 +1,40 @@
 basePath: /api
 definitions:
+  app_controllers_admin.BatchUpdateSettingsRequest:
+    properties:
+      settings:
+        additionalProperties:
+          type: string
+        type: object
+    required:
+    - settings
+    type: object
+  app_controllers_admin.CreateSettingRequest:
+    properties:
+      category:
+        description: basic, security, email, custom
+        type: string
+      description:
+        type: string
+      is_editable:
+        type: boolean
+      is_public:
+        type: boolean
+      key:
+        type: string
+      label:
+        type: string
+      sort_order:
+        type: integer
+      type:
+        description: string, number, boolean, json
+        type: string
+      value:
+        type: string
+    required:
+    - key
+    - label
+    type: object
   app_controllers_admin.EmailPreviewRequest:
     properties:
       content:
@@ -22,6 +57,64 @@ definitions:
         type: string
     required:
     - content
+    type: object
+  app_controllers_admin.SettingsListResponse:
+    properties:
+      categories:
+        items:
+          $ref: '#/definitions/fst_backend_app_models.SettingsGroup'
+        type: array
+    type: object
+  app_controllers_admin.UpdateSettingMetaRequest:
+    properties:
+      category:
+        type: string
+      description:
+        type: string
+      is_editable:
+        type: boolean
+      is_public:
+        type: boolean
+      label:
+        type: string
+      sort_order:
+        type: integer
+      type:
+        type: string
+      value:
+        type: string
+    type: object
+  app_controllers_admin.UpdateSettingRequest:
+    properties:
+      value:
+        type: string
+    type: object
+  app_controllers_public.AppConfigResponse:
+    properties:
+      allow_register:
+        description: 功能开关
+        type: boolean
+      copyright:
+        type: string
+      default_lang:
+        description: 语言配置
+        type: string
+      geetest_captcha_id:
+        description: 极验配置
+        type: string
+      geetest_enabled:
+        type: boolean
+      icp:
+        type: string
+      site_desc:
+        type: string
+      site_logo:
+        type: string
+      site_name:
+        description: 基本配置
+        type: string
+      version:
+        type: string
     type: object
   app_controllers_public.LoginRequest:
     properties:
@@ -113,6 +206,35 @@ definitions:
       motto:
         type: string
       nickname:
+        type: string
+    type: object
+  fst_backend_app_models.SettingDTO:
+    properties:
+      category:
+        type: string
+      description:
+        type: string
+      is_editable:
+        type: boolean
+      is_public:
+        type: boolean
+      key:
+        type: string
+      label:
+        type: string
+      type:
+        type: string
+      value: {}
+    type: object
+  fst_backend_app_models.SettingsGroup:
+    properties:
+      category:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/fst_backend_app_models.SettingDTO'
+        type: array
+      label:
         type: string
     type: object
   fst_backend_app_services.UserCreateRequest:
@@ -304,7 +426,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: 获取操作日志列表（分页）
+      description: 获取操作日志列表（分页），仅支持简单分页浏览
       parameters:
       - default: 1
         description: 页码
@@ -315,22 +437,6 @@ paths:
         description: 每页数量
         in: query
         name: page_size
-        type: integer
-      - description: 用户ID
-        in: query
-        name: user_id
-        type: integer
-      - description: 操作类型
-        in: query
-        name: action
-        type: string
-      - description: 开始时间(时间戳)
-        in: query
-        name: start_time
-        type: integer
-      - description: 结束时间(时间戳)
-        in: query
-        name: end_time
         type: integer
       produces:
       - application/json
@@ -348,7 +454,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: 清理指定时间之前的操作日志
+      description: 清理指定时间之前的操作日志，用于控制日志数量
       parameters:
       - description: '清理参数 {before_time: timestamp}'
         in: body
@@ -371,11 +477,39 @@ paths:
       summary: 清理操作日志
       tags:
       - Admin-操作日志
-  /api/v1/admin/logs/stats:
+  /api/v1/admin/settings:
     get:
       consumes:
       - application/json
-      description: 获取操作日志统计数据
+      description: 获取所有系统配置，按分类分组
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/app_controllers_admin.SettingsListResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 获取所有系统配置
+      tags:
+      - Admin-系统配置
+    post:
+      consumes:
+      - application/json
+      description: 创建一个新的自定义配置项
+      parameters:
+      - description: 配置信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_admin.CreateSettingRequest'
       produces:
       - application/json
       responses:
@@ -385,9 +519,158 @@ paths:
             $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
-      summary: 获取操作日志统计
+      summary: 创建新配置
       tags:
-      - Admin-操作日志
+      - Admin-系统配置
+  /api/v1/admin/settings/{key}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的自定义配置项
+      parameters:
+      - description: 配置键名
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除配置
+      tags:
+      - Admin-系统配置
+    get:
+      consumes:
+      - application/json
+      description: 根据键名获取配置详情
+      parameters:
+      - description: 配置键名
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取单个配置
+      tags:
+      - Admin-系统配置
+    put:
+      consumes:
+      - application/json
+      description: 更新指定配置项的值
+      parameters:
+      - description: 配置键名
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: 配置值
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_admin.UpdateSettingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新单个配置值
+      tags:
+      - Admin-系统配置
+  /api/v1/admin/settings/{key}/meta:
+    put:
+      consumes:
+      - application/json
+      description: 更新配置项的完整信息（包括值和元数据）
+      parameters:
+      - description: 配置键名
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: 配置信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_admin.UpdateSettingMetaRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新配置元数据
+      tags:
+      - Admin-系统配置
+  /api/v1/admin/settings/batch:
+    put:
+      consumes:
+      - application/json
+      description: 批量更新多个配置项的值
+      parameters:
+      - description: 配置键值对
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_admin.BatchUpdateSettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 批量更新配置
+      tags:
+      - Admin-系统配置
+  /api/v1/admin/settings/category/{category}:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定分类下的所有配置项
+      parameters:
+      - description: 分类名称
+        in: path
+        name: category
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取指定分类的配置
+      tags:
+      - Admin-系统配置
   /api/v1/admin/users:
     get:
       consumes:
@@ -582,6 +865,35 @@ paths:
       summary: 更新用户状态
       tags:
       - Admin-用户管理
+  /api/v1/admin/users/batch-simple:
+    post:
+      consumes:
+      - application/json
+      description: 根据用户ID列表批量获取用户简要信息（用户名、昵称等），用于日志等场景显示用户名
+      parameters:
+      - description: '用户ID列表 {ids: [1, 2, 3]}'
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties:
+            items:
+              format: int64
+              type: integer
+            type: array
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 批量获取用户简要信息
+      tags:
+      - Admin-用户管理
   /api/v1/demo/echo:
     post:
       consumes:
@@ -635,6 +947,24 @@ paths:
       summary: Demo插件信息
       tags:
       - Plugin-Demo
+  /api/v1/public/app-config:
+    get:
+      description: 获取前端应用需要的公开配置信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/app_controllers_public.AppConfigResponse'
+              type: object
+      summary: 获取应用配置
+      tags:
+      - Public-配置
   /api/v1/public/forgot-password:
     post:
       consumes:
