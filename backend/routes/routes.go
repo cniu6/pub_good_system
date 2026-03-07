@@ -122,6 +122,9 @@ func SetupRoutes(router *gin.Engine) {
 					users.DELETE("/:id", adminUserCtrl.Delete)
 					users.PUT("/:id/status", adminUserCtrl.UpdateStatus)
 					users.PUT("/:id/password", adminUserCtrl.ResetPassword)
+					users.GET("/lookup", adminUserCtrl.LookupUser)
+					users.POST("/:id/login-as", adminUserCtrl.LoginToUser)
+					users.POST("/:id/reset-apikey", adminUserCtrl.ResetApiKey)
 				}
 
 				// ----- 操作日志 -----
