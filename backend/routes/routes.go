@@ -28,8 +28,9 @@ var (
 	adminLogCtrl        *admin.LogController
 	adminEmailTplCtrl   *admin.EmailTemplateController
 	adminEmailLogCtrl   *admin.EmailLogController
-	adminSettingsCtrl   *admin.SettingsController
-	adminDebugCtrl      *admin.DebugController
+	adminSettingsCtrl      *admin.SettingsController
+	adminDebugCtrl         *admin.DebugController
+	adminMoneyScoreCtrl    *admin.UserMoneyScoreController
 )
 
 // initControllers 初始化所有控制器
@@ -44,6 +45,7 @@ func initControllers() {
 	adminEmailLogCtrl = admin.NewEmailLogController()
 	adminSettingsCtrl = admin.NewSettingsController()
 	adminDebugCtrl = admin.NewDebugController()
+	adminMoneyScoreCtrl = admin.NewUserMoneyScoreController()
 }
 
 func SetupRoutes(router *gin.Engine) {
@@ -148,6 +150,9 @@ func SetupRoutes(router *gin.Engine) {
 				emailLogs.GET("/:id", adminEmailLogCtrl.Detail)
 				emailLogs.POST("/clean", adminEmailLogCtrl.Clean)
 			}
+
+				// ----- 余额/积分管理 -----
+				adminMoneyScoreCtrl.RegisterRoutes(adminGroup)
 
 				// ----- 系统配置 -----
 				adminSettingsCtrl.RegisterRoutes(adminGroup)

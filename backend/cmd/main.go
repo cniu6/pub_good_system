@@ -56,6 +56,10 @@ func main() {
 	// 5.2 初始化用户会话表
 	models.InitUserSessionsTable()
 
+	// 5.3 初始化余额/积分变动日志表
+	models.InitUserMoneyLogsTable()
+	models.InitUserScoreLogsTable()
+
 	// 6. 初始化配置服务（缓存）
 	services.InitSettingsService()
 

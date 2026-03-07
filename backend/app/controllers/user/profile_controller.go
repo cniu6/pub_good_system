@@ -8,6 +8,7 @@ import (
 	"fst/backend/utils"
 	"math/big"
 	"math/rand"
+	"strconv"
 	"strings"
 	"time"
 
@@ -927,6 +928,84 @@ func validateGeetestFromRequest(c *gin.Context) bool {
 }
 
 // ========================================
+// 余额/积分日志（用户只能查看自己的）
+// ========================================
+
+// GetMoneyLogs 获取当前用户的余额变动日志
+// @Summary 获取我的余额变动日志
+// @Tags 用户中心
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "页码" default(1)
+// @Param page_size query int false "每页数量" default(20)
+// @Param keyword query string false "搜索关键词"
+// @Success 200 {object} utils.Response
+// @Router /api/v1/user/money-logs [get]
+func (ctrl *ProfileController) GetMoneyLogs(c *gin.Context) {
+	user_id, exists := c.Get("userID")
+	if !exists {
+		utils.Fail(c, 401, "User not logged in")
+		return
+	}
+	uid := user_id.(uint64)
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	keyword := c.DefaultQuery("keyword", "")
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	logs, total, err := services.GetUserMoneyLogList(uid, page, pageSize, keyword)
+	if err != nil {
+		utils.Fail(c, 500, "获取余额日志失败: "+err.Error())
+		return
+	}
+
+	utils.Success(c, gin.H{"list": logs, "total": total})
+}
+
+// GetScoreLogs 获取当前用户的积分变动日志
+// @Summary 获取我的积分变动日志
+// @Tags 用户中心
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "页码" default(1)
+// @Param page_size query int false "每页数量" default(20)
+// @Param keyword query string false "搜索关键词"
+// @Success 200 {object} utils.Response
+// @Router /api/v1/user/score-logs [get]
+func (ctrl *ProfileController) GetScoreLogs(c *gin.Context) {
+	user_id, exists := c.Get("userID")
+	if !exists {
+		utils.Fail(c, 401, "User not logged in")
+		return
+	}
+	uid := user_id.(uint64)
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	keyword := c.DefaultQuery("keyword", "")
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	logs, total, err := services.GetUserScoreLogList(uid, page, pageSize, keyword)
+	if err != nil {
+		utils.Fail(c, 500, "获取积分日志失败: "+err.Error())
+		return
+	}
+
+	utils.Success(c, gin.H{"list": logs, "total": total})
+}
+
+// ========================================
 // 用户仪表盘
 // ========================================
 
@@ -1022,6 +1101,10 @@ func (ctrl *ProfileController) RegisterRoutes(group *gin.RouterGroup) {
 
 	// API Key
 	group.POST("/resetapikey", ctrl.ResetApiKey)
+
+	// 余额/积分日志
+	group.GET("/money-logs", ctrl.GetMoneyLogs)
+	group.GET("/score-logs", ctrl.GetScoreLogs)
 
 	// 仪表盘
 	group.GET("/dashboard", ctrl.GetDashboard)
