@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/utils"
 	"strconv"
@@ -281,4 +282,110 @@ func (c *UserController) BatchGetSimpleInfo(ctx *gin.Context) {
 	utils.Success(ctx, gin.H{
 		"users": users,
 	})
+}
+
+// LoginToUser 管理员登录指定用户（生成该用户的 JWT token）
+// @Summary 管理员登录指定用户
+// @Description 管理员可以生成任意用户的 JWT token 进行调试
+// @Tags Admin-用户管理
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "用户ID"
+// @Success 200 {object} utils.Response
+// @Router /api/v1/admin/users/{id}/login-as [post]
+func (c *UserController) LoginToUser(ctx *gin.Context) {
+	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(ctx, 400, "无效的用户ID")
+		return
+	}
+
+	user, err := c.userService.GetByID(id)
+	if err != nil {
+		utils.Fail(ctx, 404, "用户不存在")
+		return
+	}
+
+	token, err := utils.GenerateToken(user.ID, user.Role)
+	if err != nil {
+		utils.Fail(ctx, 500, "生成 token 失败")
+		return
+	}
+
+	utils.Success(ctx, gin.H{
+		"user":  user,
+		"token": token,
+	})
+}
+
+// ResetApiKey 管理员重置指定用户的 API Key
+// @Summary 重置用户 API Key
+// @Description 管理员重置指定用户的 API 密钥
+// @Tags Admin-用户管理
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "用户ID"
+// @Success 200 {object} utils.Response
+// @Router /api/v1/admin/users/{id}/reset-apikey [post]
+func (c *UserController) ResetApiKey(ctx *gin.Context) {
+	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(ctx, 400, "无效的用户ID")
+		return
+	}
+
+	newKey, err := models.ResetUserApiKey(id)
+	if err != nil {
+		utils.Fail(ctx, 500, "重置 API Key 失败: "+err.Error())
+		return
+	}
+
+	utils.Success(ctx, gin.H{
+		"apikey": newKey,
+	})
+}
+
+// LookupUser 按标识查找用户（ID/用户名/邮箱）
+// @Summary 按标识查找用户
+// @Description 通过 ID、用户名或邮箱查找用户
+// @Tags Admin-用户管理
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param keyword query string true "用户标识（ID/用户名/邮箱）"
+// @Success 200 {object} utils.Response
+// @Router /api/v1/admin/users/lookup [get]
+func (c *UserController) LookupUser(ctx *gin.Context) {
+	keyword := utils.Clean_XSS(ctx.DefaultQuery("keyword", ""))
+	if keyword == "" {
+		utils.Fail(ctx, 400, "用户标识不能为空")
+		return
+	}
+
+	// 先尝试按 ID 查找
+	if id, err := strconv.ParseUint(keyword, 10, 64); err == nil {
+		user, err := c.userService.GetByID(id)
+		if err == nil {
+			utils.Success(ctx, gin.H{"user": user})
+			return
+		}
+	}
+
+	// 按用户名查找
+	user, err := models.GetUserByUsername(keyword)
+	if err == nil && user != nil {
+		utils.Success(ctx, gin.H{"user": user})
+		return
+	}
+
+	// 按邮箱查找
+	user, err = models.GetUserByEmail(keyword)
+	if err == nil && user != nil {
+		utils.Success(ctx, gin.H{"user": user})
+		return
+	}
+
+	utils.Fail(ctx, 404, "用户不存在")
 }
