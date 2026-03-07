@@ -1,4 +1,4 @@
-import { fetchUpdateToken } from '../api/login'
+import { fetchUpdateToken } from '../api/user/login'
 import { useAuthStore } from '@/store'
 import { local } from '@/utils'
 import {

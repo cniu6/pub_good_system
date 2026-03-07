@@ -26,7 +26,7 @@ fst/
 │   ├── pkg/pluginregistry/  # 插件注册表
 │   ├── routes/              # API 路由定义
 │   └── utils/               # 通用工具
-├── frontend/                # 前端 Vue 源码
+├── frontend/                # 前端 Vue 源码 (views: _builtin/admin/user/setting/demo/index)
 ├── doc/                     # 详细文档
 ├── build/                   # 构建产物
 ├── .env / .env.example      # 环境变量

@@ -44,11 +44,23 @@ frontend/src/
 │   ├── admin.routes.ts      # 管理端路由定义（会被打包到独立 chunk）
 │   ├── admin.loader.ts      # 管理端路由动态加载器
 │   └── guard.ts             # 路由守卫（验证管理员权限）
-├── views/admin/             # 管理端视图（会被打包到独立 chunk）
-│   ├── dashboard/
-│   └── users/
-└── service/api/admin/       # 管理端 API（会被打包到独立 chunk）
-    └── user.ts
+├── views/
+│   ├── admin/               # 管理端视图（会被打包到独立 chunk）
+│   │   ├── dashboard/
+│   │   ├── users/
+│   │   ├── email-templates/
+│   │   ├── logs/
+│   │   └── settings/
+│   ├── user/                # 用户端视图
+│   │   ├── dashboard/       # 用户仪表盘
+│   │   └── user-center/     # 个人中心
+│   ├── _builtin/            # 系统内置页面（登录/错误页）
+│   ├── setting/             # 设置页面
+│   ├── demo/                # 演示页面
+│   └── index/               # 首页
+└── service/api/
+    ├── admin/               # 管理端 API（会被打包到独立 chunk）
+    └── user/                # 用户 API（登录/个人中心）
 ```
 
 ### 关键代码
