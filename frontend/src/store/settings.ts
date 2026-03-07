@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { fetchAppConfig, type AppConfig } from '@/service/api/app-config'
+import { geetestManager } from '@/utils/geetest'
 
 /**
  * 运行时配置 Store
@@ -80,6 +81,9 @@ export const useSettingsStore = defineStore('settings-store', () => {
       if (response.data) {
         config.value = response.data
         isLoaded.value = true
+
+        // 注册极验启用检查函数
+        geetestManager.setEnabledChecker(() => geetestEnabled.value)
 
         // 输出调试信息
         if (import.meta.env.DEV) {

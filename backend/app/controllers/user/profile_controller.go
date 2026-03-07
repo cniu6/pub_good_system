@@ -436,6 +436,12 @@ func (ctrl *ProfileController) GetUserStats(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/user/email/send-code [post]
 func (ctrl *ProfileController) SendEmailChangeCode(c *gin.Context) {
+	// 极验验证
+	if !validateGeetestFromRequest(c) {
+		utils.Fail(c, 403, "Captcha validation failed")
+		return
+	}
+
 	user_id, exists := c.Get("userID")
 	if !exists {
 		utils.Fail(c, 401, "User not logged in")
@@ -553,6 +559,12 @@ func (ctrl *ProfileController) VerifyEmailChange(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/user/phone/send-code [post]
 func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
+	// 极验验证
+	if !validateGeetestFromRequest(c) {
+		utils.Fail(c, 403, "Captcha validation failed")
+		return
+	}
+
 	_, exists := c.Get("userID")
 	if !exists {
 		utils.Fail(c, 401, "User not logged in")
@@ -647,6 +659,12 @@ func (ctrl *ProfileController) VerifyPhoneChange(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/user/deactivate [post]
 func (ctrl *ProfileController) DeactivateAccount(c *gin.Context) {
+	// 极验验证
+	if !validateGeetestFromRequest(c) {
+		utils.Fail(c, 403, "Captcha validation failed")
+		return
+	}
+
 	user_id, exists := c.Get("userID")
 	if !exists {
 		utils.Fail(c, 401, "User not logged in")
@@ -828,6 +846,29 @@ func getLangFromRequest(c *gin.Context, req_lang string) string {
 		return "zh-CN"
 	}
 	return "en-US"
+}
+
+// validateGeetestFromRequest 从请求中提取极验参数并校验
+// 返回 true 表示通过（或极验未启用），false 表示校验失败
+func validateGeetestFromRequest(c *gin.Context) bool {
+	geetestConfig := services.GetGlobalGeetestRuntimeConfig()
+	if !geetestConfig.Enabled {
+		return true
+	}
+
+	geetestReq := utils.GeetestValidateRequest{
+		LotNumber:     c.GetHeader("X-Geetest-Lot-Number"),
+		CaptchaOutput: c.GetHeader("X-Geetest-Captcha-Output"),
+		PassToken:     c.GetHeader("X-Geetest-Pass-Token"),
+		GenTime:       c.GetHeader("X-Geetest-Gen-Time"),
+		CaptchaID:     c.GetHeader("X-Geetest-Captcha-Id"),
+	}
+
+	valid, err := utils.ValidateGeetest(geetestConfig.CaptchaID, geetestConfig.CaptchaKey, geetestReq)
+	if err != nil || !valid {
+		return false
+	}
+	return true
 }
 
 // ========================================
