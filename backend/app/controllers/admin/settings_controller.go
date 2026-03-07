@@ -80,6 +80,7 @@ var CategoryLabelMap = map[string]string{
 	"basic":    "基本设置",
 	"security": "安全设置",
 	"email":    "邮件设置",
+	"sms":      "短信设置",
 	"custom":   "自定义配置",
 }
 
@@ -528,6 +529,7 @@ func (ctrl *SettingsController) isValidCategory(cat string) bool {
 		"basic":    true,
 		"security": true,
 		"email":    true,
+		"sms":      true,
 		"custom":   true,
 	}
 	return validCategories[cat]
@@ -637,6 +639,49 @@ func (ctrl *SettingsController) resolveSettingValueForAdmin(setting models.Syste
 			}
 		}
 		return setting.GetTypedValue()
+	case "email_verify_enabled":
+		return services.GetGlobalVerifyConfig().EmailEnabled
+	case "sms_verify_enabled":
+		return services.GetGlobalVerifyConfig().SMSEnabled
+	case "sms_provider":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			val = config.GlobalConfig.SMSProvider
+		}
+		if val == "" {
+			val = "console"
+		}
+		return val
+	case "sms_access_key":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			val = config.GlobalConfig.SMSAccessKey
+		}
+		return val
+	case "sms_secret_key":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			val = config.GlobalConfig.SMSSecretKey
+		}
+		return val
+	case "sms_sign_name":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			val = config.GlobalConfig.SMSSignName
+		}
+		return val
+	case "sms_template_code":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			val = config.GlobalConfig.SMSTemplateCode
+		}
+		return val
+	case "sms_region":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			val = config.GlobalConfig.SMSRegion
+		}
+		return val
 	default:
 		return setting.GetTypedValue()
 	}
@@ -724,6 +769,31 @@ func (ctrl *SettingsController) refreshRuntimeConfig() {
 	}
 	if v, ok := settingMap["login_lock_duration"]; ok {
 		config.GlobalConfig.LoginLockDurationMinutes = parsePositiveIntSetting(v, config.GlobalConfig.LoginLockDurationMinutes)
+	}
+
+	// 同步邮箱/短信验证开关
+	verifyConfig := services.GetGlobalVerifyConfig()
+	config.GlobalConfig.EmailVerifyEnabled = verifyConfig.EmailEnabled
+	config.GlobalConfig.SMSVerifyEnabled = verifyConfig.SMSEnabled
+
+	// 同步短信服务配置并更新 SMS Provider
+	smsConfig := services.GetGlobalSMSRuntimeConfig()
+	config.GlobalConfig.SMSProvider = smsConfig.Provider
+	config.GlobalConfig.SMSAccessKey = smsConfig.AccessKey
+	config.GlobalConfig.SMSSecretKey = smsConfig.SecretKey
+	config.GlobalConfig.SMSSignName = smsConfig.SignName
+	config.GlobalConfig.SMSTemplateCode = smsConfig.TemplateCode
+	config.GlobalConfig.SMSRegion = smsConfig.Region
+
+	if services.GlobalSMSService != nil {
+		services.GlobalSMSService.SetConfig(services.SMSConfig{
+			Provider:     smsConfig.Provider,
+			AccessKey:    smsConfig.AccessKey,
+			SecretKey:    smsConfig.SecretKey,
+			SignName:     smsConfig.SignName,
+			TemplateCode: smsConfig.TemplateCode,
+			Region:       smsConfig.Region,
+		})
 	}
 }
 

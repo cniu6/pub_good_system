@@ -52,6 +52,9 @@ func main() {
 	// 清理状态仅在内存中记录，不输出周期性日志，可通过接口查询
 	services.StartCleanupTask()
 
+	// 初始化短信服务
+	services.InitSMSService()
+
 	router := gin.Default()
 	router.SetTrustedProxies(nil) // 修复 "trusted all proxies" 警告
 	router.Use(middleware.CorsMiddleware())

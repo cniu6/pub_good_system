@@ -59,6 +59,9 @@ func main() {
 	// 6. 初始化配置服务（缓存）
 	services.InitSettingsService()
 
+	// 6.1 初始化短信服务
+	services.InitSMSService()
+
 	// 7. 启动定时清理任务
 	services.StartCleanupTask()
 

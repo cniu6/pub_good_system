@@ -138,6 +138,13 @@ async function doSendEmailCode() {
   try {
     const response = await sendEmailChangeCode({ new_email: emailForm.value.email })
     if (response.isSuccess) {
+      // 验证关闭时后端直接修改完成
+      if (response.data?.verified) {
+        window.$message.success('邮箱修改成功')
+        showEmailModal.value = false
+        authStore.updateUserInfo({ email: emailForm.value.email })
+        return
+      }
       window.$message.success('验证码已发送到新邮箱')
       emailStep.value = 'verify'
       emailCodeCountdown.value = 60
@@ -218,6 +225,13 @@ async function doSendPhoneCode() {
   try {
     const response = await sendPhoneChangeCode({ new_mobile: phoneForm.value.mobile })
     if (response.isSuccess) {
+      // 验证关闭时后端直接修改完成
+      if (response.data?.verified) {
+        window.$message.success('手机号修改成功')
+        showPhoneModal.value = false
+        authStore.updateUserInfo({ mobile: phoneForm.value.mobile })
+        return
+      }
       window.$message.success('验证码已发送')
       phoneStep.value = 'verify'
       phoneCodeCountdown.value = 60

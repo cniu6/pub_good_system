@@ -60,6 +60,12 @@ export const useSettingsStore = defineStore('settings-store', () => {
   // 极验验证码ID（从后端配置获取）
   const geetestCaptchaId = computed(() => config.value?.geetest_captcha_id ?? '')
 
+  // 邮箱验证码是否启用
+  const emailVerifyEnabled = computed(() => config.value?.email_verify_enabled ?? true)
+
+  // 短信验证码是否启用
+  const smsVerifyEnabled = computed(() => config.value?.sms_verify_enabled ?? false)
+
   // ========================================
   // Actions
   // ========================================
@@ -139,6 +145,8 @@ export const useSettingsStore = defineStore('settings-store', () => {
     defaultLang,
     geetestEnabled,
     geetestCaptchaId,
+    emailVerifyEnabled,
+    smsVerifyEnabled,
 
     // Actions
     loadConfig,
