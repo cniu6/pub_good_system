@@ -81,4 +81,69 @@ export const adminUserApi = {
     const res = await request.Post(`${BASE_URL}/batch-simple`, { ids })
     return res.data?.users || {}
   },
+
+  // 按标识查找用户（ID/用户名/邮箱）
+  lookup(keyword: string) {
+    return request.Get(`${BASE_URL}/lookup`, { params: { keyword } })
+  },
+
+  // 管理员登录指定用户（生成该用户的JWT token）
+  loginAsUser(id: number) {
+    return request.Post(`${BASE_URL}/${id}/login-as`)
+  },
+
+  // 重置指定用户的 API Key
+  resetApiKey(id: number) {
+    return request.Post(`${BASE_URL}/${id}/reset-apikey`)
+  },
+
+  // 变更用户余额（增减）
+  changeMoney(id: number, data: { money: number, memo?: string }) {
+    return request.Post(`${BASE_URL}/${id}/money/change`, data)
+  },
+
+  // 直接设置用户余额
+  setMoney(id: number, data: { money: number, memo?: string }) {
+    return request.Put(`${BASE_URL}/${id}/money`, data)
+  },
+
+  // 变更用户积分（增减）
+  changeScore(id: number, data: { score: number, memo?: string }) {
+    return request.Post(`${BASE_URL}/${id}/score/change`, data)
+  },
+
+  // 直接设置用户积分
+  setScore(id: number, data: { score: number, memo?: string }) {
+    return request.Put(`${BASE_URL}/${id}/score`, data)
+  },
+}
+
+// 余额日志管理 API
+const MONEY_LOGS_URL = `/api/v1${ADMIN_PATH}/money-logs`
+
+export const adminMoneyLogApi = {
+  list(params: { page?: number, page_size?: number, keyword?: string, user_id?: number }) {
+    return request.Get(MONEY_LOGS_URL, { params })
+  },
+  detail(id: number) {
+    return request.Get(`${MONEY_LOGS_URL}/${id}`)
+  },
+  delete(id: number) {
+    return request.Delete(`${MONEY_LOGS_URL}/${id}`)
+  },
+}
+
+// 积分日志管理 API
+const SCORE_LOGS_URL = `/api/v1${ADMIN_PATH}/score-logs`
+
+export const adminScoreLogApi = {
+  list(params: { page?: number, page_size?: number, keyword?: string, user_id?: number }) {
+    return request.Get(SCORE_LOGS_URL, { params })
+  },
+  detail(id: number) {
+    return request.Get(`${SCORE_LOGS_URL}/${id}`)
+  },
+  delete(id: number) {
+    return request.Delete(`${SCORE_LOGS_URL}/${id}`)
+  },
 }

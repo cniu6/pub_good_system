@@ -80,6 +80,20 @@ export function revokeAllSessions() {
 }
 
 // ========================================
+// 余额/积分日志
+// ========================================
+
+/** 获取我的余额变动日志 */
+export function fetchMyMoneyLogs(params: { page?: number, page_size?: number, keyword?: string }) {
+  return request.Get<Service.ResponseResult<any>>('/api/v1/user/money-logs', { params })
+}
+
+/** 获取我的积分变动日志 */
+export function fetchMyScoreLogs(params: { page?: number, page_size?: number, keyword?: string }) {
+  return request.Get<Service.ResponseResult<any>>('/api/v1/user/score-logs', { params })
+}
+
+// ========================================
 // 用户仪表盘
 // ========================================
 

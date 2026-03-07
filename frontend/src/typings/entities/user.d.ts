@@ -59,4 +59,25 @@ namespace Entity {
     createTime?: number | null
   }
 
+  /** 用户余额变动记录 */
+  interface UserMoneyLog {
+    id: number
+    user_id: number
+    money: number
+    before: number
+    after: number
+    memo: string
+    create_time: number
+  }
+
+  /** 用户积分变动记录 */
+  interface UserScoreLog {
+    id: number
+    user_id: number
+    score: number
+    before: number
+    after: number
+    memo: string
+    create_time: number
+  }
 }
