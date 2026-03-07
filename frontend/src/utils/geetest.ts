@@ -10,12 +10,18 @@ interface GeetestResult {
 class GeetestManager {
   private static instance: GeetestManager
   private currentCaptchaResult: GeetestResult | null = null
+  private _isEnabledFn: (() => boolean) | null = null
 
   static getInstance(): GeetestManager {
     if (!GeetestManager.instance) {
       GeetestManager.instance = new GeetestManager()
     }
     return GeetestManager.instance
+  }
+
+  // 注册外部启用检查函数（由 store 初始化时调用）
+  setEnabledChecker(fn: () => boolean): void {
+    this._isEnabledFn = fn
   }
 
   // 检查验证结果是否存在（用于判断是否已完成验证）
@@ -77,6 +83,14 @@ class GeetestManager {
     }
 
     return this.generateGeetestHeaders()
+  }
+
+  // 检查极验是否启用
+  isEnabled(): boolean {
+    if (this._isEnabledFn) {
+      return this._isEnabledFn()
+    }
+    return false
   }
 }
 

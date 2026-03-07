@@ -2,8 +2,14 @@
 import { useAuthStore } from '@/store'
 import { fetchUserSessions, revokeSession, revokeAllSessions, deactivateAccount, fetchUserStats } from '@/service'
 import NovaIcon from '@/components/common/NovaIcon.vue'
+import GeetestCaptcha from '@/components/common/GeetestCaptcha.vue'
+import { geetestManager } from '@/utils/geetest'
 
 const authStore = useAuthStore()
+
+const isGeetestEnabled = computed(() => geetestManager.isEnabled())
+const deactivateGeetestRef = ref<any>(null)
+const deactivateCaptchaKey = ref(0)
 
 const sessions = ref<any[]>([])
 const sessionsLoading = ref(false)
@@ -84,11 +90,29 @@ async function handleRevokeAll() {
   })
 }
 
-async function handleDeactivate() {
+function triggerDeactivate() {
   if (!deactivateForm.value.password) {
     window.$message.error('请输入密码确认')
     return
   }
+  if (isGeetestEnabled.value) {
+    deactivateGeetestRef.value?.showCaptcha()
+  }
+  else {
+    doDeactivate()
+  }
+}
+
+function onDeactivateGeetestSuccess() {
+  doDeactivate()
+}
+
+function onDeactivateGeetestError() {
+  geetestManager.clearCaptchaResult()
+  deactivateCaptchaKey.value++
+}
+
+async function doDeactivate() {
   deactivating.value = true
   try {
     const response = await deactivateAccount({
@@ -240,13 +264,21 @@ onMounted(() => {
             :rows="3"
           />
         </n-form-item>
+        <GeetestCaptcha
+          v-if="isGeetestEnabled"
+          ref="deactivateGeetestRef"
+          :key="deactivateCaptchaKey"
+          :config="{ product: 'bind' }"
+          @success="onDeactivateGeetestSuccess"
+          @error="onDeactivateGeetestError"
+        />
       </n-form>
       <template #action>
         <n-space>
           <n-button @click="showDeactivateModal = false">
             取消
           </n-button>
-          <n-button type="error" :loading="deactivating" @click="handleDeactivate">
+          <n-button type="error" :loading="deactivating" @click="triggerDeactivate">
             确认注销
           </n-button>
         </n-space>

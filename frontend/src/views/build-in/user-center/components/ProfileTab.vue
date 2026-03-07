@@ -2,6 +2,8 @@
 import { useAuthStore } from '@/store'
 import { fetchChangePassword, fetchUpdateProfile } from '@/service'
 import { sendEmailChangeCode, verifyEmailChange, sendPhoneChangeCode, verifyPhoneChange } from '@/service'
+import GeetestCaptcha from '@/components/common/GeetestCaptcha.vue'
+import { geetestManager } from '@/utils/geetest'
 
 const authStore = useAuthStore()
 
@@ -41,6 +43,13 @@ const profileForm = ref({
   motto: '',
   back_ground: '',
 })
+
+// 极验相关
+const isGeetestEnabled = computed(() => geetestManager.isEnabled())
+const emailGeetestRef = ref<any>(null)
+const phoneGeetestRef = ref<any>(null)
+const emailCaptchaKey = ref(0)
+const phoneCaptchaKey = ref(0)
 
 watchEffect(() => {
   if (userInfo.value) {
@@ -103,11 +112,29 @@ function openEmailModal() {
   showEmailModal.value = true
 }
 
-async function handleSendEmailCode() {
+function triggerSendEmailCode() {
   if (!emailForm.value.email) {
     window.$message.error('请输入新邮箱地址')
     return
   }
+  if (isGeetestEnabled.value) {
+    emailGeetestRef.value?.showCaptcha()
+  }
+  else {
+    doSendEmailCode()
+  }
+}
+
+function onEmailGeetestSuccess() {
+  doSendEmailCode()
+}
+
+function onEmailGeetestError() {
+  geetestManager.clearCaptchaResult()
+  emailCaptchaKey.value++
+}
+
+async function doSendEmailCode() {
   try {
     const response = await sendEmailChangeCode({ new_email: emailForm.value.email })
     if (response.isSuccess) {
@@ -165,11 +192,29 @@ function openPhoneModal() {
   showPhoneModal.value = true
 }
 
-async function handleSendPhoneCode() {
+function triggerSendPhoneCode() {
   if (!phoneForm.value.mobile) {
     window.$message.error('请输入新手机号')
     return
   }
+  if (isGeetestEnabled.value) {
+    phoneGeetestRef.value?.showCaptcha()
+  }
+  else {
+    doSendPhoneCode()
+  }
+}
+
+function onPhoneGeetestSuccess() {
+  doSendPhoneCode()
+}
+
+function onPhoneGeetestError() {
+  geetestManager.clearCaptchaResult()
+  phoneCaptchaKey.value++
+}
+
+async function doSendPhoneCode() {
   try {
     const response = await sendPhoneChangeCode({ new_mobile: phoneForm.value.mobile })
     if (response.isSuccess) {
@@ -447,19 +492,27 @@ async function handleProfileSubmit() {
             />
             <n-button
               :disabled="emailCodeCountdown > 0"
-              @click="handleSendEmailCode"
+              @click="triggerSendEmailCode"
             >
               {{ emailCodeCountdown > 0 ? `${emailCodeCountdown}s` : '重新发送' }}
             </n-button>
           </n-input-group>
         </n-form-item>
+        <GeetestCaptcha
+          v-if="isGeetestEnabled"
+          ref="emailGeetestRef"
+          :key="emailCaptchaKey"
+          :config="{ product: 'bind' }"
+          @success="onEmailGeetestSuccess"
+          @error="onEmailGeetestError"
+        />
       </n-form>
       <template #action>
         <n-space>
           <n-button @click="showEmailModal = false">
             取消
           </n-button>
-          <n-button v-if="emailStep === 'input'" type="primary" @click="handleSendEmailCode">
+          <n-button v-if="emailStep === 'input'" type="primary" @click="triggerSendEmailCode">
             发送验证码
           </n-button>
           <n-button v-else type="primary" @click="handleVerifyEmailChange">
@@ -488,19 +541,27 @@ async function handleProfileSubmit() {
             />
             <n-button
               :disabled="phoneCodeCountdown > 0"
-              @click="handleSendPhoneCode"
+              @click="triggerSendPhoneCode"
             >
               {{ phoneCodeCountdown > 0 ? `${phoneCodeCountdown}s` : '重新发送' }}
             </n-button>
           </n-input-group>
         </n-form-item>
+        <GeetestCaptcha
+          v-if="isGeetestEnabled"
+          ref="phoneGeetestRef"
+          :key="phoneCaptchaKey"
+          :config="{ product: 'bind' }"
+          @success="onPhoneGeetestSuccess"
+          @error="onPhoneGeetestError"
+        />
       </n-form>
       <template #action>
         <n-space>
           <n-button @click="showPhoneModal = false">
             取消
           </n-button>
-          <n-button v-if="phoneStep === 'input'" type="primary" @click="handleSendPhoneCode">
+          <n-button v-if="phoneStep === 'input'" type="primary" @click="triggerSendPhoneCode">
             发送验证码
           </n-button>
           <n-button v-else type="primary" @click="handleVerifyPhoneChange">
