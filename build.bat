@@ -69,6 +69,11 @@ set GOOS=
 set GOARCH=
 
 echo.
+echo   Cleaning up intermediate artifacts...
+if exist backend\cmd\dist rmdir /s /q backend\cmd\dist
+if exist backend\main.exe del /q backend\main.exe
+
+echo.
 echo [4/4] Build complete!
 echo ============================================================
 echo   Output: ./build/
