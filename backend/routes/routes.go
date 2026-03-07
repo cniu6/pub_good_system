@@ -171,9 +171,6 @@ func SetupRoutes(router *gin.Engine) {
 			v1.POST("/updateToken", func(c *gin.Context) {
 				c.Redirect(307, "/api/v1/public/refresh-token")
 			})
-			v1.GET("/getUserRoutes", func(c *gin.Context) {
-				c.Redirect(307, "/api/v1/user/routes")
-			})
 			v1.GET("/userPage", systemCtrl.GetUserPage)
 
 			// 提示使用正确的请求方法

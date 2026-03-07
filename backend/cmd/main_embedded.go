@@ -42,6 +42,12 @@ func main() {
 	// 初始化验证码表（如果不存在）
 	models.InitVerificationCodeTable()
 
+	// 初始化用户设置表
+	models.InitUserSettingsTable()
+
+	// 初始化用户会话表
+	models.InitUserSessionsTable()
+
 	// 启动定时清理任务：间隔可通过 CLEANUP_INTERVAL_MINUTES 配置，默认10分钟
 	// 清理状态仅在内存中记录，不输出周期性日志，可通过接口查询
 	services.StartCleanupTask()

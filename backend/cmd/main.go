@@ -50,6 +50,12 @@ func main() {
 	// 5. 初始化系统配置表
 	models.InitSystemSettingsTable()
 
+	// 5.1 初始化用户设置表
+	models.InitUserSettingsTable()
+
+	// 5.2 初始化用户会话表
+	models.InitUserSessionsTable()
+
 	// 6. 初始化配置服务（缓存）
 	services.InitSettingsService()
 
