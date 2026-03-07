@@ -48,6 +48,17 @@
             <n-tab-pane name="email" tab="邮件设置">
               <n-space vertical>
                 <n-form :model="emailForm" label-placement="left" label-width="120px" style="max-width: 640px;">
+                  <n-form-item label="邮箱验证码">
+                    <n-space align="center">
+                      <n-switch
+                        :value="emailForm.email_verify_enabled"
+                        :loading="switchLoading.email_verify_enabled"
+                        @update:value="handleUpdateEmailVerifyEnabled"
+                      />
+                      <n-text depth="3">{{ emailForm.email_verify_enabled ? '已启用（修改邮箱需验证码）' : '已禁用（修改邮箱直接生效）' }}</n-text>
+                    </n-space>
+                  </n-form-item>
+                  <n-divider />
                   <n-form-item label="SMTP 服务器">
                     <n-input v-model:value="emailForm.smtp_host" placeholder="如: smtp.gmail.com" />
                   </n-form-item>
@@ -81,6 +92,57 @@
                     </n-space>
                   </n-form-item>
                 </n-form>
+              </n-space>
+            </n-tab-pane>
+
+            <n-tab-pane name="sms" tab="短信设置">
+              <n-space vertical>
+                <n-form :model="smsForm" label-placement="left" label-width="120px" style="max-width: 640px;">
+                  <n-form-item label="短信验证码">
+                    <n-space align="center">
+                      <n-switch
+                        :value="smsForm.sms_verify_enabled"
+                        :loading="switchLoading.sms_verify_enabled"
+                        @update:value="handleUpdateSmsVerifyEnabled"
+                      />
+                      <n-text depth="3">{{ smsForm.sms_verify_enabled ? '已启用（修改手机号需验证码）' : '已禁用（修改手机号直接生效）' }}</n-text>
+                    </n-space>
+                  </n-form-item>
+                  <n-divider />
+                  <n-form-item label="短信服务商">
+                    <n-select
+                      v-model:value="smsForm.sms_provider"
+                      :options="smsProviderOptions"
+                      placeholder="选择短信服务商"
+                    />
+                  </n-form-item>
+                  <n-form-item label="AccessKey">
+                    <n-input v-model:value="smsForm.sms_access_key" placeholder="短信服务商 AccessKey" />
+                  </n-form-item>
+                  <n-form-item label="SecretKey">
+                    <n-input
+                      v-model:value="smsForm.sms_secret_key"
+                      type="password"
+                      show-password-on="click"
+                      placeholder="短信服务商 SecretKey"
+                    />
+                  </n-form-item>
+                  <n-form-item label="短信签名">
+                    <n-input v-model:value="smsForm.sms_sign_name" placeholder="如: F.st" />
+                  </n-form-item>
+                  <n-form-item label="验证码模板ID">
+                    <n-input v-model:value="smsForm.sms_template_code" placeholder="短信验证码模板ID" />
+                  </n-form-item>
+                  <n-form-item label="服务区域">
+                    <n-input v-model:value="smsForm.sms_region" placeholder="部分服务商需要，如: cn-hangzhou" />
+                  </n-form-item>
+                  <n-form-item>
+                    <n-button type="primary" :loading="savingSms" @click="handleSaveSms">保存设置</n-button>
+                  </n-form-item>
+                </n-form>
+                <n-alert type="info" title="提示" :bordered="false">
+                  当前仅 <n-text strong>console</n-text> 模式可用（验证码打印到后端控制台日志）。阿里云、腾讯云等服务商接入后即可切换。
+                </n-alert>
               </n-space>
             </n-tab-pane>
 
@@ -641,11 +703,19 @@ const switchLoading = reactive({
   allow_register: false,
   smtp_ssl: false,
   geetest_enabled: false,
+  email_verify_enabled: false,
+  sms_verify_enabled: false,
 })
 
 const langOptions = [
   { label: '中文简体', value: 'zhCN' },
   { label: 'English', value: 'enUS' },
+]
+
+const smsProviderOptions = [
+  { label: '控制台日志 (开发)', value: 'console' },
+  { label: '阿里云短信', value: 'aliyun' },
+  { label: '腾讯云短信', value: 'tencent' },
 ]
 
 const typeOptions = [
@@ -667,6 +737,7 @@ const basicForm = reactive({
 })
 
 const emailForm = reactive({
+  email_verify_enabled: true,
   smtp_host: '',
   smtp_port: 587,
   smtp_username: '',
@@ -674,6 +745,18 @@ const emailForm = reactive({
   smtp_ssl: true,
   system_email_name: '',
 })
+
+const smsForm = reactive({
+  sms_verify_enabled: false,
+  sms_provider: 'console',
+  sms_access_key: '',
+  sms_secret_key: '',
+  sms_sign_name: '',
+  sms_template_code: '',
+  sms_region: '',
+})
+
+const savingSms = ref(false)
 
 const securityForm = reactive({
   geetest_enabled: false,
@@ -967,12 +1050,21 @@ async function loadSettings() {
           if (item.key === 'default_lang') basicForm.default_lang = String(item.value || 'zhCN')
           if (item.key === 'allow_register') basicForm.allow_register = Boolean(item.value)
 
+          if (item.key === 'email_verify_enabled') emailForm.email_verify_enabled = Boolean(item.value)
           if (item.key === 'smtp_host') emailForm.smtp_host = String(item.value || '')
           if (item.key === 'smtp_port') emailForm.smtp_port = Number(item.value) || 587
           if (item.key === 'smtp_username') emailForm.smtp_username = String(item.value || '')
           if (item.key === 'smtp_password') emailForm.smtp_password = String(item.value || '')
           if (item.key === 'smtp_ssl') emailForm.smtp_ssl = Boolean(item.value)
           if (item.key === 'system_email_name') emailForm.system_email_name = String(item.value || '')
+
+          if (item.key === 'sms_verify_enabled') smsForm.sms_verify_enabled = Boolean(item.value)
+          if (item.key === 'sms_provider') smsForm.sms_provider = String(item.value || 'console')
+          if (item.key === 'sms_access_key') smsForm.sms_access_key = String(item.value || '')
+          if (item.key === 'sms_secret_key') smsForm.sms_secret_key = String(item.value || '')
+          if (item.key === 'sms_sign_name') smsForm.sms_sign_name = String(item.value || '')
+          if (item.key === 'sms_template_code') smsForm.sms_template_code = String(item.value || '')
+          if (item.key === 'sms_region') smsForm.sms_region = String(item.value || '')
 
           if (item.key === 'geetest_enabled') securityForm.geetest_enabled = Boolean(item.value)
           if (item.key === 'geetest_captcha_id') securityForm.geetest_captcha_id = String(item.value || '')
@@ -1029,6 +1121,63 @@ async function handleUpdateSmtpSSL(nextValue: boolean) {
   }
   finally {
     switchLoading.smtp_ssl = false
+  }
+}
+
+async function handleUpdateEmailVerifyEnabled(nextValue: boolean) {
+  const prev = emailForm.email_verify_enabled
+  emailForm.email_verify_enabled = nextValue
+  switchLoading.email_verify_enabled = true
+  try {
+    await adminApi.settings.update('email_verify_enabled', String(nextValue))
+    settingsStore.updateConfig({ email_verify_enabled: nextValue })
+    message.success('邮箱验证码开关已更新')
+  }
+  catch (error: any) {
+    emailForm.email_verify_enabled = prev
+    message.error('更新失败: ' + (error.message || '未知错误'))
+  }
+  finally {
+    switchLoading.email_verify_enabled = false
+  }
+}
+
+async function handleUpdateSmsVerifyEnabled(nextValue: boolean) {
+  const prev = smsForm.sms_verify_enabled
+  smsForm.sms_verify_enabled = nextValue
+  switchLoading.sms_verify_enabled = true
+  try {
+    await adminApi.settings.update('sms_verify_enabled', String(nextValue))
+    settingsStore.updateConfig({ sms_verify_enabled: nextValue })
+    message.success('短信验证码开关已更新')
+  }
+  catch (error: any) {
+    smsForm.sms_verify_enabled = prev
+    message.error('更新失败: ' + (error.message || '未知错误'))
+  }
+  finally {
+    switchLoading.sms_verify_enabled = false
+  }
+}
+
+async function handleSaveSms() {
+  savingSms.value = true
+  try {
+    await adminApi.settings.batchUpdate({
+      sms_provider: smsForm.sms_provider,
+      sms_access_key: smsForm.sms_access_key,
+      sms_secret_key: smsForm.sms_secret_key,
+      sms_sign_name: smsForm.sms_sign_name,
+      sms_template_code: smsForm.sms_template_code,
+      sms_region: smsForm.sms_region,
+    })
+    message.success('短信设置保存成功')
+  }
+  catch (error: any) {
+    message.error('保存失败: ' + (error.message || '未知错误'))
+  }
+  finally {
+    savingSms.value = false
   }
 }
 
