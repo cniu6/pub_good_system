@@ -3,6 +3,8 @@ import { useAuthStore } from '@/store'
 import { fetchUserProfile, fetchUpdateProfile } from '@/service'
 import ProfileTab from './components/ProfileTab.vue'
 import ApiTab from './components/ApiTab.vue'
+import SettingsTab from './components/SettingsTab.vue'
+import SecurityTab from './components/SecurityTab.vue'
 import NovaIcon from '@/components/common/NovaIcon.vue'
 
 const authStore = useAuthStore()
@@ -151,6 +153,12 @@ onActivated(() => {
       >
         <n-tab-pane name="profile" tab="个人资料">
           <ProfileTab />
+        </n-tab-pane>
+        <n-tab-pane name="settings" tab="偏好设置">
+          <SettingsTab />
+        </n-tab-pane>
+        <n-tab-pane name="security" tab="安全管理">
+          <SecurityTab />
         </n-tab-pane>
         <n-tab-pane name="api" tab="API 管理">
           <ApiTab />

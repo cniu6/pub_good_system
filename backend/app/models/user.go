@@ -1,6 +1,8 @@
 package models
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fst/backend/internal/db"
 	"time"
 )
@@ -171,6 +173,24 @@ func UpdateLoginInfo(userID uint64, loginIP string) error {
 		now, loginIP, now, userID,
 	)
 	return err
+}
+
+// ResetUserApiKey 重置用户API密钥
+func ResetUserApiKey(userID uint64) (string, error) {
+	newKey := generateApiKey()
+	now := time.Now().Unix()
+	_, err := db.DB.Exec("UPDATE users SET apikey = ?, update_time = ? WHERE id = ?", newKey, now, userID)
+	if err != nil {
+		return "", err
+	}
+	return newKey, nil
+}
+
+// generateApiKey 生成随机API密钥（使用 crypto/rand）
+func generateApiKey() string {
+	b := make([]byte, 20)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // IncrementLoginFailure 增加登录失败次数，如果达到最大失败次数则锁定账户

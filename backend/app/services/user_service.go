@@ -155,17 +155,20 @@ func (s *UserService) Create(req *UserCreateRequest) (*models.User, error) {
 
 // UserUpdateRequest 更新用户请求
 type UserUpdateRequest struct {
-	ID       uint64 `json:"id" binding:"required"`
-	Nickname string `json:"nickname"`
-	Email    string `json:"email"`
-	Mobile   string `json:"mobile"`
-	Avatar   string `json:"avatar"`
-	Gender   uint8  `json:"gender"`
-	Birthday *int64 `json:"birthday"`
-	Motto    string `json:"motto"`
-	Role     string `json:"role"`
-	Status   uint8  `json:"status"`
-	GroupID  uint64 `json:"group_id"`
+	ID         uint64 `json:"id" binding:"required"`
+	Nickname   string `json:"nickname"`
+	Email      string `json:"email"`
+	Mobile     string `json:"mobile"`
+	Avatar     string `json:"avatar"`
+	Gender     *uint8 `json:"gender"`     // 指针类型，允许设置为0（保密）
+	Birthday   *int64 `json:"birthday"`
+	Motto      string `json:"motto"`
+	BackGround string `json:"back_ground"`
+	Language   string `json:"language"`
+	Country    string `json:"country"`
+	Role       string `json:"role"`
+	Status     uint8  `json:"status"`
+	GroupID    uint64 `json:"group_id"`
 }
 
 // Update 更新用户
@@ -193,14 +196,23 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 	if req.Avatar != "" {
 		user.Avatar = req.Avatar
 	}
-	if req.Gender > 0 {
-		user.Gender = req.Gender
+	if req.Gender != nil {
+		user.Gender = *req.Gender
 	}
 	if req.Birthday != nil {
 		user.Birthday = req.Birthday
 	}
 	if req.Motto != "" {
 		user.Motto = req.Motto
+	}
+	if req.BackGround != "" {
+		user.BackGround = req.BackGround
+	}
+	if req.Language != "" {
+		user.Language = req.Language
+	}
+	if req.Country != "" {
+		user.Country = req.Country
 	}
 	if req.Role != "" {
 		user.Role = req.Role
@@ -217,6 +229,7 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 
 	query := `UPDATE users SET nickname = :nickname, email = :email, mobile = :mobile,
 			  avatar = :avatar, gender = :gender, birthday = :birthday, motto = :motto,
+			  back_ground = :back_ground, language = :language, country = :country,
 			  role = :role, status = :status, group_id = :group_id, update_time = :update_time
 			  WHERE id = :id`
 	_, err = db.DB.NamedExec(query, user)
@@ -235,10 +248,10 @@ func (s *UserService) UpdatePassword(user_id uint64, hashed_password string) err
 	return models.UpdatePassword(user_id, hashed_password)
 }
 
-// Delete 软删除用户
+// Delete 软删除用户（同时禁用账号状态）
 func (s *UserService) Delete(user_id uint64) error {
 	now := time.Now().Unix()
-	_, err := db.DB.Exec("UPDATE users SET delete_time = ? WHERE id = ?", now, user_id)
+	_, err := db.DB.Exec("UPDATE users SET delete_time = ?, status = 0, update_time = ? WHERE id = ?", now, now, user_id)
 	return err
 }
 
