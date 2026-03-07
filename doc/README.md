@@ -304,7 +304,7 @@ fetchRegister(data) // 使用封装好的API
 | 路由定义 | `backend/routes/routes.go` |
 | 插件接口 | `backend/app/plugins/interface.go` |
 | 前端请求封装 | `frontend/src/service/request.ts` |
-| 前端API定义 | `frontend/src/service/api/*.ts` |
+| 前端API定义 | `frontend/src/service/api/user/*.ts`, `frontend/src/service/api/admin/*.ts` |
 
 ---
 

@@ -24,7 +24,9 @@ frontend/dist-ssr/
 frontend/*.local
 # 管理端入口 HTML 由 vite.config.ts 根据 VITE_ADMIN_BASE_PATH 自动生成，无需提交
 # 模板源文件位于 frontend/_admin-entry/index.html
+# 默认路径 /system-mgr，生产环境建议自定义
 frontend/system-mgr/
+frontend/admin/
 
 # Windows 垃圾文件
 *nul*

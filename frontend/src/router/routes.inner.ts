@@ -15,7 +15,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/login',
     name: 'login',
-    component: () => import('@/views/build-in/login/index.vue'),
+    component: () => import('@/views/_builtin/login/index.vue'),
     meta: {
       title: 'login.signInTitle',
       withoutTab: true,
@@ -33,7 +33,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/public',
     name: 'publicAccess',
-    component: () => import('@/views/build-in/public-access/index.vue'),
+    component: () => import('@/views/_builtin/public-access/index.vue'),
     meta: {
       title: '公共访问示例',
       requiresAuth: false,
@@ -43,7 +43,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/403',
     name: '403',
-    component: () => import('@/views/build-in/error/403/index.vue'),
+    component: () => import('@/views/_builtin/error/403/index.vue'),
     meta: {
       title: '无权访问',
       icon: 'icon-park-outline:forbidden',
@@ -54,7 +54,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/500',
     name: '500',
-    component: () => import('@/views/build-in/error/500/index.vue'),
+    component: () => import('@/views/_builtin/error/500/index.vue'),
     meta: {
       title: '服务器错误',
       icon: 'icon-park-outline:error',
@@ -65,7 +65,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/404',
     name: '404',
-    component: () => import('@/views/build-in/error/404/index.vue'),
+    component: () => import('@/views/_builtin/error/404/index.vue'),
     meta: {
       title: '找不到页面',
       icon: 'icon-park-outline:ghost',
@@ -75,7 +75,7 @@ export const routes: RouteRecordRaw[] = [
   },
   {
     path: '/:pathMatch(.*)*',
-    component: () => import('@/views/build-in/error/404/index.vue'),
+    component: () => import('@/views/_builtin/error/404/index.vue'),
     name: 'notFoundCatchAll',
     meta: {
       title: '找不到页面',
