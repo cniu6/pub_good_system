@@ -597,6 +597,15 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 	req.NewMobile = utils.Clean_XSS(req.NewMobile)
 	uid := user_id.(uint64)
 
+	// 检查手机号是否已被使用
+	if req.NewMobile != "" {
+		existing, _ := models.GetUserByMobile(req.NewMobile)
+		if existing != nil && existing.ID != uid {
+			utils.Fail(c, 400, "Phone number already in use")
+			return
+		}
+	}
+
 	// 检查短信验证码功能是否启用
 	verifyConfig := services.GetGlobalVerifyConfig()
 	if !verifyConfig.SMSEnabled {
@@ -814,6 +823,10 @@ func (ctrl *ProfileController) RevokeAllSessions(c *gin.Context) {
 	}
 
 	current_token := c.GetHeader("Authorization")
+	// 去除 Bearer 前缀，只保留 token 部分
+	if strings.HasPrefix(current_token, "Bearer ") {
+		current_token = current_token[7:]
+	}
 	if err := models.RevokeAllUserSessions(user_id.(uint64), current_token); err != nil {
 		utils.Fail(c, 500, "Failed to revoke sessions")
 		return

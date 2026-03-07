@@ -1,12 +1,14 @@
 package public
 
 import (
+	crypto_rand "crypto/rand"
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/internal/config"
 	"fst/backend/internal/middleware"
 	"fst/backend/utils"
+	"math/big"
 	"math/rand"
 	"regexp"
 	"strings"
@@ -276,9 +278,8 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 	req.Email = utils.Clean_XSS(req.Email)
 	req.Lang = utils.Clean_XSS(req.Lang)
 
-	// 生成验证码
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	code := fmt.Sprintf("%06d", rnd.Intn(1000000))
+	// 生成验证码（使用 crypto/rand）
+	code := generateSecureCode()
 
 	// 存储验证码
 	expireMinutes := config.GlobalConfig.RegisterCodeExpireMinutes
@@ -347,9 +348,8 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 		return
 	}
 
-	// 生成验证码
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	code := fmt.Sprintf("%06d", rnd.Intn(1000000))
+	// 生成验证码（使用 crypto/rand）
+	code := generateSecureCode()
 
 	// 存储验证码
 	expiresAt := time.Now().Add(15 * time.Minute)
@@ -477,4 +477,15 @@ func (ctrl *AuthController) RegisterRoutes(group *gin.RouterGroup) {
 		authGroup.POST("/reset-password", ctrl.ResetPasswordConfirm)
 		authGroup.POST("/refresh-token", ctrl.UpdateToken)
 	}
+}
+
+// generateSecureCode 生成6位数字验证码（使用 crypto/rand）
+func generateSecureCode() string {
+	n, err := crypto_rand.Int(crypto_rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		// fallback to math/rand
+		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+		return fmt.Sprintf("%06d", rnd.Intn(1000000))
+	}
+	return fmt.Sprintf("%06d", n.Int64())
 }
