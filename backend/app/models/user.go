@@ -138,6 +138,16 @@ func GetUserByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
+// GetUserByMobile finds a user by mobile number
+func GetUserByMobile(mobile string) (*User, error) {
+	var user User
+	err := db.DB.Get(&user, "SELECT * FROM users WHERE mobile = ? AND delete_time IS NULL", mobile)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 // GetUserByUsernameOrEmail finds a user by username or email
 func GetUserByUsernameOrEmail(identifier string) (*User, error) {
 	var user User

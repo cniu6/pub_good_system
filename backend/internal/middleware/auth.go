@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"fst/backend/utils"
 	"strings"
 	"time"
@@ -51,13 +52,8 @@ func AdminOnly() gin.HandlerFunc {
 
 			// 输出安全警告日志
 			gin.DefaultWriter.Write([]byte(
-				"[SECURITY WARNING] " + time.Now().Format(time.RFC3339) +
-					" | Non-admin access attempt | UserID: " +
-					strings.Trim(strings.ReplaceAll(strings.ReplaceAll(
-						strings.ReplaceAll(userID.(string), "\n", ""), "\r", ""), "\t", ""), " \"'") +
-					" | IP: " + clientIP +
-					" | Method: " + method +
-					" | Path: " + path + "\n",
+				fmt.Sprintf("[SECURITY WARNING] %s | Non-admin access attempt | UserID: %v | IP: %s | Method: %s | Path: %s\n",
+					time.Now().Format(time.RFC3339), userID, clientIP, method, path),
 			))
 
 			utils.Fail(c, 403, "Admin access only")

@@ -5,8 +5,10 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/internal/config"
+	crypto_rand "crypto/rand"
 	"fst/backend/internal/db"
 	"fst/backend/utils"
+	"math/big"
 	"math/rand"
 	"regexp"
 	"strings"
@@ -167,9 +169,8 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 	req.Email = utils.Clean_XSS(req.Email)
 	req.Lang = utils.Clean_XSS(req.Lang)
 
-	// 生成6位验证码
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	code := fmt.Sprintf("%06d", rnd.Intn(1000000))
+	// 生成6位验证码（使用 crypto/rand）
+	code := generateSecureCodeLegacy()
 
 	// 存储验证码到数据库，有效期可配置（分钟）
 	expiresAt := time.Now().Add(time.Duration(config.GlobalConfig.RegisterCodeExpireMinutes) * time.Minute)
@@ -448,9 +449,8 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 		return
 	}
 
-	// 生成6位验证码
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	code := fmt.Sprintf("%06d", rnd.Intn(1000000))
+	// 生成6位验证码（使用 crypto/rand）
+	code := generateSecureCodeLegacy()
 
 	// 存储验证码到数据库，15分钟有效期（重置密码链接需要更长时间）
 	expiresAt := time.Now().Add(15 * time.Minute)
@@ -572,4 +572,14 @@ func (ctrl *AuthController) ResetPasswordConfirm(c *gin.Context) {
 	}
 
 	utils.Success(c, gin.H{"message": "Password reset successfully"})
+}
+
+// generateSecureCodeLegacy 生成6位数字验证码（使用 crypto/rand）
+func generateSecureCodeLegacy() string {
+	n, err := crypto_rand.Int(crypto_rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+		return fmt.Sprintf("%06d", rnd.Intn(1000000))
+	}
+	return fmt.Sprintf("%06d", n.Int64())
 }

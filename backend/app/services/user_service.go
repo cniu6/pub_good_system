@@ -55,7 +55,7 @@ func (s *UserService) GetList(query *UserListQuery) (*UserListResult, error) {
 		kw := "%" + query.Keyword + "%"
 		args = append(args, kw, kw, kw, kw)
 	}
-if query.Status != nil {
+	if query.Status != nil {
 		where += " AND status = ?"
 		args = append(args, *query.Status)
 	}
