@@ -24,6 +24,10 @@ export interface AppConfig {
 
   // 语言配置
   default_lang: string
+
+  // 验证码开关
+  email_verify_enabled: boolean
+  sms_verify_enabled: boolean
 }
 
 /**

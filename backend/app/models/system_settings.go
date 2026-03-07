@@ -129,12 +129,22 @@ var defaultSettings = []SystemSetting{
 	{Key: "operation_log_max_count", Value: "20", Type: "number", Category: "security", Label: "操作日志最大数量", Description: "操作日志单页最大查询数量", IsPublic: false, IsEditable: true, SortOrder: 9},
 
 	// ===== 邮件设置 =====
+	{Key: "email_verify_enabled", Value: "true", Type: "boolean", Category: "email", Label: "邮箱验证码", Description: "是否启用邮箱验证码功能（关闭后修改邮箱无需验证）", IsPublic: true, IsEditable: true, SortOrder: 0},
 	{Key: "smtp_host", Value: "", Type: "string", Category: "email", Label: "SMTP服务器", Description: "SMTP邮件服务器地址", IsPublic: false, IsEditable: true, SortOrder: 1},
 	{Key: "smtp_port", Value: "587", Type: "number", Category: "email", Label: "SMTP端口", Description: "SMTP服务器端口", IsPublic: false, IsEditable: true, SortOrder: 2},
 	{Key: "smtp_username", Value: "", Type: "string", Category: "email", Label: "发件人邮箱", Description: "SMTP登录用户名/邮箱", IsPublic: false, IsEditable: true, SortOrder: 3},
 	{Key: "smtp_password", Value: "", Type: "string", Category: "email", Label: "邮箱密码", Description: "SMTP登录密码或应用密钥", IsPublic: false, IsEditable: true, SortOrder: 4},
 	{Key: "smtp_ssl", Value: "true", Type: "boolean", Category: "email", Label: "SSL加密", Description: "是否启用SSL加密", IsPublic: false, IsEditable: true, SortOrder: 5},
 	{Key: "system_email_name", Value: "F.st", Type: "string", Category: "email", Label: "发件人名称", Description: "邮件中显示的发件人名称", IsPublic: false, IsEditable: true, SortOrder: 6},
+
+	// ===== 短信设置 =====
+	{Key: "sms_verify_enabled", Value: "false", Type: "boolean", Category: "sms", Label: "短信验证码", Description: "是否启用短信验证码功能（关闭后修改手机号无需验证）", IsPublic: true, IsEditable: true, SortOrder: 0},
+	{Key: "sms_provider", Value: "console", Type: "string", Category: "sms", Label: "短信服务商", Description: "短信服务商标识：console(控制台日志)、aliyun(阿里云)、tencent(腾讯云)", IsPublic: false, IsEditable: true, SortOrder: 1},
+	{Key: "sms_access_key", Value: "", Type: "string", Category: "sms", Label: "AccessKey", Description: "短信服务商 AccessKey / API Key", IsPublic: false, IsEditable: true, SortOrder: 2},
+	{Key: "sms_secret_key", Value: "", Type: "string", Category: "sms", Label: "SecretKey", Description: "短信服务商 SecretKey / API Secret", IsPublic: false, IsEditable: true, SortOrder: 3},
+	{Key: "sms_sign_name", Value: "", Type: "string", Category: "sms", Label: "短信签名", Description: "短信签名（如：F.st）", IsPublic: false, IsEditable: true, SortOrder: 4},
+	{Key: "sms_template_code", Value: "", Type: "string", Category: "sms", Label: "验证码模板ID", Description: "短信验证码模板ID", IsPublic: false, IsEditable: true, SortOrder: 5},
+	{Key: "sms_region", Value: "", Type: "string", Category: "sms", Label: "服务区域", Description: "短信服务区域（部分服务商需要）", IsPublic: false, IsEditable: true, SortOrder: 6},
 }
 
 // initDefaultSettings 初始化默认配置

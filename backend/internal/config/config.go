@@ -38,6 +38,14 @@ type Config struct {
 	JWTAccessExpire           int // Access Token 过期时间（秒）
 	JWTRefreshExpire          int // Refresh Token 过期时间（秒）
 	CleanupIntervalMinutes    int // 验证码清理任务间隔（分钟）
+	EmailVerifyEnabled        bool   // 邮箱验证码功能开关
+	SMSVerifyEnabled          bool   // 短信验证码功能开关
+	SMSProvider               string // 短信服务商: aliyun, tencent, console
+	SMSAccessKey              string // 短信服务 AccessKey
+	SMSSecretKey              string // 短信服务 SecretKey
+	SMSSignName               string // 短信签名
+	SMSTemplateCode           string // 短信验证码模板ID
+	SMSRegion                 string // 短信服务区域
 }
 
 var GlobalConfig *Config
@@ -132,6 +140,20 @@ func InitConfig() {
 			}
 			return v
 		}(),
+		EmailVerifyEnabled: func() bool {
+			v, _ := strconv.ParseBool(strings.TrimSpace(getEnv("EMAIL_VERIFY_ENABLED", "true")))
+			return v
+		}(),
+		SMSVerifyEnabled: func() bool {
+			v, _ := strconv.ParseBool(strings.TrimSpace(getEnv("SMS_VERIFY_ENABLED", "false")))
+			return v
+		}(),
+		SMSProvider:     getEnv("SMS_PROVIDER", "console"),
+		SMSAccessKey:    getEnv("SMS_ACCESS_KEY", ""),
+		SMSSecretKey:    getEnv("SMS_SECRET_KEY", ""),
+		SMSSignName:     getEnv("SMS_SIGN_NAME", ""),
+		SMSTemplateCode: getEnv("SMS_TEMPLATE_CODE", ""),
+		SMSRegion:       getEnv("SMS_REGION", ""),
 	}
 }
 
@@ -181,6 +203,14 @@ type jsonDotEnv struct {
 	JWTAccessExpire           string `json:"jwt_access_expire"`
 	JWTRefreshExpire          string `json:"jwt_refresh_expire"`
 	CleanupIntervalMinutes    string `json:"cleanup_interval_minutes"`
+	EmailVerifyEnabled        string `json:"email_verify_enabled"`
+	SMSVerifyEnabled          string `json:"sms_verify_enabled"`
+	SMSProvider               string `json:"sms_provider"`
+	SMSAccessKey              string `json:"sms_access_key"`
+	SMSSecretKey              string `json:"sms_secret_key"`
+	SMSSignName               string `json:"sms_sign_name"`
+	SMSTemplateCode           string `json:"sms_template_code"`
+	SMSRegion                 string `json:"sms_region"`
 }
 
 func loadJSONDotEnv(path string) (*Config, bool) {
@@ -312,6 +342,26 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 			}
 			return v
 		}(),
+		EmailVerifyEnabled: func() bool {
+			if raw.EmailVerifyEnabled == "" {
+				return true
+			}
+			v, _ := strconv.ParseBool(strings.TrimSpace(raw.EmailVerifyEnabled))
+			return v
+		}(),
+		SMSVerifyEnabled: func() bool {
+			if raw.SMSVerifyEnabled == "" {
+				return false
+			}
+			v, _ := strconv.ParseBool(strings.TrimSpace(raw.SMSVerifyEnabled))
+			return v
+		}(),
+		SMSProvider:     raw.SMSProvider,
+		SMSAccessKey:    raw.SMSAccessKey,
+		SMSSecretKey:    raw.SMSSecretKey,
+		SMSSignName:     raw.SMSSignName,
+		SMSTemplateCode: raw.SMSTemplateCode,
+		SMSRegion:       raw.SMSRegion,
 	}
 	log.Printf("[Config] RegisterCodeExpireMinutes: %d\n", cfg.RegisterCodeExpireMinutes)
 	log.Printf("[Config] LoginMaxFailureCount: %d\n", cfg.LoginMaxFailureCount)

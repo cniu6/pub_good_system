@@ -167,16 +167,34 @@ func (s *SettingsService) InvalidateCache() {
 
 // PublicAppConfig is the public-facing app config payload.
 type PublicAppConfig struct {
-	SiteName         string `json:"site_name"`
-	SiteDesc         string `json:"site_desc"`
-	SiteLogo         string `json:"site_logo"`
-	Copyright        string `json:"copyright"`
-	ICP              string `json:"icp"`
-	AllowRegister    bool   `json:"allow_register"`
-	DefaultLang      string `json:"default_lang"`
-	Version          string `json:"version"`
-	GeetestEnabled   bool   `json:"geetest_enabled"`
-	GeetestCaptchaId string `json:"geetest_captcha_id"`
+	SiteName           string `json:"site_name"`
+	SiteDesc           string `json:"site_desc"`
+	SiteLogo           string `json:"site_logo"`
+	Copyright          string `json:"copyright"`
+	ICP                string `json:"icp"`
+	AllowRegister      bool   `json:"allow_register"`
+	DefaultLang        string `json:"default_lang"`
+	Version            string `json:"version"`
+	GeetestEnabled     bool   `json:"geetest_enabled"`
+	GeetestCaptchaId   string `json:"geetest_captcha_id"`
+	EmailVerifyEnabled bool   `json:"email_verify_enabled"`
+	SMSVerifyEnabled   bool   `json:"sms_verify_enabled"`
+}
+
+// VerifyConfig 验证码功能开关运行时配置
+type VerifyConfig struct {
+	EmailEnabled bool
+	SMSEnabled   bool
+}
+
+// SMSRuntimeConfig 短信服务运行时配置
+type SMSRuntimeConfig struct {
+	Provider     string
+	AccessKey    string
+	SecretKey    string
+	SignName     string
+	TemplateCode string
+	Region       string
 }
 
 // GeetestRuntimeConfig is the effective config used by backend validation.
@@ -239,21 +257,88 @@ func GetGlobalGeetestRuntimeConfig() GeetestRuntimeConfig {
 	}
 }
 
+// GetVerifyConfig returns effective verify enable/disable config.
+// Priority: database values -> environment fallback.
+func (s *SettingsService) GetVerifyConfig() VerifyConfig {
+	emailEnabled := config.GlobalConfig.EmailVerifyEnabled
+	if val, ok := s.Get("email_verify_enabled"); ok {
+		emailEnabled = parseBoolSetting(strings.TrimSpace(val))
+	}
+
+	smsEnabled := config.GlobalConfig.SMSVerifyEnabled
+	if val, ok := s.Get("sms_verify_enabled"); ok {
+		smsEnabled = parseBoolSetting(strings.TrimSpace(val))
+	}
+
+	return VerifyConfig{
+		EmailEnabled: emailEnabled,
+		SMSEnabled:   smsEnabled,
+	}
+}
+
+// GetSMSRuntimeConfig returns effective SMS provider config.
+func (s *SettingsService) GetSMSRuntimeConfig() SMSRuntimeConfig {
+	get := func(dbKey, envFallback string) string {
+		if val, ok := s.Get(dbKey); ok && strings.TrimSpace(val) != "" {
+			return strings.TrimSpace(val)
+		}
+		return envFallback
+	}
+
+	return SMSRuntimeConfig{
+		Provider:     get("sms_provider", config.GlobalConfig.SMSProvider),
+		AccessKey:    get("sms_access_key", config.GlobalConfig.SMSAccessKey),
+		SecretKey:    get("sms_secret_key", config.GlobalConfig.SMSSecretKey),
+		SignName:     get("sms_sign_name", config.GlobalConfig.SMSSignName),
+		TemplateCode: get("sms_template_code", config.GlobalConfig.SMSTemplateCode),
+		Region:       get("sms_region", config.GlobalConfig.SMSRegion),
+	}
+}
+
+// GetGlobalVerifyConfig returns effective verify config with global cache.
+func GetGlobalVerifyConfig() VerifyConfig {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.GetVerifyConfig()
+	}
+	return VerifyConfig{
+		EmailEnabled: config.GlobalConfig.EmailVerifyEnabled,
+		SMSEnabled:   config.GlobalConfig.SMSVerifyEnabled,
+	}
+}
+
+// GetGlobalSMSRuntimeConfig returns effective SMS config with global cache.
+func GetGlobalSMSRuntimeConfig() SMSRuntimeConfig {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.GetSMSRuntimeConfig()
+	}
+	return SMSRuntimeConfig{
+		Provider:     config.GlobalConfig.SMSProvider,
+		AccessKey:    config.GlobalConfig.SMSAccessKey,
+		SecretKey:    config.GlobalConfig.SMSSecretKey,
+		SignName:     config.GlobalConfig.SMSSignName,
+		TemplateCode: config.GlobalConfig.SMSTemplateCode,
+		Region:       config.GlobalConfig.SMSRegion,
+	}
+}
+
 // GetPublicAppConfig returns public app config consumed by frontend bootstrap.
 func (s *SettingsService) GetPublicAppConfig() *PublicAppConfig {
 	geetestConfig := s.GetGeetestRuntimeConfig()
+	verifyConfig := s.GetVerifyConfig()
 
 	return &PublicAppConfig{
-		SiteName:         s.GetWithDefault("site_name", "F.st"),
-		SiteDesc:         s.GetWithDefault("site_desc", "Full-stack admin template based on Go + Vue 3"),
-		SiteLogo:         s.GetWithDefault("site_logo", ""),
-		Copyright:        s.GetWithDefault("copyright", "(c) 2024 F.st"),
-		ICP:              s.GetWithDefault("icp", ""),
-		AllowRegister:    s.GetBoolWithDefault("allow_register", true),
-		DefaultLang:      s.GetWithDefault("default_lang", "zhCN"),
-		Version:          s.GetWithDefault("version", "1.0.0"),
-		GeetestEnabled:   geetestConfig.Enabled,
-		GeetestCaptchaId: geetestConfig.CaptchaID,
+		SiteName:           s.GetWithDefault("site_name", "F.st"),
+		SiteDesc:           s.GetWithDefault("site_desc", "Full-stack admin template based on Go + Vue 3"),
+		SiteLogo:           s.GetWithDefault("site_logo", ""),
+		Copyright:          s.GetWithDefault("copyright", "(c) 2024 F.st"),
+		ICP:                s.GetWithDefault("icp", ""),
+		AllowRegister:      s.GetBoolWithDefault("allow_register", true),
+		DefaultLang:        s.GetWithDefault("default_lang", "zhCN"),
+		Version:            s.GetWithDefault("version", "1.0.0"),
+		GeetestEnabled:     geetestConfig.Enabled,
+		GeetestCaptchaId:   geetestConfig.CaptchaID,
+		EmailVerifyEnabled: verifyConfig.EmailEnabled,
+		SMSVerifyEnabled:   verifyConfig.SMSEnabled,
 	}
 }
 

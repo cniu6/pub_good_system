@@ -455,11 +455,26 @@ func (ctrl *ProfileController) SendEmailChangeCode(c *gin.Context) {
 	}
 
 	req.NewEmail = utils.Clean_XSS(req.NewEmail)
+	uid := user_id.(uint64)
 
 	// 检查邮箱是否已被使用
 	existing, _ := models.GetUserByEmail(req.NewEmail)
-	if existing != nil && existing.ID != user_id.(uint64) {
+	if existing != nil && existing.ID != uid {
 		utils.Fail(c, 400, "Email already in use")
+		return
+	}
+
+	// 检查邮箱验证码功能是否启用
+	verifyConfig := services.GetGlobalVerifyConfig()
+	if !verifyConfig.EmailEnabled {
+		// 验证码功能关闭，直接更新邮箱
+		update_req := &services.UserUpdateRequest{ID: uid, Email: req.NewEmail}
+		if err := ctrl.user_svc.Update(update_req); err != nil {
+			utils.Fail(c, 500, err.Error())
+			return
+		}
+		fmt.Printf("[DEV] Email verify disabled, directly changed email for user %d to %s\n", uid, req.NewEmail)
+		utils.Success(c, gin.H{"message": "Email changed successfully (verification disabled)", "verified": true, "email": req.NewEmail})
 		return
 	}
 
@@ -565,7 +580,7 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 		return
 	}
 
-	_, exists := c.Get("userID")
+	user_id, exists := c.Get("userID")
 	if !exists {
 		utils.Fail(c, 401, "User not logged in")
 		return
@@ -578,6 +593,21 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 	}
 
 	req.NewMobile = utils.Clean_XSS(req.NewMobile)
+	uid := user_id.(uint64)
+
+	// 检查短信验证码功能是否启用
+	verifyConfig := services.GetGlobalVerifyConfig()
+	if !verifyConfig.SMSEnabled {
+		// 验证码功能关闭，直接更新手机号
+		update_req := &services.UserUpdateRequest{ID: uid, Mobile: req.NewMobile}
+		if err := ctrl.user_svc.Update(update_req); err != nil {
+			utils.Fail(c, 500, err.Error())
+			return
+		}
+		fmt.Printf("[DEV] SMS verify disabled, directly changed phone for user %d to %s\n", uid, req.NewMobile)
+		utils.Success(c, gin.H{"message": "Phone changed successfully (verification disabled)", "verified": true, "mobile": req.NewMobile})
+		return
+	}
 
 	// 生成验证码
 	code := generateCode()
@@ -589,11 +619,16 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 		return
 	}
 
-	// TODO: 对接短信服务发送验证码
-	// 目前仅存储验证码，在开发环境下打印到日志
-	fmt.Printf("[DEV] Phone change code for %s: %s\n", req.NewMobile, code)
+	// 通过 SMS 服务发送验证码
+	if services.GlobalSMSService != nil {
+		if err := services.GlobalSMSService.SendCode(req.NewMobile, code, 10); err != nil {
+			fmt.Printf("[SMS] Failed to send code to %s: %v\n", req.NewMobile, err)
+		}
+	} else {
+		fmt.Printf("[DEV] Phone change code for %s: %s\n", req.NewMobile, code)
+	}
 
-	utils.Success(c, gin.H{"message": "Verification code sent (SMS service pending integration)"})
+	utils.Success(c, gin.H{"message": "Verification code sent"})
 }
 
 // VerifyPhoneChange 验证并修改手机号
