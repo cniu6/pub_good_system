@@ -1,10 +1,12 @@
 package user
 
 import (
+	crypto_rand "crypto/rand"
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/utils"
+	"math/big"
 	"math/rand"
 	"strings"
 	"time"
@@ -862,10 +864,15 @@ func calculateDaysJoined(join_time *int64) int {
 	return int(time.Since(join).Hours() / 24)
 }
 
-// generateCode 生成6位数字验证码
+// generateCode 生成6位数字验证码（使用 crypto/rand）
 func generateCode() string {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return fmt.Sprintf("%06d", rnd.Intn(1000000))
+	n, err := crypto_rand.Int(crypto_rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		// fallback to math/rand
+		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+		return fmt.Sprintf("%06d", rnd.Intn(1000000))
+	}
+	return fmt.Sprintf("%06d", n.Int64())
 }
 
 // getLangFromRequest 从请求获取语言

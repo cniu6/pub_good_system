@@ -9,7 +9,7 @@ import { request } from '../../http'
 export type SettingType = 'string' | 'number' | 'boolean' | 'json'
 
 // 配置分类
-export type SettingCategory = 'basic' | 'security' | 'email' | 'custom'
+export type SettingCategory = 'basic' | 'security' | 'email' | 'sms' | 'custom'
 
 // 配置项 DTO
 export interface SettingDTO {
