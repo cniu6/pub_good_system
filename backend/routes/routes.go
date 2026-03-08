@@ -106,9 +106,7 @@ func SetupRoutes(router *gin.Engine) {
 			adminGroup.Use(middleware.AdminOnly())
 			{
 				// 仪表盘
-				adminGroup.GET("/dashboard", func(c *gin.Context) {
-					utils.Success(c, gin.H{"message": "欢迎访问管理后台"})
-				})
+				adminGroup.GET("/dashboard", admin.GetDashboard)
 
 				// ----- 用户管理 -----
 				users := adminGroup.Group("/users")
