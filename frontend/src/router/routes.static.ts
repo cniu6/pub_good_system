@@ -330,6 +330,16 @@ export const staticRoutes: AppRoute.RowRoute[] = [
     pid: 7,
   },
   {
+    name: 'moneyScoreLogs',
+    path: '/money-score-logs',
+    title: '余额与积分',
+    requiresAuth: true,
+    icon: 'icon-park-outline:wallet',
+    componentPath: '/user/money-score-logs/index.vue',
+    id: 9,
+    pid: null,
+  },
+  {
     name: 'about',
     path: '/about',
     title: 'route.about',

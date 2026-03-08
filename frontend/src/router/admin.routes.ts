@@ -75,6 +75,24 @@ export function getAdminRoutes(): RouteRecordRaw[] {
           },
         },
         {
+          path: 'money-logs',
+          name: 'admin-money-logs',
+          component: () => import('@/views/admin/money-logs/index.vue'),
+          meta: {
+            title: '余额日志',
+            icon: 'icon-park-outline:wallet',
+          },
+        },
+        {
+          path: 'score-logs',
+          name: 'admin-score-logs',
+          component: () => import('@/views/admin/score-logs/index.vue'),
+          meta: {
+            title: '积分日志',
+            icon: 'icon-park-outline:diamond',
+          },
+        },
+        {
           path: 'settings',
           name: 'admin-settings',
           component: () => import('@/views/admin/settings/index.vue'),
