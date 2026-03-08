@@ -65,6 +65,7 @@ import {
 } from 'naive-ui'
 import type { DataTableColumns, FormInst } from 'naive-ui'
 import { adminApi } from '@/service/api/admin'
+import { local } from '@/utils'
 
 const router = useRouter()
 const message = useMessage()
@@ -138,11 +139,12 @@ const columns: DataTableColumns<any> = [
   {
     title: '操作',
     key: 'actions',
-    width: 250,
+    width: 320,
     render(row) {
-      return h(NSpace, {}, () => [
-        h(NButton, { size: 'small', onClick: () => handleView(row) }, () => '查看'),
+      return h(NSpace, { size: 'small' }, () => [
+        h(NButton, { size: 'small', type: 'info', onClick: () => handleView(row) }, () => '查看'),
         h(NButton, { size: 'small', type: 'primary', onClick: () => handleEdit(row) }, () => '编辑'),
+        h(NButton, { size: 'small', type: 'success', onClick: () => handleLoginAs(row) }, () => '登录'),
         h(NButton, { size: 'small', type: 'error', onClick: () => handleDelete(row) }, () => '删除'),
       ])
     },
@@ -219,7 +221,45 @@ function handleCreate() {
 }
 
 function handleView(row: any) {
-  router.push(`/admin/users/${row.id}`)
+  router.push(`/users/${row.id}`)
+}
+
+async function handleLoginAs(row: any) {
+  dialog.warning({
+    title: '确认登录',
+    content: `确定要以用户 "${row.username}" 的身份登录吗？将在新标签页打开用户面板。`,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        const res = await adminApi.user.loginAsUser(row.id)
+        if (res.code === 200 && res.data) {
+          const token = res.data.token
+          const userData = res.data.user
+          if (!token) {
+            message.error('获取用户 token 失败')
+            return
+          }
+          // 设置用户凭证到 localStorage，新标签页会读取
+          local.set('accessToken', token)
+          local.set('userInfo', {
+            userName: userData.username,
+            role: [userData.role],
+            accessToken: token,
+          })
+          local.set('role', userData.role || 'user')
+          message.success(`正在以 ${row.username} 身份打开用户面板...`)
+          setTimeout(() => {
+            window.open('/', '_blank')
+          }, 500)
+        } else {
+          message.error(res.message || '登录失败')
+        }
+      } catch (error) {
+        message.error('登录失败')
+      }
+    },
+  })
 }
 
 async function handleEdit(row: any) {
