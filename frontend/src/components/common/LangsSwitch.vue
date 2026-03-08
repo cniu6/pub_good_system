@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { useAppStore } from '@/store'
+import { useAppStore, useAuthStore } from '@/store'
+import { updateUserSettings } from '@/service'
+import { langToBackendFormat } from '@/utils'
 
 const appStore = useAppStore()
+const authStore = useAuthStore()
 const options = [
   {
     label: 'English',
@@ -12,10 +15,17 @@ const options = [
     value: 'zhCN',
   },
 ]
+
+function handleLangChange(lang: App.lang) {
+  appStore.setAppLang(lang)
+  if (authStore.isLogin) {
+    updateUserSettings({ language: langToBackendFormat(lang) }).catch(() => {})
+  }
+}
 </script>
 
 <template>
-  <n-popselect :value="appStore.lang" :options="options" trigger="click" @update:value="appStore.setAppLang">
+  <n-popselect :value="appStore.lang" :options="options" trigger="click" @update:value="handleLangChange">
     <CommonWrapper>
       <icon-park-outline-translate />
     </CommonWrapper>
