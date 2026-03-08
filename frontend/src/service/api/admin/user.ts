@@ -18,6 +18,20 @@ export interface UserSimpleInfo {
   status: number
 }
 
+interface UserBatchSimpleInfoResponse {
+  users: Record<number, UserSimpleInfo>
+}
+
+interface UserMoneyLogListResponse {
+  list: Entity.UserMoneyLog[]
+  total: number
+}
+
+interface UserScoreLogListResponse {
+  list: Entity.UserScoreLog[]
+  total: number
+}
+
 export const adminUserApi = {
   // 用户列表
   list(params: {
@@ -78,8 +92,8 @@ export const adminUserApi = {
   // 返回 map[id]UserSimpleInfo，方便通过 ID 快速查找
   async batchSimpleInfo(ids: number[]): Promise<Record<number, UserSimpleInfo>> {
     if (!ids.length) return {}
-    const res = await request.Post(`${BASE_URL}/batch-simple`, { ids })
-    return res.data?.users || {}
+    const res = await request.Post<Service.ResponseResult<UserBatchSimpleInfoResponse>>(`${BASE_URL}/batch-simple`, { ids })
+    return res.isSuccess ? (res.data?.users || {}) : {}
   },
 
   // 按标识查找用户（ID/用户名/邮箱）
@@ -123,13 +137,13 @@ const MONEY_LOGS_URL = `/api/v1${ADMIN_PATH}/money-logs`
 
 export const adminMoneyLogApi = {
   list(params: { page?: number, page_size?: number, keyword?: string, user_id?: number }) {
-    return request.Get(MONEY_LOGS_URL, { params })
+    return request.Get<Service.ResponseResult<UserMoneyLogListResponse>>(MONEY_LOGS_URL, { params })
   },
   detail(id: number) {
-    return request.Get(`${MONEY_LOGS_URL}/${id}`)
+    return request.Get<Service.ResponseResult<Entity.UserMoneyLog>>(`${MONEY_LOGS_URL}/${id}`)
   },
   delete(id: number) {
-    return request.Delete(`${MONEY_LOGS_URL}/${id}`)
+    return request.Delete<Service.ResponseResult<{ message: string }>>(`${MONEY_LOGS_URL}/${id}`)
   },
 }
 
@@ -138,12 +152,12 @@ const SCORE_LOGS_URL = `/api/v1${ADMIN_PATH}/score-logs`
 
 export const adminScoreLogApi = {
   list(params: { page?: number, page_size?: number, keyword?: string, user_id?: number }) {
-    return request.Get(SCORE_LOGS_URL, { params })
+    return request.Get<Service.ResponseResult<UserScoreLogListResponse>>(SCORE_LOGS_URL, { params })
   },
   detail(id: number) {
-    return request.Get(`${SCORE_LOGS_URL}/${id}`)
+    return request.Get<Service.ResponseResult<Entity.UserScoreLog>>(`${SCORE_LOGS_URL}/${id}`)
   },
   delete(id: number) {
-    return request.Delete(`${SCORE_LOGS_URL}/${id}`)
+    return request.Delete<Service.ResponseResult<{ message: string }>>(`${SCORE_LOGS_URL}/${id}`)
   },
 }

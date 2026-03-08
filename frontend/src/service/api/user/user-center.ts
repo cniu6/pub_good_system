@@ -1,5 +1,15 @@
 import { request } from '../../http'
 
+interface UserMoneyLogListResponse {
+  list: Entity.UserMoneyLog[]
+  total: number
+}
+
+interface UserScoreLogListResponse {
+  list: Entity.UserScoreLog[]
+  total: number
+}
+
 // ========================================
 // 用户设置
 // ========================================
@@ -85,12 +95,12 @@ export function revokeAllSessions() {
 
 /** 获取我的余额变动日志 */
 export function fetchMyMoneyLogs(params: { page?: number, page_size?: number, keyword?: string }) {
-  return request.Get<Service.ResponseResult<any>>('/api/v1/user/money-logs', { params })
+  return request.Get<Service.ResponseResult<UserMoneyLogListResponse>>('/api/v1/user/money-logs', { params })
 }
 
 /** 获取我的积分变动日志 */
 export function fetchMyScoreLogs(params: { page?: number, page_size?: number, keyword?: string }) {
-  return request.Get<Service.ResponseResult<any>>('/api/v1/user/score-logs', { params })
+  return request.Get<Service.ResponseResult<UserScoreLogListResponse>>('/api/v1/user/score-logs', { params })
 }
 
 // ========================================
