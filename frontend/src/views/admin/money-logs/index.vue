@@ -14,7 +14,7 @@
         :data="logList"
         :loading="loading"
         :pagination="pagination"
-        :row-key="(row: any) => row.id"
+        :row-key="(row: Entity.UserMoneyLog) => row.id"
         striped
         size="small"
         @update:page="handlePageChange"
@@ -198,8 +198,8 @@ async function handleSubmit() {
     message.success('余额变更成功')
     showModal.value = false
     fetchData()
-  } catch (e: any) {
-    message.error(e?.message || '操作失败')
+  } catch (e: unknown) {
+    message.error((e instanceof Error ? e.message : null) || '操作失败')
   } finally {
     submitting.value = false
   }

@@ -1,6 +1,7 @@
 package models
 
 import (
+	"database/sql"
 	"fst/backend/internal/db"
 	"log"
 	"time"
@@ -125,4 +126,40 @@ func UpdateUserMoney(userID uint64, newMoney float64) error {
 	now := time.Now().Unix()
 	_, err := db.DB.Exec("UPDATE users SET money = ?, update_time = ? WHERE id = ?", newMoney, now, userID)
 	return err
+}
+
+// UpdateUserMoneyTx 在事务中更新用户余额字段
+func UpdateUserMoneyTx(tx *sql.Tx, userID uint64, newMoney float64) error {
+	now := time.Now().Unix()
+	_, err := tx.Exec("UPDATE users SET money = ?, update_time = ? WHERE id = ?", newMoney, now, userID)
+	return err
+}
+
+// CreateUserMoneyLogTx 在事务中创建余额变动记录
+func CreateUserMoneyLogTx(tx *sql.Tx, userID uint64, money, before, after float64, memo string) (*UserMoneyLog, error) {
+	now := time.Now().Unix()
+	result, err := tx.Exec(
+		"INSERT INTO user_money_logs (user_id, money, `before`, `after`, memo, create_time) VALUES (?, ?, ?, ?, ?, ?)",
+		userID, money, before, after, memo, now,
+	)
+	if err != nil {
+		return nil, err
+	}
+	id, _ := result.LastInsertId()
+	return &UserMoneyLog{
+		ID:         uint64(id),
+		UserID:     userID,
+		Money:      money,
+		Before:     before,
+		After:      after,
+		Memo:       memo,
+		CreateTime: now,
+	}, nil
+}
+
+// GetUserMoneyForUpdate 在事务中锁定并读取用户余额（SELECT ... FOR UPDATE）
+func GetUserMoneyForUpdate(tx *sql.Tx, userID uint64) (float64, error) {
+	var money float64
+	err := tx.QueryRow("SELECT money FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE", userID).Scan(&money)
+	return money, err
 }
