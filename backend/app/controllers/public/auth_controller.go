@@ -2,6 +2,8 @@ package public
 
 import (
 	crypto_rand "crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
@@ -165,7 +167,42 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 		return
 	}
 
+	// 记录登录会话
+	userAgent := c.GetHeader("User-Agent")
+	device := parseDevice(userAgent)
+	tokenHash := hashToken(result.AccessToken)
+	_ = models.CreateUserSession(result.ID, tokenHash, clientIP, userAgent, device, result.ExpiresAt)
+
 	utils.Success(c, result)
+}
+
+// hashToken 对 token 进行 SHA256 哈希
+func hashToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}
+
+// parseDevice 从 User-Agent 中解析设备信息
+func parseDevice(ua string) string {
+	ua = strings.ToLower(ua)
+	switch {
+	case strings.Contains(ua, "iphone"):
+		return "iPhone"
+	case strings.Contains(ua, "ipad"):
+		return "iPad"
+	case strings.Contains(ua, "android") && strings.Contains(ua, "mobile"):
+		return "Android Phone"
+	case strings.Contains(ua, "android"):
+		return "Android Tablet"
+	case strings.Contains(ua, "macintosh"):
+		return "Mac"
+	case strings.Contains(ua, "windows"):
+		return "Windows PC"
+	case strings.Contains(ua, "linux"):
+		return "Linux PC"
+	default:
+		return "Unknown"
+	}
 }
 
 // Register 注册新用户

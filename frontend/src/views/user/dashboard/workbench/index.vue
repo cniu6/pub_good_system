@@ -49,7 +49,7 @@ const announcementTagLabel: Record<string, string> = {
 
 const router = useRouter()
 function goToUserCenter() {
-  router.push('/user-center')
+  router.push('/user/user-center')
 }
 
 onMounted(() => {
@@ -174,7 +174,7 @@ onMounted(() => {
                 </template>
                 编辑资料
               </n-button>
-              <n-button @click="router.push('/user-center')">
+              <n-button @click="router.push('/user/user-center')">
                 <template #icon>
                   <nova-icon icon="icon-park-outline:setting-one" />
                 </template>

@@ -2,6 +2,9 @@ import type { RouteRecordRaw } from 'vue-router'
 
 /* 页面中的一些固定路由，错误页等 */
 export const routes: RouteRecordRaw[] = [
+  // ========================================
+  // 首页（公开）
+  // ========================================
   {
     path: '/',
     name: 'root',
@@ -12,8 +15,12 @@ export const routes: RouteRecordRaw[] = [
       withoutTab: true,
     },
   },
+
+  // ========================================
+  // 用户认证页面
+  // ========================================
   {
-    path: '/login',
+    path: '/user/login',
     name: 'login',
     component: () => import('@/views/_builtin/login/index.vue'),
     meta: {
@@ -21,6 +28,40 @@ export const routes: RouteRecordRaw[] = [
       withoutTab: true,
     },
   },
+  {
+    path: '/user/register',
+    name: 'register',
+    component: () => import('@/views/_builtin/login/index.vue'),
+    meta: {
+      title: 'login.signUpTitle',
+      withoutTab: true,
+    },
+    props: { defaultForm: 'register' },
+  },
+
+  // ========================================
+  // 便捷重定向
+  // ========================================
+  {
+    path: '/login',
+    redirect: '/user/login',
+  },
+  {
+    path: '/register',
+    redirect: '/user/register',
+  },
+  {
+    path: '/user',
+    redirect: '/user/dashboard/workbench',
+  },
+  {
+    path: '/dashboard',
+    redirect: '/user/dashboard/workbench',
+  },
+
+  // ========================================
+  // 公共 / 工具页面
+  // ========================================
   {
     path: '/loading',
     name: 'loading',
@@ -40,6 +81,10 @@ export const routes: RouteRecordRaw[] = [
       withoutTab: true,
     },
   },
+
+  // ========================================
+  // 错误页面
+  // ========================================
   {
     path: '/403',
     name: '403',

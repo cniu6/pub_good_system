@@ -20,7 +20,7 @@ async function loadAdminRoutesDynamic() {
   }
 }
 
-const ADMIN_PUBLIC_PATHS = new Set(['/login', '/403', '/404', '/500', '/loading', '/public'])
+const ADMIN_PUBLIC_PATHS = new Set(['/login', '/user/login', '/403', '/404', '/500', '/loading', '/public'])
 
 function isAdminRoutePath(path: string, mode: AppRouteMode, adminPath: string) {
   if (mode === 'admin')
@@ -77,14 +77,14 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
         next({ path: '/403', replace: true })
       }
       else {
-        next({ path: '/login', query: { redirect: to.fullPath } })
+        next({ path: '/user/login', query: { redirect: to.fullPath } })
       }
       return
     }
 
-    if (to.name !== 'login' && to.meta.requiresAuth !== false && to.meta.requiresAuth === true && !isLogin) {
+    if (to.name !== 'login' && to.name !== 'register' && to.meta.requiresAuth !== false && to.meta.requiresAuth === true && !isLogin) {
       const redirect = to.name === '404' ? undefined : to.fullPath
-      next({ path: '/login', query: { redirect } })
+      next({ path: '/user/login', query: { redirect } })
       return
     }
 
@@ -101,7 +101,7 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
       }
       catch {
         const redirect = to.fullPath !== '/' ? to.fullPath : undefined
-        next({ path: '/login', query: redirect ? { redirect } : undefined })
+        next({ path: '/user/login', query: redirect ? { redirect } : undefined })
         return
       }
     }
@@ -153,7 +153,7 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
       return
     }
 
-    if (to.name === 'login' && isLogin) {
+    if ((to.name === 'login' || to.name === 'register') && isLogin) {
       if (hasAdminRole) {
         if (mode === 'user') {
           window.location.replace(buildAdminEntryUrl(adminPath))
@@ -163,7 +163,7 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
         next({ path: '/dashboard' })
       }
       else {
-        next({ path: import.meta.env.VITE_HOME_PATH || '/' })
+        next({ path: import.meta.env.VITE_HOME_PATH || '/user/dashboard/workbench' })
       }
       return
     }
