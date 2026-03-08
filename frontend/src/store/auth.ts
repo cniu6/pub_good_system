@@ -3,8 +3,8 @@ import { unref } from 'vue'
 import { router } from '@/router'
 import { buildAdminEntryUrl, getAdminBasePath } from '@/router/constants'
 import { getRuntimeRouteMode } from '@/router/runtime-mode'
-import { fetchLogin, fetchUpdateToken } from '@/service'
-import { local } from '@/utils'
+import { fetchLogin, fetchUpdateToken, fetchUserSettings } from '@/service'
+import { langToFrontendFormat, local } from '@/utils'
 import { useRouteStore } from './router'
 import { useTabStore } from './tab'
 
@@ -129,8 +129,25 @@ export const useAuthStore = defineStore('auth-store', {
         router.push({ path: redirectPath })
       }
 
+      // 从后端恢复用户语言偏好
+      this.restoreLanguageFromBackend()
+
       // 启动自动刷新
       this.setupAutoRefresh()
+    },
+
+    async restoreLanguageFromBackend() {
+      try {
+        const res = await fetchUserSettings()
+        if (res.isSuccess && res.data?.language) {
+          const { useAppStore } = await import('./app')
+          const appStore = useAppStore()
+          const frontendLang = langToFrontendFormat(res.data.language)
+          if (frontendLang !== appStore.lang) {
+            appStore.setAppLang(frontendLang)
+          }
+        }
+      } catch {}
     },
 
     /**

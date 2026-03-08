@@ -1,21 +1,23 @@
 <script setup lang="ts">
-import { useAuthStore } from '@/store'
+import { useAppStore, useAuthStore } from '@/store'
 import { fetchUserSettings, updateUserSettings } from '@/service'
+import { langToBackendFormat, langToFrontendFormat } from '@/utils'
 
 const authStore = useAuthStore()
+const appStore = useAppStore()
 
 const loading = ref(false)
 const saving = ref(false)
 
 const settingsForm = ref({
-  language: 'zh-CN',
+  language: appStore.lang as App.lang,
   theme: 'light',
   notify_email: true,
 })
 
 const languageOptions = [
-  { label: '简体中文', value: 'zh-CN' },
-  { label: 'English', value: 'en-US' },
+  { label: '简体中文', value: 'zhCN' as App.lang },
+  { label: 'English', value: 'enUS' as App.lang },
 ]
 
 const themeOptions = [
@@ -30,7 +32,7 @@ async function loadSettings() {
     const response = await fetchUserSettings()
     if (response.isSuccess && response.data) {
       settingsForm.value = {
-        language: response.data.language || 'zh-CN',
+        language: langToFrontendFormat(response.data.language || 'zh-CN'),
         theme: response.data.theme || 'light',
         notify_email: response.data.notify_email ?? true,
       }
@@ -48,11 +50,12 @@ async function handleSaveSettings() {
   saving.value = true
   try {
     const response = await updateUserSettings({
-      language: settingsForm.value.language,
+      language: langToBackendFormat(settingsForm.value.language),
       theme: settingsForm.value.theme,
       notify_email: settingsForm.value.notify_email,
     })
     if (response.isSuccess) {
+      appStore.setAppLang(settingsForm.value.language)
       window.$message.success('设置保存成功')
     }
     else {
