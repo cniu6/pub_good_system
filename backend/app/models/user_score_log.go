@@ -1,6 +1,7 @@
 package models
 
 import (
+	"database/sql"
 	"fst/backend/internal/db"
 	"log"
 	"time"
@@ -124,4 +125,40 @@ func UpdateUserScore(userID uint64, newScore int64) error {
 	now := time.Now().Unix()
 	_, err := db.DB.Exec("UPDATE users SET score = ?, update_time = ? WHERE id = ?", newScore, now, userID)
 	return err
+}
+
+// UpdateUserScoreTx 在事务中更新用户积分字段
+func UpdateUserScoreTx(tx *sql.Tx, userID uint64, newScore int64) error {
+	now := time.Now().Unix()
+	_, err := tx.Exec("UPDATE users SET score = ?, update_time = ? WHERE id = ?", newScore, now, userID)
+	return err
+}
+
+// CreateUserScoreLogTx 在事务中创建积分变动记录
+func CreateUserScoreLogTx(tx *sql.Tx, userID uint64, score, before, after int64, memo string) (*UserScoreLog, error) {
+	now := time.Now().Unix()
+	result, err := tx.Exec(
+		"INSERT INTO user_score_logs (user_id, score, `before`, `after`, memo, create_time) VALUES (?, ?, ?, ?, ?, ?)",
+		userID, score, before, after, memo, now,
+	)
+	if err != nil {
+		return nil, err
+	}
+	id, _ := result.LastInsertId()
+	return &UserScoreLog{
+		ID:         uint64(id),
+		UserID:     userID,
+		Score:      score,
+		Before:     before,
+		After:      after,
+		Memo:       memo,
+		CreateTime: now,
+	}, nil
+}
+
+// GetUserScoreForUpdate 在事务中锁定并读取用户积分（SELECT ... FOR UPDATE）
+func GetUserScoreForUpdate(tx *sql.Tx, userID uint64) (int64, error) {
+	var score int64
+	err := tx.QueryRow("SELECT score FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE", userID).Scan(&score)
+	return score, err
 }

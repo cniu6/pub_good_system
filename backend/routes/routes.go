@@ -134,25 +134,25 @@ func SetupRoutes(router *gin.Engine) {
 					logs.POST("/clean", adminLogCtrl.Clean)
 				}
 
-			// ----- 邮件模板 -----
-			emailTemplates := adminGroup.Group("/email-templates")
-			{
-				emailTemplates.GET("", adminEmailTplCtrl.List)
-				emailTemplates.GET("/:id", adminEmailTplCtrl.Detail)
-				emailTemplates.PUT("/:id", adminEmailTplCtrl.Update)
-				emailTemplates.POST("/:id/preview", adminEmailTplCtrl.Preview)
-				emailTemplates.POST("/:id/reset", adminEmailTplCtrl.Reset)
-			}
+				// ----- 邮件模板 -----
+				emailTemplates := adminGroup.Group("/email-templates")
+				{
+					emailTemplates.GET("", adminEmailTplCtrl.List)
+					emailTemplates.GET("/:id", adminEmailTplCtrl.Detail)
+					emailTemplates.PUT("/:id", adminEmailTplCtrl.Update)
+					emailTemplates.POST("/:id/preview", adminEmailTplCtrl.Preview)
+					emailTemplates.POST("/:id/reset", adminEmailTplCtrl.Reset)
+				}
 
-			// ----- 邮件发送记录 -----
-			emailLogs := adminGroup.Group("/email-logs")
-			{
-				emailLogs.GET("", adminEmailLogCtrl.List)
-				emailLogs.GET("/stats", adminEmailLogCtrl.Stats)
-				emailLogs.GET("/template-names", adminEmailLogCtrl.TemplateNames)
-				emailLogs.GET("/:id", adminEmailLogCtrl.Detail)
-				emailLogs.POST("/clean", adminEmailLogCtrl.Clean)
-			}
+				// ----- 邮件发送记录 -----
+				emailLogs := adminGroup.Group("/email-logs")
+				{
+					emailLogs.GET("", adminEmailLogCtrl.List)
+					emailLogs.GET("/stats", adminEmailLogCtrl.Stats)
+					emailLogs.GET("/template-names", adminEmailLogCtrl.TemplateNames)
+					emailLogs.GET("/:id", adminEmailLogCtrl.Detail)
+					emailLogs.POST("/clean", adminEmailLogCtrl.Clean)
+				}
 
 				// ----- 余额/积分管理 -----
 				adminMoneyScoreCtrl.RegisterRoutes(adminGroup)
