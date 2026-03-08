@@ -56,13 +56,13 @@ function scroll_to(id: string) {
 }
 
 function go_user() {
-  const target = import.meta.env.VITE_HOME_PATH || '/dashboard/workbench'
-  router.push(is_logged_in.value ? target : { path: '/login', query: { redirect: target } })
+  const target = import.meta.env.VITE_HOME_PATH || '/user/dashboard/workbench'
+  router.push(is_logged_in.value ? target : { path: '/user/login', query: { redirect: target } })
 }
 
 function go_admin() {
   const target = import.meta.env.VITE_ADMIN_BASE_PATH || '/system-mgr'
-  router.push(is_logged_in.value ? target : { path: '/login', query: { redirect: target } })
+  router.push(is_logged_in.value ? target : { path: '/user/login', query: { redirect: target } })
 }
 
 // 鼠标位置跟踪 (用于光晕动画 - 使用 CSS 变量避免 reactive 开销)

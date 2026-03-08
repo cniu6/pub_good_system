@@ -125,6 +125,9 @@ export const useAuthStore = defineStore('auth-store', {
           router.push({ path: '/dashboard' })
         }
       }
+      else if (redirectPath === '/') {
+        router.push({ path: import.meta.env.VITE_HOME_PATH || '/user/dashboard/workbench' })
+      }
       else {
         router.push({ path: redirectPath })
       }

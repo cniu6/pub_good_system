@@ -2,6 +2,8 @@ package user
 
 import (
 	crypto_rand "crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
@@ -828,7 +830,10 @@ func (ctrl *ProfileController) RevokeAllSessions(c *gin.Context) {
 	if strings.HasPrefix(current_token, "Bearer ") {
 		current_token = current_token[7:]
 	}
-	if err := models.RevokeAllUserSessions(user_id.(uint64), current_token); err != nil {
+	// 对 token 进行 SHA256 哈希，与存储时一致
+	h := sha256.Sum256([]byte(current_token))
+	currentTokenHash := hex.EncodeToString(h[:])
+	if err := models.RevokeAllUserSessions(user_id.(uint64), currentTokenHash); err != nil {
 		utils.Fail(c, 500, "Failed to revoke sessions")
 		return
 	}
