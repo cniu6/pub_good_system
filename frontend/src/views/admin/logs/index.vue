@@ -14,20 +14,22 @@
         >
           <template #suffix>天</template>
         </n-input-number>
-        <n-text depth="3">最大数量</n-text>
+        <n-text depth="3">日志保留上限</n-text>
         <n-input-number
           v-model:value="maxCount"
-          :min="1"
-          :max="500"
+          :min="20"
+          :max="10000"
           size="small"
           style="width: 120px"
         />
+        <n-text depth="3" style="font-size:12px;color:#999;">超出自动清理旧日志</n-text>
         <n-button size="small" type="primary" :loading="savingQuerySettings" @click="handleApplyQuerySettings">
           应用
         </n-button>
       </n-space>
 
       <n-data-table
+        remote
         :columns="columns"
         :data="logList"
         :loading="loading"
@@ -53,7 +55,7 @@ const logList = ref<any[]>([])
 const userMap = ref<Record<number, UserSimpleInfo>>({})
 const total = ref(0)
 const queryDays = ref(30)
-const maxCount = ref(20)
+const maxCount = ref(500)
 const savingQuerySettings = ref(false)
 
 // 获取管理端路径前缀
@@ -191,7 +193,7 @@ async function loadQuerySettings() {
         }
         if (item.key === 'operation_log_max_count') {
           hasMaxCount = true
-          maxCount.value = Math.max(1, Math.min(500, Number(item.value) || 20))
+          maxCount.value = Math.max(20, Math.min(10000, Number(item.value) || 500))
         }
       }
     }
@@ -215,19 +217,16 @@ async function loadQuerySettings() {
         value: String(maxCount.value),
         type: 'number',
         category: 'custom',
-        label: '操作日志最大数量',
-        description: '操作日志页面单页最大查询数量',
+        label: '操作日志保留上限',
+        description: '操作日志最大保留条数，超出自动清理旧日志',
         is_public: false,
         is_editable: true,
       })
     }
 
-    query.page_size = maxCount.value
-    pagination.pageSize = maxCount.value
   }
   catch {
-    query.page_size = maxCount.value
-    pagination.pageSize = maxCount.value
+    // use defaults
   }
 }
 
@@ -235,7 +234,7 @@ async function handleApplyQuerySettings() {
   savingQuerySettings.value = true
   try {
     queryDays.value = Math.max(1, Math.floor(queryDays.value || 1))
-    maxCount.value = Math.max(1, Math.min(500, Math.floor(maxCount.value || 1)))
+    maxCount.value = Math.max(20, Math.min(10000, Math.floor(maxCount.value || 500)))
 
     await adminApi.settings.batchUpdate({
       operation_log_query_days: String(queryDays.value),
@@ -244,8 +243,6 @@ async function handleApplyQuerySettings() {
 
     query.page = 1
     pagination.page = 1
-    query.page_size = maxCount.value
-    pagination.pageSize = maxCount.value
     applyDateRange()
     await fetchLogs()
     message.success('查询设置已更新')

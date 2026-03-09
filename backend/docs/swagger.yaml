@@ -1,5 +1,10 @@
 basePath: /api
 definitions:
+  app_controllers_admin.AdminCompleteOrderRequest:
+    properties:
+      memo:
+        type: string
+    type: object
   app_controllers_admin.BatchUpdateSettingsRequest:
     properties:
       settings:
@@ -44,6 +49,20 @@ definitions:
         type: object
     required:
     - content
+    type: object
+  app_controllers_admin.EmailSendTestRequest:
+    properties:
+      content:
+        type: string
+      subject:
+        type: string
+      template_id:
+        description: 可选：使用模板发送
+        type: integer
+      to:
+        type: string
+    required:
+    - to
     type: object
   app_controllers_admin.EmailTemplateUpdateRequest:
     properties:
@@ -193,20 +212,92 @@ definitions:
     - new_password
     - old_password
     type: object
+  app_controllers_user.CreateOrderRequest:
+    properties:
+      amount:
+        type: number
+      gateway_id:
+        type: integer
+      subject:
+        type: string
+    required:
+    - amount
+    - gateway_id
+    type: object
+  app_controllers_user.DeactivateAccountRequest:
+    properties:
+      password:
+        type: string
+      reason:
+        type: string
+    required:
+    - password
+    type: object
+  app_controllers_user.SendEmailCodeRequest:
+    properties:
+      lang:
+        type: string
+      new_email:
+        type: string
+    required:
+    - new_email
+    type: object
+  app_controllers_user.SendPhoneCodeRequest:
+    properties:
+      new_mobile:
+        type: string
+    required:
+    - new_mobile
+    type: object
   app_controllers_user.UpdateProfileRequest:
     properties:
       avatar:
         type: string
+      back_ground:
+        type: string
       birthday:
         type: integer
+      country:
+        type: string
       gender:
         type: integer
+      language:
+        type: string
       mobile:
         type: string
       motto:
         type: string
       nickname:
         type: string
+    type: object
+  app_controllers_user.UpdateSettingsRequest:
+    properties:
+      language:
+        type: string
+      notify_email:
+        type: boolean
+      theme:
+        type: string
+    type: object
+  app_controllers_user.VerifyEmailChangeRequest:
+    properties:
+      code:
+        type: string
+      new_email:
+        type: string
+    required:
+    - code
+    - new_email
+    type: object
+  app_controllers_user.VerifyPhoneChangeRequest:
+    properties:
+      code:
+        type: string
+      new_mobile:
+        type: string
+    required:
+    - code
+    - new_mobile
     type: object
   fst_backend_app_models.SettingDTO:
     properties:
@@ -264,16 +355,23 @@ definitions:
     properties:
       avatar:
         type: string
+      back_ground:
+        type: string
       birthday:
         type: integer
+      country:
+        type: string
       email:
         type: string
       gender:
+        description: 指针类型，允许设置为0（保密）
         type: integer
       group_id:
         type: integer
       id:
         type: integer
+      language:
+        type: string
       mobile:
         type: string
       motto:
@@ -302,6 +400,162 @@ info:
   title: FST Platform API
   version: "1.0"
 paths:
+  /api/v1/admin/email-logs:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取邮件发送记录，支持按收件人、模板名、状态筛选
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 收件人邮箱（模糊）
+        in: query
+        name: to_email
+        type: string
+      - description: 模板名称
+        in: query
+        name: template_name
+        type: string
+      - default: -1
+        description: '状态: -1=全部, 0=失败, 1=成功'
+        in: query
+        name: status
+        type: integer
+      - description: 开始时间 (YYYY-MM-DD HH:MM:SS)
+        in: query
+        name: start_time
+        type: string
+      - description: 结束时间 (YYYY-MM-DD HH:MM:SS)
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取邮件发送记录列表
+      tags:
+      - Admin-邮件日志
+  /api/v1/admin/email-logs/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据 ID 获取邮件日志详情，包含邮件内容
+      parameters:
+      - description: 日志ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取邮件发送记录详情
+      tags:
+      - Admin-邮件日志
+  /api/v1/admin/email-logs/clean:
+    post:
+      consumes:
+      - application/json
+      description: 删除指定日期之前的邮件日志
+      parameters:
+      - description: '清理参数 {before: ''2025-01-01 00:00:00''}'
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 清理邮件发送记录
+      tags:
+      - Admin-邮件日志
+  /api/v1/admin/email-logs/stats:
+    get:
+      consumes:
+      - application/json
+      description: 获取邮件发送总数、成功数、失败数
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 邮件发送统计
+      tags:
+      - Admin-邮件日志
+  /api/v1/admin/email-logs/template-names:
+    get:
+      consumes:
+      - application/json
+      description: 获取邮件日志中出现的所有模板名，用于筛选
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取邮件模板名列表
+      tags:
+      - Admin-邮件日志
+  /api/v1/admin/email-send-test:
+    post:
+      consumes:
+      - application/json
+      description: 发送测试邮件，验证SMTP配置是否正常，支持选择模板发送
+      parameters:
+      - description: 测试邮件参数
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_admin.EmailSendTestRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 发件测试
+      tags:
+      - Admin-邮件模板
   /api/v1/admin/email-templates:
     get:
       consumes:
@@ -477,6 +731,144 @@ paths:
       summary: 清理操作日志
       tags:
       - Admin-操作日志
+  /api/v1/admin/payment/orders:
+    get:
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - default: -1
+        description: 状态筛选（-1=全部）
+        in: query
+        name: status
+        type: integer
+      - description: 用户ID筛选
+        in: query
+        name: user_id
+        type: integer
+      - description: 搜索关键词
+        in: query
+        name: keyword
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 管理端-支付订单列表
+      tags:
+      - 管理端-支付
+  /api/v1/admin/payment/orders/{id}:
+    delete:
+      parameters:
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 管理端-删除订单
+      tags:
+      - 管理端-支付
+    get:
+      parameters:
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 管理端-订单详情
+      tags:
+      - 管理端-支付
+  /api/v1/admin/payment/orders/{id}/cancel:
+    post:
+      parameters:
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 管理端-取消订单
+      tags:
+      - 管理端-支付
+  /api/v1/admin/payment/orders/{id}/complete:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 补单备注
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/app_controllers_admin.AdminCompleteOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 管理端-手动补单
+      tags:
+      - 管理端-支付
+  /api/v1/admin/payment/stats:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 管理端-支付统计
+      tags:
+      - 管理端-支付
   /api/v1/admin/settings:
     get:
       consumes:
@@ -803,6 +1195,29 @@ paths:
       summary: 更新用户
       tags:
       - Admin-用户管理
+  /api/v1/admin/users/{id}/login-as:
+    post:
+      consumes:
+      - application/json
+      description: 管理员可以生成任意用户的 JWT token 进行调试
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 管理员登录指定用户
+      tags:
+      - Admin-用户管理
   /api/v1/admin/users/{id}/password:
     put:
       consumes:
@@ -832,6 +1247,29 @@ paths:
       security:
       - BearerAuth: []
       summary: 重置用户密码
+      tags:
+      - Admin-用户管理
+  /api/v1/admin/users/{id}/reset-apikey:
+    post:
+      consumes:
+      - application/json
+      description: 管理员重置指定用户的 API 密钥
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 重置用户 API Key
       tags:
       - Admin-用户管理
   /api/v1/admin/users/{id}/status:
@@ -892,6 +1330,29 @@ paths:
       security:
       - BearerAuth: []
       summary: 批量获取用户简要信息
+      tags:
+      - Admin-用户管理
+  /api/v1/admin/users/lookup:
+    get:
+      consumes:
+      - application/json
+      description: 通过 ID、用户名或邮箱查找用户
+      parameters:
+      - description: 用户标识（ID/用户名/邮箱）
+        in: query
+        name: keyword
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 按标识查找用户
       tags:
       - Admin-用户管理
   /api/v1/demo/echo:
@@ -1157,6 +1618,124 @@ paths:
       summary: 更新头像
       tags:
       - 用户中心
+  /api/v1/user/dashboard:
+    get:
+      consumes:
+      - application/json
+      description: 返回用户统计概览、公告、快捷操作入口
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取用户仪表盘
+      tags:
+      - 用户中心
+  /api/v1/user/deactivate:
+    post:
+      consumes:
+      - application/json
+      description: 用户主动注销（软删除）自己的账号
+      parameters:
+      - description: 密码确认
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_user.DeactivateAccountRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 注销账号
+      tags:
+      - 用户中心
+  /api/v1/user/email/send-code:
+    post:
+      consumes:
+      - application/json
+      description: 发送验证码到新邮箱以验证邮箱变更
+      parameters:
+      - description: 新邮箱
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_user.SendEmailCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 发送修改邮箱验证码
+      tags:
+      - 用户中心
+  /api/v1/user/email/verify:
+    post:
+      consumes:
+      - application/json
+      description: 使用验证码确认邮箱变更
+      parameters:
+      - description: 验证信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_user.VerifyEmailChangeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 验证并修改邮箱
+      tags:
+      - 用户中心
+  /api/v1/user/money-logs:
+    get:
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索关键词
+        in: query
+        name: keyword
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取我的余额变动日志
+      tags:
+      - 用户中心
   /api/v1/user/password:
     put:
       consumes:
@@ -1179,6 +1758,161 @@ paths:
       security:
       - BearerAuth: []
       summary: 修改密码
+      tags:
+      - 用户中心
+  /api/v1/user/payment/create:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 订单信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_user.CreateOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 创建充值订单
+      tags:
+      - 支付
+  /api/v1/user/payment/gateways:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取可用支付通道列表
+      tags:
+      - 支付
+  /api/v1/user/payment/orders:
+    get:
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - default: -1
+        description: 状态筛选（-1=全部）
+        in: query
+        name: status
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取我的充值订单列表
+      tags:
+      - 支付
+  /api/v1/user/payment/orders/{id}:
+    get:
+      parameters:
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取订单详情
+      tags:
+      - 支付
+  /api/v1/user/payment/orders/{id}/status:
+    get:
+      parameters:
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 检查订单状态
+      tags:
+      - 支付
+  /api/v1/user/phone/send-code:
+    post:
+      consumes:
+      - application/json
+      description: 发送验证码到新手机号（占位实现，需对接短信服务）
+      parameters:
+      - description: 新手机号
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_user.SendPhoneCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 发送修改手机号验证码
+      tags:
+      - 用户中心
+  /api/v1/user/phone/verify:
+    post:
+      consumes:
+      - application/json
+      description: 使用验证码确认手机号变更
+      parameters:
+      - description: 验证信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_user.VerifyPhoneChangeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 验证并修改手机号
       tags:
       - 用户中心
   /api/v1/user/profile:
@@ -1221,11 +1955,11 @@ paths:
       summary: 更新个人信息
       tags:
       - 用户中心
-  /api/v1/user/routes:
-    get:
+  /api/v1/user/resetapikey:
+    post:
       consumes:
       - application/json
-      description: 获取当前用户可访问的路由列表
+      description: 重置当前用户的API密钥
       produces:
       - application/json
       responses:
@@ -1235,7 +1969,93 @@ paths:
             $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
-      summary: 获取用户路由
+      summary: 重置API密钥
+      tags:
+      - 用户中心
+  /api/v1/user/score-logs:
+    get:
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索关键词
+        in: query
+        name: keyword
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取我的积分变动日志
+      tags:
+      - 用户中心
+  /api/v1/user/sessions:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户的所有活跃登录会话
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取登录会话
+      tags:
+      - 用户中心
+  /api/v1/user/sessions/:id:
+    delete:
+      consumes:
+      - application/json
+      description: 撤销指定的登录会话
+      parameters:
+      - description: 会话ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 踢出会话
+      tags:
+      - 用户中心
+  /api/v1/user/sessions/revoke-all:
+    post:
+      consumes:
+      - application/json
+      description: 撤销当前会话以外的所有登录会话
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 踢出所有其他会话
       tags:
       - 用户中心
   /api/v1/user/settings:
@@ -1253,6 +2073,29 @@ paths:
       security:
       - BearerAuth: []
       summary: 获取用户设置
+      tags:
+      - 用户中心
+    put:
+      consumes:
+      - application/json
+      description: 更新当前用户的个人设置（语言、主题、通知偏好等）
+      parameters:
+      - description: 设置信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_user.UpdateSettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新用户设置
       tags:
       - 用户中心
   /api/v1/user/stats:

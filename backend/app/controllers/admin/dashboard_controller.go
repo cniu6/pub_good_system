@@ -58,12 +58,12 @@ func GetDashboard(ctx *gin.Context) {
 	_ = database.Get(&stats.ActiveUsers7d, "SELECT COUNT(*) FROM users WHERE last_login_time >= ?", sevenDaysAgoUnix)
 
 	// 日志统计
-	_ = database.Get(&stats.TotalMoneyLogs, "SELECT COUNT(*) FROM user_money_log")
-	_ = database.Get(&stats.TotalScoreLogs, "SELECT COUNT(*) FROM user_score_log")
+	_ = database.Get(&stats.TotalMoneyLogs, "SELECT COUNT(*) FROM user_money_logs")
+	_ = database.Get(&stats.TotalScoreLogs, "SELECT COUNT(*) FROM user_score_logs")
 
 	// 操作日志
 	_ = database.Get(&stats.TotalOperationLogs, "SELECT COUNT(*) FROM operation_logs")
-	_ = database.Get(&stats.TodayOperationLogs, "SELECT COUNT(*) FROM operation_logs WHERE created_at >= ?", todayStart.Format("2006-01-02 15:04:05"))
+	_ = database.Get(&stats.TodayOperationLogs, "SELECT COUNT(*) FROM operation_logs WHERE create_time >= ?", todayStartUnix)
 
 	// 活跃会话
 	_ = database.Get(&stats.ActiveSessions, "SELECT COUNT(*) FROM user_sessions WHERE expires_at > ?", now.Unix())

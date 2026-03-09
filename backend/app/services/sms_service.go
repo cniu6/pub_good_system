@@ -51,6 +51,15 @@ var GlobalSMSService *SMSService
 // InitSMSService 初始化全局短信服务
 func InitSMSService() {
 	GlobalSMSService = &SMSService{}
+	smsConfig := GetGlobalSMSRuntimeConfig()
+	GlobalSMSService.SetConfig(SMSConfig{
+		Provider:     smsConfig.Provider,
+		AccessKey:    smsConfig.AccessKey,
+		SecretKey:    smsConfig.SecretKey,
+		SignName:     smsConfig.SignName,
+		TemplateCode: smsConfig.TemplateCode,
+		Region:       smsConfig.Region,
+	})
 	log.Println("[SMSService] Initialized (no provider configured)")
 }
 

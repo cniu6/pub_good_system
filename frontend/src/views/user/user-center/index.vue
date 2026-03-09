@@ -116,7 +116,7 @@ onActivated(() => {
             <n-grid-item>
               <n-text depth="3" class="info-item">
                 <NovaIcon class="info-icon" icon="icon-park-outline:crown" :size="16" />
-                角色: {{ userInfo?.role === 'admin' ? '管理员' : '普通用户' }}
+                角色: {{ userInfo?.role?.includes('admin') ? '管理员' : '普通用户' }}
               </n-text>
             </n-grid-item>
             <n-grid-item>

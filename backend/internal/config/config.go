@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -50,13 +51,77 @@ type Config struct {
 
 var GlobalConfig *Config
 
-func InitConfig() {
-	if cfg, ok := loadJSONDotEnv(".env"); ok {
-		GlobalConfig = cfg
+const defaultJWTSecret = "secret"
+
+func isProductionEnvMode(mode string) bool {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	return mode == "prod" || mode == "production"
+}
+
+func validateCriticalSecurityConfig(cfg *Config) {
+	if cfg == nil {
 		return
 	}
 
-	if err := godotenv.Load(); err != nil {
+	secret := strings.TrimSpace(cfg.JWTSecret)
+	if isProductionEnvMode(cfg.AppMode) {
+		if secret == "" || secret == defaultJWTSecret {
+			log.Fatal("[Security] Refusing to start with an empty or default JWT_SECRET in production mode")
+		}
+		return
+	}
+
+	if secret == "" || secret == defaultJWTSecret {
+		log.Println("[Security Warning] JWT_SECRET is using the default development value")
+	}
+}
+
+func IsProductionMode() bool {
+	if GlobalConfig == nil {
+		return false
+	}
+	return isProductionEnvMode(GlobalConfig.AppMode)
+}
+
+func findDotEnvPath() (string, bool) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", false
+	}
+
+	dir := wd
+	for {
+		candidate := filepath.Join(dir, ".env")
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate, true
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+
+	return "", false
+}
+
+func InitConfig() {
+	dotEnvPath, hasDotEnv := findDotEnvPath()
+	if hasDotEnv {
+		if cfg, ok := loadJSONDotEnv(dotEnvPath); ok {
+			GlobalConfig = cfg
+			log.Printf("[Config] Loaded JSON .env from %s", dotEnvPath)
+			validateCriticalSecurityConfig(GlobalConfig)
+			return
+		}
+
+		if err := godotenv.Load(dotEnvPath); err != nil {
+			log.Printf("Error loading .env file %s, using default environment variables", dotEnvPath)
+		} else {
+			log.Printf("[Config] Loaded .env from %s", dotEnvPath)
+		}
+	} else {
 		log.Println("Error loading .env file, using default environment variables")
 	}
 
@@ -155,6 +220,8 @@ func InitConfig() {
 		SMSTemplateCode: getEnv("SMS_TEMPLATE_CODE", ""),
 		SMSRegion:       getEnv("SMS_REGION", ""),
 	}
+
+	validateCriticalSecurityConfig(GlobalConfig)
 }
 
 func getEnv(key, fallback string) string {

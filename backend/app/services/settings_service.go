@@ -24,8 +24,10 @@ var GlobalSettingsService *SettingsService
 // InitSettingsService initializes the global settings cache service.
 func InitSettingsService() {
 	GlobalSettingsService = NewSettingsService(5 * time.Minute)
-	// Preload cache on startup.
-	GlobalSettingsService.RefreshCache()
+	if err := GlobalSettingsService.RefreshCache(); err != nil {
+		log.Printf("[SettingsService] Refresh cache failed: %v", err)
+	}
+	ApplyGlobalRuntimeConfig()
 	log.Println("[SettingsService] Initialized with cache TTL: 5m")
 }
 
@@ -319,6 +321,25 @@ func GetGlobalSMSRuntimeConfig() SMSRuntimeConfig {
 		TemplateCode: config.GlobalConfig.SMSTemplateCode,
 		Region:       config.GlobalConfig.SMSRegion,
 	}
+}
+
+func ApplyGlobalRuntimeConfig() {
+	geetestConfig := GetGlobalGeetestRuntimeConfig()
+	config.GlobalConfig.GeetestEnabled = geetestConfig.Enabled
+	config.GlobalConfig.GeetestID = geetestConfig.CaptchaID
+	config.GlobalConfig.GeetestKey = geetestConfig.CaptchaKey
+
+	verifyConfig := GetGlobalVerifyConfig()
+	config.GlobalConfig.EmailVerifyEnabled = verifyConfig.EmailEnabled
+	config.GlobalConfig.SMSVerifyEnabled = verifyConfig.SMSEnabled
+
+	smsConfig := GetGlobalSMSRuntimeConfig()
+	config.GlobalConfig.SMSProvider = smsConfig.Provider
+	config.GlobalConfig.SMSAccessKey = smsConfig.AccessKey
+	config.GlobalConfig.SMSSecretKey = smsConfig.SecretKey
+	config.GlobalConfig.SMSSignName = smsConfig.SignName
+	config.GlobalConfig.SMSTemplateCode = smsConfig.TemplateCode
+	config.GlobalConfig.SMSRegion = smsConfig.Region
 }
 
 // GetPublicAppConfig returns public app config consumed by frontend bootstrap.

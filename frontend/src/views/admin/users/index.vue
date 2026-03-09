@@ -63,8 +63,9 @@ import {
   NCard, NSpace, NInput, NSelect, NButton, NDataTable, NTag, NModal, NForm, NFormItem,
   NRadioGroup, NRadio, useMessage, useDialog
 } from 'naive-ui'
-import type { DataTableColumns, FormInst } from 'naive-ui'
+import type { DataTableColumns, FormInst, FormRules } from 'naive-ui'
 import { adminApi } from '@/service/api/admin'
+import { normalizeAdminUserRole, toLoginInfo, type AdminUser } from '@/service/api/admin/user'
 import { local } from '@/utils'
 
 const router = useRouter()
@@ -72,7 +73,7 @@ const message = useMessage()
 const dialog = useDialog()
 const loading = ref(false)
 const submitting = ref(false)
-const userList = ref<any[]>([])
+const userList = ref<AdminUser[]>([])
 const showModal = ref(false)
 const formRef = ref<FormInst | null>(null)
 const isEdit = ref(false)
@@ -93,16 +94,27 @@ const pagination = reactive({
   pageSizes: [10, 20, 50],
 })
 
-const formData = reactive({
+type UserFormData = {
+  username: string
+  password: string
+  email: string
+  nickname: string
+  mobile: string
+  role: Entity.RoleType
+  status: 0 | 1
+}
+
+const formData = reactive<UserFormData>({
   username: '',
   password: '',
   email: '',
   nickname: '',
   mobile: '',
+  role: 'user',
   status: 1,
 })
 
-const formRules = {
+const formRules: FormRules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
     { min: 3, max: 20, message: '用户名长度为 3-20 个字符', trigger: 'blur' },
@@ -242,12 +254,8 @@ async function handleLoginAs(row: any) {
           }
           // 设置用户凭证到 localStorage，新标签页会读取
           local.set('accessToken', token)
-          local.set('userInfo', {
-            userName: userData.username,
-            role: [userData.role],
-            accessToken: token,
-          })
-          local.set('role', userData.role || 'user')
+          local.set('userInfo', toLoginInfo(userData, token))
+          local.set('role', [normalizeAdminUserRole(userData.role)])
           message.success(`正在以 ${row.username} 身份打开用户面板...`)
           setTimeout(() => {
             window.open('/', '_blank')
@@ -275,8 +283,8 @@ async function handleEdit(row: any) {
       formData.email = user.email || ''
       formData.nickname = user.nickname || ''
       formData.mobile = user.mobile || ''
-      formData.role = user.role || 'user'
-      formData.status = user.status ?? 1
+      formData.role = normalizeAdminUserRole(user.role)
+      formData.status = user.status === 1 ? 1 : 0
     }
     showModal.value = true
   } catch (error) {

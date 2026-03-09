@@ -172,7 +172,10 @@ func GetUserByID(id uint64) (*User, error) {
 func UpdatePassword(userID uint64, hashedPassword string) error {
 	now := time.Now().Unix()
 	_, err := db.DB.Exec("UPDATE users SET password = ?, update_time = ? WHERE id = ?", hashedPassword, now, userID)
-	return err
+	if err != nil {
+		return err
+	}
+	return RevokeAllUserSessions(userID, "")
 }
 
 // UpdateLoginInfo 更新用户登录信息（成功登录后调用）

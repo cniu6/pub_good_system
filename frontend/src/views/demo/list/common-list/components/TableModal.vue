@@ -15,7 +15,7 @@ const defaultFormModal: Entity.User = {
   userName: '',
   gender: 0,
   email: '',
-  role: [],
+  role: 'user',
 }
 const formModel = ref({ ...defaultFormModal })
 

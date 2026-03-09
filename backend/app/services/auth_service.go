@@ -44,6 +44,7 @@ type LoginResult struct {
 	AccessToken  string   `json:"accessToken"`
 	RefreshToken string   `json:"refreshToken"`
 	ExpiresAt    int64    `json:"expiresAt"`
+	RefreshExpiresAt int64 `json:"-"`
 }
 
 // Login 用户登录
@@ -90,7 +91,7 @@ func (s *AuthService) Login(username, password, clientIP string) (*LoginResult, 
 		return nil, NewServiceError(500, "Failed to generate access token")
 	}
 
-	refreshToken, err := utils.GenerateTokenWithTTL(user.ID, user.Role, refreshTTL)
+	refreshToken, err := utils.GenerateRefreshTokenWithTTL(user.ID, refreshTTL)
 	if err != nil {
 		return nil, NewServiceError(500, "Failed to generate refresh token")
 	}
@@ -103,6 +104,7 @@ func (s *AuthService) Login(username, password, clientIP string) (*LoginResult, 
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresAt:    time.Now().Unix() + int64(accessTTL.Seconds()),
+		RefreshExpiresAt: time.Now().Unix() + int64(refreshTTL.Seconds()),
 	}, nil
 }
 
@@ -128,9 +130,9 @@ func (s *AuthService) Register(user *models.User) error {
 }
 
 // RefreshToken 刷新Token
-func (s *AuthService) RefreshToken(refreshToken string) (*LoginResult, *ServiceError) {
+func (s *AuthService) RefreshToken(refreshToken, clientIP, userAgent, device string) (*LoginResult, *ServiceError) {
 	// 解析 token
-	claims, err := utils.ParseToken(refreshToken)
+	claims, err := utils.ParseRefreshToken(refreshToken)
 	if err != nil {
 		return nil, NewServiceError(401, "Invalid or expired refresh token")
 	}
@@ -155,9 +157,29 @@ func (s *AuthService) RefreshToken(refreshToken string) (*LoginResult, *ServiceE
 		return nil, NewServiceError(500, "Failed to generate access token")
 	}
 
-	newRefreshToken, err := utils.GenerateTokenWithTTL(user.ID, user.Role, refreshTTL)
+	newRefreshToken, err := utils.GenerateRefreshTokenWithTTL(user.ID, refreshTTL)
 	if err != nil {
 		return nil, NewServiceError(500, "Failed to generate refresh token")
+	}
+
+	accessExpiresAt := time.Now().Unix() + int64(accessTTL.Seconds())
+	refreshExpiresAt := time.Now().Unix() + int64(refreshTTL.Seconds())
+	rotated, err := models.RotateUserSessionTokens(
+		user.ID,
+		utils.HashToken(refreshToken),
+		utils.HashToken(accessToken),
+		utils.HashToken(newRefreshToken),
+		clientIP,
+		userAgent,
+		device,
+		accessExpiresAt,
+		refreshExpiresAt,
+	)
+	if err != nil {
+		return nil, NewServiceError(500, "Failed to rotate session tokens")
+	}
+	if !rotated {
+		return nil, NewServiceError(401, "Refresh session expired or revoked")
 	}
 
 	return &LoginResult{
@@ -167,7 +189,8 @@ func (s *AuthService) RefreshToken(refreshToken string) (*LoginResult, *ServiceE
 		Role:         []string{user.Role},
 		AccessToken:  accessToken,
 		RefreshToken: newRefreshToken,
-		ExpiresAt:    time.Now().Unix() + int64(accessTTL.Seconds()),
+		ExpiresAt:    accessExpiresAt,
+		RefreshExpiresAt: refreshExpiresAt,
 	}, nil
 }
 

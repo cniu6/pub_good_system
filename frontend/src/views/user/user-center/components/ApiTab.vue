@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/store'
-import { fetchResetApiKey } from '@/service'
+import { fetchResetApiKey, fetchUserApiKey } from '@/service'
 import NovaIcon from '@/components/common/NovaIcon.vue'
 
 const authStore = useAuthStore()
@@ -9,6 +9,23 @@ const userInfo = computed(() => authStore.userInfo)
 
 const showResetConfirm = ref(false)
 const showApiKey = ref(false)
+const apiKeyLoading = ref(false)
+
+async function loadApiKey() {
+  apiKeyLoading.value = true
+  try {
+    const response = await fetchUserApiKey()
+    if (response.isSuccess) {
+      authStore.updateUserInfo({ apikey: response.data?.apikey || null })
+    }
+  }
+  catch (error) {
+    console.error('获取 API Key 失败', error)
+  }
+  finally {
+    apiKeyLoading.value = false
+  }
+}
 
 function copyApiKey() {
   if (userInfo.value?.apikey) {
@@ -36,6 +53,10 @@ async function confirmResetApiKey() {
     window.$message.error(`重置 API Key 失败: ${error}`)
   }
 }
+
+onMounted(() => {
+  loadApiKey()
+})
 </script>
 
 <template>
@@ -50,6 +71,7 @@ async function confirmResetApiKey() {
 
       <div class="api-key-container">
         <n-input
+          :loading="apiKeyLoading"
           :value="userInfo?.apikey || '暂无 API 密钥'"
           :type="showApiKey ? 'text' : 'password'"
           readonly

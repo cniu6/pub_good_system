@@ -3,6 +3,7 @@ package admin
 import (
 	"bytes"
 	"fmt"
+	"fst/backend/internal/config"
 	"fst/backend/utils"
 	"runtime"
 	"runtime/pprof"
@@ -302,6 +303,10 @@ func (ctrl *DebugController) GetPprofTrace(c *gin.Context) {
 
 // RegisterRoutes 注册调试路由
 func (ctrl *DebugController) RegisterRoutes(group *gin.RouterGroup) {
+	if config.IsProductionMode() {
+		return
+	}
+
 	debug := group.Group("/debug")
 	{
 		debug.GET("/goroutines/stats", ctrl.GetGoroutineStats)

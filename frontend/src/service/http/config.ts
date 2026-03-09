@@ -2,8 +2,8 @@ import { $t } from '@/utils'
 
 /** 默认实例的Aixos配置 */
 export const DEFAULT_ALOVA_OPTIONS = {
-  // 请求超时时间,默认15秒
-  timeout: 15 * 1000,
+  // 请求超时时间,默认60秒
+  timeout: 60 * 1000,
 }
 
 /** 默认实例的后端字段配置 */

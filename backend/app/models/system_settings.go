@@ -116,6 +116,8 @@ var defaultSettings = []SystemSetting{
 	{Key: "allow_register", Value: "true", Type: "boolean", Category: "basic", Label: "允许注册", Description: "是否允许新用户注册", IsPublic: true, IsEditable: true, SortOrder: 6},
 	{Key: "default_lang", Value: "zhCN", Type: "string", Category: "basic", Label: "默认语言", Description: "系统默认语言", IsPublic: true, IsEditable: true, SortOrder: 7},
 	{Key: "version", Value: "1.0.0", Type: "string", Category: "basic", Label: "系统版本", Description: "当前系统版本号", IsPublic: true, IsEditable: true, SortOrder: 8},
+	{Key: "frontend_url", Value: "", Type: "string", Category: "basic", Label: "前端地址", Description: "前端访问地址（如 http://example.com），结尾不要加 /", IsPublic: false, IsEditable: true, SortOrder: 9},
+	{Key: "backend_api_url", Value: "", Type: "string", Category: "basic", Label: "后端API地址", Description: "后端API外网地址（如 http://api.example.com），结尾不要加 /", IsPublic: false, IsEditable: true, SortOrder: 10},
 
 	// ===== 安全设置 =====
 	{Key: "geetest_enabled", Value: "false", Type: "boolean", Category: "security", Label: "极验验证码", Description: "是否启用极验行为验证", IsPublic: true, IsEditable: true, SortOrder: 1},
@@ -145,6 +147,10 @@ var defaultSettings = []SystemSetting{
 	{Key: "sms_sign_name", Value: "", Type: "string", Category: "sms", Label: "短信签名", Description: "短信签名（如：F.st）", IsPublic: false, IsEditable: true, SortOrder: 4},
 	{Key: "sms_template_code", Value: "", Type: "string", Category: "sms", Label: "验证码模板ID", Description: "短信验证码模板ID", IsPublic: false, IsEditable: true, SortOrder: 5},
 	{Key: "sms_region", Value: "", Type: "string", Category: "sms", Label: "服务区域", Description: "短信服务区域（部分服务商需要）", IsPublic: false, IsEditable: true, SortOrder: 6},
+
+	// ===== 支付设置 =====
+	{Key: "payment_enabled", Value: "false", Type: "boolean", Category: "payment", Label: "支付功能", Description: "是否启用在线支付充值功能", IsPublic: true, IsEditable: true, SortOrder: 0},
+	{Key: "payment_order_expire_minutes", Value: "30", Type: "number", Category: "payment", Label: "订单有效期", Description: "订单有效期（分钟），超时自动取消", IsPublic: false, IsEditable: true, SortOrder: 1},
 }
 
 // initDefaultSettings 初始化默认配置
@@ -167,6 +173,17 @@ func initDefaultSettings() {
 			}
 		} else if err != nil {
 			log.Printf("[Init] Error checking setting %s: %v", setting.Key, err)
+		} else {
+			if existing.Type != setting.Type || existing.Category != setting.Category || existing.Label != setting.Label || existing.Description != setting.Description || existing.IsPublic != setting.IsPublic || existing.IsEditable != setting.IsEditable || existing.SortOrder != setting.SortOrder {
+				_, err := db.DB.Exec(`
+					UPDATE system_settings
+					SET setting_type = ?, category = ?, label = ?, description = ?, is_public = ?, is_editable = ?, sort_order = ?, updated_at = NOW()
+					WHERE setting_key = ?`,
+					setting.Type, setting.Category, setting.Label, setting.Description, setting.IsPublic, setting.IsEditable, setting.SortOrder, setting.Key)
+				if err != nil {
+					log.Printf("[Init] Failed to sync default setting meta %s: %v", setting.Key, err)
+				}
+			}
 		}
 		// 已存在则跳过
 	}

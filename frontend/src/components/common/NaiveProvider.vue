@@ -9,16 +9,22 @@ function registerNaiveTools() {
   const message = useMessage()
   window.$message = {
     ...message,
+    warning: (content, options) => {
+      return message.warning(content, { duration: 8000, ...options })
+    },
     error: (content, options) => {
-      return message.error(content, { duration: 8000, ...options })
+      return message.error(content, { duration: 10000, ...options })
     },
   }
 
   const notification = useNotification()
   window.$notification = {
     ...notification,
+    warning: (options) => {
+      return notification.warning({ duration: 8000, ...options })
+    },
     error: (options) => {
-      return notification.error({ duration: 8000, ...options })
+      return notification.error({ duration: 10000, ...options })
     },
   }
 }

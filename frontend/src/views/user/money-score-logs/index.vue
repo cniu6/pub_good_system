@@ -49,6 +49,7 @@ import { ref, reactive, onMounted, h, watch } from 'vue'
 import { useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { fetchMyMoneyLogs, fetchMyScoreLogs } from '@/service/api/user/user-center'
+import { parseMemo } from '@/utils/memo'
 
 const message = useMessage()
 
@@ -95,6 +96,7 @@ const moneyColumns: DataTableColumns<Entity.UserMoneyLog> = [
     title: '备注',
     key: 'memo',
     ellipsis: { tooltip: true },
+    render: row => parseMemo(row.memo),
   },
   {
     title: '时间',
@@ -166,6 +168,7 @@ const scoreColumns: DataTableColumns<Entity.UserScoreLog> = [
     title: '备注',
     key: 'memo',
     ellipsis: { tooltip: true },
+    render: row => parseMemo(row.memo),
   },
   {
     title: '时间',

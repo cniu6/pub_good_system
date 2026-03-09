@@ -22,12 +22,23 @@ const deactivateForm = ref({
 })
 const deactivating = ref(false)
 
+function parseBrowser(ua: string): string {
+  if (!ua) return ''
+  if (ua.includes('Edg/')) return 'Edge'
+  if (ua.includes('Chrome/') && !ua.includes('Edg/')) return 'Chrome'
+  if (ua.includes('Firefox/')) return 'Firefox'
+  if (ua.includes('Safari/') && !ua.includes('Chrome/')) return 'Safari'
+  if (ua.includes('OPR/') || ua.includes('Opera/')) return 'Opera'
+  return ''
+}
+
 async function loadSessions() {
   sessionsLoading.value = true
   try {
     const response = await fetchUserSessions()
-    if (response.isSuccess && response.data) {
-      sessions.value = Array.isArray(response.data) ? response.data : []
+    if (response.isSuccess) {
+      const data = response.data
+      sessions.value = Array.isArray(data) ? data : []
     }
   }
   catch (error) {
@@ -210,6 +221,9 @@ onMounted(() => {
                 <div class="session-device">
                   <NovaIcon icon="icon-park-outline:computer" :size="16" class="mr-1" />
                   {{ session.device || '未知设备' }}
+                  <n-tag v-if="parseBrowser(session.user_agent)" size="small" :bordered="false" class="ml-2">
+                    {{ parseBrowser(session.user_agent) }}
+                  </n-tag>
                 </div>
                 <n-text depth="3" class="session-detail">
                   IP: {{ session.ip || '未知' }} · 登录时间: {{ formatTime(session.login_at) }}

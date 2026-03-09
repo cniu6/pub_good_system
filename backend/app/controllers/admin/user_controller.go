@@ -3,8 +3,10 @@ package admin
 import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
+	"fst/backend/internal/config"
 	"fst/backend/utils"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -295,6 +297,11 @@ func (c *UserController) BatchGetSimpleInfo(ctx *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/admin/users/{id}/login-as [post]
 func (c *UserController) LoginToUser(ctx *gin.Context) {
+	if config.IsProductionMode() {
+		utils.Fail(ctx, 403, "生产环境已禁用该功能")
+		return
+	}
+
 	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
 	if err != nil {
 		utils.Fail(ctx, 400, "无效的用户ID")
@@ -307,11 +314,20 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 		return
 	}
 
-	token, err := utils.GenerateToken(user.ID, user.Role)
+	accessTTL := time.Duration(config.GlobalConfig.JWTAccessExpire) * time.Second
+	token, err := utils.GenerateTokenWithTTL(user.ID, user.Role, accessTTL)
 	if err != nil {
 		utils.Fail(ctx, 500, "生成 token 失败")
 		return
 	}
+
+	clientIP := ctx.ClientIP()
+	if clientIP == "" {
+		clientIP = "unknown"
+	}
+	userAgent := ctx.GetHeader("User-Agent")
+	expiresAt := time.Now().Add(accessTTL).Unix()
+	_ = models.CreateUserSession(user.ID, utils.HashToken(token), "", clientIP, userAgent, "Admin Impersonation", expiresAt, 0)
 
 	utils.Success(ctx, gin.H{
 		"user":  user,

@@ -28,6 +28,12 @@
                   <n-form-item label="默认语言">
                     <n-select v-model:value="basicForm.default_lang" :options="langOptions" placeholder="选择默认语言" />
                   </n-form-item>
+                  <n-form-item label="前端地址">
+                    <n-input v-model:value="basicForm.frontend_url" placeholder="如: http://example.com（结尾不要加 /）" />
+                  </n-form-item>
+                  <n-form-item label="后端API地址">
+                    <n-input v-model:value="basicForm.backend_api_url" placeholder="如: http://api.example.com（结尾不要加 /）" />
+                  </n-form-item>
                   <n-form-item label="用户注册">
                     <n-space align="center">
                       <n-switch
@@ -193,6 +199,36 @@
               </n-space>
             </n-tab-pane>
 
+            <n-tab-pane name="payment" tab="支付设置">
+              <n-space vertical>
+                <n-form :model="paymentForm" label-placement="left" label-width="140px" style="max-width: 640px;">
+                  <n-form-item label="支付功能">
+                    <n-space align="center">
+                      <n-switch
+                        :value="paymentForm.payment_enabled"
+                        :loading="switchLoading.payment_enabled"
+                        @update:value="handleUpdatePaymentEnabled"
+                      />
+                      <n-text depth="3">{{ paymentForm.payment_enabled ? '已启用' : '已禁用' }}</n-text>
+                    </n-space>
+                  </n-form-item>
+                  <n-divider />
+                  <n-form-item label="订单有效期（分钟）">
+                    <n-input-number v-model:value="paymentForm.payment_order_expire_minutes" :min="1" :max="1440" style="width: 100%;" />
+                  </n-form-item>
+                  <n-form-item>
+                    <n-button type="primary" :loading="savingPayment" @click="handleSavePayment">保存设置</n-button>
+                  </n-form-item>
+                </n-form>
+                <n-alert type="info" title="配置说明" :bordered="false">
+                  <ul style="margin: 0; padding-left: 18px;">
+                    <li>启用「支付功能」后，用户端会展示所有已启用的支付通道</li>
+                    <li>每个通道的网关地址、商户ID、密钥等信息在「支付渠道」页面配置</li>
+                  </ul>
+                </n-alert>
+              </n-space>
+            </n-tab-pane>
+
             <n-tab-pane name="custom" tab="自定义配置">
               <n-space vertical :size="16">
                 <n-space justify="end">
@@ -210,6 +246,14 @@
               </n-space>
             </n-tab-pane>
           </n-tabs>
+        </n-tab-pane>
+
+        <n-tab-pane name="email-templates" tab="邮件模板">
+          <EmailTemplates />
+        </n-tab-pane>
+
+        <n-tab-pane name="operation-logs" tab="操作日志">
+          <OperationLogs />
         </n-tab-pane>
 
         <n-tab-pane name="info" tab="系统信息">
@@ -314,7 +358,7 @@
                     <n-card size="small">
                       <n-statistic label="运行时间">
                         <template #default>{{ uptimeTextPrecise }}</template>
-                        <template #suffix><n-text depth="3" style="font-size: 10px">启动: {{ startTimeText }}</n-text></template>
+                        <template #suffix><n-text depth="3" style="font-size: 10px">启动: {{ startTimeText }} · {{ uptimeText }}</n-text></template>
                       </n-statistic>
                     </n-card>
                   </n-gi>
@@ -411,7 +455,7 @@
                         <n-space vertical size="small">
                           <div>
                             <n-space justify="space-between"><n-text>CPU</n-text><n-text>{{ Number((serverMonitoringData?.process.process_cpu || 0).toFixed(1)) }}%</n-text></n-space>
-                            <n-progress type="line" :percentage="Number((serverMonitoringData?.process.process_cpu || 0).toFixed(1))" :status="serverMonitoringData?.process.process_cpu > 80 ? 'error' : 'success'" :show-indicator="false" style="margin-top: 4px" />
+                            <n-progress type="line" :percentage="Number((serverMonitoringData?.process.process_cpu || 0).toFixed(1))" :status="(serverMonitoringData?.process.process_cpu ?? 0) > 80 ? 'error' : 'success'" :show-indicator="false" style="margin-top: 4px" />
                           </div>
                           <n-space justify="space-between"><n-text>内存</n-text><n-text>{{ formatStorageFromMB(serverMonitoringData?.process.process_rss_mb || 0) }}</n-text></n-space>
                           <n-space justify="space-between"><n-text>协程</n-text><n-text>{{ serverMonitoringData?.process.goroutines || 0 }}</n-text></n-space>
@@ -631,6 +675,8 @@ import {
 } from 'naive-ui'
 import { adminApi } from '@/service/api/admin'
 import { adminDebugApi } from '@/service/api/admin/debug'
+import EmailTemplates from '@/views/admin/email-templates/index.vue'
+import OperationLogs from '@/views/admin/logs/index.vue'
 import type { ServerMonitoringStatusResponse, SettingDTO, SettingType } from '@/service/api/admin/settings'
 import { useSettingsStore } from '@/store/settings'
 import { local } from '@/utils'
@@ -646,12 +692,12 @@ const showEditModal = ref(false)
 const savingBasic = ref(false)
 const savingEmail = ref(false)
 const savingSecurity = ref(false)
+const savingPayment = ref(false)
 const testingEmail = ref(false)
 const restartingBackend = ref(false)
 const loadingServerMonitoring = ref(false)
 const topTab = ref('system-config')
 const systemSubTab = ref('basic')
-const serverManagementSubTab = ref('monitor')
 const mode = import.meta.env.MODE
 const buildTime = typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '开发模式'
 const serverMonitoringGeneratedAt = ref('')
@@ -705,6 +751,7 @@ const switchLoading = reactive({
   geetest_enabled: false,
   email_verify_enabled: false,
   sms_verify_enabled: false,
+  payment_enabled: false,
 })
 
 const langOptions = [
@@ -734,6 +781,8 @@ const basicForm = reactive({
   version: '',
   default_lang: 'zhCN',
   allow_register: true,
+  frontend_url: '',
+  backend_api_url: '',
 })
 
 const emailForm = reactive({
@@ -766,6 +815,11 @@ const securityForm = reactive({
   jwt_refresh_expire: 604800,
   login_max_failure: 5,
   login_lock_duration: 10,
+})
+
+const paymentForm = reactive({
+  payment_enabled: false,
+  payment_order_expire_minutes: 30,
 })
 
 const customSettings = ref<SettingDTO[]>([])
@@ -906,16 +960,6 @@ function normalizePercent(value: number): number {
   return Number(value.toFixed(2))
 }
 
-function ringColor(percent: number): string {
-  if (percent >= 85) {
-    return '#d03050'
-  }
-  if (percent >= 70) {
-    return '#f0a020'
-  }
-  return '#18a058'
-}
-
 function formatPercent(value: number): string {
   return `${normalizePercent(value).toFixed(2)}%`
 }
@@ -1049,6 +1093,8 @@ async function loadSettings() {
           if (item.key === 'version') basicForm.version = String(item.value || '')
           if (item.key === 'default_lang') basicForm.default_lang = String(item.value || 'zhCN')
           if (item.key === 'allow_register') basicForm.allow_register = Boolean(item.value)
+          if (item.key === 'frontend_url') basicForm.frontend_url = String(item.value || '')
+          if (item.key === 'backend_api_url') basicForm.backend_api_url = String(item.value || '')
 
           if (item.key === 'email_verify_enabled') emailForm.email_verify_enabled = Boolean(item.value)
           if (item.key === 'smtp_host') emailForm.smtp_host = String(item.value || '')
@@ -1073,6 +1119,9 @@ async function loadSettings() {
           if (item.key === 'jwt_refresh_expire') securityForm.jwt_refresh_expire = Number(item.value) || 604800
           if (item.key === 'login_max_failure') securityForm.login_max_failure = Number(item.value) || 5
           if (item.key === 'login_lock_duration') securityForm.login_lock_duration = Number(item.value) || 10
+
+          if (item.key === 'payment_enabled') paymentForm.payment_enabled = Boolean(item.value)
+          if (item.key === 'payment_order_expire_minutes') paymentForm.payment_order_expire_minutes = Number(item.value) || 30
         }
 
         if (category.category === 'custom') {
@@ -1199,9 +1248,46 @@ async function handleUpdateGeetestEnabled(nextValue: boolean) {
   }
 }
 
+async function handleUpdatePaymentEnabled(nextValue: boolean) {
+  const prev = paymentForm.payment_enabled
+  paymentForm.payment_enabled = nextValue
+  switchLoading.payment_enabled = true
+  try {
+    await adminApi.settings.update('payment_enabled', String(nextValue))
+    message.success('支付功能开关已更新')
+  }
+  catch (error: any) {
+    paymentForm.payment_enabled = prev
+    message.error('更新失败: ' + (error.message || '未知错误'))
+  }
+  finally {
+    switchLoading.payment_enabled = false
+  }
+}
+
+async function handleSavePayment() {
+  savingPayment.value = true
+  try {
+    await adminApi.settings.batchUpdate({
+      payment_order_expire_minutes: String(paymentForm.payment_order_expire_minutes),
+    })
+    message.success('支付设置保存成功')
+  }
+  catch (error: any) {
+    message.error('保存失败: ' + (error.message || '未知错误'))
+  }
+  finally {
+    savingPayment.value = false
+  }
+}
+
 async function handleSaveBasic() {
   savingBasic.value = true
   try {
+    const frontendUrl = basicForm.frontend_url.trim().replace(/\/+$/, '')
+    const backendApiUrl = basicForm.backend_api_url.trim().replace(/\/+$/, '')
+    basicForm.frontend_url = frontendUrl
+    basicForm.backend_api_url = backendApiUrl
     await adminApi.settings.batchUpdate({
       site_name: basicForm.site_name,
       site_desc: basicForm.site_desc,
@@ -1210,6 +1296,8 @@ async function handleSaveBasic() {
       icp: basicForm.icp,
       version: basicForm.version,
       default_lang: basicForm.default_lang,
+      frontend_url: frontendUrl,
+      backend_api_url: backendApiUrl,
     })
     settingsStore.updateConfig({
       site_name: basicForm.site_name,

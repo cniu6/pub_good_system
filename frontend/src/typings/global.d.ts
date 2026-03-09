@@ -41,6 +41,8 @@ declare namespace Storage {
     accessToken: string
     /* 存储刷新token */
     refreshToken: string
+    /* 存储访问token过期时间 */
+    accessTokenExpiresAt: number
     /* 存储登录账号 */
     loginAccount: any
     /* 存储当前语言 */

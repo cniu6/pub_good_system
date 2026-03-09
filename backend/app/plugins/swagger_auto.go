@@ -23,7 +23,8 @@ var (
 func init() {
 	// 在开发模式下自动更新 Swagger
 	swaggerOnce.Do(func() {
-		if os.Getenv("GO_ENV") == "production" || os.Getenv("SKIP_AUTO_SWAGGER") == "true" {
+		appMode := strings.ToLower(strings.TrimSpace(os.Getenv("APP_MODE")))
+		if appMode != "dev" || os.Getenv("GO_ENV") == "production" || os.Getenv("SKIP_AUTO_SWAGGER") == "true" {
 			return
 		}
 

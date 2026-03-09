@@ -28,11 +28,6 @@ async function loadDashboard() {
   }
 }
 
-function formatTime(timestamp: number) {
-  if (!timestamp) return ''
-  return new Date(timestamp * 1000).toLocaleDateString()
-}
-
 const announcementTagType: Record<string, 'info' | 'success' | 'warning' | 'error'> = {
   info: 'info',
   success: 'success',
@@ -202,7 +197,7 @@ onMounted(() => {
                   {{ userInfo?.nickname || userInfo?.userName || '用户' }}，欢迎回来
                 </n-h4>
                 <n-text depth="3">
-                  {{ userInfo?.role === 'admin' ? '管理员' : '普通用户' }} · 等级 {{ stats.level || 0 }}
+                  {{ userInfo?.role?.includes('admin') ? '管理员' : '普通用户' }} · 等级 {{ stats.level || 0 }}
                 </n-text>
               </div>
             </n-flex>

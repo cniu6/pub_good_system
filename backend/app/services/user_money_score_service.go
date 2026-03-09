@@ -13,48 +13,35 @@ import (
 
 // ChangeUserMoney 变更用户余额（同时记录日志）
 // amount 为正数=充值，负数=扣款
-// 使用数据库事务 + SELECT ... FOR UPDATE 防止并发竞态
+// 内部通过 ExecuteBalanceOp(OpChangeAndLog) 实现事务安全
 func ChangeUserMoney(userID uint64, amount float64, memo string) (*models.UserMoneyLog, error) {
 	memo = utils.Clean_XSS(memo)
-
-	tx, err := db.DB.Begin()
+	result, err := utils.ExecuteBalanceOp(&utils.BalanceReq{
+		UserID: userID,
+		Amount: amount,
+		Memo:   memo,
+	}, utils.OpChangeAndLog)
 	if err != nil {
-		return nil, errors.New("开启事务失败: " + err.Error())
+		return nil, err
 	}
-	defer tx.Rollback()
+	return result.MoneyLog, nil
+}
 
-	beforeMoney, err := models.GetUserMoneyForUpdate(tx, userID)
+// ChangeUserMoneyI18n 变更用户余额（多语言备注版本）
+func ChangeUserMoneyI18n(userID uint64, amount float64, memoI18n map[string]string) (*models.UserMoneyLog, error) {
+	result, err := utils.ExecuteBalanceOp(&utils.BalanceReq{
+		UserID:   userID,
+		Amount:   amount,
+		MemoI18n: memoI18n,
+	}, utils.OpChangeAndLog)
 	if err != nil {
-		return nil, errors.New("用户不存在")
+		return nil, err
 	}
-
-	afterMoney := beforeMoney + amount
-
-	if amount < 0 && afterMoney < 0 {
-		return nil, errors.New("扣款金额超出用户余额")
-	}
-	if amount > 0 && afterMoney > 999999999999 {
-		return nil, errors.New("充值金额超出上限")
-	}
-
-	if err := models.UpdateUserMoneyTx(tx, userID, afterMoney); err != nil {
-		return nil, errors.New("更新用户余额失败: " + err.Error())
-	}
-
-	logEntry, err := models.CreateUserMoneyLogTx(tx, userID, amount, beforeMoney, afterMoney, memo)
-	if err != nil {
-		return nil, errors.New("记录余额变动日志失败: " + err.Error())
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, errors.New("提交事务失败: " + err.Error())
-	}
-
-	return logEntry, nil
+	return result.MoneyLog, nil
 }
 
 // SetUserMoney 直接设置用户余额（管理员用，同时记录日志）
-// 使用数据库事务 + SELECT ... FOR UPDATE 防止并发竞态
+// 内部先计算差值再通过 ExecuteBalanceOp(OpChangeAndLog) 处理
 func SetUserMoney(userID uint64, newMoney float64, memo string) (*models.UserMoneyLog, error) {
 	memo = utils.Clean_XSS(memo)
 
@@ -75,20 +62,20 @@ func SetUserMoney(userID uint64, newMoney float64, memo string) (*models.UserMon
 
 	amount := newMoney - beforeMoney
 
-	if err := models.UpdateUserMoneyTx(tx, userID, newMoney); err != nil {
-		return nil, errors.New("更新用户余额失败: " + err.Error())
-	}
-
-	logEntry, err := models.CreateUserMoneyLogTx(tx, userID, amount, beforeMoney, newMoney, memo)
+	result, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
+		UserID: userID,
+		Amount: amount,
+		Memo:   memo,
+	}, utils.OpChangeAndLog)
 	if err != nil {
-		return nil, errors.New("记录余额变动日志失败: " + err.Error())
+		return nil, err
 	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, errors.New("提交事务失败: " + err.Error())
 	}
 
-	return logEntry, nil
+	return result.MoneyLog, nil
 }
 
 // GetUserMoneyLogList 获取余额变动列表

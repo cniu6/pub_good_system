@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fst/backend/utils"
+	"strconv"
 	"sync"
 	"time"
 
@@ -184,7 +185,7 @@ func UserRateLimitMiddleware(rate, burst int) gin.HandlerFunc {
 		Burst: burst,
 		KeyFunc: func(c *gin.Context) string {
 			if uid, exists := c.Get("userID"); exists {
-				return "user:" + string(rune(uid.(uint64)))
+				return "user:" + strconv.FormatUint(uid.(uint64), 10)
 			}
 			return "ip:" + c.ClientIP()
 		},

@@ -2,6 +2,7 @@
 import { computed, readonly, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { GeetestCaptcha as Vue3Geetest } from 'vue3-geetest'
+import type { CaptchaConfig } from 'vue3-geetest'
 import { geetestManager } from '@/utils/geetest'
 import type { GeetestResult } from '@/utils/geetest'
 import { useSettingsStore } from '@/store'
@@ -10,7 +11,7 @@ interface Props {
   // 用户信息（可选）
   userInfo?: string
   // 配置覆盖
-  config?: Record<string, any>
+  config?: Partial<CaptchaConfig>
   // 强制禁用（覆盖全局配置）
   disabled?: boolean
 }
@@ -49,7 +50,7 @@ const isGeetestEnabled = computed(() => {
 })
 
 // 语言映射
-const languageMap: Record<string, string> = {
+const languageMap: Record<string, NonNullable<CaptchaConfig['language']>> = {
   zhCN: 'zho',
   enUS: 'eng',
 }
@@ -70,12 +71,20 @@ const defaultNativeButton = {
   height: '3rem',
 }
 
+const resolvedProduct = computed<NonNullable<CaptchaConfig['product']>>(() => {
+  const product = props.config?.product
+  if (product === 'bind' || product === 'float' || product === 'popup') {
+    return product
+  }
+  return 'popup'
+})
+
 // 极验配置
-const captchaConfig = computed(() => ({
+const captchaConfig = computed<CaptchaConfig>(() => ({
+  ...props.config,
   captchaId: geetestCaptchaId.value,
   language: currentLanguage.value,
-  product: 'popup',
-  ...props.config,
+  product: resolvedProduct.value,
   nativeButton: {
     ...defaultNativeButton,
     ...(props.config?.nativeButton || {}),

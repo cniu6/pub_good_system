@@ -16,6 +16,10 @@ import {
 } from './components'
 import Content from './Content.vue'
 import { ProLayout, useLayoutMenu } from 'pro-naive-ui'
+import { getRuntimeRouteMode } from '@/router/runtime-mode'
+
+const router = useRouter()
+const isUserMode = getRuntimeRouteMode() === 'user'
 
 const route = useRoute()
 const appStore = useAppStore()
@@ -118,7 +122,13 @@ const hidenCollapaseButton = computed(() => ['horizontal'].includes(layoutMode.v
     </template>
 
     <template #sidebar>
-      <n-menu v-bind="layout.verticalMenuProps" :collapsed-width="sidebarCollapsedWidth" />
+      <div class="sidebar-wrapper">
+        <n-menu v-bind="layout.verticalMenuProps" :collapsed-width="sidebarCollapsedWidth" />
+        <div v-if="isUserMode" class="sidebar-about" :class="{ collapsed: appStore.collapsed }" @click="router.push('/user/about')">
+          <icon-park-outline-info class="about-icon" />
+          <span v-if="!appStore.collapsed" class="about-text">{{ $t('route.about') }}</span>
+        </div>
+      </div>
     </template>
 
     <template #sidebar-extra>
@@ -146,3 +156,49 @@ const hidenCollapaseButton = computed(() => ['horizontal'].includes(layoutMode.v
     </MobileDrawer>
   </ProLayout>
 </template>
+
+<style scoped>
+.sidebar-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.sidebar-wrapper :deep(.n-menu) {
+  flex: 1;
+}
+
+.sidebar-about {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin: 4px 12px 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  color: var(--n-text-color-3, rgba(194, 194, 194, 0.6));
+  font-size: 12px;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.sidebar-about:hover {
+  color: var(--n-text-color-2, rgba(194, 194, 194, 0.9));
+  background-color: var(--n-color-hover, rgba(255, 255, 255, 0.06));
+}
+
+.sidebar-about.collapsed {
+  justify-content: center;
+  margin: 4px 8px 12px;
+  padding: 8px;
+}
+
+.about-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.about-text {
+  white-space: nowrap;
+  overflow: hidden;
+}
+</style>

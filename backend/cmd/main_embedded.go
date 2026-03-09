@@ -44,6 +44,9 @@ func main() {
 	// 初始化验证码表（如果不存在）
 	models.InitVerificationCodeTable()
 
+	// 初始化系统配置表
+	models.InitSystemSettingsTable()
+
 	// 初始化用户设置表
 	models.InitUserSettingsTable()
 
@@ -53,6 +56,16 @@ func main() {
 	// 初始化余额/积分变动日志表
 	models.InitUserMoneyLogsTable()
 	models.InitUserScoreLogsTable()
+	models.InitOperationLogsTable()
+
+	// 初始化支付订单表
+	models.InitPaymentOrdersTable()
+
+	// 初始化支付通道表
+	models.InitPayGatewaysTable()
+
+	// 初始化配置服务（缓存）
+	services.InitSettingsService()
 
 	// 启动定时清理任务：间隔可通过 CLEANUP_INTERVAL_MINUTES 配置，默认10分钟
 	// 清理状态仅在内存中记录，不输出周期性日志，可通过接口查询
@@ -61,22 +74,21 @@ func main() {
 	// 初始化短信服务
 	services.InitSMSService()
 
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Logger(), gin.Recovery())
 	router.SetTrustedProxies(nil) // 修复 "trusted all proxies" 警告
 	router.Use(middleware.CorsMiddleware())
 	routes.SetupRoutes(router)
 
 	// 插件初始化
-	pluginMgr := plugins.NewPluginManager()
+	pluginMgr := plugins.NewManager()
+	plugins.AutoRegisterAll(pluginMgr)
 	pluginMgr.Register(demo.NewPlugin())
-	apiGroup := router.Group("/api/v1")
-	for _, p := range pluginMgr.GetPlugins() {
-		if err := p.Init(); err != nil {
-			log.Printf("Plugin %s init failed: %v", p.Name(), err)
-			continue
-		}
-		p.RegisterRoutes(apiGroup)
+	if err := pluginMgr.LoadAll(); err != nil {
+		log.Printf("[Plugin] 插件加载失败: %v", err)
 	}
+	apiGroup := router.Group("/api/v1")
+	pluginMgr.RegisterAllRoutes(apiGroup)
 
 	// 前端资源处理
 	// 仅当 AppMode == "integrated" 且 BuildMode != "none" 时，才提供前端托管能力

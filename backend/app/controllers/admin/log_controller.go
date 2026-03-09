@@ -36,7 +36,7 @@ func (c *LogController) List(ctx *gin.Context) {
 	}
 
 	defaultQueryDays := 30
-	defaultMaxCount := 20
+	defaultMaxCount := 500
 	settingsMap, err := models.GetSettingsMap([]string{"operation_log_query_days", "operation_log_max_count"})
 	if err == nil {
 		if v, ok := settingsMap["operation_log_query_days"]; ok {
@@ -54,8 +54,14 @@ func (c *LogController) List(ctx *gin.Context) {
 	if defaultQueryDays > 365 {
 		defaultQueryDays = 365
 	}
-	if defaultMaxCount > 500 {
-		defaultMaxCount = 500
+	if defaultMaxCount > 10000 {
+		defaultMaxCount = 10000
+	}
+
+	// 自动清理超出上限的旧日志
+	if cleaned, cleanErr := models.CleanExcessOperationLogs(defaultMaxCount); cleanErr == nil && cleaned > 0 {
+		// 清理成功，静默处理
+		_ = cleaned
 	}
 
 	// 设置默认分页
@@ -63,11 +69,10 @@ func (c *LogController) List(ctx *gin.Context) {
 		query.Page = 1
 	}
 	if query.PageSize <= 0 {
-		query.PageSize = defaultMaxCount
+		query.PageSize = 20
 	}
-	// 限制每页最大数量（由系统设置控制）
-	if query.PageSize > defaultMaxCount {
-		query.PageSize = defaultMaxCount
+	if query.PageSize > 100 {
+		query.PageSize = 100
 	}
 
 	now := time.Now().Unix()

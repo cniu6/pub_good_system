@@ -39,6 +39,28 @@ func getLangFromRequest(c *gin.Context, reqLang string) string {
 	return lang
 }
 
+func isNonProductionMode() bool {
+	return !config.IsProductionMode()
+}
+
+func registrationAllowed() bool {
+	if services.GlobalSettingsService != nil {
+		return services.GlobalSettingsService.GetBoolWithDefault("allow_register", true)
+	}
+
+	setting, err := models.GetSettingByKey("allow_register")
+	if err != nil {
+		return true
+	}
+
+	value := strings.TrimSpace(setting.Value)
+	if value == "" {
+		return true
+	}
+
+	return value == "1" || strings.EqualFold(value, "true")
+}
+
 type RegisterRequest struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
@@ -83,17 +105,10 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 	req.Code = utils.Clean_XSS(req.Code)
 	// 密码不需要过滤（会被哈希处理）
 
-	// 验证验证码（从数据库获取）
-	valid, codeID, err := models.VerifyCode(req.Email, req.Code, "register")
-	if err != nil || !valid {
-		utils.Fail(c, 400, "Invalid or expired verification code")
+	if !registrationAllowed() {
+		utils.Fail(c, 403, "Registration is disabled")
 		return
 	}
-	// 标记验证码为已使用
-	_ = models.MarkVerificationCodeAsUsed(codeID)
-
-	// 注册成功后：清理该邮箱所有注册验证码（以及可能残留的旧记录）
-	_ = models.DeleteVerificationCodesByEmail(req.Email, "register")
 
 	// 验证用户名格式 (3-50长度,大小写+下划线)
 	usernameRegex := regexp.MustCompile(`^[a-zA-Z0-9_]{3,50}$`)
@@ -131,6 +146,12 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 		}
 	}
 
+	consumed, err := models.ConsumeVerificationCode(req.Email, req.Code, "register")
+	if err != nil || !consumed {
+		utils.Fail(c, 400, "Invalid or expired verification code")
+		return
+	}
+
 	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
 		utils.Fail(c, 500, "Failed to hash password")
@@ -146,12 +167,16 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 
 	if err := models.CreateUser(user); err != nil {
 		fmt.Printf("[ERROR] Failed to create user: %v\n", err)
-		if config.GlobalConfig.AppMode == "dev" {
+		if isNonProductionMode() {
 			utils.Fail(c, 500, fmt.Sprintf("Failed to create user: %v", err))
 			return
 		}
 		utils.Fail(c, 500, "Failed to create user")
 		return
+	}
+
+	if err := models.DeleteVerificationCodesByEmail(req.Email, "register"); err != nil && isNonProductionMode() {
+		fmt.Printf("[REGISTER-DEBUG] cleanup verification codes failed: %v\n", err)
 	}
 
 	utils.Success(c, gin.H{"message": "User registered successfully"})
@@ -168,6 +193,10 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 	// 过滤用户输入，防止SQL注入和XSS攻击
 	req.Email = utils.Clean_XSS(req.Email)
 	req.Lang = utils.Clean_XSS(req.Lang)
+	if !registrationAllowed() {
+		utils.Fail(c, 403, "Registration is disabled")
+		return
+	}
 
 	// 生成6位验证码（使用 crypto/rand）
 	code := generateSecureCodeLegacy()
@@ -226,7 +255,7 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 
 		if err != nil {
 			// 如果发送失败，但在开发环境，我们可以返回验证码方便调试
-			if config.GlobalConfig.AppMode == "dev" {
+			if isNonProductionMode() {
 				fmt.Printf("[DEV] Email send failed. Code: %s\n", code)
 				fmt.Printf("[DEV] Error: %v\n", err)
 				utils.Fail(c, 500, "Email send failed (Check server logs for code)")
@@ -238,7 +267,7 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 		}
 	} else {
 		// 没有配置SMTP，在开发模式下直接返回验证码
-		if config.GlobalConfig.AppMode != "production" {
+		if isNonProductionMode() {
 			fmt.Printf("[DEV] SMTP not configured. Code: %s\n", code)
 			utils.Fail(c, 500, "SMTP not configured (Check server logs for code)")
 			return
@@ -294,7 +323,7 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	// 支持用户名或邮箱登录
 	user, err := models.GetUserByUsernameOrEmail(username)
 	if err != nil {
-		if config.GlobalConfig.AppMode == "dev" {
+		if isNonProductionMode() {
 			fmt.Printf("[LOGIN-DEBUG] user not found for '%s': %v\n", username, err)
 		}
 		utils.Fail(c, 401, "Invalid account or password")
@@ -327,7 +356,7 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	if !utils.CheckPasswordHash(req.Password, user.Password) {
 		// 密码错误，增加失败计数（如果达到阈值会自动锁定）
 		_ = models.IncrementLoginFailure(user.ID, config.GlobalConfig.LoginMaxFailureCount, config.GlobalConfig.LoginLockDurationMinutes)
-		if config.GlobalConfig.AppMode == "dev" {
+		if isNonProductionMode() {
 			pwdPrefix := ""
 			pwdLen := len(user.Password)
 			if pwdLen >= 4 {
@@ -355,7 +384,7 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 
 	// 更新登录信息（最后登录时间、IP，重置失败次数）
 	if err := models.UpdateLoginInfo(user.ID, clientIP); err != nil {
-		if config.GlobalConfig.AppMode == "dev" {
+		if isNonProductionMode() {
 			fmt.Printf("[LOGIN-DEBUG] Failed to update login info: %v\n", err)
 		}
 		// 不阻止登录，只记录错误
@@ -370,7 +399,7 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 		utils.Fail(c, 500, "Failed to generate access token")
 		return
 	}
-	refreshToken, err := utils.GenerateTokenWithTTL(user.ID, user.Role, refreshTTL)
+	refreshToken, err := utils.GenerateRefreshTokenWithTTL(user.ID, refreshTTL)
 	if err != nil {
 		utils.Fail(c, 500, "Failed to generate refresh token")
 		return
@@ -398,7 +427,7 @@ func (ctrl *AuthController) UpdateToken(c *gin.Context) {
 		return
 	}
 
-	claims, err := utils.ParseToken(req.RefreshToken)
+	claims, err := utils.ParseRefreshToken(req.RefreshToken)
 	if err != nil {
 		utils.Fail(c, 401, "Invalid or expired refresh token")
 		return
@@ -408,12 +437,17 @@ func (ctrl *AuthController) UpdateToken(c *gin.Context) {
 	refreshTTL := time.Duration(config.GlobalConfig.JWTRefreshExpire) * time.Second
 	nowUnix := time.Now().Unix()
 
-	accessToken, err := utils.GenerateTokenWithTTL(claims.UserID, claims.Role, accessTTL)
+	user, err := models.GetUserByID(claims.UserID)
+	if err != nil {
+		utils.Fail(c, 401, "User not found")
+		return
+	}
+	accessToken, err := utils.GenerateTokenWithTTL(user.ID, user.Role, accessTTL)
 	if err != nil {
 		utils.Fail(c, 500, "Failed to generate access token")
 		return
 	}
-	refreshToken, err := utils.GenerateTokenWithTTL(claims.UserID, claims.Role, refreshTTL)
+	refreshToken, err := utils.GenerateRefreshTokenWithTTL(user.ID, refreshTTL)
 	if err != nil {
 		utils.Fail(c, 500, "Failed to generate refresh token")
 		return
@@ -463,11 +497,18 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 	}
 
 	// 构造链接 (假设前端路由是 /login/reset-password-confirm)
-	// 注意：ResetPwdConfirm.vue 从 route.query.token 获取 code
-	// 所以我们发送的邮件里应该包含这个链接
-	frontendURL := config.GlobalConfig.FrontendURL
+	// 从系统设置读取前端地址
+	frontendURL := ""
+	if s, err := models.GetSettingByKey("frontend_url"); err == nil && s.Value != "" {
+		frontendURL = strings.TrimRight(s.Value, "/")
+	}
 	if frontendURL == "" {
-		frontendURL = "http://localhost:5173" // 默认开发地址
+		if isNonProductionMode() {
+			frontendURL = "http://localhost:5173"
+		} else {
+			utils.Fail(c, 500, "系统未配置前端地址，请在管理后台「基本设置」中配置")
+			return
+		}
 	}
 	resetLink := fmt.Sprintf("%s/#/login/reset-password-confirm?email=%s&token=%s", frontendURL, user.Email, code)
 
@@ -511,7 +552,7 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 			return
 		}
 	} else {
-		if config.GlobalConfig.AppMode != "production" {
+		if isNonProductionMode() {
 			fmt.Printf("[DEV] Reset Password Link: %s\n", resetLink)
 			fmt.Printf("[DEV] Reset Code: %s\n", code)
 			utils.Fail(c, 500, "SMTP not configured (Check server logs for code)")
@@ -538,14 +579,11 @@ func (ctrl *AuthController) ResetPasswordConfirm(c *gin.Context) {
 	req.Code = utils.Clean_XSS(req.Code)
 	// 密码不需要过滤（会被哈希处理）
 
-	// 验证Code（从数据库获取）
-	valid, codeID, err := models.VerifyCode(req.Email, req.Code, "reset_password")
-	if err != nil || !valid {
+	consumed, err := models.ConsumeVerificationCode(req.Email, req.Code, "reset_password")
+	if err != nil || !consumed {
 		utils.Fail(c, 400, "Invalid or expired reset token")
 		return
 	}
-	// 标记验证码为已使用
-	_ = models.MarkVerificationCodeAsUsed(codeID)
 
 	// 重置成功后：清理该邮箱所有重置密码验证码
 	_ = models.DeleteVerificationCodesByEmail(req.Email, "reset_password")

@@ -21,6 +21,8 @@ func InitVerificationCodeTable() {
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 			INDEX idx_email_type (email, code_type),
+			INDEX idx_email_type_active_created (email, code_type, is_used, is_deleted, created_at),
+			INDEX idx_email_code_type_active (email, code, code_type, is_used, is_deleted),
 			INDEX idx_expires_at (expires_at),
 			INDEX idx_is_deleted (is_deleted)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
@@ -73,6 +75,15 @@ func repairVerificationCodeTable() {
 			}
 		}
 	}
+
+	indexRepairs := map[string]string{
+		"idx_email_type_active_created": "ALTER TABLE verification_codes ADD INDEX idx_email_type_active_created (email, code_type, is_used, is_deleted, created_at)",
+		"idx_email_code_type_active":    "ALTER TABLE verification_codes ADD INDEX idx_email_code_type_active (email, code, code_type, is_used, is_deleted)",
+	}
+
+	for indexName, alterSQL := range indexRepairs {
+		db.EnsureIndex("verification_codes", indexName, alterSQL)
+	}
 }
 
 // VerificationCode 验证码模型
@@ -105,6 +116,18 @@ func CreateVerificationCode(email, code, codeType string, expiresAt time.Time) e
 	return err
 }
 
+func HasRecentVerificationCode(email, codeType string, since time.Time) (bool, error) {
+	var count int
+	err := db.DB.Get(&count,
+		"SELECT COUNT(*) FROM verification_codes WHERE email = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND created_at >= ?",
+		email, codeType, since,
+	)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // GetValidVerificationCode 获取有效的验证码（未使用、未过期、未软删除）
 func GetValidVerificationCode(email, codeType string) (*VerificationCode, error) {
 	var vc VerificationCode
@@ -122,6 +145,29 @@ func GetValidVerificationCode(email, codeType string) (*VerificationCode, error)
 func MarkVerificationCodeAsUsed(id uint64) error {
 	_, err := db.DB.Exec("UPDATE verification_codes SET is_used = 1 WHERE id = ?", id)
 	return err
+}
+
+func ConsumeVerificationCode(email, code, codeType string) (bool, error) {
+	result, err := db.DB.Exec(
+		`UPDATE verification_codes
+		 SET is_used = 1
+		 WHERE id = (
+		 	SELECT id FROM (
+		 		SELECT id FROM verification_codes
+		 		WHERE email = ? AND code = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND expires_at > NOW()
+		 		ORDER BY created_at DESC LIMIT 1
+		 	) AS latest
+		 ) AND is_used = 0`,
+		email, code, codeType,
+	)
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return rows > 0, nil
 }
 
 // MarkVerificationCodeAsDeleted 软删除验证码

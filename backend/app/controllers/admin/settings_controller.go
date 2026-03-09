@@ -80,11 +80,21 @@ var CategoryLabelMap = map[string]string{
 	"basic":    "基本设置",
 	"security": "安全设置",
 	"email":    "邮件设置",
+	"payment":  "支付设置",
 	"sms":      "短信设置",
 	"custom":   "自定义配置",
 }
 
 var serverMonitorStartedAt = time.Now()
+
+const sensitiveSettingMaskedValue = "********"
+
+var sensitiveSettingKeys = map[string]struct{}{
+	"geetest_captcha_key": {},
+	"smtp_password":       {},
+	"sms_access_key":      {},
+	"sms_secret_key":      {},
+}
 
 // ========================================
 // 控制器方法
@@ -254,13 +264,14 @@ func (ctrl *SettingsController) Update(c *gin.Context) {
 	}
 
 	// 类型校验
-	if !ctrl.validateSettingValue(req.Value, setting.Type) {
+	resolvedValue := ctrl.normalizeSettingValueForWrite(*setting, req.Value)
+	if !ctrl.validateSettingValue(resolvedValue, setting.Type) {
 		utils.Fail(c, 400, "Invalid value type for "+setting.Type)
 		return
 	}
 
 	// 更新配置
-	if err := models.UpdateSetting(key, req.Value); err != nil {
+	if err := models.UpdateSetting(key, resolvedValue); err != nil {
 		utils.Fail(c, 500, "Failed to update setting")
 		return
 	}
@@ -289,7 +300,7 @@ func (ctrl *SettingsController) UpdateMeta(c *gin.Context) {
 	}
 
 	// 检查配置是否存在
-	_, err := models.GetSettingByKey(key)
+	existingSetting, err := models.GetSettingByKey(key)
 	if err != nil {
 		utils.Fail(c, 404, "Setting not found")
 		return
@@ -308,7 +319,8 @@ func (ctrl *SettingsController) UpdateMeta(c *gin.Context) {
 	}
 
 	// 类型校验
-	if !ctrl.validateSettingValue(req.Value, req.Type) {
+	resolvedValue := ctrl.normalizeSettingValueForWrite(*existingSetting, req.Value)
+	if !ctrl.validateSettingValue(resolvedValue, req.Type) {
 		utils.Fail(c, 400, "Invalid value type for "+req.Type)
 		return
 	}
@@ -316,7 +328,7 @@ func (ctrl *SettingsController) UpdateMeta(c *gin.Context) {
 	// 构建更新对象
 	setting := &models.SystemSetting{
 		Key:         key,
-		Value:       req.Value,
+		Value:       resolvedValue,
 		Type:        req.Type,
 		Category:    req.Category,
 		Label:       req.Label,
@@ -353,6 +365,8 @@ func (ctrl *SettingsController) BatchUpdate(c *gin.Context) {
 		return
 	}
 
+	resolvedSettings := make(map[string]string, len(req.Settings))
+
 	// 验证每个配置项是否可编辑
 	for key := range req.Settings {
 		setting, err := models.GetSettingByKey(key)
@@ -364,14 +378,16 @@ func (ctrl *SettingsController) BatchUpdate(c *gin.Context) {
 			utils.Fail(c, 403, "Setting is not editable: "+key)
 			return
 		}
-		if !ctrl.validateSettingValue(req.Settings[key], setting.Type) {
+		resolvedValue := ctrl.normalizeSettingValueForWrite(*setting, req.Settings[key])
+		if !ctrl.validateSettingValue(resolvedValue, setting.Type) {
 			utils.Fail(c, 400, "Invalid value type for "+key)
 			return
 		}
+		resolvedSettings[key] = resolvedValue
 	}
 
 	// 批量更新
-	if err := models.BatchUpdateSettings(req.Settings); err != nil {
+	if err := models.BatchUpdateSettings(resolvedSettings); err != nil {
 		utils.Fail(c, 500, "Failed to update settings")
 		return
 	}
@@ -438,7 +454,7 @@ func (ctrl *SettingsController) Create(c *gin.Context) {
 
 	// 验证分类
 	if !ctrl.isValidCategory(req.Category) {
-		utils.Fail(c, 400, "Invalid category. Must be one of: basic, security, email, custom")
+		utils.Fail(c, 400, "Invalid category. Must be one of: basic, security, email, payment, sms, custom")
 		return
 	}
 
@@ -529,6 +545,7 @@ func (ctrl *SettingsController) isValidCategory(cat string) bool {
 		"basic":    true,
 		"security": true,
 		"email":    true,
+		"payment":  true,
 		"sms":      true,
 		"custom":   true,
 	}
@@ -565,11 +582,7 @@ func (ctrl *SettingsController) resolveSettingValueForAdmin(setting models.Syste
 		}
 		return val
 	case "geetest_captcha_key":
-		val := strings.TrimSpace(setting.Value)
-		if val == "" {
-			val = strings.TrimSpace(config.GlobalConfig.GeetestKey)
-		}
-		return val
+		return ctrl.maskSensitiveSettingValue(ctrl.resolveCurrentSensitiveSettingValue(setting))
 	case "smtp_host":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
@@ -595,11 +608,7 @@ func (ctrl *SettingsController) resolveSettingValueForAdmin(setting models.Syste
 		}
 		return val
 	case "smtp_password":
-		val := setting.Value
-		if strings.TrimSpace(val) == "" {
-			val = config.GlobalConfig.SMTPPass
-		}
-		return val
+		return ctrl.maskSensitiveSettingValue(ctrl.resolveCurrentSensitiveSettingValue(setting))
 	case "smtp_ssl":
 		if strings.TrimSpace(setting.Value) == "" {
 			return config.GlobalConfig.SMTPSSL
@@ -653,17 +662,9 @@ func (ctrl *SettingsController) resolveSettingValueForAdmin(setting models.Syste
 		}
 		return val
 	case "sms_access_key":
-		val := strings.TrimSpace(setting.Value)
-		if val == "" {
-			val = config.GlobalConfig.SMSAccessKey
-		}
-		return val
+		return ctrl.maskSensitiveSettingValue(ctrl.resolveCurrentSensitiveSettingValue(setting))
 	case "sms_secret_key":
-		val := strings.TrimSpace(setting.Value)
-		if val == "" {
-			val = config.GlobalConfig.SMSSecretKey
-		}
-		return val
+		return ctrl.maskSensitiveSettingValue(ctrl.resolveCurrentSensitiveSettingValue(setting))
 	case "sms_sign_name":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
@@ -685,6 +686,44 @@ func (ctrl *SettingsController) resolveSettingValueForAdmin(setting models.Syste
 	default:
 		return setting.GetTypedValue()
 	}
+}
+
+func isSensitiveSettingKey(key string) bool {
+	_, ok := sensitiveSettingKeys[key]
+	return ok
+}
+
+func (ctrl *SettingsController) maskSensitiveSettingValue(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
+	return sensitiveSettingMaskedValue
+}
+
+func (ctrl *SettingsController) resolveCurrentSensitiveSettingValue(setting models.SystemSetting) string {
+	if strings.TrimSpace(setting.Value) != "" {
+		return setting.Value
+	}
+
+	switch setting.Key {
+	case "geetest_captcha_key":
+		return strings.TrimSpace(config.GlobalConfig.GeetestKey)
+	case "smtp_password":
+		return config.GlobalConfig.SMTPPass
+	case "sms_access_key":
+		return strings.TrimSpace(config.GlobalConfig.SMSAccessKey)
+	case "sms_secret_key":
+		return strings.TrimSpace(config.GlobalConfig.SMSSecretKey)
+	default:
+		return setting.Value
+	}
+}
+
+func (ctrl *SettingsController) normalizeSettingValueForWrite(setting models.SystemSetting, value string) string {
+	if isSensitiveSettingKey(setting.Key) && value == sensitiveSettingMaskedValue {
+		return ctrl.resolveCurrentSensitiveSettingValue(setting)
+	}
+	return value
 }
 
 func parseBoolSettingValue(v string, fallback bool) bool {
@@ -799,6 +838,11 @@ func (ctrl *SettingsController) refreshRuntimeConfig() {
 
 // RestartBackend restarts backend process after response is flushed.
 func (ctrl *SettingsController) RestartBackend(c *gin.Context) {
+	if config.IsProductionMode() {
+		utils.Fail(c, 403, "生产环境已禁用该功能")
+		return
+	}
+
 	utils.Success(c, gin.H{"message": "Backend restart requested"})
 	go func() {
 		time.Sleep(500 * time.Millisecond)

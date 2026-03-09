@@ -34,6 +34,8 @@ interface ImportMetaEnv {
   readonly VITE_DEFAULT_LANG: App.lang
   /** 用户协议链接 */
   readonly VITE_USER_AGREEMENT_URL: string
+  /** 后端 API 地址（可在 .env.dev 和 .env.production 中分别覆盖） */
+  readonly VITE_API_URL: string
   /** 后端服务的环境类型 */
   readonly MODE: ServiceEnvType
 }

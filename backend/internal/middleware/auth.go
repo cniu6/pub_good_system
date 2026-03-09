@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"fst/backend/app/models"
 	"fst/backend/utils"
 	"strings"
 	"time"
@@ -32,6 +33,16 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		active, err := models.IsUserSessionActive(claims.UserID, utils.HashToken(parts[1]))
+		if err != nil || !active {
+			utils.Fail(c, 401, "Session expired or revoked")
+			c.Abort()
+			return
+		}
+
+		if user, err := models.GetUserByID(claims.UserID); err == nil && user != nil {
+			c.Set("username", user.Username)
+		}
 		c.Set("userID", claims.UserID)
 		c.Set("role", claims.Role)
 		c.Next()

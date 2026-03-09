@@ -34,12 +34,10 @@ import {
   StarOutlined,
   FieldTimeOutlined,
 } from '@vicons/antd'
-import { getAdminPath } from '@/router/admin.loader'
 import { adminApi } from '@/service/api/admin'
 
 const router = useRouter()
 const message = useMessage()
-const admin_path = getAdminPath()
 const mode = import.meta.env.MODE
 const loading = ref(false)
 
@@ -133,7 +131,7 @@ onMounted(() => {
   <n-space vertical :size="16">
     <!-- 欢迎横幅 -->
     <n-card hoverable>
-      <n-flex justify="space-between" align="center" wrap="wrap" :size="16">
+      <n-flex justify="space-between" align="center" wrap :size="16">
         <n-flex align="center" :size="16">
           <n-icon-wrapper :size="48" :border-radius="12" color="var(--success-color)">
             <n-icon :size="26" color="#fff">

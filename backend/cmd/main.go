@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -61,6 +62,13 @@ func main() {
 	// 5.3 初始化余额/积分变动日志表
 	models.InitUserMoneyLogsTable()
 	models.InitUserScoreLogsTable()
+	models.InitOperationLogsTable()
+
+	// 5.4 初始化支付订单表
+	models.InitPaymentOrdersTable()
+
+	// 5.5 初始化支付通道表
+	models.InitPayGatewaysTable()
 
 	// 6. 初始化配置服务（缓存）
 	services.InitSettingsService()
@@ -71,8 +79,18 @@ func main() {
 	// 7. 启动定时清理任务
 	services.StartCleanupTask()
 
+	// 7.1 启动过期订单自动取消任务（每分钟检查一次）
+	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			services.CancelExpiredOrders()
+		}
+	}()
+
 	// 8. 创建路由
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Logger(), gin.Recovery())
 	router.SetTrustedProxies(nil)
 	router.Use(middleware.CorsMiddleware())
 
