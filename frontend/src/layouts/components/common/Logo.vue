@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { useAppStore } from '@/store'
-import { useI18n } from 'vue-i18n'
 
 const router = useRouter()
 const appStore = useAppStore()
-const { t } = useI18n()
 
 const appName = import.meta.env.VITE_APP_NAME || 'F.st'
 

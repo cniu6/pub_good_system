@@ -59,7 +59,7 @@ watchEffect(() => {
       gender: userInfo.value.gender ?? 0,
       birthday: userInfo.value.birthday ? new Date(userInfo.value.birthday).getTime() : null,
       motto: userInfo.value.motto || '',
-      back_ground: userInfo.value.back_ground || '',
+      back_ground: userInfo.value.backGround || '',
     }
     emailForm.value.email = userInfo.value.email || ''
     phoneForm.value.mobile = userInfo.value.mobile || ''
@@ -298,6 +298,7 @@ async function handleProfileSubmit() {
         gender: submitData.gender as 0 | 1 | 2,
         birthday: submitData.birthday,
         motto: submitData.motto,
+        backGround: submitData.back_ground,
       })
     }
     else {

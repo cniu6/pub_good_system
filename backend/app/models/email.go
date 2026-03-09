@@ -182,20 +182,33 @@ func UpdateEmailTemplateContent(name, lang, content string) error {
 // InitEmailTemplates 初始化默认邮件模板
 func InitEmailTemplates() {
 	// 注册验证码模板
+	registerCodeZH := `<p style="margin:0 0 16px 0;">您好，感谢您的注册！请使用以下验证码完成验证：</p>` +
+		`<div style="text-align:center;margin:28px 0;">` +
+		`<div style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:32px;font-weight:700;letter-spacing:8px;padding:16px 40px;border-radius:12px;">{code}</div>` +
+		`</div>` +
+		`<p style="margin:0 0 8px 0;">⏱ 验证码有效期为 <strong>{expire_minutes} 分钟</strong>，请尽快使用。</p>` +
+		`<p style="margin:0;color:#a0a0b8;font-size:13px;">如果这不是您本人的操作，请忽略此邮件。请勿将验证码透露给任何人。</p>`
+
+	registerCodeEN := `<p style="margin:0 0 16px 0;">Hello! Thank you for signing up. Please use the following code to verify your account:</p>` +
+		`<div style="text-align:center;margin:28px 0;">` +
+		`<div style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:32px;font-weight:700;letter-spacing:8px;padding:16px 40px;border-radius:12px;">{code}</div>` +
+		`</div>` +
+		`<p style="margin:0 0 8px 0;">⏱ This code is valid for <strong>{expire_minutes} minutes</strong>.</p>` +
+		`<p style="margin:0;color:#a0a0b8;font-size:13px;">If you did not request this, please ignore this email. Never share your code with anyone.</p>`
+
 	if !CheckTemplateExists("register_code", "zh-CN") {
 		CreateEmailTemplate(&EmailTemplate{
 			Name:        "register_code",
 			Lang:        "zh-CN",
 			Title:       "注册验证码",
 			Subject:     "【{app_name}】注册验证码",
-			Content:     "<p>您的验证码是：<b>{code}</b></p><p>有效期{expire_minutes}分钟，请勿泄露。</p>",
+			Content:     registerCodeZH,
 			Description: "用户注册时发送的验证码",
-			Variables:   "code, app_name",
+			Variables:   "code, app_name, expire_minutes",
 			Status:      1,
 		})
 	} else {
-		// 强制更新已有模板为动态分钟
-		_ = UpdateEmailTemplateContent("register_code", "zh-CN", "<p>您的验证码是：<b>{code}</b></p><p>有效期{expire_minutes}分钟，请勿泄露。</p>")
+		_ = UpdateEmailTemplateContent("register_code", "zh-CN", registerCodeZH)
 	}
 	if !CheckTemplateExists("register_code", "en-US") {
 		CreateEmailTemplate(&EmailTemplate{
@@ -203,28 +216,51 @@ func InitEmailTemplates() {
 			Lang:        "en-US",
 			Title:       "Registration Code",
 			Subject:     "[{app_name}] Registration Code",
-			Content:     "<p>Your verification code is: <b>{code}</b></p><p>Valid for {expire_minutes} minutes. Do not share.</p>",
+			Content:     registerCodeEN,
 			Description: "Verification code for user registration",
-			Variables:   "code, app_name",
+			Variables:   "code, app_name, expire_minutes",
 			Status:      1,
 		})
 	} else {
-		// 强制更新已有模板为动态分钟
-		_ = UpdateEmailTemplateContent("register_code", "en-US", "<p>Your verification code is: <b>{code}</b></p><p>Valid for {expire_minutes} minutes. Do not share.</p>")
+		_ = UpdateEmailTemplateContent("register_code", "en-US", registerCodeEN)
 	}
 
 	// 密码重置模板
+	resetPasswordZH := `<p style="margin:0 0 16px 0;">您好，我们收到了您的密码重置请求。请点击下方按钮重置密码：</p>` +
+		`<div style="text-align:center;margin:28px 0;">` +
+		`<a href="{link}" style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 48px;border-radius:10px;">重置密码</a>` +
+		`</div>` +
+		`<p style="margin:0 0 8px 0;">如果按钮无法点击，您也可以使用以下验证码：</p>` +
+		`<div style="text-align:center;margin:20px 0;">` +
+		`<div style="display:inline-block;background:#f0f2f5;font-size:28px;font-weight:700;letter-spacing:6px;padding:14px 36px;border-radius:10px;color:#1a1a2e;border:2px dashed #667eea;">{code}</div>` +
+		`</div>` +
+		`<p style="margin:0 0 8px 0;">⏱ 有效期为 <strong>15 分钟</strong>，请尽快操作。</p>` +
+		`<p style="margin:0;color:#a0a0b8;font-size:13px;">如果这不是您本人的操作，请忽略此邮件，您的密码不会被更改。</p>`
+
+	resetPasswordEN := `<p style="margin:0 0 16px 0;">Hello, we received a request to reset your password. Click the button below to proceed:</p>` +
+		`<div style="text-align:center;margin:28px 0;">` +
+		`<a href="{link}" style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 48px;border-radius:10px;">Reset Password</a>` +
+		`</div>` +
+		`<p style="margin:0 0 8px 0;">If the button doesn't work, you can also use this verification code:</p>` +
+		`<div style="text-align:center;margin:20px 0;">` +
+		`<div style="display:inline-block;background:#f0f2f5;font-size:28px;font-weight:700;letter-spacing:6px;padding:14px 36px;border-radius:10px;color:#1a1a2e;border:2px dashed #667eea;">{code}</div>` +
+		`</div>` +
+		`<p style="margin:0 0 8px 0;">⏱ Valid for <strong>15 minutes</strong>.</p>` +
+		`<p style="margin:0;color:#a0a0b8;font-size:13px;">If you did not request a password reset, please ignore this email. Your password will remain unchanged.</p>`
+
 	if !CheckTemplateExists("reset_password", "zh-CN") {
 		CreateEmailTemplate(&EmailTemplate{
 			Name:        "reset_password",
 			Lang:        "zh-CN",
 			Title:       "密码重置",
 			Subject:     "【{app_name}】密码重置请求",
-			Content:     "<p>请点击以下链接重置密码：<a href=\"{link}\">重置密码</a></p><p>或者使用验证码：<b>{code}</b></p><p>有效期15分钟。</p>",
+			Content:     resetPasswordZH,
 			Description: "用户重置密码时发送的链接和验证码",
 			Variables:   "link, code, app_name",
 			Status:      1,
 		})
+	} else {
+		_ = UpdateEmailTemplateContent("reset_password", "zh-CN", resetPasswordZH)
 	}
 	if !CheckTemplateExists("reset_password", "en-US") {
 		CreateEmailTemplate(&EmailTemplate{
@@ -232,10 +268,12 @@ func InitEmailTemplates() {
 			Lang:        "en-US",
 			Title:       "Password Reset",
 			Subject:     "[{app_name}] Password Reset Request",
-			Content:     "<p>Click here to reset password: <a href=\"{link}\">Reset Password</a></p><p>Or use code: <b>{code}</b></p><p>Valid for 15 minutes.</p>",
+			Content:     resetPasswordEN,
 			Description: "Link and code for password reset",
 			Variables:   "link, code, app_name",
 			Status:      1,
 		})
+	} else {
+		_ = UpdateEmailTemplateContent("reset_password", "en-US", resetPasswordEN)
 	}
 }

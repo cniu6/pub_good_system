@@ -22,7 +22,9 @@ import (
 var (
 	publicAuthCtrl      *public.AuthController
 	publicSettingsCtrl  *public.SettingsController
+	publicPaymentCallbackCtrl *public.PaymentCallbackController
 	userProfileCtrl     *user.ProfileController
+	userPaymentCtrl     *user.PaymentController
 	systemCtrl          *controllers.SystemController
 	adminUserCtrl       *admin.UserController
 	adminLogCtrl        *admin.LogController
@@ -31,13 +33,16 @@ var (
 	adminSettingsCtrl      *admin.SettingsController
 	adminDebugCtrl         *admin.DebugController
 	adminMoneyScoreCtrl    *admin.UserMoneyScoreController
+	adminPaymentCtrl       *admin.PaymentController
 )
 
 // initControllers 初始化所有控制器
 func initControllers() {
 	publicAuthCtrl = public.NewAuthController()
 	publicSettingsCtrl = public.NewSettingsController()
+	publicPaymentCallbackCtrl = public.NewPaymentCallbackController()
 	userProfileCtrl = user.NewProfileController()
+	userPaymentCtrl = user.NewPaymentController()
 	systemCtrl = &controllers.SystemController{}
 	adminUserCtrl = admin.NewUserController()
 	adminLogCtrl = admin.NewLogController()
@@ -46,6 +51,7 @@ func initControllers() {
 	adminSettingsCtrl = admin.NewSettingsController()
 	adminDebugCtrl = admin.NewDebugController()
 	adminMoneyScoreCtrl = admin.NewUserMoneyScoreController()
+	adminPaymentCtrl = admin.NewPaymentController()
 }
 
 func SetupRoutes(router *gin.Engine) {
@@ -78,6 +84,7 @@ func SetupRoutes(router *gin.Engine) {
 			{
 				publicAuthCtrl.RegisterRoutes(publicGroup)
 				publicSettingsCtrl.RegisterRoutes(publicGroup)
+				publicPaymentCallbackCtrl.RegisterRoutes(publicGroup)
 			}
 
 			// ----------------------------------------
@@ -87,6 +94,7 @@ func SetupRoutes(router *gin.Engine) {
 			userGroup.Use(middleware.AuthMiddleware())
 			{
 				userProfileCtrl.RegisterRoutes(userGroup)
+				userPaymentCtrl.RegisterRoutes(userGroup)
 			}
 
 			// ----------------------------------------
@@ -132,6 +140,9 @@ func SetupRoutes(router *gin.Engine) {
 					logs.POST("/clean", adminLogCtrl.Clean)
 				}
 
+				// ----- 邮件发件测试 -----
+				adminGroup.POST("/email-send-test", adminEmailTplCtrl.SendTest)
+
 				// ----- 邮件模板 -----
 				emailTemplates := adminGroup.Group("/email-templates")
 				{
@@ -157,6 +168,9 @@ func SetupRoutes(router *gin.Engine) {
 
 				// ----- 系统配置 -----
 				adminSettingsCtrl.RegisterRoutes(adminGroup)
+
+				// ----- 支付订单管理 -----
+				adminPaymentCtrl.RegisterPaymentRoutes(adminGroup)
 
 				// ----- 调试工具 -----
 				adminDebugCtrl.RegisterRoutes(adminGroup)

@@ -186,12 +186,16 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 		}
 		user.Email = req.Email
 	}
+	if req.Mobile != "" && req.Mobile != user.Mobile {
+		existing, _ := models.GetUserByMobile(req.Mobile)
+		if existing != nil && existing.ID != user.ID {
+			return errors.New("手机号已被使用")
+		}
+		user.Mobile = req.Mobile
+	}
 
 	if req.Nickname != "" {
 		user.Nickname = req.Nickname
-	}
-	if req.Mobile != "" {
-		user.Mobile = req.Mobile
 	}
 	if req.Avatar != "" {
 		user.Avatar = req.Avatar

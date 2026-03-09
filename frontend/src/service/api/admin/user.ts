@@ -8,6 +8,96 @@ import { request } from '@/service/http'
 const ADMIN_PATH = '/admin'
 const BASE_URL = `/api/v1${ADMIN_PATH}/users`
 
+export interface AdminUser {
+  id: number
+  group_id: number
+  username: string
+  nickname: string
+  email: string
+  mobile: string
+  avatar: string
+  back_ground: string
+  gender: number
+  birthday?: number | null
+  money: number
+  score: number
+  level: number
+  role: string
+  last_login_time?: number | null
+  last_login_ip: string
+  login_failure: number
+  join_ip: string
+  join_time?: number | null
+  motto: string
+  status: number
+  apikey?: string | null
+  update_time?: number | null
+  create_time?: number | null
+  language: string
+  country: string
+  token: string
+}
+
+interface UserListResponse {
+  list: AdminUser[]
+  total: number
+  page: number
+  page_size: number
+}
+
+interface UserDetailResponse {
+  user: AdminUser
+}
+
+interface LoginAsUserResponse {
+  user: AdminUser
+  token: string
+}
+
+interface ResetApiKeyResponse {
+  apikey: string
+}
+
+export function normalizeAdminUserRole(role?: string): Entity.RoleType {
+  if (role === 'admin' || role === 'super') {
+    return role
+  }
+  return 'user'
+}
+
+export function toLoginInfo(user: AdminUser, token: string): Api.Login.Info {
+  return {
+    id: user.id,
+    userName: user.username,
+    nickname: user.nickname,
+    email: user.email,
+    mobile: user.mobile,
+    avatar: user.avatar,
+    backGround: user.back_ground,
+    gender: user.gender as 0 | 1 | 2,
+    birthday: user.birthday ?? null,
+    money: user.money,
+    score: user.score,
+    level: user.level,
+    role: [normalizeAdminUserRole(user.role)],
+    lastLoginTime: user.last_login_time ?? null,
+    lastLoginIp: user.last_login_ip,
+    loginFailure: user.login_failure,
+    joinIp: user.join_ip,
+    joinTime: user.join_time ?? null,
+    motto: user.motto,
+    status: user.status === 1 ? 1 : 0,
+    apikey: user.apikey ?? null,
+    language: user.language,
+    country: user.country,
+    token: user.token,
+    updateTime: user.update_time ?? null,
+    createTime: user.create_time ?? null,
+    accessToken: token,
+    refreshToken: '',
+  }
+}
+
 // 用户简要信息类型
 export interface UserSimpleInfo {
   id: number
@@ -41,12 +131,12 @@ export const adminUserApi = {
     status?: number | null
     role?: string
   }) {
-    return request.Get(BASE_URL, { params })
+    return request.Get<Service.ResponseResult<UserListResponse>>(BASE_URL, { params })
   },
 
   // 用户详情
   detail(id: number) {
-    return request.Get(`${BASE_URL}/${id}`)
+    return request.Get<Service.ResponseResult<UserDetailResponse>>(`${BASE_URL}/${id}`)
   },
 
   // 创建用户
@@ -59,7 +149,7 @@ export const adminUserApi = {
     role?: string
     status?: number
   }) {
-    return request.Post(BASE_URL, data)
+    return request.Post<Service.ResponseResult<AdminUser>>(BASE_URL, data)
   },
 
   // 更新用户
@@ -70,22 +160,22 @@ export const adminUserApi = {
     role?: string
     status?: number
   }) {
-    return request.Put(`${BASE_URL}/${id}`, data)
+    return request.Put<Service.ResponseResult<null>>(`${BASE_URL}/${id}`, data)
   },
 
   // 删除用户
   delete(id: number) {
-    return request.Delete(`${BASE_URL}/${id}`)
+    return request.Delete<Service.ResponseResult<null>>(`${BASE_URL}/${id}`)
   },
 
   // 更新用户状态
   updateStatus(id: number, status: number) {
-    return request.Put(`${BASE_URL}/${id}/status`, { status })
+    return request.Put<Service.ResponseResult<null>>(`${BASE_URL}/${id}/status`, { status })
   },
 
   // 重置用户密码
   resetPassword(id: number, password: string) {
-    return request.Put(`${BASE_URL}/${id}/password`, { password })
+    return request.Put<Service.ResponseResult<null>>(`${BASE_URL}/${id}/password`, { password })
   },
 
   // 批量获取用户简要信息
@@ -98,17 +188,17 @@ export const adminUserApi = {
 
   // 按标识查找用户（ID/用户名/邮箱）
   lookup(keyword: string) {
-    return request.Get(`${BASE_URL}/lookup`, { params: { keyword } })
+    return request.Get<Service.ResponseResult<UserDetailResponse>>(`${BASE_URL}/lookup`, { params: { keyword } })
   },
 
   // 管理员登录指定用户（生成该用户的JWT token）
   loginAsUser(id: number) {
-    return request.Post(`${BASE_URL}/${id}/login-as`)
+    return request.Post<Service.ResponseResult<LoginAsUserResponse>>(`${BASE_URL}/${id}/login-as`)
   },
 
   // 重置指定用户的 API Key
   resetApiKey(id: number) {
-    return request.Post(`${BASE_URL}/${id}/reset-apikey`)
+    return request.Post<Service.ResponseResult<ResetApiKeyResponse>>(`${BASE_URL}/${id}/reset-apikey`)
   },
 
   // 变更用户余额（增减）

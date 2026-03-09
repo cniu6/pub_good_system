@@ -53,6 +53,11 @@ export function fetchUserProfile() {
   return request.Get<Service.ResponseResult<any>>('/api/v1/user/profile')
 }
 
+/** 获取当前用户 API Key */
+export function fetchUserApiKey() {
+  return request.Get<Service.ResponseResult<{ apikey: string | null }>>('/api/v1/user/apikey')
+}
+
 /** 更新用户信息 */
 export function fetchUpdateProfile(data: any) {
   return request.Put<Service.ResponseResult<any>>('/api/v1/user/profile', data)

@@ -32,6 +32,11 @@ type columnRepair struct {
 	AlterSQL string
 }
 
+type indexRepair struct {
+	Index    string
+	AlterSQL string
+}
+
 func Migrate() {
 	schemas := []string{
 		`CREATE TABLE IF NOT EXISTS users (
@@ -80,7 +85,10 @@ func Migrate() {
 			status TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态:0=失败,1=成功',
 			error_msg TEXT COMMENT '错误信息',
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-			INDEX idx_email_logs_to (to_email)
+			INDEX idx_email_logs_to (to_email),
+			INDEX idx_email_logs_status_created (status, created_at),
+			INDEX idx_email_logs_template_name (template_name),
+			INDEX idx_email_logs_created_at (created_at)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 		`CREATE TABLE IF NOT EXISTS email_templates (
 			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -107,6 +115,8 @@ func Migrate() {
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 			INDEX idx_email_type (email, code_type),
+			INDEX idx_email_type_active_created (email, code_type, is_used, is_deleted, created_at),
+			INDEX idx_email_code_type_active (email, code, code_type, is_used, is_deleted),
 			INDEX idx_expires_at (expires_at),
 			INDEX idx_is_deleted (is_deleted)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
@@ -162,6 +172,29 @@ func Migrate() {
 		}
 	}
 
+	if CheckTableExists("email_logs") {
+		repairs := []indexRepair{
+			{"idx_email_logs_status_created", "ALTER TABLE email_logs ADD INDEX idx_email_logs_status_created (status, created_at)"},
+			{"idx_email_logs_template_name", "ALTER TABLE email_logs ADD INDEX idx_email_logs_template_name (template_name)"},
+			{"idx_email_logs_created_at", "ALTER TABLE email_logs ADD INDEX idx_email_logs_created_at (created_at)"},
+		}
+
+		for _, r := range repairs {
+			EnsureIndex("email_logs", r.Index, r.AlterSQL)
+		}
+	}
+
+	if CheckTableExists("verification_codes") {
+		repairs := []indexRepair{
+			{"idx_email_type_active_created", "ALTER TABLE verification_codes ADD INDEX idx_email_type_active_created (email, code_type, is_used, is_deleted, created_at)"},
+			{"idx_email_code_type_active", "ALTER TABLE verification_codes ADD INDEX idx_email_code_type_active (email, code, code_type, is_used, is_deleted)"},
+		}
+
+		for _, r := range repairs {
+			EnsureIndex("verification_codes", r.Index, r.AlterSQL)
+		}
+	}
+
 	log.Println("Database migration completed")
 }
 
@@ -181,6 +214,28 @@ func CheckColumnExists(tableName, columnName string) bool {
 			  AND column_name = ?`
 	err := DB.Get(&count, query, tableName, columnName)
 	return err == nil && count > 0
+}
+
+func CheckIndexExists(tableName, indexName string) bool {
+	var count int
+	query := `SELECT COUNT(*) FROM information_schema.statistics 
+			  WHERE table_schema = DATABASE() 
+			  AND table_name = ? 
+			  AND index_name = ?`
+	err := DB.Get(&count, query, tableName, indexName)
+	return err == nil && count > 0
+}
+
+func EnsureIndex(tableName, indexName, alterSQL string) {
+	if !CheckTableExists(tableName) || CheckIndexExists(tableName, indexName) {
+		return
+	}
+	_, err := DB.Exec(alterSQL)
+	if err != nil {
+		log.Printf("[Init] Failed to add index '%s' on '%s': %v", indexName, tableName, err)
+	} else {
+		log.Printf("[Init] Added index '%s' on '%s'", indexName, tableName)
+	}
 }
 
 func GetDB() *sqlx.DB {

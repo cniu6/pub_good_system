@@ -52,10 +52,12 @@ export const routes: RouteRecordRaw[] = [
   },
   {
     path: '/user',
+    name: 'user-redirect',
     redirect: '/user/dashboard/workbench',
   },
   {
     path: '/dashboard',
+    name: 'dashboard-redirect',
     redirect: '/user/dashboard/workbench',
   },
 

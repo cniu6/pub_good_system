@@ -136,7 +136,18 @@ function transformAuthRoutesToMenus(userRoutes: AppRoute.Route[]) {
  * 从 RouteRecordRaw 格式的管理端路由生成侧边栏菜单
  * 管理端路由使用 Vue Router 原生格式，需要单独的菜单生成逻辑
  */
-export function createAdminMenus(adminRoutes: import('vue-router').RouteRecordRaw[]): MenuOption[] {
+export function createAdminMenus(adminRoutes: Array<{
+  path: string
+  children?: Array<{
+    path: string
+    name?: string | symbol | null
+    meta?: {
+      hide?: boolean
+      title?: string
+      icon?: string
+    }
+  }>
+}>): MenuOption[] {
   const menus: MenuOption[] = []
 
   for (const route of adminRoutes) {

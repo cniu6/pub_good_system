@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { useAppStore, useAuthStore } from '@/store'
+import { useAppStore } from '@/store'
 import { fetchUserSettings, updateUserSettings } from '@/service'
 import { langToBackendFormat, langToFrontendFormat } from '@/utils'
 
-const authStore = useAuthStore()
 const appStore = useAppStore()
 
 const loading = ref(false)

@@ -91,6 +91,28 @@ func getLangFromRequest(c *gin.Context, reqLang string) string {
 	return lang
 }
 
+func isNonProductionMode() bool {
+	return !config.IsProductionMode()
+}
+
+func registrationAllowed() bool {
+	if services.GlobalSettingsService != nil {
+		return services.GlobalSettingsService.GetBoolWithDefault("allow_register", true)
+	}
+
+	setting, err := models.GetSettingByKey("allow_register")
+	if err != nil {
+		return true
+	}
+
+	value := strings.TrimSpace(setting.Value)
+	if value == "" {
+		return true
+	}
+
+	return value == "1" || strings.EqualFold(value, "true")
+}
+
 // ========================================
 // 控制器方法
 // ========================================
@@ -160,7 +182,7 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	// 调用服务层登录
 	result, err := ctrl.auth_svc.Login(username, req.Password, clientIP)
 	if err != nil {
-		if config.GlobalConfig.AppMode == "dev" {
+		if isNonProductionMode() {
 			fmt.Printf("[LOGIN-DEBUG] %v\n", err)
 		}
 		utils.Fail(c, err.Code, err.Message)
@@ -170,8 +192,15 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	// 记录登录会话
 	userAgent := c.GetHeader("User-Agent")
 	device := parseDevice(userAgent)
-	tokenHash := hashToken(result.AccessToken)
-	_ = models.CreateUserSession(result.ID, tokenHash, clientIP, userAgent, device, result.ExpiresAt)
+	accessTokenHash := hashToken(result.AccessToken)
+	refreshTokenHash := hashToken(result.RefreshToken)
+	if err := models.CreateUserSession(result.ID, accessTokenHash, refreshTokenHash, clientIP, userAgent, device, result.ExpiresAt, result.RefreshExpiresAt); err != nil {
+		if isNonProductionMode() {
+			fmt.Printf("[LOGIN-DEBUG] create session failed: %v\n", err)
+		}
+		utils.Fail(c, 500, "Failed to create login session")
+		return
+	}
 
 	utils.Success(c, result)
 }
@@ -228,14 +257,10 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 	req.Email = utils.Clean_XSS(req.Email)
 	req.Code = utils.Clean_XSS(req.Code)
 
-	// 验证验证码
-	valid, codeID, err := models.VerifyCode(req.Email, req.Code, "register")
-	if err != nil || !valid {
-		utils.Fail(c, 400, "Invalid or expired verification code")
+	if !registrationAllowed() {
+		utils.Fail(c, 403, "Registration is disabled")
 		return
 	}
-	_ = models.MarkVerificationCodeAsUsed(codeID)
-	_ = models.DeleteVerificationCodesByEmail(req.Email, "register")
 
 	// 验证用户名格式
 	usernameRegex := regexp.MustCompile(`^[a-zA-Z0-9_]{3,50}$`)
@@ -274,6 +299,12 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 		}
 	}
 
+	consumed, err := models.ConsumeVerificationCode(req.Email, req.Code, "register")
+	if err != nil || !consumed {
+		utils.Fail(c, 400, "Invalid or expired verification code")
+		return
+	}
+
 	// 创建用户
 	user := &models.User{
 		Username: req.Username,
@@ -284,12 +315,16 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 	}
 
 	if err := ctrl.auth_svc.Register(user); err != nil {
-		if config.GlobalConfig.AppMode == "dev" {
+		if isNonProductionMode() {
 			utils.Fail(c, 500, fmt.Sprintf("Failed to create user: %v", err))
 			return
 		}
 		utils.Fail(c, 500, "Failed to create user")
 		return
+	}
+
+	if err := models.DeleteVerificationCodesByEmail(req.Email, "register"); err != nil && isNonProductionMode() {
+		fmt.Printf("[REGISTER-DEBUG] cleanup verification codes failed: %v\n", err)
 	}
 
 	utils.Success(c, gin.H{"message": "User registered successfully"})
@@ -314,6 +349,19 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 	// 过滤用户输入
 	req.Email = utils.Clean_XSS(req.Email)
 	req.Lang = utils.Clean_XSS(req.Lang)
+	if !registrationAllowed() {
+		utils.Fail(c, 403, "Registration is disabled")
+		return
+	}
+	hasRecentCode, err := models.HasRecentVerificationCode(req.Email, "register", time.Now().Add(-time.Minute))
+	if err != nil {
+		utils.Fail(c, 500, "Failed to check verification cooldown")
+		return
+	}
+	if hasRecentCode {
+		utils.Fail(c, 429, "Please wait before requesting another verification code")
+		return
+	}
 
 	// 生成验证码（使用 crypto/rand）
 	code := generateSecureCode()
@@ -331,7 +379,7 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 
 	// 检查邮件服务是否可用
 	if !ctrl.email_svc.IsEmailConfigured() {
-		if config.GlobalConfig.AppMode != "production" {
+		if isNonProductionMode() {
 			fmt.Printf("[DEV] SMTP not configured. Code: %s\n", code)
 			utils.Fail(c, 500, "SMTP not configured (Check server logs for code)")
 			return
@@ -347,7 +395,7 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 	}
 
 	if err := ctrl.email_svc.SendTemplateEmail(req.Email, "register_code", lang, vars); err != nil {
-		if config.GlobalConfig.AppMode == "dev" {
+		if isNonProductionMode() {
 			fmt.Printf("[DEV] Email send failed. Code: %s, Error: %v\n", code, err)
 		}
 		utils.Fail(c, 500, "Failed to send email")
@@ -384,6 +432,11 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 		utils.Success(c, gin.H{"message": "If the email exists, a reset code has been sent"})
 		return
 	}
+	hasRecentCode, err := models.HasRecentVerificationCode(user.Email, "reset_password", time.Now().Add(-time.Minute))
+	if err != nil || hasRecentCode {
+		utils.Success(c, gin.H{"message": "If the email exists, a reset code has been sent"})
+		return
+	}
 
 	// 生成验证码（使用 crypto/rand）
 	code := generateSecureCode()
@@ -395,10 +448,18 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 		return
 	}
 
-	// 构造重置链接
-	frontendURL := config.GlobalConfig.FrontendURL
+	// 从系统设置读取前端地址
+	frontendURL := ""
+	if s, err := models.GetSettingByKey("frontend_url"); err == nil && s.Value != "" {
+		frontendURL = strings.TrimRight(s.Value, "/")
+	}
 	if frontendURL == "" {
-		frontendURL = "http://localhost:5173"
+		if isNonProductionMode() {
+			frontendURL = "http://localhost:5173"
+		} else {
+			utils.Success(c, gin.H{"message": "If the email exists, a reset code has been sent"})
+			return
+		}
 	}
 	resetLink := fmt.Sprintf("%s/#/login/reset-password-confirm?email=%s&token=%s", frontendURL, user.Email, code)
 
@@ -407,13 +468,13 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 
 	// 检查邮件服务
 	if !ctrl.email_svc.IsEmailConfigured() {
-		if config.GlobalConfig.AppMode != "production" {
+		if isNonProductionMode() {
 			fmt.Printf("[DEV] Reset Link: %s\n", resetLink)
 			fmt.Printf("[DEV] Reset Code: %s\n", code)
-			utils.Fail(c, 500, "SMTP not configured (Check server logs for code)")
+			utils.Success(c, gin.H{"message": "If the email exists, a reset code has been sent"})
 			return
 		}
-		utils.Fail(c, 500, "SMTP service not configured")
+		utils.Success(c, gin.H{"message": "If the email exists, a reset code has been sent"})
 		return
 	}
 
@@ -424,11 +485,11 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 	}
 
 	if err := ctrl.email_svc.SendTemplateEmail(user.Email, "reset_password", lang, vars); err != nil {
-		utils.Fail(c, 500, "Failed to send email")
+		utils.Success(c, gin.H{"message": "If the email exists, a reset code has been sent"})
 		return
 	}
 
-	utils.Success(c, gin.H{"message": "Reset email sent"})
+	utils.Success(c, gin.H{"message": "If the email exists, a reset code has been sent"})
 }
 
 // ResetPasswordConfirm 确认重置密码
@@ -451,13 +512,11 @@ func (ctrl *AuthController) ResetPasswordConfirm(c *gin.Context) {
 	req.Email = utils.Clean_XSS(req.Email)
 	req.Code = utils.Clean_XSS(req.Code)
 
-	// 验证验证码
-	valid, codeID, err := models.VerifyCode(req.Email, req.Code, "reset_password")
-	if err != nil || !valid {
+	consumed, err := models.ConsumeVerificationCode(req.Email, req.Code, "reset_password")
+	if err != nil || !consumed {
 		utils.Fail(c, 400, "Invalid or expired reset token")
 		return
 	}
-	_ = models.MarkVerificationCodeAsUsed(codeID)
 	_ = models.DeleteVerificationCodesByEmail(req.Email, "reset_password")
 
 	// 获取用户
@@ -492,7 +551,21 @@ func (ctrl *AuthController) UpdateToken(c *gin.Context) {
 		return
 	}
 
-	result, err := ctrl.auth_svc.RefreshToken(req.RefreshToken)
+	clientIP := c.ClientIP()
+	if clientIP == "" {
+		clientIP = c.GetHeader("X-Forwarded-For")
+		if clientIP == "" {
+			clientIP = c.GetHeader("X-Real-IP")
+		}
+	}
+	if clientIP == "" {
+		clientIP = "unknown"
+	}
+
+	userAgent := c.GetHeader("User-Agent")
+	device := parseDevice(userAgent)
+
+	result, err := ctrl.auth_svc.RefreshToken(req.RefreshToken, clientIP, userAgent, device)
 	if err != nil {
 		utils.Fail(c, err.Code, err.Message)
 		return

@@ -169,7 +169,7 @@ import { ref, reactive, onMounted, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMessage, useDialog, NTag } from 'naive-ui'
 import { adminApi } from '@/service/api/admin'
-import { adminMoneyLogApi, adminScoreLogApi } from '@/service/api/admin/user'
+import { adminMoneyLogApi, adminScoreLogApi, normalizeAdminUserRole, toLoginInfo, type AdminUser } from '@/service/api/admin/user'
 import { local } from '@/utils'
 
 const route = useRoute()
@@ -179,7 +179,7 @@ const dialog = useDialog()
 
 const userId = ref(Number(route.params.id))
 const loading = ref(false)
-const user = ref<any>(null)
+const user = ref<AdminUser | null>(null)
 
 const showResetPasswordModal = ref(false)
 const newPassword = ref('')
@@ -353,17 +353,18 @@ function handleEdit() {
 
 // 切换用户状态
 function handleToggleStatus() {
-  if (!user.value) return
-  const newStatus = user.value.status === 1 ? 0 : 1
+  const currentUser = user.value
+  if (!currentUser) return
+  const newStatus = currentUser.status === 1 ? 0 : 1
   const action = newStatus === 1 ? '启用' : '禁用'
   dialog.warning({
     title: `确认${action}`,
-    content: `确定要${action}用户 "${user.value.username}" 吗？`,
+    content: `确定要${action}用户 "${currentUser.username}" 吗？`,
     positiveText: '确定',
     negativeText: '取消',
     onPositiveClick: async () => {
       try {
-        const res = await adminApi.user.updateStatus(user.value.id, newStatus)
+        const res = await adminApi.user.updateStatus(currentUser.id, newStatus)
         if (res.code === 200) {
           message.success(`${action}成功`)
           fetchUser()
@@ -379,7 +380,8 @@ function handleToggleStatus() {
 
 // 重置API密钥
 function handleResetApikey() {
-  if (!user.value) return
+  const currentUser = user.value
+  if (!currentUser) return
   dialog.warning({
     title: '确认重置',
     content: '确定要重置用户的API密钥吗？重置后旧的密钥将失效。',
@@ -387,7 +389,7 @@ function handleResetApikey() {
     negativeText: '取消',
     onPositiveClick: async () => {
       try {
-        const res = await adminApi.user.resetApiKey(user.value.id)
+        const res = await adminApi.user.resetApiKey(currentUser.id)
         if (res.code === 200) {
           message.success('API密钥重置成功')
           fetchUser()
@@ -427,15 +429,16 @@ async function confirmResetPassword() {
 
 // 登录为此用户
 function handleLoginAs() {
-  if (!user.value) return
+  const currentUser = user.value
+  if (!currentUser) return
   dialog.warning({
     title: '确认登录',
-    content: `确定要以用户 "${user.value.username}" 的身份登录吗？将在新标签页打开用户面板。`,
+    content: `确定要以用户 "${currentUser.username}" 的身份登录吗？将在新标签页打开用户面板。`,
     positiveText: '确定',
     negativeText: '取消',
     onPositiveClick: async () => {
       try {
-        const res = await adminApi.user.loginAsUser(user.value.id)
+        const res = await adminApi.user.loginAsUser(currentUser.id)
         if (res.code === 200 && res.data) {
           const token = res.data.token
           const userData = res.data.user
@@ -444,13 +447,9 @@ function handleLoginAs() {
             return
           }
           local.set('accessToken', token)
-          local.set('userInfo', {
-            userName: userData.username,
-            role: [userData.role],
-            accessToken: token,
-          })
-          local.set('role', userData.role || 'user')
-          message.success(`正在以 ${user.value.username} 身份打开用户面板...`)
+          local.set('userInfo', toLoginInfo(userData, token))
+          local.set('role', [normalizeAdminUserRole(userData.role)])
+          message.success(`正在以 ${currentUser.username} 身份打开用户面板...`)
           setTimeout(() => {
             window.open('/', '_blank')
           }, 500)
@@ -466,15 +465,16 @@ function handleLoginAs() {
 
 // 删除用户
 function handleDelete() {
-  if (!user.value) return
+  const currentUser = user.value
+  if (!currentUser) return
   dialog.warning({
     title: '确认删除',
-    content: `确定要删除用户 "${user.value.username}" 吗？此操作不可恢复。`,
+    content: `确定要删除用户 "${currentUser.username}" 吗？此操作不可恢复。`,
     positiveText: '确定',
     negativeText: '取消',
     onPositiveClick: async () => {
       try {
-        const res = await adminApi.user.delete(user.value.id)
+        const res = await adminApi.user.delete(currentUser.id)
         if (res.code === 200) {
           message.success('删除成功')
           router.push('/users')

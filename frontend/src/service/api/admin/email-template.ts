@@ -43,11 +43,15 @@ export const adminEmailTemplateApi = {
     content: string
     vars?: Record<string, any>
   }) {
-    return request.Post<Service.ResponseResult<{ subject: string; content: string }>>(`${BASE_URL}/${id}/preview`, data)
+    return request.Post<Service.ResponseResult<{ subject: string; content: string; wrapped: string }>>(`${BASE_URL}/${id}/preview`, data)
   },
 
   reset(id: number) {
     return request.Post<Service.ResponseResult<{ message: string }>>(`${BASE_URL}/${id}/reset`, {})
+  },
+
+  sendTest(data: { to: string; subject?: string; content?: string; template_id?: number }) {
+    return request.Post<Service.ResponseResult<{ message: string }>>(`/api/v1${ADMIN_PATH}/email-send-test`, data)
   },
 }
 

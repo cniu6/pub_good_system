@@ -40,8 +40,9 @@ const columns: DataTableColumns<Entity.User> = [
       const tagType = {
         0: 'primary',
         1: 'success',
+        2: 'warning',
       } as const
-      if (row.gender) {
+      if (row.gender !== undefined) {
         return (
           <NTag type={tagType[row.gender]}>
             {Gender[row.gender]}

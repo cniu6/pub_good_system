@@ -110,7 +110,7 @@ function detectSuspiciousActivity(): boolean {
 
     // 检查是否有注入的脚本标签
     const scripts = document.querySelectorAll('script[src]')
-    for (const script of scripts) {
+    for (const script of Array.from(scripts)) {
       const src = script.getAttribute('src') || ''
       for (const pattern of suspiciousPatterns) {
         if (src.toLowerCase().includes(pattern.toLowerCase())) {
@@ -204,6 +204,7 @@ export function initSecurityProtection(customConfig?: Partial<SecurityConfig>): 
   if (router) {
     originalBeforeEach = typeof router.beforeEach === 'function' ? router.beforeEach : null
     originalAfterEach = typeof router.afterEach === 'function' ? router.afterEach : null
+    void originalAfterEach
   }
 
   // 启动定期检测

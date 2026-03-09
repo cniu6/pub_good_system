@@ -94,7 +94,9 @@ export const useAuthStore = defineStore('auth-store', {
       local.set('userInfo', data)
       local.set('accessToken', data.accessToken)
       local.set('refreshToken', data.refreshToken)
-      local.set('role', (data as any).role || 'user') // 保存角色信息用于路由守卫
+      local.set('role', data.role?.length ? data.role : ['user'])
+
+      const isAdmin = data.role.includes('admin')
 
       if (data.expiresAt) {
         local.set('accessTokenExpiresAt', data.expiresAt)
@@ -116,7 +118,7 @@ export const useAuthStore = defineStore('auth-store', {
 
       // 如果重定向路径是根路径，且用户是管理员，可以重定向到管理端
       // 否则重定向到主页
-      if (redirectPath === '/' && (data as any).role === 'admin') {
+      if (redirectPath === '/' && isAdmin) {
         const adminPath = getAdminBasePath()
         if (routeMode === 'user') {
           window.location.replace(buildAdminEntryUrl(adminPath))
@@ -157,7 +159,7 @@ export const useAuthStore = defineStore('auth-store', {
      * 设置自动刷新 Token 定时器
      */
     setupAutoRefresh() {
-      const autoRefresh = import.meta.env.VITE_AUTO_REFRESH_TOKEN === 'true'
+      const autoRefresh = import.meta.env.VITE_AUTO_REFRESH_TOKEN === 'Y'
       if (!autoRefresh) return
 
       this.clearRefreshTimer()

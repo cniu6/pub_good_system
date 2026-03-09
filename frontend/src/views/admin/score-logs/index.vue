@@ -31,7 +31,7 @@
           <n-input-number v-model:value="addForm.score" placeholder="正数增加，负数扣减" :step="1" style="width: 100%" />
         </n-form-item>
         <n-form-item label="备注">
-          <n-input v-model:value="addForm.memo" type="textarea" placeholder="输入备注" :rows="3" />
+          <I18nMemoEditor v-model="addForm.memo" />
         </n-form-item>
       </n-form>
       <template #footer>
@@ -49,6 +49,8 @@ import { ref, reactive, onMounted, h } from 'vue'
 import { NButton, useMessage, useDialog } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { adminUserApi, adminScoreLogApi } from '@/service/api/admin/user'
+import { parseMemo } from '@/utils/memo'
+import I18nMemoEditor from '@/components/common/I18nMemoEditor.vue'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -74,7 +76,7 @@ const showModal = ref(false)
 const addForm = reactive({
   user_id: null as number | null,
   score: 0,
-  memo: '',
+  memo: {} as Record<string, string>,
 })
 
 const columns: DataTableColumns<Entity.UserScoreLog> = [
@@ -108,6 +110,7 @@ const columns: DataTableColumns<Entity.UserScoreLog> = [
     title: '备注',
     key: 'memo',
     ellipsis: { tooltip: true },
+    render: row => parseMemo(row.memo),
   },
   {
     title: '时间',
@@ -176,7 +179,7 @@ function handlePageSizeChange(pageSize: number) {
 function handleAdd() {
   addForm.user_id = null
   addForm.score = 0
-  addForm.memo = ''
+  addForm.memo = {}
   showModal.value = true
 }
 
@@ -191,9 +194,10 @@ async function handleSubmit() {
   }
   submitting.value = true
   try {
+    const memoStr = Object.keys(addForm.memo).length > 0 ? JSON.stringify(addForm.memo) : ''
     await adminUserApi.changeScore(addForm.user_id, {
       score: addForm.score,
-      memo: addForm.memo,
+      memo: memoStr,
     })
     message.success('积分变更成功')
     showModal.value = false

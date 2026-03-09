@@ -21,6 +21,7 @@ type UserMoneyLog struct {
 // InitUserMoneyLogsTable 初始化余额变动日志表
 func InitUserMoneyLogsTable() {
 	if db.CheckTableExists("user_money_logs") {
+		db.EnsureIndex("user_money_logs", "idx_user_create_time", "ALTER TABLE user_money_logs ADD INDEX idx_user_create_time (user_id, create_time)")
 		return
 	}
 
@@ -33,7 +34,8 @@ func InitUserMoneyLogsTable() {
 		memo VARCHAR(255) NOT NULL DEFAULT '' COMMENT '备注',
 		create_time BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间',
 		INDEX idx_user_id (user_id),
-		INDEX idx_create_time (create_time)
+		INDEX idx_create_time (create_time),
+		INDEX idx_user_create_time (user_id, create_time)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 
 	_, err := db.DB.Exec(schema)

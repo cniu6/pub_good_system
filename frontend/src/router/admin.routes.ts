@@ -57,24 +57,6 @@ export function getAdminRoutes(): RouteRecordRaw[] {
           },
         },
         {
-          path: 'email-templates',
-          name: 'admin-email-templates',
-          component: () => import('@/views/admin/email-templates/index.vue'),
-          meta: {
-            title: '邮件模板',
-            icon: 'icon-park-outline:mail',
-          },
-        },
-        {
-          path: 'logs',
-          name: 'admin-logs',
-          component: () => import('@/views/admin/logs/index.vue'),
-          meta: {
-            title: '操作日志',
-            icon: 'icon-park-outline:log',
-          },
-        },
-        {
           path: 'money-logs',
           name: 'admin-money-logs',
           component: () => import('@/views/admin/money-logs/index.vue'),
@@ -90,6 +72,24 @@ export function getAdminRoutes(): RouteRecordRaw[] {
           meta: {
             title: '积分日志',
             icon: 'icon-park-outline:diamond',
+          },
+        },
+        {
+          path: 'pay-gateways',
+          name: 'admin-pay-gateways',
+          component: () => import('@/views/admin/pay-gateways/index.vue'),
+          meta: {
+            title: '支付通道',
+            icon: 'icon-park-outline:pay-code-one',
+          },
+        },
+        {
+          path: 'payment-orders',
+          name: 'admin-payment-orders',
+          component: () => import('@/views/admin/payment-orders/index.vue'),
+          meta: {
+            title: '支付订单',
+            icon: 'icon-park-outline:transaction-order',
           },
         },
         {

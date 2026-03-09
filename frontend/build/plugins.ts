@@ -11,13 +11,14 @@ import Components from 'unplugin-vue-components/vite'
 import viteCompression from 'vite-plugin-compression'
 import VueDevTools from 'vite-plugin-vue-devtools'
 import AutoProxy from './autoProxy'
-import { serviceConfig } from '../service.config'
+import { getServiceConfig } from '../service.config'
 /**
  * @description: 设置vite插件配置
  * @param {*} env - 环境变量配置
  * @return {*}
  */
 export function createVitePlugins(env: ImportMetaEnv) {
+  const serviceConfig = getServiceConfig(env as unknown as Record<string, string>)
   const plugins = [
     // support vue
     vue(),

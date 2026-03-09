@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
+	"fst/backend/internal/middleware"
 	"fst/backend/utils"
 	"math/big"
 	"math/rand"
@@ -99,7 +100,6 @@ func (ctrl *ProfileController) GetProfile(c *gin.Context) {
 		"status":        user.Status,
 		"language":      user.Language,
 		"country":       user.Country,
-		"apikey":        user.Apikey,
 		"joinTime":      user.JoinTime,
 		"joinIp":        user.JoinIp,
 		"lastLoginTime": user.LastLoginTime,
@@ -107,6 +107,23 @@ func (ctrl *ProfileController) GetProfile(c *gin.Context) {
 		"updateTime":    user.UpdateTime,
 		"createTime":    user.CreateTime,
 	})
+}
+
+// GetApiKey 获取当前用户的 API Key
+func (ctrl *ProfileController) GetApiKey(c *gin.Context) {
+	user_id, exists := c.Get("userID")
+	if !exists {
+		utils.Fail(c, 401, "User not logged in")
+		return
+	}
+
+	user, err := ctrl.user_svc.GetByID(user_id.(uint64))
+	if err != nil {
+		utils.Fail(c, 404, "User not found")
+		return
+	}
+
+	utils.Success(c, gin.H{"apikey": user.Apikey})
 }
 
 // UpdateProfile 更新个人信息
@@ -312,7 +329,10 @@ func (ctrl *ProfileController) UpdateSettings(c *gin.Context) {
 			ID:       uid,
 			Language: utils.Clean_XSS(req.Language),
 		}
-		ctrl.user_svc.Update(update_req)
+		if err := ctrl.user_svc.Update(update_req); err != nil {
+			utils.Fail(c, 500, "Failed to update settings")
+			return
+		}
 	}
 
 	// 更新 user_settings 表
@@ -468,6 +488,15 @@ func (ctrl *ProfileController) SendEmailChangeCode(c *gin.Context) {
 		utils.Fail(c, 400, "Email already in use")
 		return
 	}
+	hasRecentCode, err := models.HasRecentVerificationCode(req.NewEmail, "change_email", time.Now().Add(-time.Minute))
+	if err != nil {
+		utils.Fail(c, 500, "Failed to check verification cooldown")
+		return
+	}
+	if hasRecentCode {
+		utils.Fail(c, 429, "Please wait before requesting another verification code")
+		return
+	}
 
 	// 检查邮箱验证码功能是否启用
 	verifyConfig := services.GetGlobalVerifyConfig()
@@ -542,13 +571,11 @@ func (ctrl *ProfileController) VerifyEmailChange(c *gin.Context) {
 	req.NewEmail = utils.Clean_XSS(req.NewEmail)
 	req.Code = utils.Clean_XSS(req.Code)
 
-	// 验证验证码
-	valid, code_id, err := models.VerifyCode(req.NewEmail, req.Code, "change_email")
-	if err != nil || !valid {
+	consumed, err := models.ConsumeVerificationCode(req.NewEmail, req.Code, "change_email")
+	if err != nil || !consumed {
 		utils.Fail(c, 400, "Invalid or expired verification code")
 		return
 	}
-	_ = models.MarkVerificationCodeAsUsed(code_id)
 	_ = models.DeleteVerificationCodesByEmail(req.NewEmail, "change_email")
 
 	// 更新邮箱
@@ -607,6 +634,15 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 			utils.Fail(c, 400, "Phone number already in use")
 			return
 		}
+	}
+	hasRecentCode, err := models.HasRecentVerificationCode(req.NewMobile, "change_phone", time.Now().Add(-time.Minute))
+	if err != nil {
+		utils.Fail(c, 500, "Failed to check verification cooldown")
+		return
+	}
+	if hasRecentCode {
+		utils.Fail(c, 429, "Please wait before requesting another verification code")
+		return
 	}
 
 	// 检查短信验证码功能是否启用
@@ -671,13 +707,11 @@ func (ctrl *ProfileController) VerifyPhoneChange(c *gin.Context) {
 	req.NewMobile = utils.Clean_XSS(req.NewMobile)
 	req.Code = utils.Clean_XSS(req.Code)
 
-	// 验证验证码
-	valid, code_id, err := models.VerifyCode(req.NewMobile, req.Code, "change_phone")
-	if err != nil || !valid {
+	consumed, err := models.ConsumeVerificationCode(req.NewMobile, req.Code, "change_phone")
+	if err != nil || !consumed {
 		utils.Fail(c, 400, "Invalid or expired verification code")
 		return
 	}
-	_ = models.MarkVerificationCodeAsUsed(code_id)
 	_ = models.DeleteVerificationCodesByEmail(req.NewMobile, "change_phone")
 
 	// 更新手机号
@@ -771,7 +805,7 @@ func (ctrl *ProfileController) GetSessions(c *gin.Context) {
 
 	sessions, err := models.GetUserSessions(user_id.(uint64))
 	if err != nil {
-		utils.Success(c, []interface{}{})
+		utils.Fail(c, 500, "Failed to load sessions")
 		return
 	}
 
@@ -1074,6 +1108,7 @@ func (ctrl *ProfileController) RegisterRoutes(group *gin.RouterGroup) {
 	// 个人信息
 	group.GET("/profile", ctrl.GetProfile)
 	group.PUT("/profile", ctrl.UpdateProfile)
+	group.GET("/apikey", ctrl.GetApiKey)
 
 	// 密码
 	group.PUT("/password", ctrl.ChangePassword)
@@ -1088,13 +1123,12 @@ func (ctrl *ProfileController) RegisterRoutes(group *gin.RouterGroup) {
 	// 统计
 	group.GET("/stats", ctrl.GetUserStats)
 
-	// 邮箱变更验证
-	group.POST("/email/send-code", ctrl.SendEmailChangeCode)
-	group.POST("/email/verify", ctrl.VerifyEmailChange)
-
-	// 手机变更验证
-	group.POST("/phone/send-code", ctrl.SendPhoneChangeCode)
-	group.POST("/phone/verify", ctrl.VerifyPhoneChange)
+	verificationGroup := group.Group("")
+	verificationGroup.Use(middleware.UserRateLimitMiddleware(1, 3))
+	verificationGroup.POST("/email/send-code", ctrl.SendEmailChangeCode)
+	verificationGroup.POST("/email/verify", ctrl.VerifyEmailChange)
+	verificationGroup.POST("/phone/send-code", ctrl.SendPhoneChangeCode)
+	verificationGroup.POST("/phone/verify", ctrl.VerifyPhoneChange)
 
 	// 账号注销
 	group.POST("/deactivate", ctrl.DeactivateAccount)
