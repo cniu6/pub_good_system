@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/store'
+import { useSettingsStore } from '@/store'
 import { fetchUserSessions, revokeSession, revokeAllSessions, deactivateAccount, fetchUserStats } from '@/service'
 import NovaIcon from '@/components/common/NovaIcon.vue'
 import GeetestCaptcha from '@/components/common/GeetestCaptcha.vue'
 import { geetestManager } from '@/utils/geetest'
 
 const authStore = useAuthStore()
+const settingsStore = useSettingsStore()
+const allowDeleteAccount = computed(() => settingsStore.allowDeleteAccount)
 
 const isGeetestEnabled = computed(() => geetestManager.isEnabled())
 const deactivateGeetestRef = ref<any>(null)
@@ -247,11 +250,17 @@ onMounted(() => {
         <div class="danger-zone">
           <div class="danger-info">
             <span class="danger-label">注销账号</span>
-            <span class="danger-desc">注销后账号将无法恢复，请谨慎操作</span>
+            <span v-if="allowDeleteAccount" class="danger-desc">注销后账号将无法恢复，请谨慎操作</span>
+            <span v-else class="danger-desc">管理员已关闭账号注销功能</span>
           </div>
-          <n-button type="error" @click="showDeactivateModal = true">
-            注销账号
-          </n-button>
+          <n-tooltip :disabled="allowDeleteAccount">
+            <template #trigger>
+              <n-button type="error" :disabled="!allowDeleteAccount" @click="showDeactivateModal = true">
+                注销账号
+              </n-button>
+            </template>
+            账号注销功能已被管理员关闭
+          </n-tooltip>
         </div>
       </div>
     </n-space>

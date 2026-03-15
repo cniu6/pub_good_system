@@ -4,7 +4,7 @@ import { router } from '@/router'
 import { buildAdminEntryUrl, getAdminBasePath } from '@/router/constants'
 import { getRuntimeRouteMode } from '@/router/runtime-mode'
 import { fetchLogin, fetchUpdateToken, fetchUserSettings } from '@/service'
-import { langToFrontendFormat, local } from '@/utils'
+import { authStorage, langToFrontendFormat } from '@/utils'
 import { useRouteStore } from './router'
 import { useTabStore } from './tab'
 
@@ -17,9 +17,9 @@ interface AuthStatus {
 export const useAuthStore = defineStore('auth-store', {
   state: (): AuthStatus => {
     return {
-      userInfo: local.get('userInfo'),
-      token: local.get('accessToken') || '',
-      accessTokenExpiresAt: local.get('accessTokenExpiresAt') || null,
+      userInfo: authStorage.get('userInfo'),
+      token: authStorage.get('accessToken') || '',
+      accessTokenExpiresAt: authStorage.get('accessTokenExpiresAt') || null,
       refreshTimer: null,
     }
   },
@@ -37,7 +37,7 @@ export const useAuthStore = defineStore('auth-store', {
       } else {
         this.userInfo = info as Api.Login.Info
       }
-      local.set('userInfo', this.userInfo)
+      authStorage.setActive('userInfo', this.userInfo)
     },
 
     /* 登录退出，重置用户信息等 */
@@ -60,11 +60,7 @@ export const useAuthStore = defineStore('auth-store', {
       })
     },
     clearAuthStorage() {
-      local.remove('accessToken')
-      local.remove('refreshToken')
-      local.remove('userInfo')
-      local.remove('role')
-      local.remove('accessTokenExpiresAt')
+      authStorage.clearActive()
     },
     clearRefreshTimer() {
       if (this.refreshTimer) {
@@ -76,7 +72,9 @@ export const useAuthStore = defineStore('auth-store', {
     /* 用户登录 */
     async login(userName: string, password: string) {
       try {
-        const { isSuccess, data } = await fetchLogin({ userName, password })
+        const mode = getRuntimeRouteMode()
+        const authGuard = mode === 'admin' ? 'admin' : 'user'
+        const { isSuccess, data } = await fetchLogin({ userName, password, authGuard })
         if (!isSuccess)
           return
 
@@ -91,15 +89,15 @@ export const useAuthStore = defineStore('auth-store', {
     /* 处理登录返回的数据 */
     async handleLoginInfo(data: Api.Login.Info & { expiresAt?: number }) {
       // 将token和userInfo保存下来
-      local.set('userInfo', data)
-      local.set('accessToken', data.accessToken)
-      local.set('refreshToken', data.refreshToken)
-      local.set('role', data.role?.length ? data.role : ['user'])
+      authStorage.setActive('userInfo', data)
+      authStorage.setActive('accessToken', data.accessToken)
+      authStorage.setActive('refreshToken', data.refreshToken)
+      authStorage.setActive('role', data.role?.length ? data.role : ['user'])
 
       const isAdmin = data.role.includes('admin')
 
       if (data.expiresAt) {
-        local.set('accessTokenExpiresAt', data.expiresAt)
+        authStorage.setActive('accessTokenExpiresAt', data.expiresAt)
         this.accessTokenExpiresAt = data.expiresAt
       }
 
@@ -164,8 +162,8 @@ export const useAuthStore = defineStore('auth-store', {
 
       this.clearRefreshTimer()
 
-      const expiresAt = this.accessTokenExpiresAt || local.get('accessTokenExpiresAt')
-      const refreshToken = local.get('refreshToken')
+      const expiresAt = this.accessTokenExpiresAt || authStorage.get('accessTokenExpiresAt')
+      const refreshToken = authStorage.get('refreshToken')
       if (!expiresAt || !refreshToken) return
 
       const aheadSeconds = Number(import.meta.env.VITE_TOKEN_REFRESH_AHEAD || 60)
@@ -190,20 +188,23 @@ export const useAuthStore = defineStore('auth-store', {
      */
     async refreshTokenSilently() {
       try {
-        const refreshToken = local.get('refreshToken')
+        const refreshToken = authStorage.get('refreshToken')
         if (!refreshToken) return
 
-        const { isSuccess, data } = await fetchUpdateToken({ refreshToken })
+        const mode = getRuntimeRouteMode()
+        const authGuard = mode === 'admin' ? 'admin' : 'user'
+
+        const { isSuccess, data } = await fetchUpdateToken({ refreshToken, authGuard })
         if (!isSuccess) {
           console.warn('[Auth] 自动刷新 Token 失败，可能是 refresh token 已过期')
           return
         }
 
         // 更新存储
-        local.set('accessToken', data.accessToken)
-        local.set('refreshToken', data.refreshToken)
+        authStorage.setActive('accessToken', data.accessToken)
+        authStorage.setActive('refreshToken', data.refreshToken)
         if ((data as any).expiresAt) {
-          local.set('accessTokenExpiresAt', (data as any).expiresAt)
+          authStorage.setActive('accessTokenExpiresAt', (data as any).expiresAt)
           this.accessTokenExpiresAt = (data as any).expiresAt
         }
 

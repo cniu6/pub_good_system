@@ -165,6 +165,16 @@
                       <n-text depth="3">{{ securityForm.geetest_enabled ? '已启用' : '已禁用' }}</n-text>
                     </n-space>
                   </n-form-item>
+                  <n-form-item label="账号注销">
+                    <n-space align="center">
+                      <n-switch
+                        :value="securityForm.allow_delete_account"
+                        :loading="switchLoading.allow_delete_account"
+                        @update:value="handleUpdateAllowDeleteAccount"
+                      />
+                      <n-text depth="3">{{ securityForm.allow_delete_account ? '允许用户主动注销账号' : '禁止用户主动注销账号' }}</n-text>
+                    </n-space>
+                  </n-form-item>
                   <n-form-item label="极验 Captcha ID">
                     <n-input v-model:value="securityForm.geetest_captcha_id" placeholder="请输入极验验证码 ID" />
                   </n-form-item>
@@ -747,6 +757,7 @@ const hasAnyPprofResult = computed(() => {
 
 const switchLoading = reactive({
   allow_register: false,
+  allow_delete_account: false,
   smtp_ssl: false,
   geetest_enabled: false,
   email_verify_enabled: false,
@@ -781,6 +792,7 @@ const basicForm = reactive({
   version: '',
   default_lang: 'zhCN',
   allow_register: true,
+  allow_delete_account: false,
   frontend_url: '',
   backend_api_url: '',
 })
@@ -815,6 +827,7 @@ const securityForm = reactive({
   jwt_refresh_expire: 604800,
   login_max_failure: 5,
   login_lock_duration: 10,
+  allow_delete_account: false,
 })
 
 const paymentForm = reactive({
@@ -1093,6 +1106,7 @@ async function loadSettings() {
           if (item.key === 'version') basicForm.version = String(item.value || '')
           if (item.key === 'default_lang') basicForm.default_lang = String(item.value || 'zhCN')
           if (item.key === 'allow_register') basicForm.allow_register = Boolean(item.value)
+          if (item.key === 'allow_delete_account') securityForm.allow_delete_account = Boolean(item.value)
           if (item.key === 'frontend_url') basicForm.frontend_url = String(item.value || '')
           if (item.key === 'backend_api_url') basicForm.backend_api_url = String(item.value || '')
 
@@ -1153,6 +1167,24 @@ async function handleUpdateAllowRegister(nextValue: boolean) {
   }
   finally {
     switchLoading.allow_register = false
+  }
+}
+
+async function handleUpdateAllowDeleteAccount(nextValue: boolean) {
+  const prev = securityForm.allow_delete_account
+  securityForm.allow_delete_account = nextValue
+  switchLoading.allow_delete_account = true
+  try {
+    await adminApi.settings.update('allow_delete_account', String(nextValue))
+    settingsStore.updateConfig({ allow_delete_account: nextValue })
+    message.success('账号注销开关已更新')
+  }
+  catch (error: any) {
+    securityForm.allow_delete_account = prev
+    message.error('更新失败: ' + (error.message || '未知错误'))
+  }
+  finally {
+    switchLoading.allow_delete_account = false
   }
 }
 

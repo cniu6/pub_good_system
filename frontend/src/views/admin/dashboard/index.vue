@@ -86,8 +86,8 @@ const stat_cards = [
 // 快速操作
 const quick_actions = [
   { label: '用户管理', icon: markRaw(UserOutlined), type: 'primary' as const, path: 'users' },
-  { label: '余额日志', icon: markRaw(DollarOutlined), type: 'success' as const, path: 'money-logs' },
-  { label: '积分日志', icon: markRaw(StarOutlined), type: 'info' as const, path: 'score-logs' },
+  { label: '余额日志', icon: markRaw(DollarOutlined), type: 'success' as const, path: 'finance/money-logs' },
+  { label: '积分日志', icon: markRaw(StarOutlined), type: 'info' as const, path: 'finance/score-logs' },
   { label: '操作日志', icon: markRaw(FileTextOutlined), type: 'warning' as const, path: 'logs' },
   { label: '系统设置', icon: markRaw(SettingOutlined), type: 'default' as const, path: 'settings' },
 ]

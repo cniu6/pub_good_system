@@ -2,7 +2,7 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/store'
-import { local } from '@/utils'
+import { authStorage } from '@/utils'
 import { useI18n } from 'vue-i18n'
 
 defineOptions({ name: 'IndexPage' })
@@ -31,7 +31,7 @@ function restore_naive_bg() {
 }
 
 // 状态判断
-const is_logged_in = computed(() => Boolean(local.get('accessToken')))
+const is_logged_in = computed(() => Boolean(authStorage.get('accessToken')))
 
 // 统计动画
 const stats = ref({ users: 0, plugins: 0, uptime: 0, api: 0 })

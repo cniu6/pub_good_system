@@ -83,3 +83,57 @@ func TestTokenTypeSeparationLegacyTokens(t *testing.T) {
 		t.Fatal("ParseToken should reject legacy refresh token")
 	}
 }
+
+func TestAuthGuardSeparationAccessToken(t *testing.T) {
+	restore := useTestJWTConfig()
+	defer restore()
+
+	adminToken, err := GenerateTokenForGuardWithTTL(3, "admin", AdminAuthGuard, time.Minute)
+	if err != nil {
+		t.Fatalf("GenerateTokenForGuardWithTTL(admin) returned error: %v", err)
+	}
+	userToken, err := GenerateTokenForGuardWithTTL(3, "user", UserAuthGuard, time.Minute)
+	if err != nil {
+		t.Fatalf("GenerateTokenForGuardWithTTL(user) returned error: %v", err)
+	}
+
+	if _, err := ParseTokenForGuard(adminToken, AdminAuthGuard); err != nil {
+		t.Fatalf("ParseTokenForGuard should accept admin token: %v", err)
+	}
+	if _, err := ParseTokenForGuard(userToken, UserAuthGuard); err != nil {
+		t.Fatalf("ParseTokenForGuard should accept user token: %v", err)
+	}
+	if _, err := ParseTokenForGuard(adminToken, UserAuthGuard); err == nil {
+		t.Fatal("ParseTokenForGuard should reject admin token for user guard")
+	}
+	if _, err := ParseTokenForGuard(userToken, AdminAuthGuard); err == nil {
+		t.Fatal("ParseTokenForGuard should reject user token for admin guard")
+	}
+}
+
+func TestAuthGuardSeparationRefreshToken(t *testing.T) {
+	restore := useTestJWTConfig()
+	defer restore()
+
+	adminRefreshToken, err := GenerateRefreshTokenForGuardWithTTL(7, AdminAuthGuard, time.Minute)
+	if err != nil {
+		t.Fatalf("GenerateRefreshTokenForGuardWithTTL(admin) returned error: %v", err)
+	}
+	userRefreshToken, err := GenerateRefreshTokenForGuardWithTTL(7, UserAuthGuard, time.Minute)
+	if err != nil {
+		t.Fatalf("GenerateRefreshTokenForGuardWithTTL(user) returned error: %v", err)
+	}
+
+	if _, err := ParseRefreshTokenForGuard(adminRefreshToken, AdminAuthGuard); err != nil {
+		t.Fatalf("ParseRefreshTokenForGuard should accept admin refresh token: %v", err)
+	}
+	if _, err := ParseRefreshTokenForGuard(userRefreshToken, UserAuthGuard); err != nil {
+		t.Fatalf("ParseRefreshTokenForGuard should accept user refresh token: %v", err)
+	}
+	if _, err := ParseRefreshTokenForGuard(adminRefreshToken, UserAuthGuard); err == nil {
+		t.Fatal("ParseRefreshTokenForGuard should reject admin refresh token for user guard")
+	}
+	if _, err := ParseRefreshTokenForGuard(userRefreshToken, AdminAuthGuard); err == nil {
+		t.Fatal("ParseRefreshTokenForGuard should reject user refresh token for admin guard")
+	}
+}

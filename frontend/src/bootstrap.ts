@@ -9,6 +9,7 @@ import { install as setupDirectives } from './modules/directives'
 import { install as setupI18n } from './modules/i18n'
 import { install as setupAssets } from './modules/assets'
 import { setRuntimeRouteMode } from './router/runtime-mode'
+import { authStorage } from './utils'
 import './styles/index.css'
 
 async function setupApp(app: AppInstance<Element>, mode: AppRouteMode) {
@@ -29,6 +30,12 @@ async function setupApp(app: AppInstance<Element>, mode: AppRouteMode) {
 export async function bootstrap(mode: AppRouteMode) {
   try {
     setRuntimeRouteMode(mode)
+
+    // admin 模式下自动启用 sessionStorage 隔离，
+    // 避免和普通用户 localStorage 里的 token 互相覆盖
+    if (mode === 'admin') {
+      authStorage.enableSessionIsolation()
+    }
 
     const app = createApp(App)
     await setupApp(app, mode)

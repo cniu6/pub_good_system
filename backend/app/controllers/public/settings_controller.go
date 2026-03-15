@@ -29,8 +29,9 @@ type AppConfigResponse struct {
 	Version   string `json:"version"`
 
 	// 功能开关
-	AllowRegister  bool `json:"allow_register"`
-	GeetestEnabled bool `json:"geetest_enabled"`
+	AllowRegister      bool `json:"allow_register"`
+	AllowDeleteAccount bool `json:"allow_delete_account"`
+	GeetestEnabled     bool `json:"geetest_enabled"`
 
 	// 极验配置
 	GeetestCaptchaId string `json:"geetest_captcha_id"`
@@ -69,14 +70,15 @@ func (ctrl *SettingsController) GetAppConfig(c *gin.Context) {
 // buildAppConfigResponse 从数据库配置构建响应
 func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse {
 	response := &AppConfigResponse{
-		SiteName:         "F.st",
-		SiteDesc:         "Full-stack admin template based on Go + Vue 3",
-		Copyright:        "(c) 2024 F.st",
-		Version:          "1.0.0",
-		AllowRegister:    true,
-		DefaultLang:      "zhCN",
-		GeetestEnabled:   false,
-		GeetestCaptchaId: "",
+		SiteName:           "F.st",
+		SiteDesc:           "Full-stack admin template based on Go + Vue 3",
+		Copyright:          "(c) 2024 F.st",
+		Version:            "1.0.0",
+		AllowRegister:      true,
+		AllowDeleteAccount: false,
+		DefaultLang:        "zhCN",
+		GeetestEnabled:     false,
+		GeetestCaptchaId:   "",
 	}
 
 	// 构建配置map
@@ -106,6 +108,9 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 	}
 	if v, ok := configMap["allow_register"]; ok {
 		response.AllowRegister = v == "true" || v == "1"
+	}
+	if v, ok := configMap["allow_delete_account"]; ok {
+		response.AllowDeleteAccount = v == "true" || v == "1"
 	}
 	if v, ok := configMap["default_lang"]; ok {
 		response.DefaultLang = v

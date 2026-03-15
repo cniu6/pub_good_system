@@ -187,6 +187,93 @@ controllers/
 - 系统配置可视化
 - 更多插件开发
 
+## 本地测试与管理员/用户切换验证
+
+### 后端基础测试
+
+在项目根目录执行：
+
+```powershell
+cd C:\Users\Administrator\Desktop\codingfile\fst
+go test ./backend/...
+```
+
+该命令会运行后端所有单元测试，其中包括针对 `authGuard` 的 JWT 与刷新 token 分离测试。
+
+### 启动后端服务
+
+用于手工验证管理员/用户切换时，在项目根目录执行：
+
+```powershell
+cd C:\Users\Administrator\Desktop\codingfile\fst
+go run ./backend/cmd/main.go
+```
+
+默认监听在 `http://127.0.0.1:8085`，如端口占用可自行调整配置或停止旧进程。
+
+### 管理员 / 用户双 token 行为手工验证示例
+
+建议使用 Postman、Apifox 或浏览器 REST 插件，按以下步骤检查同一账号下管理员态和用户态是否真正隔离：
+
+1. **管理员 guard 登录**  
+    - 方法：`POST`  
+    - URL：`/api/v1/public/login`  
+    - Body（JSON）：
+      ```json
+      {
+         "userName": "你的管理员用户名",
+         "password": "管理员密码",
+         "authGuard": "admin"
+      }
+      ```
+    - 期望：响应中的 `data.accessToken`、`data.refreshToken`、`data.id` 均有值。
+
+2. **管理员 token 访问 admin / user 路由**  
+    - Header：`Authorization: Bearer {adminAccessToken}`  
+    - `GET /api/v1/admin/dashboard` 应成功返回（管理员接口可用）。  
+    - `GET /api/v1/user/profile` 应返回 401/403 或业务错误码（管理员 token 不能假装用户）。
+
+3. **刷新管理员 guard token**  
+    - 方法：`POST`  
+    - URL：`/api/v1/public/refresh-token`  
+    - Body：
+      ```json
+      {
+         "refreshToken": "上一步拿到的管理员 refreshToken",
+         "authGuard": "admin"
+      }
+      ```
+    - 期望：获得新的管理员 access/refresh token，旧会话仍保持有效期内可用。
+
+4. **管理员 login-as 自己生成用户 guard 会话**  
+    - 方法：`POST`  
+    - URL：`/api/v1/admin/users/{adminId}/login-as`（`adminId` 是登录响应里的 `data.id`）  
+    - Header：`Authorization: Bearer {adminAccessToken}`（使用最新的管理员 access token）  
+    - 期望：响应包含 `token`（用户态 accessToken）和 `refreshToken`（用户态 refreshToken），用于 user guard。
+
+5. **用户 token 访问 user / admin 路由**  
+    - Header：`Authorization: Bearer {userAccessToken}`  
+    - `GET /api/v1/user/profile` 应成功（用户接口可用）。  
+    - `GET /api/v1/admin/dashboard` 应被拒绝（401/403 或业务错误码），说明用户 token 不能冒充管理员。
+
+6. **刷新用户 guard token**  
+    - 方法：`POST`  
+    - URL：`/api/v1/public/refresh-token`  
+    - Body：
+      ```json
+      {
+         "refreshToken": "login-as 返回的用户 refreshToken",
+         "authGuard": "user"
+      }
+      ```
+    - 期望：成功获取新的用户 access/refresh token。
+
+7. **确认管理员会话未被挤掉**  
+    - 仍然使用管理员 access token 调用：`GET /api/v1/admin/dashboard`。  
+    - 期望：请求依然成功，说明 `user_sessions` 表中 admin/user 是两条独立会话，login-as 自己不会导致管理员后台掉线。
+
+通过以上步骤，你可以在本地直观确认：管理员与用户共享同一账号时，也能保持两套 token 和会话各自独立、互不影响。
+
 ## 开源协议
 
 [MIT](LICENSE)

@@ -5,11 +5,23 @@ import ProfileTab from './components/ProfileTab.vue'
 import ApiTab from './components/ApiTab.vue'
 import SettingsTab from './components/SettingsTab.vue'
 import SecurityTab from './components/SecurityTab.vue'
+import MoneyScoreTab from './components/MoneyScoreTab.vue'
 import NovaIcon from '@/components/common/NovaIcon.vue'
 
 const authStore = useAuthStore()
 
 const userInfo = computed(() => authStore.userInfo)
+
+const headerCardStyle = computed(() => {
+  const bg = userInfo.value?.backGround
+  if (!bg || !/^https?:\/\//i.test(bg)) return {}
+  const safeBg = globalThis.CSS?.escape?.(bg) ?? bg.replace(/[()'"\\]/g, '')
+  return {
+    backgroundImage: `linear-gradient(rgba(255,255,255,0.85), rgba(255,255,255,0.92)), url("${safeBg}")`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+  }
+})
 
 const activeTab = ref('profile')
 
@@ -17,6 +29,15 @@ const showAvatarModal = ref(false)
 const avatarForm = ref({
   currentAvatar: '',
   newAvatar: '',
+})
+
+const showMottoModal = ref(false)
+const mottoForm = ref('')
+
+const showBgModal = ref(false)
+const bgForm = ref({
+  currentBg: '',
+  newBg: '',
 })
 
 function openAvatarModal() {
@@ -42,6 +63,57 @@ async function handleAvatarSubmit() {
   catch (error) {
     console.error('更新头像失败', error)
     window.$message.error('更新头像失败')
+  }
+}
+
+function openMottoModal() {
+  mottoForm.value = userInfo.value?.motto || ''
+  showMottoModal.value = true
+}
+
+async function handleMottoSubmit() {
+  try {
+    const nextMotto = mottoForm.value.trim()
+    if (nextMotto.length > 200) {
+      window.$message.error('个性签名不能超过200个字符')
+      return
+    }
+    const response = await fetchUpdateProfile({ motto: nextMotto })
+    if (response.isSuccess) {
+      authStore.updateUserInfo({ motto: nextMotto })
+      showMottoModal.value = false
+      window.$message.success('签名更新成功')
+    }
+  }
+  catch (error) {
+    console.error('更新签名失败', error)
+    window.$message.error('更新签名失败')
+  }
+}
+
+function openBgModal() {
+  bgForm.value.currentBg = userInfo.value?.backGround || ''
+  bgForm.value.newBg = userInfo.value?.backGround || ''
+  showBgModal.value = true
+}
+
+async function handleBgSubmit() {
+  try {
+    const nextBg = bgForm.value.newBg.trim()
+    if (nextBg && !/^https?:\/\//i.test(nextBg)) {
+      window.$message.error('背景图 URL 仅支持 http/https 协议')
+      return
+    }
+    const response = await fetchUpdateProfile({ back_ground: nextBg })
+    if (response.isSuccess) {
+      authStore.updateUserInfo({ backGround: nextBg })
+      showBgModal.value = false
+      window.$message.success('背景图更新成功')
+    }
+  }
+  catch (error) {
+    console.error('更新背景图失败', error)
+    window.$message.error('更新背景图失败')
   }
 }
 
@@ -73,7 +145,7 @@ onActivated(() => {
 <template>
   <div class="user-center">
     <!-- 用户信息头部 -->
-    <n-card class="user-header mb-4">
+    <n-card class="user-header mb-4" :style="headerCardStyle">
       <div class="user-info-container">
         <div class="user-avatar-section">
           <n-avatar
@@ -89,7 +161,10 @@ onActivated(() => {
 
         <div class="user-details-section">
           <n-h3 class="user-name">
-            {{ userInfo?.nickname || userInfo?.userName || '用户' }}
+            <span class="user-name-text">{{ userInfo?.nickname || userInfo?.userName || '用户' }}</span>
+            <n-text v-if="userInfo?.userName" depth="3" class="user-name-account">
+              ({{ userInfo.userName }})
+            </n-text>
           </n-h3>
           <n-text depth="3" class="user-email ml-2">
             {{ userInfo?.email || '暂无邮箱' }}
@@ -126,9 +201,10 @@ onActivated(() => {
               </n-text>
             </n-grid-item>
             <n-grid-item>
-              <n-text depth="3" class="info-item">
+              <n-text depth="3" class="info-item clickable-item" @click="openMottoModal">
                 <NovaIcon class="info-icon" icon="icon-park-outline:quote" :size="16" />
                 {{ userInfo?.motto || '暂无签名' }}
+                <NovaIcon class="edit-icon" icon="icon-park-outline:edit" :size="12" />
               </n-text>
             </n-grid-item>
           </n-grid>
@@ -138,6 +214,9 @@ onActivated(() => {
           <n-space vertical class="w-full">
             <n-button type="primary" block @click="activeTab = 'profile'">
               编辑资料
+            </n-button>
+            <n-button block @click="openBgModal">
+              设置背景图
             </n-button>
           </n-space>
         </div>
@@ -162,6 +241,9 @@ onActivated(() => {
         </n-tab-pane>
         <n-tab-pane name="api" tab="API 管理">
           <ApiTab />
+        </n-tab-pane>
+        <n-tab-pane name="moneyScore" tab="余额与积分">
+          <MoneyScoreTab />
         </n-tab-pane>
       </n-tabs>
     </n-card>
@@ -220,6 +302,65 @@ onActivated(() => {
         </n-space>
       </template>
     </n-modal>
+
+    <!-- 个性签名修改弹窗 -->
+    <n-modal v-model:show="showMottoModal" preset="dialog" title="修改个性签名">
+      <n-input
+        v-model:value="mottoForm"
+        type="textarea"
+        placeholder="请输入个性签名（最多200字符）"
+        :maxlength="200"
+        show-count
+        :rows="3"
+      />
+      <template #action>
+        <n-space>
+          <n-button @click="showMottoModal = false">
+            取消
+          </n-button>
+          <n-button type="primary" @click="handleMottoSubmit">
+            保存
+          </n-button>
+        </n-space>
+      </template>
+    </n-modal>
+
+    <!-- 背景图修改弹窗 -->
+    <n-modal v-model:show="showBgModal" preset="dialog" title="设置背景图">
+      <n-space vertical size="large">
+        <div v-if="bgForm.currentBg">
+          <n-text depth="3">当前背景</n-text>
+          <div class="bg-preview mt-2">
+            <img :src="bgForm.currentBg" referrerpolicy="no-referrer" class="bg-preview-img" />
+          </div>
+        </div>
+        <div>
+          <n-text depth="3">新背景图 URL</n-text>
+          <n-input
+            v-model:value="bgForm.newBg"
+            type="textarea"
+            placeholder="请输入背景图 URL（http/https，最多500字符，留空则清除）"
+            :maxlength="500"
+            :rows="3"
+            class="mt-2"
+          />
+          <div v-if="bgForm.newBg" class="bg-preview mt-2">
+            <n-text depth="3" class="mb-1">预览</n-text>
+            <img :src="bgForm.newBg" referrerpolicy="no-referrer" class="bg-preview-img" />
+          </div>
+        </div>
+      </n-space>
+      <template #action>
+        <n-space>
+          <n-button @click="showBgModal = false">
+            取消
+          </n-button>
+          <n-button type="primary" @click="handleBgSubmit">
+            保存
+          </n-button>
+        </n-space>
+      </template>
+    </n-modal>
   </div>
 </template>
 
@@ -241,7 +382,22 @@ onActivated(() => {
 
 .user-name {
   margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   word-break: break-word;
+}
+
+.user-name-text {
+  display: inline-flex;
+  align-items: center;
+}
+
+.user-name-account {
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
 }
 
 .user-email {
@@ -276,11 +432,45 @@ onActivated(() => {
   filter: brightness(1.1);
 }
 
+.clickable-item {
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.clickable-item:hover {
+  color: var(--n-text-color);
+}
+
+.edit-icon {
+  margin-left: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.clickable-item:hover .edit-icon {
+  opacity: 1;
+}
+
 .avatar-preview {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
+}
+
+.bg-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.bg-preview-img {
+  max-width: 100%;
+  max-height: 160px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--n-border-color);
 }
 
 @media (max-width: 768px) {

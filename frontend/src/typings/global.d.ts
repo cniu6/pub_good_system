@@ -31,7 +31,12 @@ declare namespace NaiveUI {
 
 declare namespace Storage {
   interface Session {
-    // 移除字典相关
+    userInfo: Api.Login.Info
+    accessToken: string
+    refreshToken: string
+    accessTokenExpiresAt: number
+    role: Entity.RoleType[] | Entity.RoleType
+    authIsolation: boolean
   }
 
   interface Local {

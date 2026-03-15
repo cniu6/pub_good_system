@@ -84,8 +84,8 @@ type PaymentOrder struct {
 func InitPaymentOrdersTable() {
 	if db.CheckTableExists("payment_orders") {
 		indexRepairs := map[string]string{
-			"idx_gateway_status":    "ALTER TABLE payment_orders ADD INDEX idx_gateway_status (gateway_id, status)",
-			"idx_status_expire":     "ALTER TABLE payment_orders ADD INDEX idx_status_expire (status, expire_at)",
+			"idx_gateway_status":     "ALTER TABLE payment_orders ADD INDEX idx_gateway_status (gateway_id, status)",
+			"idx_status_expire":      "ALTER TABLE payment_orders ADD INDEX idx_status_expire (status, expire_at)",
 			"idx_user_status_create": "ALTER TABLE payment_orders ADD INDEX idx_user_status_create (user_id, status, create_time)",
 		}
 
@@ -226,9 +226,36 @@ func GetPaymentOrderForUpdate(tx *sql.Tx, orderNo string) (*PaymentOrder, error)
 	return &order, nil
 }
 
+// canTransitionPaymentStatus 校验订单状态流转是否合法
+func canTransitionPaymentStatus(fromStatus, toStatus int) bool {
+	if fromStatus == toStatus {
+		return true
+	}
+	if toStatus == PaymentStatusPending {
+		return true
+	}
+
+	switch fromStatus {
+	case PaymentStatusPending:
+		return toStatus == PaymentStatusPaid || toStatus == PaymentStatusCanceled || toStatus == PaymentStatusFailed
+	case PaymentStatusPaid:
+		return toStatus == PaymentStatusRefunded
+	default:
+		return false
+	}
+}
+
 // UpdatePaymentOrderStatusTx 在事务中更新订单状态
 // 仅当 tradeNo 非空时才更新 trade_no 字段，避免覆盖已保存的第三方交易号
 func UpdatePaymentOrderStatusTx(tx *sql.Tx, orderNo string, status int, tradeNo string) error {
+	var currentStatus int
+	if err := tx.QueryRow("SELECT status FROM payment_orders WHERE order_no = ? FOR UPDATE", orderNo).Scan(&currentStatus); err != nil {
+		return err
+	}
+	if !canTransitionPaymentStatus(currentStatus, status) {
+		return fmt.Errorf("非法订单状态流转: %d -> %d", currentStatus, status)
+	}
+
 	tradeNo = NormalizeTradeNo(tradeNo)
 	now := time.Now().Unix()
 	var paidAt *int64
@@ -252,24 +279,17 @@ func UpdatePaymentOrderStatusTx(tx *sql.Tx, orderNo string, status int, tradeNo 
 // UpdatePaymentOrderStatus 更新订单状态（非事务）
 // 仅当 tradeNo 非空时才更新 trade_no 字段，避免覆盖已保存的第三方交易号
 func UpdatePaymentOrderStatus(orderNo string, status int, tradeNo string) error {
-	tradeNo = NormalizeTradeNo(tradeNo)
-	now := time.Now().Unix()
-	var paidAt *int64
-	if status == PaymentStatusPaid {
-		paidAt = &now
-	}
-	if tradeNo != "" {
-		_, err := db.DB.Exec(
-			"UPDATE payment_orders SET status = ?, trade_no = ?, paid_at = ?, update_time = ? WHERE order_no = ?",
-			status, tradeNo, paidAt, now, orderNo,
-		)
+	tx, err := db.DB.Begin()
+	if err != nil {
 		return err
 	}
-	_, err := db.DB.Exec(
-		"UPDATE payment_orders SET status = ?, paid_at = ?, update_time = ? WHERE order_no = ?",
-		status, paidAt, now, orderNo,
-	)
-	return err
+	defer tx.Rollback()
+
+	if err := UpdatePaymentOrderStatusTx(tx, orderNo, status, tradeNo); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 // IncrementNotifyCount 增加通知次数
@@ -337,12 +357,12 @@ func CancelExpiredOrders() (int64, error) {
 
 // GetPaymentStats 获取支付统计
 type PaymentStats struct {
-	TotalOrders     int64   `db:"total_orders" json:"total_orders"`
-	PaidOrders      int64   `db:"paid_orders" json:"paid_orders"`
-	TotalAmount     float64 `db:"total_amount" json:"total_amount"`
-	TodayOrders     int64   `db:"today_orders" json:"today_orders"`
-	TodayAmount     float64 `db:"today_amount" json:"today_amount"`
-	PendingOrders   int64   `db:"pending_orders" json:"pending_orders"`
+	TotalOrders   int64   `db:"total_orders" json:"total_orders"`
+	PaidOrders    int64   `db:"paid_orders" json:"paid_orders"`
+	TotalAmount   float64 `db:"total_amount" json:"total_amount"`
+	TodayOrders   int64   `db:"today_orders" json:"today_orders"`
+	TodayAmount   float64 `db:"today_amount" json:"today_amount"`
+	PendingOrders int64   `db:"pending_orders" json:"pending_orders"`
 }
 
 func GetPaymentStats() (*PaymentStats, error) {

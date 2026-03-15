@@ -2,10 +2,10 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/internal/config"
 	"fst/backend/utils"
-	"fmt"
 	"time"
 )
 
@@ -18,6 +18,16 @@ func NewAuthService() *AuthService {
 	return &AuthService{
 		userService: NewUserService(),
 	}
+}
+
+func normalizeAuthGuard(authGuard string) (string, bool) {
+	if authGuard == "" {
+		return utils.UserAuthGuard, true
+	}
+	if authGuard == utils.UserAuthGuard || authGuard == utils.AdminAuthGuard {
+		return authGuard, true
+	}
+	return "", false
 }
 
 // ServiceError 服务层错误
@@ -37,18 +47,23 @@ func NewServiceError(code int, message string) *ServiceError {
 
 // LoginResult 登录结果
 type LoginResult struct {
-	ID           uint64   `json:"id"`
-	UserName     string   `json:"userName"`
-	Email        string   `json:"email"`
-	Role         []string `json:"role"`
-	AccessToken  string   `json:"accessToken"`
-	RefreshToken string   `json:"refreshToken"`
-	ExpiresAt    int64    `json:"expiresAt"`
-	RefreshExpiresAt int64 `json:"-"`
+	ID               uint64   `json:"id"`
+	UserName         string   `json:"userName"`
+	Email            string   `json:"email"`
+	Role             []string `json:"role"`
+	AccessToken      string   `json:"accessToken"`
+	RefreshToken     string   `json:"refreshToken"`
+	ExpiresAt        int64    `json:"expiresAt"`
+	RefreshExpiresAt int64    `json:"-"`
 }
 
 // Login 用户登录
-func (s *AuthService) Login(username, password, clientIP string) (*LoginResult, *ServiceError) {
+func (s *AuthService) Login(username, password, authGuard, clientIP string) (*LoginResult, *ServiceError) {
+	var ok bool
+	authGuard, ok = normalizeAuthGuard(authGuard)
+	if !ok {
+		return nil, NewServiceError(400, "Invalid auth guard")
+	}
 	// 查找用户
 	user, err := models.GetUserByUsernameOrEmail(username)
 	if err != nil {
@@ -82,28 +97,32 @@ func (s *AuthService) Login(username, password, clientIP string) (*LoginResult, 
 	// 更新登录信息
 	s.userService.UpdateLoginInfo(user.ID, clientIP)
 
+	if authGuard == utils.AdminAuthGuard && user.Role != "admin" {
+		return nil, NewServiceError(403, "Admin access only")
+	}
+
 	// 生成 Token
 	accessTTL := time.Duration(config.GlobalConfig.JWTAccessExpire) * time.Second
 	refreshTTL := time.Duration(config.GlobalConfig.JWTRefreshExpire) * time.Second
 
-	accessToken, err := utils.GenerateTokenWithTTL(user.ID, user.Role, accessTTL)
+	accessToken, err := utils.GenerateTokenForGuardWithTTL(user.ID, user.Role, authGuard, accessTTL)
 	if err != nil {
 		return nil, NewServiceError(500, "Failed to generate access token")
 	}
 
-	refreshToken, err := utils.GenerateRefreshTokenWithTTL(user.ID, refreshTTL)
+	refreshToken, err := utils.GenerateRefreshTokenForGuardWithTTL(user.ID, authGuard, refreshTTL)
 	if err != nil {
 		return nil, NewServiceError(500, "Failed to generate refresh token")
 	}
 
 	return &LoginResult{
-		ID:           user.ID,
-		UserName:     user.Username,
-		Email:        user.Email,
-		Role:         []string{user.Role},
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		ExpiresAt:    time.Now().Unix() + int64(accessTTL.Seconds()),
+		ID:               user.ID,
+		UserName:         user.Username,
+		Email:            user.Email,
+		Role:             []string{user.Role},
+		AccessToken:      accessToken,
+		RefreshToken:     refreshToken,
+		ExpiresAt:        time.Now().Unix() + int64(accessTTL.Seconds()),
 		RefreshExpiresAt: time.Now().Unix() + int64(refreshTTL.Seconds()),
 	}, nil
 }
@@ -130,9 +149,15 @@ func (s *AuthService) Register(user *models.User) error {
 }
 
 // RefreshToken 刷新Token
-func (s *AuthService) RefreshToken(refreshToken, clientIP, userAgent, device string) (*LoginResult, *ServiceError) {
+func (s *AuthService) RefreshToken(refreshToken, authGuard, clientIP, userAgent, device string) (*LoginResult, *ServiceError) {
+	var ok bool
+	authGuard, ok = normalizeAuthGuard(authGuard)
+	if !ok {
+		return nil, NewServiceError(400, "Invalid auth guard")
+	}
+
 	// 解析 token
-	claims, err := utils.ParseRefreshToken(refreshToken)
+	claims, err := utils.ParseRefreshTokenForGuard(refreshToken, authGuard)
 	if err != nil {
 		return nil, NewServiceError(401, "Invalid or expired refresh token")
 	}
@@ -152,12 +177,12 @@ func (s *AuthService) RefreshToken(refreshToken, clientIP, userAgent, device str
 	accessTTL := time.Duration(config.GlobalConfig.JWTAccessExpire) * time.Second
 	refreshTTL := time.Duration(config.GlobalConfig.JWTRefreshExpire) * time.Second
 
-	accessToken, err := utils.GenerateTokenWithTTL(user.ID, user.Role, accessTTL)
+	accessToken, err := utils.GenerateTokenForGuardWithTTL(user.ID, user.Role, authGuard, accessTTL)
 	if err != nil {
 		return nil, NewServiceError(500, "Failed to generate access token")
 	}
 
-	newRefreshToken, err := utils.GenerateRefreshTokenWithTTL(user.ID, refreshTTL)
+	newRefreshToken, err := utils.GenerateRefreshTokenForGuardWithTTL(user.ID, authGuard, refreshTTL)
 	if err != nil {
 		return nil, NewServiceError(500, "Failed to generate refresh token")
 	}
@@ -166,6 +191,7 @@ func (s *AuthService) RefreshToken(refreshToken, clientIP, userAgent, device str
 	refreshExpiresAt := time.Now().Unix() + int64(refreshTTL.Seconds())
 	rotated, err := models.RotateUserSessionTokens(
 		user.ID,
+		authGuard,
 		utils.HashToken(refreshToken),
 		utils.HashToken(accessToken),
 		utils.HashToken(newRefreshToken),
@@ -183,13 +209,13 @@ func (s *AuthService) RefreshToken(refreshToken, clientIP, userAgent, device str
 	}
 
 	return &LoginResult{
-		ID:           user.ID,
-		UserName:     user.Username,
-		Email:        user.Email,
-		Role:         []string{user.Role},
-		AccessToken:  accessToken,
-		RefreshToken: newRefreshToken,
-		ExpiresAt:    accessExpiresAt,
+		ID:               user.ID,
+		UserName:         user.Username,
+		Email:            user.Email,
+		Role:             []string{user.Role},
+		AccessToken:      accessToken,
+		RefreshToken:     newRefreshToken,
+		ExpiresAt:        accessExpiresAt,
 		RefreshExpiresAt: refreshExpiresAt,
 	}, nil
 }

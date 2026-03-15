@@ -315,9 +315,15 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 	}
 
 	accessTTL := time.Duration(config.GlobalConfig.JWTAccessExpire) * time.Second
-	token, err := utils.GenerateTokenWithTTL(user.ID, user.Role, accessTTL)
+	refreshTTL := time.Duration(config.GlobalConfig.JWTRefreshExpire) * time.Second
+	token, err := utils.GenerateTokenForGuardWithTTL(user.ID, user.Role, utils.UserAuthGuard, accessTTL)
 	if err != nil {
 		utils.Fail(ctx, 500, "生成 token 失败")
+		return
+	}
+	refreshToken, err := utils.GenerateRefreshTokenForGuardWithTTL(user.ID, utils.UserAuthGuard, refreshTTL)
+	if err != nil {
+		utils.Fail(ctx, 500, "生成 refresh token 失败")
 		return
 	}
 
@@ -327,11 +333,18 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 	}
 	userAgent := ctx.GetHeader("User-Agent")
 	expiresAt := time.Now().Add(accessTTL).Unix()
-	_ = models.CreateUserSession(user.ID, utils.HashToken(token), "", clientIP, userAgent, "Admin Impersonation", expiresAt, 0)
+	refreshExpiresAt := time.Now().Add(refreshTTL).Unix()
+	if err := models.CreateUserSession(user.ID, utils.UserAuthGuard, utils.HashToken(token), utils.HashToken(refreshToken), clientIP, userAgent, "Admin Impersonation", expiresAt, refreshExpiresAt); err != nil {
+		utils.Fail(ctx, 500, "创建登录会话失败")
+		return
+	}
 
 	utils.Success(ctx, gin.H{
-		"user":  user,
-		"token": token,
+		"user":             user,
+		"token":            token,
+		"refreshToken":     refreshToken,
+		"expiresAt":        expiresAt,
+		"refreshExpiresAt": refreshExpiresAt,
 	})
 }
 

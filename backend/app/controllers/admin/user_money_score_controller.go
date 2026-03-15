@@ -1,10 +1,14 @@
 package admin
 
 import (
+	"crypto/rand"
+	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/utils"
+	"math/big"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -31,15 +35,19 @@ func (ctrl *UserMoneyScoreController) ChangeMoney(c *gin.Context) {
 	}
 
 	var req struct {
-		Money float64 `json:"money" binding:"required"`
-		Memo  string  `json:"memo"`
+		Money *float64 `json:"money" binding:"required"`
+		Memo  string   `json:"memo"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.Fail(c, 400, "参数错误: "+err.Error())
 		return
 	}
+	if req.Money == nil {
+		utils.Fail(c, 400, "金额不能为空")
+		return
+	}
 
-	logEntry, err := services.ChangeUserMoney(userID, req.Money, req.Memo)
+	logEntry, err := services.ChangeUserMoney(userID, *req.Money, req.Memo)
 	if err != nil {
 		utils.Fail(c, 400, err.Error())
 		return
@@ -73,6 +81,90 @@ func (ctrl *UserMoneyScoreController) SetMoney(c *gin.Context) {
 	}
 
 	utils.Success(c, gin.H{"message": "余额设置成功", "log": logEntry})
+}
+
+// AddMoneyLog 仅添加余额变动日志（不修改余额）
+// POST /api/v1/admin/users/:id/money/log
+func (ctrl *UserMoneyScoreController) AddMoneyLog(c *gin.Context) {
+	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "用户ID格式错误")
+		return
+	}
+
+	var req struct {
+		Money *float64 `json:"money" binding:"required"`
+		Memo  string   `json:"memo"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Fail(c, 400, "参数错误: "+err.Error())
+		return
+	}
+	if req.Money == nil {
+		utils.Fail(c, 400, "金额不能为空")
+		return
+	}
+
+	logEntry, err := services.AddUserMoneyLogOnly(userID, *req.Money, req.Memo)
+	if err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+
+	utils.Success(c, gin.H{"message": "余额日志添加成功", "log": logEntry})
+}
+
+// OperateMoney 统一余额操作（支持余额/日志/订单组合）
+// POST /api/v1/admin/users/:id/money/operate
+func (ctrl *UserMoneyScoreController) OperateMoney(c *gin.Context) {
+	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "用户ID格式错误")
+		return
+	}
+
+	var req struct {
+		Money       *float64 `json:"money"`
+		Memo        string   `json:"memo"`
+		Operation   string   `json:"operation" binding:"required"`
+		OrderNo     string   `json:"order_no"`
+		TradeNo     string   `json:"trade_no"`
+		OrderStatus *int     `json:"order_status"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Fail(c, 400, "参数错误: "+err.Error())
+		return
+	}
+
+	orderStatus := models.PaymentStatusPaid
+	if req.OrderStatus != nil {
+		orderStatus = *req.OrderStatus
+	}
+
+	amount := 0.0
+	if req.Money != nil {
+		amount = *req.Money
+	}
+
+	if req.Operation != "order_only" && req.Money == nil {
+		utils.Fail(c, 400, "金额不能为空")
+		return
+	}
+
+	result, err := services.OperateUserMoney(userID, services.MoneyOperationRequest{
+		Amount:      amount,
+		Memo:        req.Memo,
+		Operation:   req.Operation,
+		OrderNo:     req.OrderNo,
+		TradeNo:     req.TradeNo,
+		OrderStatus: orderStatus,
+	})
+	if err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+
+	utils.Success(c, gin.H{"message": "余额组合操作成功", "result": result})
 }
 
 // MoneyLogList 获取余额变动日志列表（管理员可查看所有）
@@ -192,6 +284,33 @@ func (ctrl *UserMoneyScoreController) SetScore(c *gin.Context) {
 	utils.Success(c, gin.H{"message": "积分设置成功", "log": logEntry})
 }
 
+// AddScoreLog 仅添加积分变动日志（不修改积分）
+// POST /api/v1/admin/users/:id/score/log
+func (ctrl *UserMoneyScoreController) AddScoreLog(c *gin.Context) {
+	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "用户ID格式错误")
+		return
+	}
+
+	var req struct {
+		Score int64  `json:"score" binding:"required"`
+		Memo  string `json:"memo"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Fail(c, 400, "参数错误: "+err.Error())
+		return
+	}
+
+	logEntry, err := services.AddUserScoreLogOnly(userID, req.Score, req.Memo)
+	if err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+
+	utils.Success(c, gin.H{"message": "积分日志添加成功", "log": logEntry})
+}
+
 // ScoreLogList 获取积分变动日志列表（管理员可查看所有）
 // GET /api/v1/admin/score-logs
 func (ctrl *UserMoneyScoreController) ScoreLogList(c *gin.Context) {
@@ -251,6 +370,23 @@ func (ctrl *UserMoneyScoreController) ScoreLogDelete(c *gin.Context) {
 	utils.Success(c, gin.H{"message": "删除成功"})
 }
 
+// GenerateNos 生成订单号和交易号
+// GET /api/v1/admin/generate-nos
+func (ctrl *UserMoneyScoreController) GenerateNos(c *gin.Context) {
+	// 订单号：复用 models 中的生成逻辑
+	orderNo := models.GenerateOrderNo()
+
+	// 交易号：T + 年月日时分秒 + 6位密码学随机数
+	now := time.Now()
+	rnd, _ := rand.Int(rand.Reader, big.NewInt(1000000))
+	tradeNo := fmt.Sprintf("T%s%06d", now.Format("20060102150405"), rnd.Int64())
+
+	utils.Success(c, gin.H{
+		"order_no": orderNo,
+		"trade_no": tradeNo,
+	})
+}
+
 // RegisterRoutes 注册管理员余额/积分路由
 func (ctrl *UserMoneyScoreController) RegisterRoutes(adminGroup *gin.RouterGroup) {
 	// 用户余额/积分操作（挂在 users/:id 下）
@@ -258,9 +394,15 @@ func (ctrl *UserMoneyScoreController) RegisterRoutes(adminGroup *gin.RouterGroup
 	{
 		users.POST("/:id/money/change", ctrl.ChangeMoney)
 		users.PUT("/:id/money", ctrl.SetMoney)
+		users.POST("/:id/money/log", ctrl.AddMoneyLog)
+		users.POST("/:id/money/operate", ctrl.OperateMoney)
 		users.POST("/:id/score/change", ctrl.ChangeScore)
 		users.PUT("/:id/score", ctrl.SetScore)
+		users.POST("/:id/score/log", ctrl.AddScoreLog)
 	}
+
+	// 生成订单号/交易号
+	adminGroup.GET("/generate-nos", ctrl.GenerateNos)
 
 	// 余额日志
 	moneyLogs := adminGroup.Group("/money-logs")

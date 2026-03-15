@@ -51,6 +51,9 @@ export const useSettingsStore = defineStore('settings-store', () => {
   // 是否允许注册
   const allowRegister = computed(() => config.value?.allow_register ?? true)
 
+  // 是否允许注销账号
+  const allowDeleteAccount = computed(() => config.value?.allow_delete_account ?? false)
+
   // 默认语言
   const defaultLang = computed(() => config.value?.default_lang ?? import.meta.env.VITE_DEFAULT_LANG ?? 'zhCN')
 
@@ -142,6 +145,7 @@ export const useSettingsStore = defineStore('settings-store', () => {
     icp,
     version,
     allowRegister,
+    allowDeleteAccount,
     defaultLang,
     geetestEnabled,
     geetestCaptchaId,

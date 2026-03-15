@@ -2,6 +2,7 @@
  * 管理端 API 服务 - 用户管理
  * 此文件会被打包到 admin-api chunk
  */
+import { authStorage } from '@/utils'
 import { request } from '@/service/http'
 
 // 管理端 API 路径固定为 /admin（与后端保持一致）
@@ -52,6 +53,9 @@ interface UserDetailResponse {
 interface LoginAsUserResponse {
   user: AdminUser
   token: string
+  refreshToken?: string
+  expiresAt?: number
+  refreshExpiresAt?: number
 }
 
 interface ResetApiKeyResponse {
@@ -96,6 +100,68 @@ export function toLoginInfo(user: AdminUser, token: string): Api.Login.Info {
     accessToken: token,
     refreshToken: '',
   }
+}
+
+export function openLoginAsUserWindow(user: AdminUser, token: string, refreshToken?: string, expiresAt?: number, targetUrl = '/') {
+  return authStorage.openSessionWindow({
+    accessToken: token,
+    refreshToken,
+    accessTokenExpiresAt: expiresAt,
+    role: [normalizeAdminUserRole(user.role)],
+    userInfo: toLoginInfo(user, token),
+  }, targetUrl)
+}
+
+// =====================================================
+// 兼容资料/vue 的命名导出（给 views/admin/users 直接引用）
+// =====================================================
+
+export function fetchAdminUserPage(params: {
+  page?: number
+  page_size?: number
+  keyword?: string
+  status?: number | null
+  role?: string
+}) {
+  return adminUserApi.list(params)
+}
+
+export function createUser(data: Parameters<typeof adminUserApi.create>[0]) {
+  return adminUserApi.create(data)
+}
+
+export function deleteUser(userId: number) {
+  return adminUserApi.delete(userId)
+}
+
+export function updateUserStatus(userId: number, data: { status: number }) {
+  return adminUserApi.updateStatus(userId, Number(data.status))
+}
+
+export function updateAdminUserProfile(userId: number, data: Record<string, any>) {
+  // 后端允许更新的字段比这里的类型更宽；此处保持兼容，交由后端校验/忽略未知字段
+  return request.Put<Service.ResponseResult<null>>(`${BASE_URL}/${userId}`, data)
+}
+
+export function loginAsUser(userId: number) {
+  return adminUserApi.loginAsUser(userId)
+}
+
+export function resetUserApikey(userId: number) {
+  return adminUserApi.resetApiKey(userId)
+}
+
+export function resetUserPassword(
+  arg1: number | { user_id: number, password: string },
+  arg2?: { password: string },
+) {
+  // 兼容两种调用：
+  // 1) resetUserPassword({ user_id, password })（资料/vue）
+  // 2) resetUserPassword(id, { password })（资料/vue users/index.vue 动态 import 调用）
+  if (typeof arg1 === 'number') {
+    return adminUserApi.resetPassword(arg1, arg2?.password || '')
+  }
+  return adminUserApi.resetPassword(arg1.user_id, arg1.password)
 }
 
 // 用户简要信息类型

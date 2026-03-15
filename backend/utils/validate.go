@@ -78,6 +78,26 @@ func Clean_XSS(input string) string {
 	return input
 }
 
+// ValidateURL 校验用户提供的URL是否为安全的 http/https 地址
+// 返回 true 表示合法，false 表示非法或危险
+func ValidateURL(rawURL string) bool {
+	if rawURL == "" {
+		return true // 空值允许（代表清除）
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return false
+	}
+	if u.Host == "" {
+		return false
+	}
+	return true
+}
+
 // ValidateEmail 验证邮箱格式
 func ValidateEmail(email string) bool {
 	pattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`

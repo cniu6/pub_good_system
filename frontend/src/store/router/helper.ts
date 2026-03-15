@@ -134,7 +134,7 @@ function transformAuthRoutesToMenus(userRoutes: AppRoute.Route[]) {
 
 /**
  * 从 RouteRecordRaw 格式的管理端路由生成侧边栏菜单
- * 管理端路由使用 Vue Router 原生格式，需要单独的菜单生成逻辑
+ * 支持嵌套层级：menuType === 'dir' 的路由作为分组目录，其子路由作为子菜单项
  */
 export function createAdminMenus(adminRoutes: Array<{
   path: string
@@ -145,23 +145,59 @@ export function createAdminMenus(adminRoutes: Array<{
       hide?: boolean
       title?: string
       icon?: string
+      menuType?: string
     }
+    children?: Array<{
+      path: string
+      name?: string | symbol | null
+      meta?: {
+        hide?: boolean
+        title?: string
+        icon?: string
+      }
+    }>
   }>
 }>): MenuOption[] {
   const menus: MenuOption[] = []
 
   for (const route of adminRoutes) {
     if (!route.children) continue
+
     for (const child of route.children) {
       if (child.meta?.hide) continue
-      const fullPath = route.path.endsWith('/')
-        ? `${route.path}${child.path}`
-        : `${route.path}/${child.path}`
-      menus.push({
-        label: () => h(RouterLink, { to: { path: fullPath } }, { default: () => (child.meta?.title as string) || child.name }),
-        key: fullPath,
-        icon: child.meta?.icon ? renderIcon(child.meta.icon as string) : undefined,
-      })
+
+      const basePath = route.path.endsWith('/') ? route.path : `${route.path}/`
+
+      // 目录类型：生成带 children 的分组菜单
+      if (child.meta?.menuType === 'dir' && child.children?.length) {
+        const dirPath = `${basePath}${child.path}`
+        const subMenus: MenuOption[] = child.children
+          .filter(sub => !sub.meta?.hide)
+          .map((sub) => {
+            const fullPath = `${dirPath}/${sub.path}`
+            return {
+              label: () => h(RouterLink, { to: { path: fullPath } }, { default: () => (sub.meta?.title as string) || sub.name }),
+              key: fullPath,
+              icon: sub.meta?.icon ? renderIcon(sub.meta.icon as string) : undefined,
+            }
+          })
+
+        menus.push({
+          label: (child.meta?.title as string) || String(child.name),
+          key: dirPath,
+          icon: child.meta?.icon ? renderIcon(child.meta.icon as string) : undefined,
+          children: subMenus,
+        })
+      }
+      else {
+        // 普通页面：生成可点击的菜单项
+        const fullPath = `${basePath}${child.path}`
+        menus.push({
+          label: () => h(RouterLink, { to: { path: fullPath } }, { default: () => (child.meta?.title as string) || child.name }),
+          key: fullPath,
+          icon: child.meta?.icon ? renderIcon(child.meta.icon as string) : undefined,
+        })
+      }
     }
   }
 

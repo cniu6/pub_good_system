@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { FormInst } from 'naive-ui'
 import { useAuthStore, useSettingsStore } from '@/store'
-import { local } from '@/utils'
+import { authStorage, local } from '@/utils'
 import GeetestCaptcha from '@/components/common/GeetestCaptcha.vue'
 import { geetestManager } from '@/utils/geetest'
 
@@ -70,9 +70,9 @@ async function handleLogin() {
     local.set('loginAccount', { account, pwd })
   else local.remove('loginAccount')
 
-  const hadToken = Boolean(local.get('accessToken'))
+  const hadToken = Boolean(authStorage.get('accessToken'))
   await authStore.login(account, pwd)
-  const hasTokenNow = Boolean(local.get('accessToken'))
+  const hasTokenNow = Boolean(authStorage.get('accessToken'))
 
   if (!hadToken && !hasTokenNow) {
     isCaptchaVerified.value = false

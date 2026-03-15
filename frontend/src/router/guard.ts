@@ -2,7 +2,7 @@ import type { Router } from 'vue-router'
 import type { AppRouteMode } from './index'
 import { useAppStore, useRouteStore, useTabStore } from '@/store'
 import { i18n } from '@/modules/i18n'
-import { local } from '@/utils'
+import { authStorage } from '@/utils'
 import { buildAdminEntryUrl, getAdminBasePath } from './constants'
 
 async function loadAdminRoutesDynamic() {
@@ -59,8 +59,8 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
 
     appStore.showProgress && window.$loadingBar?.start()
 
-    const isLogin = Boolean(local.get('accessToken'))
-    const roleValue = local.get('role')
+    const isLogin = Boolean(authStorage.get('accessToken'))
+    const roleValue = authStorage.get('role')
     const roles = Array.isArray(roleValue) ? roleValue : (roleValue ? [roleValue] : [])
     const hasAdminRole = roles.includes('admin')
 

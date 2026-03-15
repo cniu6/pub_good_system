@@ -41,45 +41,40 @@ export const staticRoutes: AppRoute.RowRoute[] = [
   },
 
   // ----------------------------------------
-  // 充值中心
+  // 我的账户（分组目录）
   // ----------------------------------------
   {
-    name: 'recharge',
-    path: '/user/recharge',
-    title: '充值中心',
+    name: 'account',
+    path: '/user/account',
+    title: '我的账户',
     requiresAuth: true,
-    icon: 'icon-park-outline:add-one',
-    componentPath: '/user/recharge/index.vue',
-    id: 10,
-    pid: null,
-  },
-
-  // ----------------------------------------
-  // 余额与积分
-  // ----------------------------------------
-  {
-    name: 'moneyScoreLogs',
-    path: '/user/money-score-logs',
-    title: '余额与积分',
-    requiresAuth: true,
-    icon: 'icon-park-outline:wallet',
-    componentPath: '/user/money-score-logs/index.vue',
+    icon: 'icon-park-outline:peoples',
+    menuType: 'dir',
+    componentPath: null,
     id: 9,
     pid: null,
   },
-
-  // ----------------------------------------
-  // 个人中心（侧边栏最后一项）
-  // ----------------------------------------
+  {
+    name: 'recharge',
+    path: '/user/account/recharge',
+    title: '充值中心',
+    requiresAuth: true,
+    icon: 'icon-park-outline:add-one',
+    menuType: 'page',
+    componentPath: '/user/recharge/index.vue',
+    id: 10,
+    pid: 9,
+  },
   {
     name: 'userCenter',
-    path: '/user/user-center',
+    path: '/user/account/user-center',
     title: 'route.userCenter',
     requiresAuth: true,
     icon: 'carbon:user-avatar-filled-alt',
+    menuType: 'page',
     componentPath: '/user/user-center/index.vue',
     id: 999,
-    pid: null,
+    pid: 9,
   },
 
   // ----------------------------------------
