@@ -354,16 +354,6 @@ async function handleProfileSubmit() {
               <n-date-picker v-model:value="profileForm.birthday" type="date" placeholder="请选择生日" class="w-full" />
             </n-form-item>
           </n-grid-item>
-          <n-grid-item :span="3">
-            <n-form-item label="个性签名" label-placement="top">
-              <n-input v-model:value="profileForm.motto" type="textarea" placeholder="请输入个性签名" />
-            </n-form-item>
-          </n-grid-item>
-          <n-grid-item :span="3">
-            <n-form-item label="背景图URL" label-placement="top">
-              <n-input v-model:value="profileForm.back_ground" placeholder="请输入背景图URL（http/https）" />
-            </n-form-item>
-          </n-grid-item>
         </n-grid>
         <n-space>
           <n-button type="primary" @click="handleProfileSubmit">

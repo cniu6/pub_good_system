@@ -22,6 +22,7 @@ type Config struct {
 	GeetestID                 string
 	GeetestKey                string
 	JWTSecret                 string
+	AdminJWTSecret            string
 	AdminPath                 string
 	CorsOrigins               string
 	EnableSwagger             bool
@@ -34,11 +35,11 @@ type Config struct {
 	SystemEmail               string
 	SystemEmailName           string
 	RegisterCodeExpireMinutes int
-	LoginMaxFailureCount      int // 登录最大失败次数，超过此次数将锁定账户
-	LoginLockDurationMinutes  int // 账户锁定持续时间（分钟）
-	JWTAccessExpire           int // Access Token 过期时间（秒）
-	JWTRefreshExpire          int // Refresh Token 过期时间（秒）
-	CleanupIntervalMinutes    int // 验证码清理任务间隔（分钟）
+	LoginMaxFailureCount      int    // 登录最大失败次数，超过此次数将锁定账户
+	LoginLockDurationMinutes  int    // 账户锁定持续时间（分钟）
+	JWTAccessExpire           int    // Access Token 过期时间（秒）
+	JWTRefreshExpire          int    // Refresh Token 过期时间（秒）
+	CleanupIntervalMinutes    int    // 验证码清理任务间隔（分钟）
 	EmailVerifyEnabled        bool   // 邮箱验证码功能开关
 	SMSVerifyEnabled          bool   // 短信验证码功能开关
 	SMSProvider               string // 短信服务商: aliyun, tencent, console
@@ -152,6 +153,7 @@ func InitConfig() {
 		GeetestID:       geetestID,
 		GeetestKey:      geetestKey,
 		JWTSecret:       getEnv("JWT_SECRET", "secret"),
+		AdminJWTSecret:  getEnv("JWT_ADMIN_SECRET", getEnv("JWT_SECRET", "secret")),
 		AdminPath:       "/admin",
 		CorsOrigins:     getEnv("CORS_ORIGINS", ""),
 		EnableSwagger:   enableSwagger,
@@ -250,6 +252,7 @@ type jsonDotEnv struct {
 	Port                      string `json:"port"`
 	CorsOrigins               string `json:"cors_origins"`
 	JWTSecret                 string `json:"jwt_secret"`
+	JWTAdminSecret            string `json:"jwt_admin_secret"`
 	JWTExpireHours            string `json:"jwt_expire_hours"`
 	Debug                     string `json:"debug"`
 	GeetestEnabled            string `json:"geetest_enabled"`
@@ -305,6 +308,11 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 		jwtSecret = "secret"
 	}
 
+	jwtAdminSecret := raw.JWTAdminSecret
+	if jwtAdminSecret == "" {
+		jwtAdminSecret = jwtSecret
+	}
+
 	geetestEnabled, _ := strconv.ParseBool(strings.TrimSpace(raw.GeetestEnabled))
 	enableSwagger, _ := strconv.ParseBool(strings.TrimSpace(raw.EnableSwagger))
 
@@ -338,6 +346,7 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 		GeetestID:       raw.GeetestCaptchaID,
 		GeetestKey:      raw.GeetestCaptchaKey,
 		JWTSecret:       jwtSecret,
+		AdminJWTSecret:  jwtAdminSecret,
 		AdminPath:       "/admin",
 		CorsOrigins:     raw.CorsOrigins,
 		EnableSwagger:   enableSwagger,

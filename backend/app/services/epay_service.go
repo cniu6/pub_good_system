@@ -88,11 +88,7 @@ func VerifyEpaySign(params map[string]string, key string) bool {
 	if strings.EqualFold(sign, expectedGeneric) {
 		return true
 	}
-	maskedKey := key
-	if len(maskedKey) > 4 {
-		maskedKey = maskedKey[:2] + "***" + maskedKey[len(maskedKey)-2:]
-	}
-	log.Printf("[Epay] 签名不匹配: received=%s, expected_notify=%s, expected_generic=%s, key=%s, params=%v", sign, expectedNotify, expectedGeneric, maskedKey, params)
+	log.Printf("[Epay] 签名不匹配: received=%s, expected_notify=%s, expected_generic=%s, params=%v", sign, expectedNotify, expectedGeneric, params)
 	return false
 }
 

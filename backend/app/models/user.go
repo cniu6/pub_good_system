@@ -175,7 +175,10 @@ func UpdatePassword(userID uint64, hashedPassword string) error {
 	if err != nil {
 		return err
 	}
-	return RevokeAllUserSessions(userID, "")
+	if err := RevokeAllUserSessionsWithGuard(userID, "user", ""); err != nil {
+		return err
+	}
+	return RevokeAllUserSessionsWithGuard(userID, "admin", "")
 }
 
 // UpdateLoginInfo 更新用户登录信息（成功登录后调用）

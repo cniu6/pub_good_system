@@ -8,7 +8,8 @@ import (
 	_ "fst/backend/docs"
 	"fst/backend/internal/config"
 	"fst/backend/internal/middleware"
-	"fst/backend/utils"
+
+	// "fst/backend/utils"
 
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -20,20 +21,20 @@ import (
 // ========================================
 
 var (
-	publicAuthCtrl      *public.AuthController
-	publicSettingsCtrl  *public.SettingsController
+	publicAuthCtrl            *public.AuthController
+	publicSettingsCtrl        *public.SettingsController
 	publicPaymentCallbackCtrl *public.PaymentCallbackController
-	userProfileCtrl     *user.ProfileController
-	userPaymentCtrl     *user.PaymentController
-	systemCtrl          *controllers.SystemController
-	adminUserCtrl       *admin.UserController
-	adminLogCtrl        *admin.LogController
-	adminEmailTplCtrl   *admin.EmailTemplateController
-	adminEmailLogCtrl   *admin.EmailLogController
-	adminSettingsCtrl      *admin.SettingsController
-	adminDebugCtrl         *admin.DebugController
-	adminMoneyScoreCtrl    *admin.UserMoneyScoreController
-	adminPaymentCtrl       *admin.PaymentController
+	userProfileCtrl           *user.ProfileController
+	userPaymentCtrl           *user.PaymentController
+	systemCtrl                *controllers.SystemController
+	adminUserCtrl             *admin.UserController
+	adminLogCtrl              *admin.LogController
+	adminEmailTplCtrl         *admin.EmailTemplateController
+	adminEmailLogCtrl         *admin.EmailLogController
+	adminSettingsCtrl         *admin.SettingsController
+	adminDebugCtrl            *admin.DebugController
+	adminMoneyScoreCtrl       *admin.UserMoneyScoreController
+	adminPaymentCtrl          *admin.PaymentController
 )
 
 // initControllers 初始化所有控制器
@@ -88,20 +89,20 @@ func SetupRoutes(router *gin.Engine) {
 			}
 
 			// ----------------------------------------
-			// 用户接口 (需要登录)
+			// 用户接口 (需要登录，管理员token也可访问)
 			// ----------------------------------------
 			userGroup := v1.Group("/user")
-			userGroup.Use(middleware.AuthMiddleware())
+			userGroup.Use(middleware.AuthMiddlewareForGuard("user", "admin"))
 			{
 				userProfileCtrl.RegisterRoutes(userGroup)
 				userPaymentCtrl.RegisterRoutes(userGroup)
 			}
 
 			// ----------------------------------------
-			// 系统状态接口 (需要登录)
+			// 系统状态接口 (需要登录，管理员token也可访问)
 			// ----------------------------------------
 			system := v1.Group("/system")
-			system.Use(middleware.AuthMiddleware())
+			system.Use(middleware.AuthMiddlewareForGuard("user", "admin"))
 			{
 				system.GET("/cleanup-status", systemCtrl.GetCleanupStatus)
 			}
@@ -110,7 +111,7 @@ func SetupRoutes(router *gin.Engine) {
 			// 管理后台接口 (需要管理员权限)
 			// ----------------------------------------
 			adminGroup := v1.Group("/admin")
-			adminGroup.Use(middleware.AuthMiddleware())
+			adminGroup.Use(middleware.AuthMiddlewareForGuard("admin"))
 			adminGroup.Use(middleware.AdminOnly())
 			{
 				// 仪表盘
@@ -193,13 +194,13 @@ func SetupRoutes(router *gin.Engine) {
 			})
 			v1.GET("/userPage", systemCtrl.GetUserPage)
 
-			// 提示使用正确的请求方法
-			v1.GET("/login", func(c *gin.Context) {
-				utils.Fail(c, 405, "请使用 POST 方法登录")
-			})
-			v1.GET("/register", func(c *gin.Context) {
-				utils.Fail(c, 405, "请使用 POST 方法注册")
-			})
+			// 提示使用正确的请求方法，多余请求直接404，不要回退
+			// v1.GET("/login", func(c *gin.Context) {
+			// 	utils.Fail(c, 405, "请使用 POST 方法登录")
+			// })
+			// v1.GET("/register", func(c *gin.Context) {
+			// 	utils.Fail(c, 405, "请使用 POST 方法注册")
+			// })
 		}
 	}
 }

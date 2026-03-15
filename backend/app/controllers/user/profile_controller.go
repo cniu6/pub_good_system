@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
+	"fst/backend/internal/config"
 	"fst/backend/internal/middleware"
 	"fst/backend/utils"
 	"math/big"
@@ -84,11 +85,14 @@ func (ctrl *ProfileController) GetProfile(c *gin.Context) {
 
 	utils.Success(c, gin.H{
 		"id":            user.ID,
+		"groupId":       user.GroupId,
 		"username":      user.Username,
+		"userName":      user.Username,
 		"email":         user.Email,
 		"nickname":      user.Nickname,
 		"avatar":        user.Avatar,
 		"back_ground":   user.BackGround,
+		"backGround":    user.BackGround,
 		"gender":        user.Gender,
 		"birthday":      user.Birthday,
 		"motto":         user.Motto,
@@ -100,6 +104,7 @@ func (ctrl *ProfileController) GetProfile(c *gin.Context) {
 		"status":        user.Status,
 		"language":      user.Language,
 		"country":       user.Country,
+		"loginFailure":  user.LoginFailure,
 		"joinTime":      user.JoinTime,
 		"joinIp":        user.JoinIp,
 		"lastLoginTime": user.LastLoginTime,
@@ -157,6 +162,34 @@ func (ctrl *ProfileController) UpdateProfile(c *gin.Context) {
 	req.BackGround = utils.Clean_XSS(req.BackGround)
 	req.Language = utils.Clean_XSS(req.Language)
 	req.Country = utils.Clean_XSS(req.Country)
+
+	// URL 字段校验：仅允许 http/https 协议
+	if req.Avatar != "" && !utils.ValidateURL(req.Avatar) {
+		utils.Fail(c, 400, "头像 URL 仅支持 http/https 协议")
+		return
+	}
+	if req.BackGround != "" && !utils.ValidateURL(req.BackGround) {
+		utils.Fail(c, 400, "背景图 URL 仅支持 http/https 协议")
+		return
+	}
+
+	// 长度限制
+	if len(req.Nickname) > 50 {
+		utils.Fail(c, 400, "昵称长度不能超过50个字符")
+		return
+	}
+	if len(req.Avatar) > 500 {
+		utils.Fail(c, 400, "头像URL长度不能超过500个字符")
+		return
+	}
+	if len(req.BackGround) > 500 {
+		utils.Fail(c, 400, "背景图URL长度不能超过500个字符")
+		return
+	}
+	if len(req.Motto) > 200 {
+		utils.Fail(c, 400, "个性签名长度不能超过200个字符")
+		return
+	}
 
 	// 构建更新请求
 	update_req := &services.UserUpdateRequest{
@@ -391,6 +424,16 @@ func (ctrl *ProfileController) UpdateAvatar(c *gin.Context) {
 
 	// 过滤用户输入
 	req.Avatar = utils.Clean_XSS(req.Avatar)
+
+	// URL 校验
+	if !utils.ValidateURL(req.Avatar) {
+		utils.Fail(c, 400, "头像 URL 仅支持 http/https 协议")
+		return
+	}
+	if len(req.Avatar) > 500 {
+		utils.Fail(c, 400, "头像URL长度不能超过500个字符")
+		return
+	}
 
 	update_req := &services.UserUpdateRequest{
 		ID:     user_id.(uint64),
@@ -670,12 +713,22 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 	}
 
 	// 通过 SMS 服务发送验证码
-	if services.GlobalSMSService != nil {
-		if err := services.GlobalSMSService.SendCode(req.NewMobile, code, 10); err != nil {
-			fmt.Printf("[SMS] Failed to send code to %s: %v\n", req.NewMobile, err)
-		}
-	} else {
-		fmt.Printf("[DEV] Phone change code for %s: %s\n", req.NewMobile, code)
+	if services.GlobalSMSService == nil {
+		_ = models.DeleteVerificationCodesByEmail(req.NewMobile, "change_phone")
+		utils.Fail(c, 500, "SMS service unavailable")
+		return
+	}
+	providerName := services.GlobalSMSService.GetProviderName()
+	if providerName == "none" || (providerName != "console" && !services.GlobalSMSService.IsConfigured()) || (providerName == "console" && config.IsProductionMode()) {
+		_ = models.DeleteVerificationCodesByEmail(req.NewMobile, "change_phone")
+		utils.Fail(c, 500, "SMS service not configured")
+		return
+	}
+	if err := services.GlobalSMSService.SendCode(req.NewMobile, code, 10); err != nil {
+		fmt.Printf("[SMS] Failed to send code to %s via %s: %v\n", req.NewMobile, providerName, err)
+		_ = models.DeleteVerificationCodesByEmail(req.NewMobile, "change_phone")
+		utils.Fail(c, 500, "Failed to send verification code")
+		return
 	}
 
 	utils.Success(c, gin.H{"message": "Verification code sent"})
@@ -742,6 +795,19 @@ func (ctrl *ProfileController) VerifyPhoneChange(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/user/deactivate [post]
 func (ctrl *ProfileController) DeactivateAccount(c *gin.Context) {
+	// 检查系统设置是否允许注销账号
+	allowDeleteAccount := false
+	if services.GlobalSettingsService != nil {
+		allowDeleteAccount = services.GlobalSettingsService.GetBool("allow_delete_account")
+	} else {
+		settingsMap, err := models.GetSettingsMap([]string{"allow_delete_account"})
+		allowDeleteAccount = err == nil && (settingsMap["allow_delete_account"] == "true" || settingsMap["allow_delete_account"] == "1")
+	}
+	if !allowDeleteAccount {
+		utils.Fail(c, 403, "Account deletion is currently disabled")
+		return
+	}
+
 	// 极验验证
 	if !validateGeetestFromRequest(c) {
 		utils.Fail(c, 403, "Captcha validation failed")
@@ -803,7 +869,13 @@ func (ctrl *ProfileController) GetSessions(c *gin.Context) {
 		return
 	}
 
-	sessions, err := models.GetUserSessions(user_id.(uint64))
+	// 根据当前 token 的 authGuard 查询对应会话
+	guard, _ := c.Get("authGuard")
+	guardStr, _ := guard.(string)
+	if guardStr == "" {
+		guardStr = "user"
+	}
+	sessions, err := models.GetUserSessionsWithGuard(user_id.(uint64), guardStr)
 	if err != nil {
 		utils.Fail(c, 500, "Failed to load sessions")
 		return
@@ -835,7 +907,13 @@ func (ctrl *ProfileController) RevokeSession(c *gin.Context) {
 		return
 	}
 
-	if err := models.RevokeUserSession(user_id.(uint64), session_id); err != nil {
+	// 根据当前 token 的 authGuard 撤销对应会话
+	guard, _ := c.Get("authGuard")
+	guardStr, _ := guard.(string)
+	if guardStr == "" {
+		guardStr = "user"
+	}
+	if err := models.RevokeUserSessionWithGuard(user_id.(uint64), guardStr, session_id); err != nil {
 		utils.Fail(c, 500, "Failed to revoke session")
 		return
 	}
@@ -867,7 +945,13 @@ func (ctrl *ProfileController) RevokeAllSessions(c *gin.Context) {
 	// 对 token 进行 SHA256 哈希，与存储时一致
 	h := sha256.Sum256([]byte(current_token))
 	currentTokenHash := hex.EncodeToString(h[:])
-	if err := models.RevokeAllUserSessions(user_id.(uint64), currentTokenHash); err != nil {
+	// 根据当前 token 的 authGuard 撤销对应会话
+	guard, _ := c.Get("authGuard")
+	guardStr, _ := guard.(string)
+	if guardStr == "" {
+		guardStr = "user"
+	}
+	if err := models.RevokeAllUserSessionsWithGuard(user_id.(uint64), guardStr, currentTokenHash); err != nil {
 		utils.Fail(c, 500, "Failed to revoke sessions")
 		return
 	}

@@ -22,8 +22,12 @@ const (
 	OpChangeOnly BalanceOpType = iota + 1
 	// OpLogOnly 只添加余额变动记录（不修改余额）
 	OpLogOnly
+	// OpOrderOnly 只更新订单状态（不修改余额，不写余额日志）
+	OpOrderOnly
 	// OpChangeAndLog 修改余额 + 添加余额变动记录
 	OpChangeAndLog
+	// OpChangeAndOrder 修改余额 + 更新订单状态（不写余额日志）
+	OpChangeAndOrder
 	// OpOrderAndLog 更新订单状态 + 添加余额变动记录（不修改余额）
 	OpOrderAndLog
 	// OpFull 修改余额 + 更新订单状态 + 添加余额变动记录
@@ -105,7 +109,9 @@ func ParseMemo(memo string, lang string) string {
 // 操作模式:
 //   - OpChangeOnly:  只修改余额
 //   - OpLogOnly:     只添加余额变动记录
+//   - OpOrderOnly:   只更新订单状态
 //   - OpChangeAndLog: 修改余额 + 添加变动记录
+//   - OpChangeAndOrder: 修改余额 + 更新订单状态（不写日志）
 //   - OpOrderAndLog:  更新订单状态 + 添加变动记录（不修改余额）
 //   - OpFull:         修改余额 + 更新订单状态 + 添加变动记录
 func ExecuteBalanceOp(req *BalanceReq, opType BalanceOpType) (*BalanceResult, error) {
@@ -142,8 +148,9 @@ func ExecuteBalanceOpTx(tx *sql.Tx, req *BalanceReq, opType BalanceOpType) (*Bal
 	result := &BalanceResult{}
 
 	needBalance := opType == OpChangeOnly || opType == OpChangeAndLog || opType == OpFull
+	needBalance = needBalance || opType == OpChangeAndOrder
 	needLog := opType == OpLogOnly || opType == OpChangeAndLog || opType == OpOrderAndLog || opType == OpFull
-	needOrder := opType == OpOrderAndLog || opType == OpFull
+	needOrder := opType == OpOrderOnly || opType == OpChangeAndOrder || opType == OpOrderAndLog || opType == OpFull
 
 	// ---- 1. 锁定用户余额行 ----
 	if needBalance || needLog {

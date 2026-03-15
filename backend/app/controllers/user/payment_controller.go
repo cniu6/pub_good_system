@@ -60,7 +60,11 @@ func (ctrl *PaymentController) CreateOrder(c *gin.Context) {
 	req.Subject = utils.Clean_XSS(req.Subject)
 
 	// 从系统设置读取后端API地址（用于异步回调和同步跳转）
-	urlSettings, _ := models.GetSettingsMap([]string{"frontend_url", "backend_api_url"})
+	urlSettings, err := models.GetSettingsMap([]string{"frontend_url", "backend_api_url"})
+	if err != nil {
+		utils.Fail(c, 500, "读取系统配置失败")
+		return
+	}
 	frontendURL := strings.TrimRight(urlSettings["frontend_url"], "/")
 	backendAPIURL := strings.TrimRight(urlSettings["backend_api_url"], "/")
 	if frontendURL == "" {

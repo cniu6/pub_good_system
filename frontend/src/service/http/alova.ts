@@ -1,4 +1,4 @@
-import { local } from '@/utils'
+import { authStorage } from '@/utils'
 import { geetestManager } from '@/utils/geetest'
 import { createAlova } from 'alova'
 import { createServerTokenAuthentication } from 'alova/client'
@@ -47,7 +47,7 @@ const { onAuthRequired, onResponseRefreshToken } = createServerTokenAuthenticati
   },
   // 添加token到请求头
   assignToken: (method) => {
-    method.config.headers.Authorization = `Bearer ${local.get('accessToken')}`
+    method.config.headers.Authorization = `Bearer ${authStorage.get('accessToken')}`
   },
 })
 

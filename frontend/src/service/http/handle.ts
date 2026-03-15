@@ -1,6 +1,7 @@
 import { fetchUpdateToken } from '../api/user/login'
 import { useAuthStore } from '@/store'
-import { local } from '@/utils'
+import { getRuntimeRouteMode } from '@/router/runtime-mode'
+import { authStorage } from '@/utils'
 import {
   ERROR_NO_TIP_STATUS,
   ERROR_STATUS,
@@ -80,10 +81,16 @@ export async function handleRefreshToken() {
   }
 
   // 刷新token
-  const { data } = await fetchUpdateToken({ refreshToken: local.get('refreshToken') })
+  const mode = getRuntimeRouteMode()
+  const authGuard = mode === 'admin' ? 'admin' : 'user'
+  const { data } = await fetchUpdateToken({ refreshToken: authStorage.get('refreshToken'), authGuard })
   if (data) {
-    local.set('accessToken', data.accessToken)
-    local.set('refreshToken', data.refreshToken)
+    const expiresAt = (data as Api.Login.Info & { expiresAt?: number }).expiresAt
+    authStorage.setActive('accessToken', data.accessToken)
+    authStorage.setActive('refreshToken', data.refreshToken)
+    if (expiresAt) {
+      authStorage.setActive('accessTokenExpiresAt', expiresAt)
+    }
   }
   else {
     // 刷新失败，退出

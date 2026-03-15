@@ -45,9 +45,10 @@ type RegisterRequest struct {
 }
 
 type LoginRequest struct {
-	UserName string `json:"userName"`
-	Username string `json:"username"`
-	Password string `json:"password" binding:"required"`
+	UserName  string `json:"userName"`
+	Username  string `json:"username"`
+	Password  string `json:"password" binding:"required"`
+	AuthGuard string `json:"authGuard"`
 }
 
 type SendCodeRequest struct {
@@ -68,6 +69,7 @@ type ResetPasswordConfirmRequest struct {
 
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refreshToken" binding:"required"`
+	AuthGuard    string `json:"authGuard"`
 }
 
 // ========================================
@@ -139,6 +141,7 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	// 过滤用户输入
 	req.UserName = utils.Clean_XSS(req.UserName)
 	req.Username = utils.Clean_XSS(req.Username)
+	req.AuthGuard = utils.Clean_XSS(req.AuthGuard)
 
 	username := req.UserName
 	if username == "" {
@@ -180,7 +183,11 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	}
 
 	// 调用服务层登录
-	result, err := ctrl.auth_svc.Login(username, req.Password, clientIP)
+	authGuard := req.AuthGuard
+	if authGuard == "" {
+		authGuard = utils.UserAuthGuard
+	}
+	result, err := ctrl.auth_svc.Login(username, req.Password, authGuard, clientIP)
 	if err != nil {
 		if isNonProductionMode() {
 			fmt.Printf("[LOGIN-DEBUG] %v\n", err)
@@ -194,7 +201,7 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	device := parseDevice(userAgent)
 	accessTokenHash := hashToken(result.AccessToken)
 	refreshTokenHash := hashToken(result.RefreshToken)
-	if err := models.CreateUserSession(result.ID, accessTokenHash, refreshTokenHash, clientIP, userAgent, device, result.ExpiresAt, result.RefreshExpiresAt); err != nil {
+	if err := models.CreateUserSession(result.ID, authGuard, accessTokenHash, refreshTokenHash, clientIP, userAgent, device, result.ExpiresAt, result.RefreshExpiresAt); err != nil {
 		if isNonProductionMode() {
 			fmt.Printf("[LOGIN-DEBUG] create session failed: %v\n", err)
 		}
@@ -390,8 +397,8 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 
 	// 发送验证码邮件
 	vars := map[string]string{
-		"code":            code,
-		"expire_minutes":  fmt.Sprintf("%d", expireMinutes),
+		"code":           code,
+		"expire_minutes": fmt.Sprintf("%d", expireMinutes),
 	}
 
 	if err := ctrl.email_svc.SendTemplateEmail(req.Email, "register_code", lang, vars); err != nil {
@@ -550,6 +557,7 @@ func (ctrl *AuthController) UpdateToken(c *gin.Context) {
 		utils.Fail(c, 400, err.Error())
 		return
 	}
+	req.AuthGuard = utils.Clean_XSS(req.AuthGuard)
 
 	clientIP := c.ClientIP()
 	if clientIP == "" {
@@ -565,7 +573,11 @@ func (ctrl *AuthController) UpdateToken(c *gin.Context) {
 	userAgent := c.GetHeader("User-Agent")
 	device := parseDevice(userAgent)
 
-	result, err := ctrl.auth_svc.RefreshToken(req.RefreshToken, clientIP, userAgent, device)
+	authGuard := req.AuthGuard
+	if authGuard == "" {
+		authGuard = utils.UserAuthGuard
+	}
+	result, err := ctrl.auth_svc.RefreshToken(req.RefreshToken, authGuard, clientIP, userAgent, device)
 	if err != nil {
 		utils.Fail(c, err.Code, err.Message)
 		return

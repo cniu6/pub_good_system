@@ -3,6 +3,7 @@ import { request } from '../../http'
 interface Ilogin {
   userName: string
   password: string
+  authGuard?: 'user' | 'admin'
 }
 
 /** 用户登录 */
@@ -15,7 +16,7 @@ export function fetchLogin(data: Ilogin) {
 }
 
 /** 刷新Token */
-export function fetchUpdateToken(data: any) {
+export function fetchUpdateToken(data: { refreshToken: string | null, authGuard?: 'user' | 'admin' }) {
   const method = request.Post<Service.ResponseResult<Api.Login.Info>>('/api/v1/public/refresh-token', data)
   method.meta = {
     authRole: 'refreshToken',

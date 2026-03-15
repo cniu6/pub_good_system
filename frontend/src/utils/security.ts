@@ -5,6 +5,8 @@
  * 注意：前端防护只能增加破解难度，真正的安全必须依靠后端验证！
  */
 
+import { authStorage } from './storage'
+
 interface SecurityConfig {
   /** 是否启用安全检测 */
   enabled: boolean
@@ -145,8 +147,7 @@ function handleTampering(config: SecurityConfig): void {
   switch (config.onTampering) {
     case 'redirect':
       // 清除本地存储的安全信息
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('refreshToken')
+      authStorage.clearActive()
       // 重定向到错误页面
       window.location.href = config.redirectTarget
       break
@@ -295,7 +296,7 @@ export async function verifyUserRole(): Promise<string | null> {
   try {
     // 这里应该调用后端 API 验证用户角色
     // 防止前端 token 被篡改后伪装成管理员
-    const token = localStorage.getItem('accessToken')
+    const token = authStorage.get('accessToken')
     if (!token)
       return null
 
@@ -306,7 +307,10 @@ export async function verifyUserRole(): Promise<string | null> {
     // return response.json().role
 
     // 简单实现：从 localStorage 读取（不够安全，仅作演示）
-    return localStorage.getItem('role')
+    const role = authStorage.get('role')
+    if (Array.isArray(role))
+      return role[0] || null
+    return role || null
   }
   catch {
     return null

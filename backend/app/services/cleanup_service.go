@@ -52,6 +52,9 @@ func runCleanup() {
 	if err := models.CleanupOldVerificationCodes(); err != nil {
 		log.Printf("[Cleanup] Failed to cleanup old codes: %v", err)
 	}
+	if err := models.CleanupExpiredSessions(); err != nil {
+		log.Printf("[Cleanup] Failed to cleanup user sessions: %v", err)
+	}
 
 	cleanupStatus.mu.Lock()
 	cleanupStatus.lastCleanupTime = time.Now()

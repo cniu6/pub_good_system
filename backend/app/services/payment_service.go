@@ -36,7 +36,10 @@ type CreatePaymentOrderResponse struct {
 // CreatePaymentOrder 创建支付订单并生成支付链接（多通道版本）
 func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL, returnURL string) (*CreatePaymentOrderResponse, error) {
 	// 1. 检查全局支付开关
-	settingsMap, _ := models.GetSettingsMap([]string{"payment_enabled"})
+	settingsMap, err := models.GetSettingsMap([]string{"payment_enabled"})
+	if err != nil {
+		return nil, errors.New("读取支付配置失败，请稍后重试")
+	}
 	paymentEnabled := settingsMap["payment_enabled"] == "true" || settingsMap["payment_enabled"] == "1"
 	if !paymentEnabled {
 		return nil, errors.New("支付功能未启用")
@@ -73,12 +76,15 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 
 	// 5. 检查用户是否有过多未支付订单（防刷）
 	pendingOrders, _, err := models.GetPaymentOrderList(userID, 1, 100, models.PaymentStatusPending, "")
-	if err == nil && len(pendingOrders) >= 10 {
+	if err != nil {
+		return nil, errors.New("检查待支付订单失败，请稍后重试")
+	}
+	if len(pendingOrders) >= 10 {
 		return nil, errors.New("您有过多未支付订单，请先支付或等待过期后重试")
 	}
 
 	// 6. 计算手续费
-	fee, payAmount, _ := CalculateFee(req.Amount, gateway.FeeRate, gateway.FeeMode)
+	fee, payAmount, creditAmount := CalculateFee(req.Amount, gateway.FeeRate, gateway.FeeMode)
 
 	// 7. 获取订单过期时间
 	expireMinutes := getOrderExpireMinutes()
@@ -97,7 +103,7 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 		GatewayID:      gateway.ID,
 		PaymentChannel: gateway.Type,
 		PaymentType:    gateway.PayType,
-		Amount:         req.Amount,
+		Amount:         creditAmount,
 		Fee:            fee,
 		PayAmount:      payAmount,
 		Subject:        subject,
@@ -121,6 +127,12 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 			PID:          gateway.PID,
 			Key:          gateway.Key,
 			PaymentTypes: []string{gateway.PayType},
+		}
+
+		// 防御性校验：确保支付方式在通道允许范围内
+		if !ValidatePaymentType(epayConfig, order.PaymentType) {
+			models.UpdatePaymentOrderStatus(order.OrderNo, models.PaymentStatusFailed, "")
+			return nil, errors.New("支付方式不受该通道支持")
 		}
 
 		// 使用回调地址：优先通道自定义，否则用全局
@@ -153,7 +165,7 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 	db.DB.Exec("UPDATE payment_orders SET pay_url = ? WHERE id = ?", payURL, order.ID)
 
 	log.Printf("[Payment] 订单创建成功: order_no=%s, user_id=%d, amount=%.2f, fee=%.2f, pay_amount=%.2f, gateway=%s",
-		order.OrderNo, userID, req.Amount, fee, payAmount, gateway.Name)
+		order.OrderNo, userID, order.Amount, fee, payAmount, gateway.Name)
 
 	tradeNo := models.NormalizeTradeNo(order.TradeNo)
 
@@ -229,9 +241,14 @@ func HandlePaymentNotify(params map[string]string) (bool, error) {
 	}
 
 	// 8. 幂等检查
-	if order.Status != models.PaymentStatusPending {
-		log.Printf("[Payment] 订单已处理（幂等跳过）: order_no=%s, status=%d", outTradeNo, order.Status)
+	if order.Status == models.PaymentStatusPaid {
+		log.Printf("[Payment] 订单已支付（幂等跳过）: order_no=%s", outTradeNo)
 		return true, nil
+	}
+	if order.Status != models.PaymentStatusPending {
+		log.Printf("[Payment] 订单状态不允许处理回调: order_no=%s, status=%d", outTradeNo, order.Status)
+		models.IncrementNotifyCount(outTradeNo)
+		return false, errors.New("订单状态不允许处理回调")
 	}
 	if err := validatePaymentNotifyBinding(order, nil, "", callbackType, tradeNo); err != nil {
 		log.Printf("[Payment] 回调绑定校验失败: order_no=%s, err=%v", outTradeNo, err)

@@ -1,14 +1,13 @@
-import { h } from 'vue'
 import { defineStore } from 'pinia'
 import type { MenuOption } from 'naive-ui'
-import { RouterLink, type RouteRecordRaw } from 'vue-router'
+import { type RouteRecordRaw } from 'vue-router'
 import type { AppRouteMode } from '@/router'
 import { router } from '@/router'
 import { getAdminBasePath } from '@/router/constants'
 import { staticRoutes } from '@/router/routes.static'
 import { fetchUserRoutes } from '@/service'
-import { local, $t, renderIcon } from '@/utils'
-import { createMenus, createRoutes, generateCacheRoutes } from './helper'
+import { authStorage, $t } from '@/utils'
+import { createAdminMenus, createMenus, createRoutes, generateCacheRoutes } from './helper'
 
 interface RoutesStatus {
   isInitAuthRoute: boolean
@@ -107,7 +106,7 @@ export const useRouteStore = defineStore('route-store', {
           this.cacheRoutes = []
         }
 
-        const roleValue = local.get('role')
+        const roleValue = authStorage.get('role')
         const roles = Array.isArray(roleValue) ? roleValue : (roleValue ? [roleValue] : [])
 
         if (mode === 'admin' && roles.includes('admin')) {
@@ -121,35 +120,8 @@ export const useRouteStore = defineStore('route-store', {
             for (const route of adminRoutes) {
               router.addRoute(route as RouteRecordRaw)
             }
-            this.adminMenus = adminRoutes.flatMap((route) => {
-              const parent = route as {
-                path?: string
-                children?: Array<{
-                  path?: string
-                  name?: string | symbol | null
-                  meta?: {
-                    hide?: boolean
-                    title?: string
-                    icon?: string
-                  }
-                }>
-              }
-              if (!parent.children || !parent.path) {
-                return []
-              }
-              return parent.children
-                .filter(child => !child.meta?.hide && !!child.path)
-                .map((child) => {
-                  const fullPath = parent.path!.endsWith('/')
-                    ? `${parent.path}${child.path}`
-                    : `${parent.path}/${child.path}`
-                  return {
-                    label: () => h(RouterLink, { to: { path: fullPath } }, { default: () => child.meta?.title || String(child.name || child.path) }),
-                    key: fullPath,
-                    icon: child.meta?.icon ? renderIcon(child.meta.icon) : undefined,
-                  } satisfies MenuOption
-                })
-            })
+            // 使用 helper 生成支持嵌套层级的管理端菜单
+            this.adminMenus = createAdminMenus(adminRoutes as any[])
           }
           catch (error) {
             console.error('[Security] Failed to load admin routes:', error)
