@@ -2,6 +2,18 @@
 
 namespace Api {
   namespace Login {
+    interface RealnameSummary {
+      hasVerification: boolean
+      id?: number
+      status?: 0 | 1 | 2
+      realName?: string
+      certificateType?: 1 | 2 | 3
+      certificateNo?: string
+      submittedAt?: number | null
+      reviewedAt?: number | null
+      rejectReason?: string
+    }
+
     /* 登录返回的用户字段, 该数据是根据用户表扩展而来, 部分字段可能需要覆盖，例如id */
     interface Info extends Entity.User {
       /** 用户id */
@@ -12,6 +24,8 @@ namespace Api {
       accessToken: string
       /** 访问token */
       refreshToken: string
+      /** 实名认证摘要 */
+      realname?: RealnameSummary
     }
   }
 }

@@ -123,31 +123,50 @@
                     />
                   </n-form-item>
                   <n-form-item label="AccessKey">
-                    <n-input v-model:value="smsForm.sms_access_key" placeholder="短信服务商 AccessKey" />
+                    <n-input
+                      v-model:value="smsForm.sms_access_key"
+                      :placeholder="smsAccessKeyPlaceholder"
+                    />
                   </n-form-item>
                   <n-form-item label="SecretKey">
                     <n-input
                       v-model:value="smsForm.sms_secret_key"
                       type="password"
                       show-password-on="click"
-                      placeholder="短信服务商 SecretKey"
+                      :placeholder="smsSecretKeyPlaceholder"
                     />
                   </n-form-item>
-                  <n-form-item label="短信签名">
+                  <n-form-item v-if="smsProviderNeedsSignName" label="短信签名">
                     <n-input v-model:value="smsForm.sms_sign_name" placeholder="如: F.st" />
                   </n-form-item>
-                  <n-form-item label="验证码模板ID">
-                    <n-input v-model:value="smsForm.sms_template_code" placeholder="短信验证码模板ID" />
+                  <n-form-item v-if="smsProviderNeedsTemplateCode" :label="smsTemplateLabel">
+                    <n-input v-model:value="smsForm.sms_template_code" :placeholder="smsTemplatePlaceholder" />
                   </n-form-item>
-                  <n-form-item label="服务区域">
+                  <n-form-item v-if="smsProviderNeedsTemplateCode" :label="smsTemplateEnLabel">
+                    <n-input v-model:value="smsForm.sms_template_code_en" :placeholder="smsTemplateEnPlaceholder" />
+                  </n-form-item>
+                  <n-form-item v-if="smsProviderNeedsRegion" label="服务区域">
                     <n-input v-model:value="smsForm.sms_region" placeholder="部分服务商需要，如: cn-hangzhou" />
+                  </n-form-item>
+                  <n-form-item v-if="smsForm.sms_provider === 'tencent'" label="腾讯云 AppID">
+                    <n-input v-model:value="smsForm.sms_sdk_app_id" placeholder="请输入 SmsSdkAppId" />
+                  </n-form-item>
+                  <n-form-item v-if="smsForm.sms_provider === 'custom'" label="HTTP Endpoint">
+                    <n-input v-model:value="smsForm.sms_endpoint" placeholder="如: https://your-gateway.com/api/send" />
+                  </n-form-item>
+                  <n-form-item v-if="smsForm.sms_provider === 'custom'" label="请求体格式">
+                    <n-select
+                      v-model:value="smsForm.sms_body_format"
+                      :options="smsBodyFormatOptions"
+                      placeholder="选择请求体格式"
+                    />
                   </n-form-item>
                   <n-form-item>
                     <n-button type="primary" :loading="savingSms" @click="handleSaveSms">保存设置</n-button>
                   </n-form-item>
                 </n-form>
                 <n-alert type="info" title="提示" :bordered="false">
-                  当前仅 <n-text strong>console</n-text> 模式可用（验证码打印到后端控制台日志）。阿里云、腾讯云等服务商接入后即可切换。
+                  支持阿里云、腾讯云和自定义 HTTP 网关。<n-text strong>console</n-text> 模式下验证码仅打印到后端控制台日志；自定义网关可显式选择 `json` 或 `form` 请求格式。阿里云 / 腾讯云可同时配置默认模板和英文模板，英文模板留空时自动回退默认模板。
                 </n-alert>
               </n-space>
             </n-tab-pane>
@@ -199,6 +218,35 @@
                   <n-form-item label="账户锁定时长 (分钟)">
                     <n-input-number v-model:value="securityForm.login_lock_duration" :min="1" :max="1440" style="width: 100%;" />
                   </n-form-item>
+                  <n-divider />
+                  <n-form-item label="实名认证功能">
+                    <n-space align="center">
+                      <n-switch
+                        :value="securityForm.realname_enabled"
+                        :loading="switchLoading.realname_enabled"
+                        @update:value="handleUpdateRealnameEnabled"
+                      />
+                      <n-text depth="3">{{ securityForm.realname_enabled ? '已启用实名认证入口' : '已禁用实名认证入口' }}</n-text>
+                    </n-space>
+                  </n-form-item>
+                  <n-form-item label="实名认证审核">
+                    <n-space align="center">
+                      <n-switch
+                        :value="securityForm.realname_review_required"
+                        :loading="switchLoading.realname_review_required"
+                        @update:value="handleUpdateRealnameReviewRequired"
+                      />
+                      <n-text depth="3">{{ securityForm.realname_review_required ? '需要管理员审核' : '提交后直接视为通过' }}</n-text>
+                    </n-space>
+                  </n-form-item>
+                  <n-form-item label="实名认证提示语">
+                    <n-input
+                      v-model:value="securityForm.realname_notify_text"
+                      type="textarea"
+                      placeholder="显示在用户实名认证页面的提示文案"
+                      :rows="3"
+                    />
+                  </n-form-item>
                   <n-form-item>
                     <n-space>
                       <n-button type="primary" :loading="savingSecurity" @click="handleSaveSecurity">保存设置</n-button>
@@ -225,6 +273,36 @@
                   <n-divider />
                   <n-form-item label="订单有效期（分钟）">
                     <n-input-number v-model:value="paymentForm.payment_order_expire_minutes" :min="1" :max="1440" style="width: 100%;" />
+                  </n-form-item>
+                  <n-divider />
+                  <n-form-item label="提现功能">
+                    <n-space align="center">
+                      <n-switch
+                        :value="paymentForm.withdraw_enabled"
+                        :loading="switchLoading.withdraw_enabled"
+                        @update:value="handleUpdateWithdrawEnabled"
+                      />
+                      <n-text depth="3">{{ paymentForm.withdraw_enabled ? '已启用用户提现入口' : '已关闭用户提现入口' }}</n-text>
+                    </n-space>
+                  </n-form-item>
+                  <n-form-item label="最低提现金额">
+                    <n-input-number v-model:value="paymentForm.withdraw_min_amount" :min="0.01" :precision="2" :step="1" style="width: 100%;" />
+                  </n-form-item>
+                  <n-form-item label="提现提示语">
+                    <n-input
+                      v-model:value="paymentForm.withdraw_notify_text"
+                      type="textarea"
+                      placeholder="显示在用户提现页面的说明文案"
+                      :rows="3"
+                    />
+                  </n-form-item>
+                  <n-form-item label="支持收款方式">
+                    <n-input
+                      v-model:value="paymentForm.withdraw_account_types_text"
+                      type="textarea"
+                      placeholder='请输入 JSON 数组，如 ["bank","alipay","wechat","usdt"]'
+                      :rows="3"
+                    />
                   </n-form-item>
                   <n-form-item>
                     <n-button type="primary" :loading="savingPayment" @click="handleSavePayment">保存设置</n-button>
@@ -260,6 +338,10 @@
 
         <n-tab-pane name="email-templates" tab="邮件模板">
           <EmailTemplates />
+        </n-tab-pane>
+
+        <n-tab-pane name="sms-logs" tab="短信日志">
+          <SMSLogs />
         </n-tab-pane>
 
         <n-tab-pane name="operation-logs" tab="操作日志">
@@ -686,6 +768,7 @@ import {
 import { adminApi } from '@/service/api/admin'
 import { adminDebugApi } from '@/service/api/admin/debug'
 import EmailTemplates from '@/views/admin/email-templates/index.vue'
+import SMSLogs from '@/views/admin/sms-logs/index.vue'
 import OperationLogs from '@/views/admin/logs/index.vue'
 import type { ServerMonitoringStatusResponse, SettingDTO, SettingType } from '@/service/api/admin/settings'
 import { useSettingsStore } from '@/store/settings'
@@ -760,9 +843,12 @@ const switchLoading = reactive({
   allow_delete_account: false,
   smtp_ssl: false,
   geetest_enabled: false,
+  realname_enabled: false,
+  realname_review_required: false,
   email_verify_enabled: false,
   sms_verify_enabled: false,
   payment_enabled: false,
+  withdraw_enabled: false,
 })
 
 const langOptions = [
@@ -774,6 +860,12 @@ const smsProviderOptions = [
   { label: '控制台日志 (开发)', value: 'console' },
   { label: '阿里云短信', value: 'aliyun' },
   { label: '腾讯云短信', value: 'tencent' },
+  { label: '自定义 HTTP', value: 'custom' },
+]
+
+const smsBodyFormatOptions = [
+  { label: 'JSON', value: 'json' },
+  { label: 'Form', value: 'form' },
 ]
 
 const typeOptions = [
@@ -814,10 +906,32 @@ const smsForm = reactive({
   sms_secret_key: '',
   sms_sign_name: '',
   sms_template_code: '',
+  sms_template_code_en: '',
   sms_region: '',
+  sms_sdk_app_id: '',
+  sms_endpoint: '',
+  sms_body_format: 'json',
 })
 
 const savingSms = ref(false)
+
+const smsProviderNeedsSignName = computed(() => smsForm.sms_provider !== 'console')
+const smsProviderNeedsTemplateCode = computed(() => ['aliyun', 'tencent'].includes(smsForm.sms_provider))
+const smsProviderNeedsRegion = computed(() => ['aliyun', 'tencent'].includes(smsForm.sms_provider))
+const smsAccessKeyPlaceholder = computed(() => {
+  if (smsForm.sms_provider === 'tencent') return '腾讯云 SecretId'
+  if (smsForm.sms_provider === 'custom') return '自定义网关 API Key（可选）'
+  return '短信服务商 AccessKey'
+})
+const smsSecretKeyPlaceholder = computed(() => {
+  if (smsForm.sms_provider === 'tencent') return '腾讯云 SecretKey'
+  if (smsForm.sms_provider === 'custom') return '自定义网关 API Secret（可选）'
+  return '短信服务商 SecretKey'
+})
+const smsTemplateLabel = computed(() => smsForm.sms_provider === 'aliyun' ? '验证码模板Code' : '验证码模板ID')
+const smsTemplatePlaceholder = computed(() => smsForm.sms_provider === 'aliyun' ? '如: SMS_123456789' : '请输入短信验证码模板ID')
+const smsTemplateEnLabel = computed(() => smsForm.sms_provider === 'aliyun' ? '英文模板Code' : '英文模板ID')
+const smsTemplateEnPlaceholder = computed(() => smsForm.sms_provider === 'aliyun' ? '可选，如: SMS_987654321' : '可选，不填则回退默认模板')
 
 const securityForm = reactive({
   geetest_enabled: false,
@@ -828,11 +942,18 @@ const securityForm = reactive({
   login_max_failure: 5,
   login_lock_duration: 10,
   allow_delete_account: false,
+  realname_enabled: true,
+  realname_review_required: true,
+  realname_notify_text: '完成实名认证后可享受更多服务',
 })
 
 const paymentForm = reactive({
   payment_enabled: false,
   payment_order_expire_minutes: 30,
+  withdraw_enabled: true,
+  withdraw_min_amount: 10,
+  withdraw_notify_text: '提现申请提交后需管理员审核，通过后人工打款。',
+  withdraw_account_types_text: '["bank","alipay","wechat","usdt"]',
 })
 
 const customSettings = ref<SettingDTO[]>([])
@@ -1105,37 +1226,53 @@ async function loadSettings() {
           if (item.key === 'icp') basicForm.icp = String(item.value || '')
           if (item.key === 'version') basicForm.version = String(item.value || '')
           if (item.key === 'default_lang') basicForm.default_lang = String(item.value || 'zhCN')
-          if (item.key === 'allow_register') basicForm.allow_register = Boolean(item.value)
-          if (item.key === 'allow_delete_account') securityForm.allow_delete_account = Boolean(item.value)
+          const parseBooleanSetting = (value: unknown) => {
+            const normalized = String(value ?? '').trim().toLowerCase()
+            return normalized === 'true' || normalized === '1'
+          }
+
+          if (item.key === 'allow_register') basicForm.allow_register = parseBooleanSetting(item.value)
+          if (item.key === 'allow_delete_account') securityForm.allow_delete_account = parseBooleanSetting(item.value)
           if (item.key === 'frontend_url') basicForm.frontend_url = String(item.value || '')
           if (item.key === 'backend_api_url') basicForm.backend_api_url = String(item.value || '')
 
-          if (item.key === 'email_verify_enabled') emailForm.email_verify_enabled = Boolean(item.value)
+          if (item.key === 'email_verify_enabled') emailForm.email_verify_enabled = parseBooleanSetting(item.value)
           if (item.key === 'smtp_host') emailForm.smtp_host = String(item.value || '')
           if (item.key === 'smtp_port') emailForm.smtp_port = Number(item.value) || 587
           if (item.key === 'smtp_username') emailForm.smtp_username = String(item.value || '')
           if (item.key === 'smtp_password') emailForm.smtp_password = String(item.value || '')
-          if (item.key === 'smtp_ssl') emailForm.smtp_ssl = Boolean(item.value)
+          if (item.key === 'smtp_ssl') emailForm.smtp_ssl = parseBooleanSetting(item.value)
           if (item.key === 'system_email_name') emailForm.system_email_name = String(item.value || '')
 
-          if (item.key === 'sms_verify_enabled') smsForm.sms_verify_enabled = Boolean(item.value)
+          if (item.key === 'sms_verify_enabled') smsForm.sms_verify_enabled = parseBooleanSetting(item.value)
           if (item.key === 'sms_provider') smsForm.sms_provider = String(item.value || 'console')
           if (item.key === 'sms_access_key') smsForm.sms_access_key = String(item.value || '')
           if (item.key === 'sms_secret_key') smsForm.sms_secret_key = String(item.value || '')
           if (item.key === 'sms_sign_name') smsForm.sms_sign_name = String(item.value || '')
           if (item.key === 'sms_template_code') smsForm.sms_template_code = String(item.value || '')
+          if (item.key === 'sms_template_code_en') smsForm.sms_template_code_en = String(item.value || '')
           if (item.key === 'sms_region') smsForm.sms_region = String(item.value || '')
+          if (item.key === 'sms_sdk_app_id') smsForm.sms_sdk_app_id = String(item.value || '')
+          if (item.key === 'sms_endpoint') smsForm.sms_endpoint = String(item.value || '')
+          if (item.key === 'sms_body_format') smsForm.sms_body_format = String(item.value || 'json')
 
-          if (item.key === 'geetest_enabled') securityForm.geetest_enabled = Boolean(item.value)
+          if (item.key === 'geetest_enabled') securityForm.geetest_enabled = parseBooleanSetting(item.value)
           if (item.key === 'geetest_captcha_id') securityForm.geetest_captcha_id = String(item.value || '')
           if (item.key === 'geetest_captcha_key') securityForm.geetest_captcha_key = String(item.value || '')
           if (item.key === 'jwt_access_expire') securityForm.jwt_access_expire = Number(item.value) || 7200
           if (item.key === 'jwt_refresh_expire') securityForm.jwt_refresh_expire = Number(item.value) || 604800
           if (item.key === 'login_max_failure') securityForm.login_max_failure = Number(item.value) || 5
           if (item.key === 'login_lock_duration') securityForm.login_lock_duration = Number(item.value) || 10
+          if (item.key === 'realname_enabled') securityForm.realname_enabled = parseBooleanSetting(item.value)
+          if (item.key === 'realname_review_required') securityForm.realname_review_required = parseBooleanSetting(item.value)
+          if (item.key === 'realname_notify_text') securityForm.realname_notify_text = String(item.value || '完成实名认证后可享受更多服务')
 
-          if (item.key === 'payment_enabled') paymentForm.payment_enabled = Boolean(item.value)
+          if (item.key === 'payment_enabled') paymentForm.payment_enabled = parseBooleanSetting(item.value)
           if (item.key === 'payment_order_expire_minutes') paymentForm.payment_order_expire_minutes = Number(item.value) || 30
+          if (item.key === 'withdraw_enabled') paymentForm.withdraw_enabled = parseBooleanSetting(item.value)
+          if (item.key === 'withdraw_min_amount') paymentForm.withdraw_min_amount = Number(item.value) || 10
+          if (item.key === 'withdraw_notify_text') paymentForm.withdraw_notify_text = String(item.value || '提现申请提交后需管理员审核，通过后人工打款。')
+          if (item.key === 'withdraw_account_types') paymentForm.withdraw_account_types_text = typeof item.value === 'string' ? item.value : JSON.stringify(item.value || ['bank', 'alipay', 'wechat', 'usdt'])
         }
 
         if (category.category === 'custom') {
@@ -1157,9 +1294,15 @@ async function handleUpdateAllowRegister(nextValue: boolean) {
   basicForm.allow_register = nextValue
   switchLoading.allow_register = true
   try {
-    await adminApi.settings.update('allow_register', String(nextValue))
-    settingsStore.updateConfig({ allow_register: nextValue })
-    message.success('注册开关已更新')
+    const res = await adminApi.settings.update('allow_register', String(nextValue))
+    if (res.isSuccess) {
+      settingsStore.updateConfig({ allow_register: nextValue })
+      message.success(res.message || '注册开关已更新')
+    }
+    else {
+      basicForm.allow_register = prev
+      message.error(res.message || '注册开关更新失败')
+    }
   }
   catch (error: any) {
     basicForm.allow_register = prev
@@ -1175,9 +1318,15 @@ async function handleUpdateAllowDeleteAccount(nextValue: boolean) {
   securityForm.allow_delete_account = nextValue
   switchLoading.allow_delete_account = true
   try {
-    await adminApi.settings.update('allow_delete_account', String(nextValue))
-    settingsStore.updateConfig({ allow_delete_account: nextValue })
-    message.success('账号注销开关已更新')
+    const res = await adminApi.settings.update('allow_delete_account', String(nextValue))
+    if (res.isSuccess) {
+      settingsStore.updateConfig({ allow_delete_account: nextValue })
+      message.success(res.message || '账号注销开关已更新')
+    }
+    else {
+      securityForm.allow_delete_account = prev
+      message.error(res.message || '账号注销开关更新失败')
+    }
   }
   catch (error: any) {
     securityForm.allow_delete_account = prev
@@ -1193,8 +1342,14 @@ async function handleUpdateSmtpSSL(nextValue: boolean) {
   emailForm.smtp_ssl = nextValue
   switchLoading.smtp_ssl = true
   try {
-    await adminApi.settings.update('smtp_ssl', String(nextValue))
-    message.success('SMTP SSL 开关已更新')
+    const res = await adminApi.settings.update('smtp_ssl', String(nextValue))
+    if (res.isSuccess) {
+      message.success(res.message || 'SMTP SSL 开关已更新')
+    }
+    else {
+      emailForm.smtp_ssl = prev
+      message.error(res.message || 'SMTP SSL 开关更新失败')
+    }
   }
   catch (error: any) {
     emailForm.smtp_ssl = prev
@@ -1210,9 +1365,15 @@ async function handleUpdateEmailVerifyEnabled(nextValue: boolean) {
   emailForm.email_verify_enabled = nextValue
   switchLoading.email_verify_enabled = true
   try {
-    await adminApi.settings.update('email_verify_enabled', String(nextValue))
-    settingsStore.updateConfig({ email_verify_enabled: nextValue })
-    message.success('邮箱验证码开关已更新')
+    const res = await adminApi.settings.update('email_verify_enabled', String(nextValue))
+    if (res.isSuccess) {
+      settingsStore.updateConfig({ email_verify_enabled: nextValue })
+      message.success(res.message || '邮箱验证码开关已更新')
+    }
+    else {
+      emailForm.email_verify_enabled = prev
+      message.error(res.message || '邮箱验证码开关更新失败')
+    }
   }
   catch (error: any) {
     emailForm.email_verify_enabled = prev
@@ -1228,9 +1389,15 @@ async function handleUpdateSmsVerifyEnabled(nextValue: boolean) {
   smsForm.sms_verify_enabled = nextValue
   switchLoading.sms_verify_enabled = true
   try {
-    await adminApi.settings.update('sms_verify_enabled', String(nextValue))
-    settingsStore.updateConfig({ sms_verify_enabled: nextValue })
-    message.success('短信验证码开关已更新')
+    const res = await adminApi.settings.update('sms_verify_enabled', String(nextValue))
+    if (res.isSuccess) {
+      settingsStore.updateConfig({ sms_verify_enabled: nextValue })
+      message.success(res.message || '短信验证码开关已更新')
+    }
+    else {
+      smsForm.sms_verify_enabled = prev
+      message.error(res.message || '短信验证码开关更新失败')
+    }
   }
   catch (error: any) {
     smsForm.sms_verify_enabled = prev
@@ -1244,15 +1411,24 @@ async function handleUpdateSmsVerifyEnabled(nextValue: boolean) {
 async function handleSaveSms() {
   savingSms.value = true
   try {
-    await adminApi.settings.batchUpdate({
+    const res = await adminApi.settings.batchUpdate({
       sms_provider: smsForm.sms_provider,
       sms_access_key: smsForm.sms_access_key,
       sms_secret_key: smsForm.sms_secret_key,
       sms_sign_name: smsForm.sms_sign_name,
       sms_template_code: smsForm.sms_template_code,
+      sms_template_code_en: smsForm.sms_template_code_en,
       sms_region: smsForm.sms_region,
+      sms_sdk_app_id: smsForm.sms_sdk_app_id,
+      sms_endpoint: smsForm.sms_endpoint,
+      sms_body_format: smsForm.sms_body_format,
     })
-    message.success('短信设置保存成功')
+    if (res.isSuccess) {
+      message.success(res.message || '短信设置保存成功')
+    }
+    else {
+      message.error(res.message || '短信设置保存失败')
+    }
   }
   catch (error: any) {
     message.error('保存失败: ' + (error.message || '未知错误'))
@@ -1267,9 +1443,15 @@ async function handleUpdateGeetestEnabled(nextValue: boolean) {
   securityForm.geetest_enabled = nextValue
   switchLoading.geetest_enabled = true
   try {
-    await adminApi.settings.update('geetest_enabled', String(nextValue))
-    settingsStore.updateConfig({ geetest_enabled: nextValue })
-    message.success('极验开关已更新')
+    const res = await adminApi.settings.update('geetest_enabled', String(nextValue))
+    if (res.isSuccess) {
+      settingsStore.updateConfig({ geetest_enabled: nextValue })
+      message.success(res.message || '极验开关已更新')
+    }
+    else {
+      securityForm.geetest_enabled = prev
+      message.error(res.message || '极验开关更新失败')
+    }
   }
   catch (error: any) {
     securityForm.geetest_enabled = prev
@@ -1280,13 +1462,65 @@ async function handleUpdateGeetestEnabled(nextValue: boolean) {
   }
 }
 
+async function handleUpdateRealnameEnabled(nextValue: boolean) {
+  const prev = securityForm.realname_enabled
+  securityForm.realname_enabled = nextValue
+  switchLoading.realname_enabled = true
+  try {
+    const res = await adminApi.settings.update('realname_enabled', String(nextValue))
+    if (res.isSuccess) {
+      message.success(res.message || '实名认证功能开关已更新')
+    }
+    else {
+      securityForm.realname_enabled = prev
+      message.error(res.message || '实名认证功能开关更新失败')
+    }
+  }
+  catch (error: any) {
+    securityForm.realname_enabled = prev
+    message.error('更新失败: ' + (error.message || '未知错误'))
+  }
+  finally {
+    switchLoading.realname_enabled = false
+  }
+}
+
+async function handleUpdateRealnameReviewRequired(nextValue: boolean) {
+  const prev = securityForm.realname_review_required
+  securityForm.realname_review_required = nextValue
+  switchLoading.realname_review_required = true
+  try {
+    const res = await adminApi.settings.update('realname_review_required', String(nextValue))
+    if (res.isSuccess) {
+      message.success(res.message || '实名认证审核开关已更新')
+    }
+    else {
+      securityForm.realname_review_required = prev
+      message.error(res.message || '实名认证审核开关更新失败')
+    }
+  }
+  catch (error: any) {
+    securityForm.realname_review_required = prev
+    message.error('更新失败: ' + (error.message || '未知错误'))
+  }
+  finally {
+    switchLoading.realname_review_required = false
+  }
+}
+
 async function handleUpdatePaymentEnabled(nextValue: boolean) {
   const prev = paymentForm.payment_enabled
   paymentForm.payment_enabled = nextValue
   switchLoading.payment_enabled = true
   try {
-    await adminApi.settings.update('payment_enabled', String(nextValue))
-    message.success('支付功能开关已更新')
+    const res = await adminApi.settings.update('payment_enabled', String(nextValue))
+    if (res.isSuccess) {
+      message.success(res.message || '支付功能开关已更新')
+    }
+    else {
+      paymentForm.payment_enabled = prev
+      message.error(res.message || '支付功能开关更新失败')
+    }
   }
   catch (error: any) {
     paymentForm.payment_enabled = prev
@@ -1297,13 +1531,54 @@ async function handleUpdatePaymentEnabled(nextValue: boolean) {
   }
 }
 
+async function handleUpdateWithdrawEnabled(nextValue: boolean) {
+  const prev = paymentForm.withdraw_enabled
+  paymentForm.withdraw_enabled = nextValue
+  switchLoading.withdraw_enabled = true
+  try {
+    const res = await adminApi.settings.update('withdraw_enabled', String(nextValue))
+    if (res.isSuccess) {
+      settingsStore.updateConfig({ withdraw_enabled: nextValue })
+      message.success(res.message || '提现功能开关已更新')
+    }
+    else {
+      paymentForm.withdraw_enabled = prev
+      message.error(res.message || '提现功能开关更新失败')
+    }
+  }
+  catch (error: any) {
+    paymentForm.withdraw_enabled = prev
+    message.error('更新失败: ' + (error.message || '未知错误'))
+  }
+  finally {
+    switchLoading.withdraw_enabled = false
+  }
+}
+
 async function handleSavePayment() {
   savingPayment.value = true
   try {
-    await adminApi.settings.batchUpdate({
+    const parsedAccountTypes = JSON.parse(paymentForm.withdraw_account_types_text || '[]')
+    if (!Array.isArray(parsedAccountTypes) || parsedAccountTypes.length === 0 || parsedAccountTypes.some(item => typeof item !== 'string' || !item.trim())) {
+      throw new Error('支持收款方式必须是非空字符串数组')
+    }
+    const res = await adminApi.settings.batchUpdate({
       payment_order_expire_minutes: String(paymentForm.payment_order_expire_minutes),
+      withdraw_min_amount: String(paymentForm.withdraw_min_amount),
+      withdraw_notify_text: paymentForm.withdraw_notify_text,
+      withdraw_account_types: paymentForm.withdraw_account_types_text,
     })
-    message.success('支付设置保存成功')
+    if (res.isSuccess) {
+      settingsStore.updateConfig({
+        withdraw_min_amount: paymentForm.withdraw_min_amount,
+        withdraw_notify_text: paymentForm.withdraw_notify_text,
+        withdraw_account_types: parsedAccountTypes,
+      })
+      message.success(res.message || '支付设置保存成功')
+    }
+    else {
+      message.error(res.message || '支付设置保存失败')
+    }
   }
   catch (error: any) {
     message.error('保存失败: ' + (error.message || '未知错误'))
@@ -1320,7 +1595,7 @@ async function handleSaveBasic() {
     const backendApiUrl = basicForm.backend_api_url.trim().replace(/\/+$/, '')
     basicForm.frontend_url = frontendUrl
     basicForm.backend_api_url = backendApiUrl
-    await adminApi.settings.batchUpdate({
+    const res = await adminApi.settings.batchUpdate({
       site_name: basicForm.site_name,
       site_desc: basicForm.site_desc,
       site_logo: basicForm.site_logo,
@@ -1331,16 +1606,21 @@ async function handleSaveBasic() {
       frontend_url: frontendUrl,
       backend_api_url: backendApiUrl,
     })
-    settingsStore.updateConfig({
-      site_name: basicForm.site_name,
-      site_desc: basicForm.site_desc,
-      site_logo: basicForm.site_logo,
-      copyright: basicForm.copyright,
-      icp: basicForm.icp,
-      version: basicForm.version,
-      default_lang: basicForm.default_lang,
-    })
-    message.success('基本设置保存成功')
+    if (res.isSuccess) {
+      settingsStore.updateConfig({
+        site_name: basicForm.site_name,
+        site_desc: basicForm.site_desc,
+        site_logo: basicForm.site_logo,
+        copyright: basicForm.copyright,
+        icp: basicForm.icp,
+        version: basicForm.version,
+        default_lang: basicForm.default_lang,
+      })
+      message.success(res.message || '基本设置保存成功')
+    }
+    else {
+      message.error(res.message || '基本设置保存失败')
+    }
   }
   catch (error: any) {
     message.error('保存失败: ' + (error.message || '未知错误'))
@@ -1353,14 +1633,19 @@ async function handleSaveBasic() {
 async function handleSaveEmail() {
   savingEmail.value = true
   try {
-    await adminApi.settings.batchUpdate({
+    const res = await adminApi.settings.batchUpdate({
       smtp_host: emailForm.smtp_host,
       smtp_port: String(emailForm.smtp_port),
       smtp_username: emailForm.smtp_username,
       smtp_password: emailForm.smtp_password,
       system_email_name: emailForm.system_email_name,
     })
-    message.success('邮件设置保存成功')
+    if (res.isSuccess) {
+      message.success(res.message || '邮件设置保存成功')
+    }
+    else {
+      message.error(res.message || '邮件设置保存失败')
+    }
   }
   catch (error: any) {
     message.error('保存失败: ' + (error.message || '未知错误'))
@@ -1373,8 +1658,18 @@ async function handleSaveEmail() {
 async function handleTestEmail() {
   testingEmail.value = true
   try {
-    await new Promise(r => setTimeout(r, 1000))
-    message.info('测试邮件发送功能开发中...')
+    const res = await adminApi.emailTemplate.sendTest({
+      to: emailForm.smtp_username,
+    })
+    if (res.isSuccess) {
+      message.success(res.data?.message || '测试邮件已发送')
+    }
+    else {
+      message.error(res.message || '测试邮件发送失败')
+    }
+  }
+  catch (error: any) {
+    message.error(error?.message || '测试邮件发送失败')
   }
   finally {
     testingEmail.value = false
@@ -1384,18 +1679,24 @@ async function handleTestEmail() {
 async function handleSaveSecurity() {
   savingSecurity.value = true
   try {
-    await adminApi.settings.batchUpdate({
+    const res = await adminApi.settings.batchUpdate({
       geetest_captcha_id: securityForm.geetest_captcha_id,
       geetest_captcha_key: securityForm.geetest_captcha_key,
       jwt_access_expire: String(securityForm.jwt_access_expire),
       jwt_refresh_expire: String(securityForm.jwt_refresh_expire),
       login_max_failure: String(securityForm.login_max_failure),
       login_lock_duration: String(securityForm.login_lock_duration),
+      realname_notify_text: securityForm.realname_notify_text,
     })
-    settingsStore.updateConfig({
-      geetest_captcha_id: securityForm.geetest_captcha_id,
-    })
-    message.success('安全设置保存成功')
+    if (res.isSuccess) {
+      settingsStore.updateConfig({
+        geetest_captcha_id: securityForm.geetest_captcha_id,
+      })
+      message.success(res.message || '安全设置保存成功')
+    }
+    else {
+      message.error(res.message || '安全设置保存失败')
+    }
   }
   catch (error: any) {
     message.error('保存失败: ' + (error.message || '未知错误'))
@@ -1408,8 +1709,13 @@ async function handleSaveSecurity() {
 async function handleRestartBackend() {
   restartingBackend.value = true
   try {
-    await adminApi.settings.restartBackend()
-    message.success('后端重启请求已发送')
+    const res = await adminApi.settings.restartBackend()
+    if (res.isSuccess) {
+      message.success(res.message || '后端重启请求已发送')
+    }
+    else {
+      message.error(res.message || '后端重启请求发送失败')
+    }
   }
   catch (error: any) {
     message.error('重启失败: ' + (error.message || '未知错误'))
@@ -1429,7 +1735,7 @@ async function handleAddSetting() {
 
   adding.value = true
   try {
-    await adminApi.settings.create({
+    const res = await adminApi.settings.create({
       key: addForm.key,
       value: addForm.value,
       type: addForm.type as SettingType,
@@ -1439,15 +1745,20 @@ async function handleAddSetting() {
       is_public: addForm.is_public,
       is_editable: true,
     })
-    message.success('配置项添加成功')
-    showAddModal.value = false
-    addForm.key = ''
-    addForm.value = ''
-    addForm.label = ''
-    addForm.type = 'string'
-    addForm.description = ''
-    addForm.is_public = false
-    await loadSettings()
+    if (res.isSuccess) {
+      message.success(res.message || '配置项添加成功')
+      showAddModal.value = false
+      addForm.key = ''
+      addForm.value = ''
+      addForm.label = ''
+      addForm.type = 'string'
+      addForm.description = ''
+      addForm.is_public = false
+      await loadSettings()
+    }
+    else {
+      message.error(res.message || '配置项添加失败')
+    }
   }
   catch (error: any) {
     message.error('添加失败: ' + (error.message || '未知错误'))
@@ -1459,9 +1770,14 @@ async function handleAddSetting() {
 
 async function handleDeleteSetting(key: string) {
   try {
-    await adminApi.settings.delete(key)
-    message.success('配置项已删除')
-    await loadSettings()
+    const res = await adminApi.settings.delete(key)
+    if (res.isSuccess) {
+      message.success(res.message || '配置项已删除')
+      await loadSettings()
+    }
+    else {
+      message.error(res.message || '配置项删除失败')
+    }
   }
   catch (error: any) {
     message.error('删除失败: ' + (error.message || '未知错误'))
@@ -1484,7 +1800,7 @@ async function handleSaveSettingEdit() {
   }
   savingEdit.value = true
   try {
-    await adminApi.settings.updateMeta(editForm.key, {
+    const res = await adminApi.settings.updateMeta(editForm.key, {
       value: editForm.value,
       type: editForm.type,
       category: 'custom',
@@ -1493,9 +1809,14 @@ async function handleSaveSettingEdit() {
       is_public: editForm.is_public,
       is_editable: true,
     })
-    message.success('配置项修改成功')
-    showEditModal.value = false
-    await loadSettings()
+    if (res.isSuccess) {
+      message.success(res.message || '配置项修改成功')
+      showEditModal.value = false
+      await loadSettings()
+    }
+    else {
+      message.error(res.message || '配置项修改失败')
+    }
   }
   catch (error: any) {
     message.error('修改失败: ' + (error.message || '未知错误'))

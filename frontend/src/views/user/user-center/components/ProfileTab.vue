@@ -285,7 +285,7 @@ async function handleProfileSubmit() {
       nickname: profileForm.value.nickname,
       avatar: profileForm.value.avatar,
       gender: profileForm.value.gender,
-      birthday: profileForm.value.birthday ? new Date(profileForm.value.birthday).getTime() : null,
+      birthday: profileForm.value.birthday ? Math.floor(Number(profileForm.value.birthday) / 1000) : null,
       motto: profileForm.value.motto,
       back_ground: profileForm.value.back_ground,
     }

@@ -106,7 +106,7 @@ func Migrate() {
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 		`CREATE TABLE IF NOT EXISTS verification_codes (
 			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-			email VARCHAR(255) NOT NULL COMMENT '邮箱地址',
+			contact VARCHAR(255) NOT NULL COMMENT '联系方式(邮箱或手机号)',
 			code VARCHAR(10) NOT NULL COMMENT '验证码',
 			code_type VARCHAR(20) NOT NULL COMMENT '类型:register=注册,reset_password=重置密码',
 			expires_at TIMESTAMP NOT NULL COMMENT '过期时间',
@@ -114,11 +114,31 @@ func Migrate() {
 			is_deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否软删除:0=正常,1=已删除',
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-			INDEX idx_email_type (email, code_type),
-			INDEX idx_email_type_active_created (email, code_type, is_used, is_deleted, created_at),
-			INDEX idx_email_code_type_active (email, code, code_type, is_used, is_deleted),
+			INDEX idx_contact_type (contact, code_type),
+			INDEX idx_contact_type_active_created (contact, code_type, is_used, is_deleted, created_at),
+			INDEX idx_contact_code_type_active (contact, code, code_type, is_used, is_deleted),
 			INDEX idx_expires_at (expires_at),
 			INDEX idx_is_deleted (is_deleted)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+		`CREATE TABLE IF NOT EXISTS user_realname_verifications (
+			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+			user_id BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
+			real_name VARCHAR(100) NOT NULL COMMENT '真实姓名',
+			certificate_type TINYINT UNSIGNED NOT NULL COMMENT '证件类型:1=身份证,2=护照,3=军官证',
+			certificate_no VARCHAR(50) NOT NULL COMMENT '证件号码',
+			certificate_front VARCHAR(500) NOT NULL COMMENT '证件正面照',
+			certificate_back VARCHAR(500) NOT NULL COMMENT '证件背面照',
+			status TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态:0=待审核,1=通过,2=拒绝',
+			reject_reason VARCHAR(255) NOT NULL DEFAULT '' COMMENT '拒绝原因',
+			submitted_at BIGINT UNSIGNED NULL COMMENT '提交时间',
+			reviewed_at BIGINT UNSIGNED NULL COMMENT '审核时间',
+			reviewed_by BIGINT UNSIGNED NULL COMMENT '审核人ID',
+			create_time BIGINT UNSIGNED NULL COMMENT '创建时间',
+			update_time BIGINT UNSIGNED NULL COMMENT '更新时间',
+			delete_time BIGINT UNSIGNED NULL COMMENT '删除时间',
+			INDEX idx_user_id (user_id),
+			INDEX idx_status (status),
+			INDEX idx_submitted_at (submitted_at)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 	}
 
@@ -185,9 +205,16 @@ func Migrate() {
 	}
 
 	if CheckTableExists("verification_codes") {
+		if CheckColumnExists("verification_codes", "email") && !CheckColumnExists("verification_codes", "contact") {
+			if _, err := DB.Exec("ALTER TABLE verification_codes CHANGE COLUMN email contact VARCHAR(255) NOT NULL COMMENT '联系方式(邮箱或手机号)'"); err != nil {
+				log.Printf("[Init] Failed to rename verification_codes.email to contact: %v", err)
+			} else {
+				log.Printf("[Init] Renamed verification_codes.email to contact")
+			}
+		}
 		repairs := []indexRepair{
-			{"idx_email_type_active_created", "ALTER TABLE verification_codes ADD INDEX idx_email_type_active_created (email, code_type, is_used, is_deleted, created_at)"},
-			{"idx_email_code_type_active", "ALTER TABLE verification_codes ADD INDEX idx_email_code_type_active (email, code, code_type, is_used, is_deleted)"},
+			{"idx_contact_type_active_created", "ALTER TABLE verification_codes ADD INDEX idx_contact_type_active_created (contact, code_type, is_used, is_deleted, created_at)"},
+			{"idx_contact_code_type_active", "ALTER TABLE verification_codes ADD INDEX idx_contact_code_type_active (contact, code, code_type, is_used, is_deleted)"},
 		}
 
 		for _, r := range repairs {

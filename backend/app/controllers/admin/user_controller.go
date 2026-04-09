@@ -16,6 +16,23 @@ type UserController struct {
 	userService *services.UserService
 }
 
+type AdminUserRealnameSummary struct {
+	HasVerification bool    `json:"has_verification"`
+	ID              uint64  `json:"id,omitempty"`
+	Status          uint8   `json:"status,omitempty"`
+	RealName        string  `json:"real_name,omitempty"`
+	CertificateType uint8   `json:"certificate_type,omitempty"`
+	CertificateNo   string  `json:"certificate_no,omitempty"`
+	SubmittedAt     *int64  `json:"submitted_at,omitempty"`
+	ReviewedAt      *int64  `json:"reviewed_at,omitempty"`
+	RejectReason    string  `json:"reject_reason,omitempty"`
+}
+
+type AdminUserDetailResponse struct {
+	User     *models.User               `json:"user"`
+	Realname AdminUserRealnameSummary   `json:"realname"`
+}
+
 func NewUserController() *UserController {
 	return &UserController{
 		userService: services.NewUserService(),
@@ -33,6 +50,7 @@ func NewUserController() *UserController {
 // @Param page_size query int false "每页数量" default(20)
 // @Param keyword query string false "搜索关键词"
 // @Param status query int false "状态"
+// @Param realname_status query int false "实名认证状态: 0=待审核, 1=通过, 2=拒绝"
 // @Success 200 {object} utils.Response
 // @Router /api/v1/admin/users [get]
 func (c *UserController) List(ctx *gin.Context) {
@@ -60,7 +78,7 @@ func (c *UserController) List(ctx *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "用户ID"
-// @Success 200 {object} utils.Response
+// @Success 200 {object} utils.Response{data=AdminUserDetailResponse}
 // @Router /api/v1/admin/users/{id} [get]
 func (c *UserController) Detail(ctx *gin.Context) {
 	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
@@ -75,8 +93,26 @@ func (c *UserController) Detail(ctx *gin.Context) {
 		return
 	}
 
-	utils.Success(ctx, gin.H{
-		"user": user,
+	realnameSummary := AdminUserRealnameSummary{
+		HasVerification: false,
+	}
+	if verification, err := models.GetRealnameVerificationByUserID(id); err == nil && verification != nil {
+		realnameSummary = AdminUserRealnameSummary{
+			HasVerification: true,
+			ID:              verification.ID,
+			Status:          verification.Status,
+			RealName:        verification.RealName,
+			CertificateType: verification.CertificateType,
+			CertificateNo:   verification.CertificateNo,
+			SubmittedAt:     verification.SubmittedAt,
+			ReviewedAt:      verification.ReviewedAt,
+			RejectReason:    verification.RejectReason,
+		}
+	}
+
+	utils.Success(ctx, AdminUserDetailResponse{
+		User:     user,
+		Realname: realnameSummary,
 	})
 }
 
@@ -340,7 +376,36 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 	}
 
 	utils.Success(ctx, gin.H{
-		"user":             user,
+		"user": gin.H{
+			"id":              user.ID,
+			"group_id":        user.GroupId,
+			"username":        user.Username,
+			"nickname":        user.Nickname,
+			"email":           user.Email,
+			"mobile":          user.Mobile,
+			"avatar":          user.Avatar,
+			"back_ground":     user.BackGround,
+			"gender":          user.Gender,
+			"birthday":        user.Birthday,
+			"money":           user.Money,
+			"score":           user.Score,
+			"level":           user.Level,
+			"role":            user.Role,
+			"last_login_time": user.LastLoginTime,
+			"last_login_ip":   user.LastLoginIp,
+			"login_failure":   user.LoginFailure,
+			"join_ip":         user.JoinIp,
+			"join_time":       user.JoinTime,
+			"motto":           user.Motto,
+			"status":          user.Status,
+			"apikey":          user.Apikey,
+			"update_time":     user.UpdateTime,
+			"create_time":     user.CreateTime,
+			"language":        user.Language,
+			"country":         user.Country,
+			"token":           user.Token,
+			"realname":        services.BuildLoginRealnameSummaryForAPI(user.ID),
+		},
 		"token":            token,
 		"refreshToken":     refreshToken,
 		"expiresAt":        expiresAt,

@@ -1,0 +1,535 @@
+<script setup lang="ts">
+import { h, onMounted, reactive, ref } from 'vue'
+import { NButton, NTag, useMessage } from 'naive-ui'
+import type { DataTableColumns } from 'naive-ui'
+import { fetchWithdrawDetail, fetchWithdrawRecords, fetchWithdrawStats, payWithdraw, reviewWithdraw } from '@/service/api/admin/finance'
+import type { WithdrawRecord, WithdrawStats } from '@/service/api/admin/finance'
+import { adminUserApi } from '@/service/api/admin/user'
+import type { UserSimpleInfo } from '@/service/api/admin/user'
+
+const message = useMessage()
+const loading = ref(false)
+const submitting = ref(false)
+
+const list = ref<WithdrawRecord[]>([])
+const currentRow = ref<WithdrawRecord | null>(null)
+const showReviewModal = ref(false)
+const showPayModal = ref(false)
+const showDetailModal = ref(false)
+const detailLoading = ref(false)
+const adminUserMap = ref<Record<number, UserSimpleInfo>>({})
+
+const searchForm = reactive({
+  keyword: '',
+  user_id: null as number | null,
+  status: null as number | null,
+})
+
+const reviewForm = reactive({
+  status: 1 as 1 | 2,
+  review_remark: '',
+})
+
+const payForm = reactive({
+  transfer_remark: '',
+})
+
+const pagination = reactive({
+  page: 1,
+  pageSize: 20,
+  itemCount: 0,
+  showSizePicker: true,
+  pageSizes: [10, 20, 50, 100],
+})
+
+const statusOptions = [
+  { label: '待审核', value: 0 },
+  { label: '待打款', value: 1 },
+  { label: '已拒绝', value: 2 },
+  { label: '已打款', value: 3 },
+]
+
+const stats = ref<WithdrawStats>({
+  pending_count: 0,
+  approved_count: 0,
+  rejected_count: 0,
+  paid_count: 0,
+  paid_amount: 0,
+})
+
+function getStatusMeta(status: number) {
+  const map: Record<number, { label: string, type: 'warning' | 'info' | 'error' | 'success' }> = {
+    0: { label: '待审核', type: 'warning' },
+    1: { label: '待打款', type: 'info' },
+    2: { label: '已拒绝', type: 'error' },
+    3: { label: '已打款', type: 'success' },
+  }
+  return map[status] || { label: '未知', type: 'info' }
+}
+
+function formatTime(ts?: number | null) {
+  return ts ? new Date(ts * 1000).toLocaleString() : '-'
+}
+
+function maskAccountNo(accountNo: string) {
+  if (!accountNo || accountNo.length <= 8) {
+    return accountNo || '-'
+  }
+  return `${accountNo.slice(0, 4)}****${accountNo.slice(-4)}`
+}
+
+function getAdminDisplayName(adminId?: number | null) {
+  if (!adminId) {
+    return '-'
+  }
+  const admin = adminUserMap.value[adminId]
+  return admin?.nickname || admin?.username || `管理员#${adminId}`
+}
+
+const columns: DataTableColumns<WithdrawRecord> = [
+  { title: 'ID', key: 'id', width: 70 },
+  { title: '用户ID', key: 'user_id', width: 80 },
+  {
+    title: '提现金额',
+    key: 'amount',
+    width: 120,
+    render: row => `¥${(Number(row.amount) || 0).toFixed(2)}`,
+  },
+  {
+    title: '状态',
+    key: 'status',
+    width: 100,
+    render: (row) => {
+      const meta = getStatusMeta(row.status)
+      return h(NTag, { type: meta.type, bordered: false }, () => meta.label)
+    },
+  },
+  { title: '收款方式', key: 'account_type', width: 100 },
+  { title: '账户名称', key: 'account_name', width: 140, ellipsis: { tooltip: true } },
+  {
+    title: '收款账号',
+    key: 'account_no',
+    width: 180,
+    ellipsis: { tooltip: true },
+    render: row => maskAccountNo(row.account_no),
+  },
+  { title: '收款人', key: 'real_name', width: 100 },
+  {
+    title: '审核时间',
+    key: 'reviewed_at',
+    width: 170,
+    render: row => formatTime(row.reviewed_at),
+  },
+  {
+    title: '打款时间',
+    key: 'paid_at',
+    width: 170,
+    render: row => formatTime(row.paid_at),
+  },
+  {
+    title: '申请时间',
+    key: 'create_time',
+    width: 170,
+    render: row => formatTime(row.create_time),
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 220,
+    render: (row) => {
+      const buttons = [
+        h(NButton, {
+          size: 'small',
+          text: true,
+          type: 'info',
+          onClick: async () => {
+            currentRow.value = row
+            showDetailModal.value = true
+            detailLoading.value = true
+            try {
+              const res = await fetchWithdrawDetail(row.id)
+              if (res.isSuccess && res.data) {
+                currentRow.value = res.data
+              }
+              else {
+                message.error(res.message || '获取提现详情失败')
+              }
+            }
+            catch {
+              message.error('获取提现详情失败')
+            }
+            finally {
+              detailLoading.value = false
+            }
+          },
+        }, { default: () => '详情' }),
+      ]
+
+      if (row.status === 0) {
+        buttons.push(h(NButton, {
+          size: 'small',
+          text: true,
+          type: 'primary',
+          onClick: () => openReview(row),
+        }, { default: () => '审核' }))
+      }
+
+      if (row.status === 1) {
+        buttons.push(h(NButton, {
+          size: 'small',
+          text: true,
+          type: 'warning',
+          onClick: () => openPay(row),
+        }, { default: () => '标记打款' }))
+      }
+
+      return h('div', { style: 'display:flex;gap:8px;' }, buttons)
+    },
+  },
+]
+
+async function fetchData() {
+  loading.value = true
+  try {
+    const params = {
+      page: pagination.page,
+      page_size: pagination.pageSize,
+      keyword: searchForm.keyword || undefined,
+      user_id: searchForm.user_id || undefined,
+      status: searchForm.status ?? undefined,
+    }
+    const [res, statsRes] = await Promise.all([
+      fetchWithdrawRecords(params),
+      fetchWithdrawStats({
+        keyword: params.keyword,
+        user_id: params.user_id,
+        status: params.status,
+      }),
+    ])
+    if (res.isSuccess) {
+      list.value = res.data?.list || []
+      pagination.itemCount = res.data?.total || 0
+      const adminIds = Array.from(new Set(list.value.flatMap(item => [item.reviewed_by, item.paid_by]).filter(Boolean) as number[]))
+      adminUserMap.value = await adminUserApi.batchSimpleInfo(adminIds)
+    }
+    else {
+      message.error(res.message || '获取提现列表失败')
+    }
+    if (statsRes.isSuccess && statsRes.data) {
+      stats.value = statsRes.data
+    }
+  }
+  catch {
+    message.error('获取提现列表失败')
+  }
+  finally {
+    loading.value = false
+  }
+}
+
+function handleSearch() {
+  pagination.page = 1
+  fetchData()
+}
+
+function handleReset() {
+  searchForm.keyword = ''
+  searchForm.user_id = null
+  searchForm.status = null
+  pagination.page = 1
+  fetchData()
+}
+
+function handlePageChange(page: number) {
+  pagination.page = page
+  fetchData()
+}
+
+function handlePageSizeChange(pageSize: number) {
+  pagination.pageSize = pageSize
+  pagination.page = 1
+  fetchData()
+}
+
+function openReview(row: WithdrawRecord) {
+  currentRow.value = row
+  reviewForm.status = 1
+  reviewForm.review_remark = row.review_remark || ''
+  showReviewModal.value = true
+}
+
+function openPay(row: WithdrawRecord) {
+  currentRow.value = row
+  payForm.transfer_remark = row.transfer_remark || ''
+  showPayModal.value = true
+}
+
+async function handleSubmitReview() {
+  if (!currentRow.value)
+    return
+  if (reviewForm.review_remark.trim().length > 255) {
+    message.error('审核备注不能超过255个字符')
+    return
+  }
+  submitting.value = true
+  try {
+    const res = await reviewWithdraw(currentRow.value.id, reviewForm)
+    if (res.isSuccess) {
+      message.success(res.message || '审核成功')
+      showReviewModal.value = false
+      fetchData()
+    }
+    else {
+      message.error(res.message || '审核失败')
+    }
+  }
+  catch {
+    message.error('审核失败')
+  }
+  finally {
+    submitting.value = false
+  }
+}
+
+async function handleSubmitPay() {
+  if (!currentRow.value)
+    return
+  if (payForm.transfer_remark.trim().length > 255) {
+    message.error('打款备注不能超过255个字符')
+    return
+  }
+  submitting.value = true
+  try {
+    const res = await payWithdraw(currentRow.value.id, payForm)
+    if (res.isSuccess) {
+      message.success(res.message || '已标记为打款完成')
+      showPayModal.value = false
+      fetchData()
+    }
+    else {
+      message.error(res.message || '操作失败')
+    }
+  }
+  catch {
+    message.error('操作失败')
+  }
+  finally {
+    submitting.value = false
+  }
+}
+
+onMounted(fetchData)
+</script>
+
+<template>
+  <n-card title="提现管理">
+    <n-space vertical>
+      <n-grid :cols="5" :x-gap="12">
+        <n-gi>
+          <n-card size="small">
+            <n-statistic label="待审核" :value="stats.pending_count" />
+          </n-card>
+        </n-gi>
+        <n-gi>
+          <n-card size="small">
+            <n-statistic label="待打款" :value="stats.approved_count" />
+          </n-card>
+        </n-gi>
+        <n-gi>
+          <n-card size="small">
+            <n-statistic label="已拒绝" :value="stats.rejected_count" />
+          </n-card>
+        </n-gi>
+        <n-gi>
+          <n-card size="small">
+            <n-statistic label="已打款笔数" :value="stats.paid_count" />
+          </n-card>
+        </n-gi>
+        <n-gi>
+          <n-card size="small">
+            <n-statistic label="已打款金额" :value="stats.paid_amount" :precision="2">
+              <template #prefix>
+                ¥
+              </template>
+            </n-statistic>
+          </n-card>
+        </n-gi>
+      </n-grid>
+      <n-space>
+        <n-input v-model:value="searchForm.keyword" placeholder="搜索收款账户/姓名/备注" clearable style="width: 240px" @keyup.enter="fetchData" />
+        <n-input-number v-model:value="searchForm.user_id" placeholder="用户ID" style="width: 140px" :show-button="false" />
+        <n-select v-model:value="searchForm.status" :options="statusOptions" clearable placeholder="提现状态" style="width: 140px" />
+        <NButton type="primary" @click="handleSearch">
+          搜索
+        </NButton>
+        <NButton @click="handleReset">
+          重置
+        </NButton>
+      </n-space>
+
+      <n-data-table
+        :columns="columns"
+        :data="list"
+        :loading="loading"
+        :pagination="pagination"
+        striped
+        size="small"
+        :row-key="(row: WithdrawRecord) => row.id"
+        @update:page="handlePageChange"
+        @update:page-size="handlePageSizeChange"
+      />
+    </n-space>
+  </n-card>
+
+  <n-modal v-model:show="showDetailModal" preset="card" title="提现申请详情" style="width: 620px">
+    <template v-if="currentRow">
+      <n-spin :show="detailLoading">
+        <n-descriptions :column="1" bordered label-placement="left">
+          <n-descriptions-item label="申请ID">
+            {{ currentRow.id }}
+          </n-descriptions-item>
+          <n-descriptions-item label="用户ID">
+            {{ currentRow.user_id }}
+          </n-descriptions-item>
+          <n-descriptions-item label="提现金额">
+            ¥{{ Number(currentRow.amount).toFixed(2) }}
+          </n-descriptions-item>
+          <n-descriptions-item label="状态">
+            <NTag :type="getStatusMeta(currentRow.status).type">
+              {{ getStatusMeta(currentRow.status).label }}
+            </NTag>
+          </n-descriptions-item>
+          <n-descriptions-item label="收款方式">
+            {{ currentRow.account_type }}
+          </n-descriptions-item>
+          <n-descriptions-item label="账户名称">
+            {{ currentRow.account_name }}
+          </n-descriptions-item>
+          <n-descriptions-item label="收款账号">
+            {{ currentRow.account_no }}
+          </n-descriptions-item>
+          <n-descriptions-item label="收款人">
+            {{ currentRow.real_name }}
+          </n-descriptions-item>
+          <n-descriptions-item label="用户备注">
+            {{ currentRow.remark || '-' }}
+          </n-descriptions-item>
+          <n-descriptions-item label="审核备注">
+            {{ currentRow.review_remark || '-' }}
+          </n-descriptions-item>
+          <n-descriptions-item label="打款备注">
+            {{ currentRow.transfer_remark || '-' }}
+          </n-descriptions-item>
+          <n-descriptions-item label="申请时间">
+            {{ formatTime(currentRow.create_time) }}
+          </n-descriptions-item>
+          <n-descriptions-item label="审核时间">
+            {{ formatTime(currentRow.reviewed_at) }}
+          </n-descriptions-item>
+          <n-descriptions-item label="审核人">
+            {{ getAdminDisplayName(currentRow.reviewed_by) }}
+          </n-descriptions-item>
+          <n-descriptions-item label="打款时间">
+            {{ formatTime(currentRow.paid_at) }}
+          </n-descriptions-item>
+          <n-descriptions-item label="打款人">
+            {{ getAdminDisplayName(currentRow.paid_by) }}
+          </n-descriptions-item>
+        </n-descriptions>
+      </n-spin>
+    </template>
+  </n-modal>
+
+  <n-modal v-model:show="showReviewModal" preset="card" title="审核提现申请" style="width: 520px" :mask-closable="!submitting">
+    <template v-if="currentRow">
+      <n-descriptions :column="1" bordered label-placement="left" style="margin-bottom: 16px">
+        <n-descriptions-item label="申请ID">
+          {{ currentRow.id }}
+        </n-descriptions-item>
+        <n-descriptions-item label="用户ID">
+          {{ currentRow.user_id }}
+        </n-descriptions-item>
+        <n-descriptions-item label="提现金额">
+          ¥{{ Number(currentRow.amount).toFixed(2) }}
+        </n-descriptions-item>
+        <n-descriptions-item label="收款方式">
+          {{ currentRow.account_type }}
+        </n-descriptions-item>
+        <n-descriptions-item label="账户名称">
+          {{ currentRow.account_name }}
+        </n-descriptions-item>
+        <n-descriptions-item label="收款账号">
+          {{ currentRow.account_no }}
+        </n-descriptions-item>
+        <n-descriptions-item label="收款人">
+          {{ currentRow.real_name }}
+        </n-descriptions-item>
+      </n-descriptions>
+      <n-form label-placement="left" label-width="80">
+        <n-form-item label="审核结果">
+          <n-radio-group v-model:value="reviewForm.status">
+            <n-space>
+              <n-radio :value="1">
+                通过
+              </n-radio>
+              <n-radio :value="2">
+                拒绝
+              </n-radio>
+            </n-space>
+          </n-radio-group>
+        </n-form-item>
+        <n-form-item label="审核备注">
+          <n-input v-model:value="reviewForm.review_remark" type="textarea" :rows="3" maxlength="255" show-count placeholder="可填写审核说明" />
+        </n-form-item>
+      </n-form>
+    </template>
+    <template #footer>
+      <n-space justify="end">
+        <NButton :disabled="submitting" @click="showReviewModal = false">
+          取消
+        </NButton>
+        <NButton type="primary" :loading="submitting" @click="handleSubmitReview">
+          提交审核
+        </NButton>
+      </n-space>
+    </template>
+  </n-modal>
+
+  <n-modal v-model:show="showPayModal" preset="card" title="确认人工打款" style="width: 520px" :mask-closable="!submitting">
+    <template v-if="currentRow">
+      <n-alert type="warning" style="margin-bottom: 16px">
+        点击确认后会将该提现申请标记为“已打款”，并从用户余额中正式扣除对应金额。
+      </n-alert>
+      <n-descriptions :column="1" bordered label-placement="left" style="margin-bottom: 16px">
+        <n-descriptions-item label="申请ID">
+          {{ currentRow.id }}
+        </n-descriptions-item>
+        <n-descriptions-item label="用户ID">
+          {{ currentRow.user_id }}
+        </n-descriptions-item>
+        <n-descriptions-item label="提现金额">
+          ¥{{ Number(currentRow.amount).toFixed(2) }}
+        </n-descriptions-item>
+        <n-descriptions-item label="收款方式">
+          {{ currentRow.account_type }}
+        </n-descriptions-item>
+        <n-descriptions-item label="收款账号">
+          {{ currentRow.account_no }}
+        </n-descriptions-item>
+      </n-descriptions>
+      <n-form-item label="打款备注">
+        <n-input v-model:value="payForm.transfer_remark" type="textarea" :rows="3" maxlength="255" show-count placeholder="例如：已通过银行卡人工转账" />
+      </n-form-item>
+    </template>
+    <template #footer>
+      <n-space justify="end">
+        <NButton :disabled="submitting" @click="showPayModal = false">
+          取消
+        </NButton>
+        <NButton type="warning" :loading="submitting" @click="handleSubmitPay">
+          确认已打款
+        </NButton>
+      </n-space>
+    </template>
+  </n-modal>
+</template>

@@ -80,4 +80,25 @@ namespace Entity {
     memo: string
     create_time: number
   }
+
+  /** 用户提现记录 */
+  interface WithdrawRecord {
+    id: number
+    user_id: number
+    amount: number
+    account_type: string
+    account_name: string
+    account_no: string
+    real_name: string
+    remark: string
+    status: number
+    review_remark: string
+    transfer_remark: string
+    reviewed_at: number | null
+    reviewed_by: number | null
+    paid_at: number | null
+    paid_by: number | null
+    create_time: number
+    update_time: number
+  }
 }

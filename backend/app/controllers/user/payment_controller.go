@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
+	"fst/backend/internal/middleware"
 	"fst/backend/utils"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -237,7 +239,7 @@ func (ctrl *PaymentController) GetPayGateways(c *gin.Context) {
 func (ctrl *PaymentController) RegisterRoutes(group *gin.RouterGroup) {
 	payment := group.Group("/payment")
 	{
-		payment.POST("/create", ctrl.CreateOrder)
+		payment.POST("/create", middleware.RequireIdempotency("user_payment_create", 10*time.Minute), ctrl.CreateOrder)
 		payment.GET("/orders", ctrl.GetOrders)
 		payment.GET("/orders/:id", ctrl.GetOrderDetail)
 		payment.GET("/orders/:id/status", ctrl.CheckOrderStatus)

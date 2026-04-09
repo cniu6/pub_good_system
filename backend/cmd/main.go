@@ -24,6 +24,7 @@ import (
 	// ========================================
 	// @plugins-start
 	_ "fst/backend/app/plugins/demo"
+	_ "fst/backend/app/plugins/sms"
 	// @plugins-end
 )
 
@@ -67,6 +68,12 @@ func main() {
 	// 5.4 初始化支付订单表
 	models.InitPaymentOrdersTable()
 
+	// 5.4.1 初始化提现申请表
+	models.InitWithdrawRequestsTable()
+
+	// 5.4.2 初始化接口幂等键表
+	models.InitIdempotencyKeysTable()
+
 	// 5.5 初始化支付通道表
 	models.InitPayGatewaysTable()
 
@@ -78,6 +85,7 @@ func main() {
 
 	// 7. 启动定时清理任务
 	services.StartCleanupTask()
+	models.CleanupExpiredIdempotencyKeys()
 
 	// 7.1 启动过期订单自动取消任务（每分钟检查一次）
 	go func() {
@@ -85,6 +93,7 @@ func main() {
 		defer ticker.Stop()
 		for range ticker.C {
 			services.CancelExpiredOrders()
+			models.CleanupExpiredIdempotencyKeys()
 		}
 	}()
 

@@ -47,7 +47,11 @@ type Config struct {
 	SMSSecretKey              string // 短信服务 SecretKey
 	SMSSignName               string // 短信签名
 	SMSTemplateCode           string // 短信验证码模板ID
+	SMSTemplateCodeEN         string // 英文短信模板ID
 	SMSRegion                 string // 短信服务区域
+	SMSEndpoint               string // 自定义短信网关地址
+	SMSSdkAppID               string // 腾讯云 SmsSdkAppId
+	SMSBodyFormat             string // 自定义短信请求体格式
 }
 
 var GlobalConfig *Config
@@ -218,9 +222,13 @@ func InitConfig() {
 		SMSProvider:     getEnv("SMS_PROVIDER", "console"),
 		SMSAccessKey:    getEnv("SMS_ACCESS_KEY", ""),
 		SMSSecretKey:    getEnv("SMS_SECRET_KEY", ""),
-		SMSSignName:     getEnv("SMS_SIGN_NAME", ""),
-		SMSTemplateCode: getEnv("SMS_TEMPLATE_CODE", ""),
-		SMSRegion:       getEnv("SMS_REGION", ""),
+		SMSSignName:       getEnv("SMS_SIGN_NAME", ""),
+		SMSTemplateCode:   getEnv("SMS_TEMPLATE_CODE", ""),
+		SMSTemplateCodeEN: getEnv("SMS_TEMPLATE_CODE_EN", ""),
+		SMSRegion:         getEnv("SMS_REGION", ""),
+		SMSEndpoint:     getEnv("SMS_ENDPOINT", ""),
+		SMSSdkAppID:     getEnv("SMS_SDK_APP_ID", ""),
+		SMSBodyFormat:   getEnv("SMS_BODY_FORMAT", "json"),
 	}
 
 	validateCriticalSecurityConfig(GlobalConfig)
@@ -280,7 +288,11 @@ type jsonDotEnv struct {
 	SMSSecretKey              string `json:"sms_secret_key"`
 	SMSSignName               string `json:"sms_sign_name"`
 	SMSTemplateCode           string `json:"sms_template_code"`
+	SMSTemplateCodeEN         string `json:"sms_template_code_en"`
 	SMSRegion                 string `json:"sms_region"`
+	SMSEndpoint               string `json:"sms_endpoint"`
+	SMSSdkAppID               string `json:"sms_sdk_app_id"`
+	SMSBodyFormat             string `json:"sms_body_format"`
 }
 
 func loadJSONDotEnv(path string) (*Config, bool) {
@@ -435,9 +447,13 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 		SMSProvider:     raw.SMSProvider,
 		SMSAccessKey:    raw.SMSAccessKey,
 		SMSSecretKey:    raw.SMSSecretKey,
-		SMSSignName:     raw.SMSSignName,
-		SMSTemplateCode: raw.SMSTemplateCode,
-		SMSRegion:       raw.SMSRegion,
+		SMSSignName:       raw.SMSSignName,
+		SMSTemplateCode:   raw.SMSTemplateCode,
+		SMSTemplateCodeEN: raw.SMSTemplateCodeEN,
+		SMSRegion:         raw.SMSRegion,
+		SMSEndpoint:     raw.SMSEndpoint,
+		SMSSdkAppID:     raw.SMSSdkAppID,
+		SMSBodyFormat:   raw.SMSBodyFormat,
 	}
 	log.Printf("[Config] RegisterCodeExpireMinutes: %d\n", cfg.RegisterCodeExpireMinutes)
 	log.Printf("[Config] LoginMaxFailureCount: %d\n", cfg.LoginMaxFailureCount)

@@ -10,7 +10,6 @@ import (
 	"fst/backend/internal/config"
 	"fst/backend/internal/middleware"
 	"fst/backend/utils"
-	"math/big"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -54,6 +53,49 @@ type ChangePasswordRequest struct {
 	NewPassword string `json:"new_password" binding:"required,min=6"`
 }
 
+type ProfileRealnameSummary struct {
+	HasVerification bool   `json:"hasVerification"`
+	ID              uint64 `json:"id,omitempty"`
+	Status          uint8  `json:"status,omitempty"`
+	RealName        string `json:"realName,omitempty"`
+	CertificateType uint8  `json:"certificateType,omitempty"`
+	CertificateNo   string `json:"certificateNo,omitempty"`
+	SubmittedAt     *int64 `json:"submittedAt,omitempty"`
+	ReviewedAt      *int64 `json:"reviewedAt,omitempty"`
+	RejectReason    string `json:"rejectReason,omitempty"`
+}
+
+type ProfileResponse struct {
+	ID            uint64                  `json:"id"`
+	GroupID       uint64                  `json:"groupId"`
+	Username      string                  `json:"username"`
+	UserName      string                  `json:"userName"`
+	Email         string                  `json:"email"`
+	Nickname      string                  `json:"nickname"`
+	Avatar        string                  `json:"avatar"`
+	BackGroundRaw string                  `json:"back_ground"`
+	BackGround    string                  `json:"backGround"`
+	Gender        uint8                   `json:"gender"`
+	Birthday      *int64                  `json:"birthday"`
+	Motto         string                  `json:"motto"`
+	Mobile        string                  `json:"mobile"`
+	Money         float64                 `json:"money"`
+	Score         int64                   `json:"score"`
+	Level         uint64                  `json:"level"`
+	Role          string                  `json:"role"`
+	Status        uint8                   `json:"status"`
+	Language      string                  `json:"language"`
+	Country       string                  `json:"country"`
+	LoginFailure  uint8                   `json:"loginFailure"`
+	JoinTime      *int64                  `json:"joinTime"`
+	JoinIP        string                  `json:"joinIp"`
+	LastLoginTime *int64                  `json:"lastLoginTime"`
+	LastLoginIP   string                  `json:"lastLoginIp"`
+	UpdateTime    *int64                  `json:"updateTime"`
+	CreateTime    *int64                  `json:"createTime"`
+	Realname      ProfileRealnameSummary  `json:"realname"`
+}
+
 // ========================================
 // 控制器方法
 // ========================================
@@ -65,7 +107,7 @@ type ChangePasswordRequest struct {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} utils.Response
+// @Success 200 {object} utils.Response{data=ProfileResponse}
 // @Router /api/v1/user/profile [get]
 func (ctrl *ProfileController) GetProfile(c *gin.Context) {
 	user_id, exists := c.Get("userID")
@@ -83,34 +125,52 @@ func (ctrl *ProfileController) GetProfile(c *gin.Context) {
 	// 隐藏敏感信息
 	user.Password = ""
 
-	utils.Success(c, gin.H{
-		"id":            user.ID,
-		"groupId":       user.GroupId,
-		"username":      user.Username,
-		"userName":      user.Username,
-		"email":         user.Email,
-		"nickname":      user.Nickname,
-		"avatar":        user.Avatar,
-		"back_ground":   user.BackGround,
-		"backGround":    user.BackGround,
-		"gender":        user.Gender,
-		"birthday":      user.Birthday,
-		"motto":         user.Motto,
-		"mobile":        user.Mobile,
-		"money":         user.Money,
-		"score":         user.Score,
-		"level":         user.Level,
-		"role":          user.Role,
-		"status":        user.Status,
-		"language":      user.Language,
-		"country":       user.Country,
-		"loginFailure":  user.LoginFailure,
-		"joinTime":      user.JoinTime,
-		"joinIp":        user.JoinIp,
-		"lastLoginTime": user.LastLoginTime,
-		"lastLoginIp":   user.LastLoginIp,
-		"updateTime":    user.UpdateTime,
-		"createTime":    user.CreateTime,
+	realnameSummary := ProfileRealnameSummary{
+		HasVerification: false,
+	}
+	if verification, err := models.GetRealnameVerificationByUserID(user_id.(uint64)); err == nil && verification != nil {
+		realnameSummary = ProfileRealnameSummary{
+			HasVerification: true,
+			ID:              verification.ID,
+			Status:          verification.Status,
+			RealName:        verification.RealName,
+			CertificateType: verification.CertificateType,
+			CertificateNo:   verification.CertificateNo,
+			SubmittedAt:     verification.SubmittedAt,
+			ReviewedAt:      verification.ReviewedAt,
+			RejectReason:    verification.RejectReason,
+		}
+	}
+
+	utils.Success(c, ProfileResponse{
+		ID:            user.ID,
+		GroupID:       user.GroupId,
+		Username:      user.Username,
+		UserName:      user.Username,
+		Email:         user.Email,
+		Nickname:      user.Nickname,
+		Avatar:        user.Avatar,
+		BackGroundRaw: user.BackGround,
+		BackGround:    user.BackGround,
+		Gender:        user.Gender,
+		Birthday:      user.Birthday,
+		Motto:         user.Motto,
+		Mobile:        user.Mobile,
+		Money:         user.Money,
+		Score:         user.Score,
+		Level:         user.Level,
+		Role:          user.Role,
+		Status:        user.Status,
+		Language:      user.Language,
+		Country:       user.Country,
+		LoginFailure:  user.LoginFailure,
+		JoinTime:      user.JoinTime,
+		JoinIP:        user.JoinIp,
+		LastLoginTime: user.LastLoginTime,
+		LastLoginIP:   user.LastLoginIp,
+		UpdateTime:    user.UpdateTime,
+		CreateTime:    user.CreateTime,
+		Realname:      realnameSummary,
 	})
 }
 
@@ -193,17 +253,17 @@ func (ctrl *ProfileController) UpdateProfile(c *gin.Context) {
 
 	// 构建更新请求
 	update_req := &services.UserUpdateRequest{
-		ID:         user_id.(uint64),
-		Nickname:   req.Nickname,
-		Avatar:     req.Avatar,
-		Gender:     req.Gender,
-		Birthday:   req.Birthday,
-		Motto:      req.Motto,
-		Mobile:     req.Mobile,
-		BackGround: req.BackGround,
-		Language:   req.Language,
-		Country:    req.Country,
+		ID:       user_id.(uint64),
+		Gender:   req.Gender,
+		Birthday: req.Birthday,
 	}
+	update_req.Nickname = &req.Nickname
+	update_req.Avatar = &req.Avatar
+	update_req.Motto = &req.Motto
+	update_req.Mobile = &req.Mobile
+	update_req.BackGround = &req.BackGround
+	update_req.Language = &req.Language
+	update_req.Country = &req.Country
 
 	if err := ctrl.user_svc.Update(update_req); err != nil {
 		utils.Fail(c, 500, err.Error())
@@ -359,9 +419,10 @@ func (ctrl *ProfileController) UpdateSettings(c *gin.Context) {
 	// 更新 users 表中的 language 字段
 	if req.Language != "" {
 		update_req := &services.UserUpdateRequest{
-			ID:       uid,
-			Language: utils.Clean_XSS(req.Language),
+			ID: uid,
 		}
+		lang := utils.Clean_XSS(req.Language)
+		update_req.Language = &lang
 		if err := ctrl.user_svc.Update(update_req); err != nil {
 			utils.Fail(c, 500, "Failed to update settings")
 			return
@@ -436,9 +497,9 @@ func (ctrl *ProfileController) UpdateAvatar(c *gin.Context) {
 	}
 
 	update_req := &services.UserUpdateRequest{
-		ID:     user_id.(uint64),
-		Avatar: req.Avatar,
+		ID: user_id.(uint64),
 	}
+	update_req.Avatar = &req.Avatar
 
 	if err := ctrl.user_svc.Update(update_req); err != nil {
 		utils.Fail(c, 500, "Failed to update avatar")
@@ -545,7 +606,8 @@ func (ctrl *ProfileController) SendEmailChangeCode(c *gin.Context) {
 	verifyConfig := services.GetGlobalVerifyConfig()
 	if !verifyConfig.EmailEnabled {
 		// 验证码功能关闭，直接更新邮箱
-		update_req := &services.UserUpdateRequest{ID: uid, Email: req.NewEmail}
+		update_req := &services.UserUpdateRequest{ID: uid}
+		update_req.Email = &req.NewEmail
 		if err := ctrl.user_svc.Update(update_req); err != nil {
 			utils.Fail(c, 500, err.Error())
 			return
@@ -619,13 +681,13 @@ func (ctrl *ProfileController) VerifyEmailChange(c *gin.Context) {
 		utils.Fail(c, 400, "Invalid or expired verification code")
 		return
 	}
-	_ = models.DeleteVerificationCodesByEmail(req.NewEmail, "change_email")
+	_ = models.DeleteVerificationCodesByContact(req.NewEmail, "change_email")
 
 	// 更新邮箱
 	update_req := &services.UserUpdateRequest{
-		ID:    user_id.(uint64),
-		Email: req.NewEmail,
+		ID: user_id.(uint64),
 	}
+	update_req.Email = &req.NewEmail
 	if err := ctrl.user_svc.Update(update_req); err != nil {
 		utils.Fail(c, 500, err.Error())
 		return
@@ -669,6 +731,11 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 
 	req.NewMobile = utils.Clean_XSS(req.NewMobile)
 	uid := user_id.(uint64)
+	user, err := ctrl.user_svc.GetByID(uid)
+	if err != nil {
+		utils.Fail(c, 404, "User not found")
+		return
+	}
 
 	// 检查手机号是否已被使用
 	if req.NewMobile != "" {
@@ -692,7 +759,8 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 	verifyConfig := services.GetGlobalVerifyConfig()
 	if !verifyConfig.SMSEnabled {
 		// 验证码功能关闭，直接更新手机号
-		update_req := &services.UserUpdateRequest{ID: uid, Mobile: req.NewMobile}
+		update_req := &services.UserUpdateRequest{ID: uid}
+		update_req.Mobile = &req.NewMobile
 		if err := ctrl.user_svc.Update(update_req); err != nil {
 			utils.Fail(c, 500, err.Error())
 			return
@@ -714,19 +782,29 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 
 	// 通过 SMS 服务发送验证码
 	if services.GlobalSMSService == nil {
-		_ = models.DeleteVerificationCodesByEmail(req.NewMobile, "change_phone")
+		_ = models.DeleteVerificationCodesByContact(req.NewMobile, "change_phone")
 		utils.Fail(c, 500, "SMS service unavailable")
 		return
 	}
 	providerName := services.GlobalSMSService.GetProviderName()
 	if providerName == "none" || (providerName != "console" && !services.GlobalSMSService.IsConfigured()) || (providerName == "console" && config.IsProductionMode()) {
-		_ = models.DeleteVerificationCodesByEmail(req.NewMobile, "change_phone")
+		_ = models.DeleteVerificationCodesByContact(req.NewMobile, "change_phone")
 		utils.Fail(c, 500, "SMS service not configured")
 		return
 	}
-	if err := services.GlobalSMSService.SendCode(req.NewMobile, code, 10); err != nil {
+
+	// 优先使用用户个人语言设置，避免短信内容被固定为中文。
+	smsLang := user.Language
+	if strings.TrimSpace(smsLang) == "" {
+		smsLang = "zh-CN"
+	}
+	smsTemplateParams := map[string]string{
+		"__template_name": "bind_phone",
+		"__template_order": "code,expire",
+	}
+	if err := services.GlobalSMSService.SendCode(req.NewMobile, code, 10, smsTemplateParams, smsLang); err != nil {
 		fmt.Printf("[SMS] Failed to send code to %s via %s: %v\n", req.NewMobile, providerName, err)
-		_ = models.DeleteVerificationCodesByEmail(req.NewMobile, "change_phone")
+		_ = models.DeleteVerificationCodesByContact(req.NewMobile, "change_phone")
 		utils.Fail(c, 500, "Failed to send verification code")
 		return
 	}
@@ -765,13 +843,13 @@ func (ctrl *ProfileController) VerifyPhoneChange(c *gin.Context) {
 		utils.Fail(c, 400, "Invalid or expired verification code")
 		return
 	}
-	_ = models.DeleteVerificationCodesByEmail(req.NewMobile, "change_phone")
+	_ = models.DeleteVerificationCodesByContact(req.NewMobile, "change_phone")
 
 	// 更新手机号
 	update_req := &services.UserUpdateRequest{
-		ID:     user_id.(uint64),
-		Mobile: req.NewMobile,
+		ID: user_id.(uint64),
 	}
+	update_req.Mobile = &req.NewMobile
 	if err := ctrl.user_svc.Update(update_req); err != nil {
 		utils.Fail(c, 500, err.Error())
 		return
@@ -1001,15 +1079,23 @@ func calculateDaysJoined(join_time *int64) int {
 	return int(time.Since(join).Hours() / 24)
 }
 
-// generateCode 生成6位数字验证码（使用 crypto/rand）
+// generateCode 生成6位随机数字验证码
+// 使用 crypto/rand 强制随机，不依赖固定格式或种子
 func generateCode() string {
-	n, err := crypto_rand.Int(crypto_rand.Reader, big.NewInt(1000000))
-	if err != nil {
+	const digits = "0123456789"
+	b := make([]byte, 6)
+	if _, err := crypto_rand.Read(b); err != nil {
 		// fallback to math/rand
-		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-		return fmt.Sprintf("%06d", rnd.Intn(1000000))
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		for i := range b {
+			b[i] = digits[r.Intn(10)]
+		}
+		return string(b)
 	}
-	return fmt.Sprintf("%06d", n.Int64())
+	for i := range b {
+		b[i] = digits[b[i]%10]
+	}
+	return string(b)
 }
 
 // getLangFromRequest 从请求获取语言

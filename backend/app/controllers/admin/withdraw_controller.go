@@ -1,0 +1,174 @@
+package admin
+
+import (
+	"fst/backend/app/models"
+	"fst/backend/app/services"
+	"fst/backend/internal/middleware"
+	"fst/backend/utils"
+	"strconv"
+	"time"
+
+	"github.com/gin-gonic/gin"
+)
+
+type WithdrawController struct {
+	withdrawService *services.WithdrawService
+}
+
+func NewWithdrawController() *WithdrawController {
+	return &WithdrawController{
+		withdrawService: services.NewWithdrawService(),
+	}
+}
+
+type ReviewWithdrawBody struct {
+	Status       uint8  `json:"status" binding:"required"`
+	ReviewRemark string `json:"review_remark"`
+}
+
+type PayWithdrawBody struct {
+	TransferRemark string `json:"transfer_remark"`
+}
+
+func (ctrl *WithdrawController) List(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	userID, _ := strconv.ParseUint(c.DefaultQuery("user_id", "0"), 10, 64)
+	keyword := utils.Clean_XSS(c.DefaultQuery("keyword", ""))
+
+	var status *uint8
+	statusStr := c.Query("status")
+	if statusStr != "" {
+		if v, err := strconv.ParseUint(statusStr, 10, 8); err == nil {
+			val := uint8(v)
+			status = &val
+		}
+	}
+
+	result, err := ctrl.withdrawService.GetList(&models.WithdrawListQuery{
+		Page:     page,
+		PageSize: pageSize,
+		UserID:   userID,
+		Keyword:  keyword,
+		Status:   status,
+	})
+	if err != nil {
+		utils.Fail(c, 500, "获取提现列表失败: "+err.Error())
+		return
+	}
+	utils.Success(c, result)
+}
+
+func (ctrl *WithdrawController) Stats(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	userID, _ := strconv.ParseUint(c.DefaultQuery("user_id", "0"), 10, 64)
+	keyword := utils.Clean_XSS(c.DefaultQuery("keyword", ""))
+
+	var status *uint8
+	statusStr := c.Query("status")
+	if statusStr != "" {
+		if v, err := strconv.ParseUint(statusStr, 10, 8); err == nil {
+			val := uint8(v)
+			status = &val
+		}
+	}
+
+	result, err := ctrl.withdrawService.GetStats(&models.WithdrawListQuery{
+		Page:     page,
+		PageSize: 20,
+		UserID:   userID,
+		Keyword:  keyword,
+		Status:   status,
+	})
+	if err != nil {
+		utils.Fail(c, 500, "获取提现统计失败: "+err.Error())
+		return
+	}
+	utils.Success(c, result)
+}
+
+func (ctrl *WithdrawController) Detail(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "无效的ID")
+		return
+	}
+	item, err := ctrl.withdrawService.GetByID(id)
+	if err != nil {
+		utils.Fail(c, 404, "提现记录不存在")
+		return
+	}
+	utils.Success(c, item)
+}
+
+func (ctrl *WithdrawController) Review(c *gin.Context) {
+	adminID, exists := c.Get("userID")
+	if !exists {
+		utils.Fail(c, 401, "用户未登录")
+		return
+	}
+
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "无效的ID")
+		return
+	}
+
+	var req ReviewWithdrawBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Fail(c, 400, "参数错误: "+err.Error())
+		return
+	}
+	req.ReviewRemark = utils.Clean_XSS(req.ReviewRemark)
+
+	if err := ctrl.withdrawService.Review(adminID.(uint64), &services.ReviewWithdrawRequest{
+		ID:           id,
+		Status:       req.Status,
+		ReviewRemark: req.ReviewRemark,
+	}); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+	utils.SuccessMsg(c, "审核完成", nil)
+}
+
+func (ctrl *WithdrawController) MarkPaid(c *gin.Context) {
+	adminID, exists := c.Get("userID")
+	if !exists {
+		utils.Fail(c, 401, "用户未登录")
+		return
+	}
+
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "无效的ID")
+		return
+	}
+
+	var req PayWithdrawBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Fail(c, 400, "参数错误: "+err.Error())
+		return
+	}
+	req.TransferRemark = utils.Clean_XSS(req.TransferRemark)
+
+	if err := ctrl.withdrawService.MarkPaid(adminID.(uint64), &services.PayWithdrawRequest{
+		ID:             id,
+		TransferRemark: req.TransferRemark,
+	}); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+	utils.SuccessMsg(c, "已标记为人工打款完成", nil)
+}
+
+func (ctrl *WithdrawController) RegisterRoutes(group *gin.RouterGroup) {
+	withdraw := group.Group("/withdraw")
+	{
+		withdraw.GET("", ctrl.List)
+		withdraw.GET("/stats", ctrl.Stats)
+		withdraw.GET("/:id", ctrl.Detail)
+		withdraw.POST("/:id/review", middleware.RequireIdempotency("admin_withdraw_review", 10*time.Minute), ctrl.Review)
+		withdraw.POST("/:id/pay", middleware.RequireIdempotency("admin_withdraw_pay", 10*time.Minute), ctrl.MarkPaid)
+	}
+}

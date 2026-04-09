@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch, h } from 'vue'
+import { computed, h, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import {
   NButton,
   NCard,
@@ -22,10 +22,11 @@ import {
 } from 'naive-ui'
 import type { DataTableColumns, PaginationProps, SelectOption } from 'naive-ui'
 import {
-  fetchPayGateways,
-  createPaymentOrder,
-  fetchPaymentOrders,
   checkPaymentOrderStatus,
+  createPaymentOrder,
+  fetchPayGateways,
+  fetchPaymentOrderDetail,
+  fetchPaymentOrders,
 } from '@/service/api/user/payment'
 import type { PayGateway, PaymentOrder } from '@/service/api/user/payment'
 import { fetchUserProfile } from '@/service/api/user/login'
@@ -59,6 +60,7 @@ const selectedGateway = ref<PayGateway | null>(null)
 
 // ========== 订单详情弹窗 ==========
 const showOrderDetail = ref(false)
+const detailLoading = ref(false)
 const selectedOrder = ref<PaymentOrder | null>(null)
 
 // ========== 订单数据 ==========
@@ -79,7 +81,7 @@ const statusOptions: SelectOption[] = [
 ]
 
 // ========== 状态/支付方式映射 ==========
-const statusMap: Record<number, { label: string; type: 'default' | 'success' | 'warning' | 'error' | 'info' }> = {
+const statusMap: Record<number, { label: string, type: 'default' | 'success' | 'warning' | 'error' | 'info' }> = {
   0: { label: '待支付', type: 'warning' },
   1: { label: '已支付', type: 'success' },
   2: { label: '已取消', type: 'default' },
@@ -215,9 +217,11 @@ async function refreshBalance() {
     if (res.isSuccess && res.data) {
       authStore.updateUserInfo({ money: res.data.money, score: res.data.score })
     }
-  } catch {
+  }
+  catch {
     console.error('刷新余额失败')
-  } finally {
+  }
+  finally {
     balanceLoading.value = false
   }
 }
@@ -229,12 +233,15 @@ async function fetchGateways() {
     const res = await fetchPayGateways()
     if (res.isSuccess && res.data) {
       payGateways.value = (res.data.list || []).filter((gw: PayGateway) => gw.status === 1)
-    } else {
+    }
+    else {
       message.error('获取支付方式失败')
     }
-  } catch {
+  }
+  catch {
     message.error('获取支付方式失败')
-  } finally {
+  }
+  finally {
     gatewaysLoading.value = false
   }
 }
@@ -255,9 +262,11 @@ async function fetchOrders() {
       orderData.value = res.data?.list || []
       pagination.itemCount = res.data?.total || 0
     }
-  } catch {
+  }
+  catch {
     message.error('获取订单记录失败')
-  } finally {
+  }
+  finally {
     loading.value = false
   }
 }
@@ -276,7 +285,8 @@ function startAutoRefresh() {
         await refreshBalance()
         message.success('付款已完成，余额已更新')
       }
-    } else {
+    }
+    else {
       stopAutoRefresh()
     }
   }, 5000)
@@ -323,19 +333,52 @@ async function createRechargeOrder() {
       // 刷新订单列表
       await fetchOrders()
 
-      // 找到刚创建的订单并弹出详情（含二维码）
-      const newOrder = orderData.value.find(o => o.order_no === res.data!.order_no)
-      if (newOrder) {
-        selectedOrder.value = { ...newOrder, pay_url: res.data.pay_url || newOrder.pay_url }
-        showOrderDetail.value = true
-        startAutoRefresh()
+      // 优先通过详情接口拿完整订单，避免依赖列表刷新时序或分页命中。
+      const createdOrder = orderData.value.find(o => o.order_no === res.data!.order_no)
+      if (createdOrder) {
+        const detailRes = await fetchPaymentOrderDetail(createdOrder.id)
+        if (detailRes.isSuccess && detailRes.data) {
+          selectedOrder.value = detailRes.data
+        }
+        else {
+          selectedOrder.value = { ...createdOrder, pay_url: res.data.pay_url || createdOrder.pay_url }
+        }
       }
-    } else {
+      else {
+        selectedOrder.value = {
+          id: 0,
+          user_id: authStore.userInfo?.id || 0,
+          gateway_id: gw.id,
+          trade_no: '',
+          payment_channel: gw.type,
+          payment_type: res.data.payment_type || gw.pay_type,
+          amount: res.data.amount,
+          fee: res.data.fee,
+          pay_amount: res.data.pay_amount,
+          subject: '',
+          status: 0,
+          notify_count: 0,
+          pay_url: res.data.pay_url,
+          paid_at: null,
+          expire_at: res.data.expire_at,
+          client_ip: '',
+          create_time: Math.floor(Date.now() / 1000),
+          update_time: Math.floor(Date.now() / 1000),
+          order_no: res.data.order_no,
+        }
+      }
+
+      showOrderDetail.value = true
+      startAutoRefresh()
+    }
+    else {
       message.error((res as any).message || '创建订单失败')
     }
-  } catch {
+  }
+  catch {
     message.error('创建订单失败，请稍后重试')
-  } finally {
+  }
+  finally {
     creating.value = false
   }
 }
@@ -344,17 +387,40 @@ async function createRechargeOrder() {
 function handlePayment(order: PaymentOrder) {
   if (order.pay_url) {
     window.open(order.pay_url, '_blank')
-  } else {
+  }
+  else {
     message.error('支付链接不可用')
   }
 }
 
 // ========== 查看订单详情 ==========
-function handleViewDetails(order: PaymentOrder) {
+async function handleViewDetails(order: PaymentOrder) {
   selectedOrder.value = order
   showOrderDetail.value = true
-  if (order.status === 0) {
-    startAutoRefresh()
+  detailLoading.value = true
+  try {
+    const res = await fetchPaymentOrderDetail(order.id)
+    if (res.isSuccess && res.data) {
+      selectedOrder.value = res.data
+      if (res.data.status === 0) {
+        startAutoRefresh()
+      }
+    }
+    else {
+      message.error(res.message || '获取订单详情失败')
+      if (order.status === 0) {
+        startAutoRefresh()
+      }
+    }
+  }
+  catch {
+    message.error('获取订单详情失败')
+    if (order.status === 0) {
+      startAutoRefresh()
+    }
+  }
+  finally {
+    detailLoading.value = false
   }
 }
 
@@ -369,14 +435,18 @@ async function handleRefreshOrder(orderId: number) {
       await refreshBalance()
       if (selectedOrder.value && selectedOrder.value.id === orderId) {
         const updated = orderData.value.find(o => o.id === orderId)
-        if (updated) selectedOrder.value = { ...updated }
+        if (updated)
+          selectedOrder.value = { ...updated }
       }
-    } else {
+    }
+    else {
       message.error('刷新订单状态失败')
     }
-  } catch {
+  }
+  catch {
     message.error('刷新订单状态失败')
-  } finally {
+  }
+  finally {
     refreshingOrders.value.delete(orderId)
   }
 }
@@ -416,8 +486,11 @@ async function handleRefreshAllPending() {
     try {
       refreshingOrders.value.add(order.id)
       const res = await checkPaymentOrderStatus(order.id)
-      if (res.isSuccess) count++
-    } catch { /* skip */ } finally {
+      if (res.isSuccess)
+        count++
+    }
+    catch { /* skip */ }
+    finally {
       refreshingOrders.value.delete(order.id)
     }
   }
@@ -428,17 +501,20 @@ async function handleRefreshAllPending() {
 
 // ========== 格式化时间 ==========
 function formatTime(ts: number | null | undefined) {
-  if (!ts) return '-'
+  if (!ts)
+    return '-'
   return new Date(ts * 1000).toLocaleString()
 }
 
 // ========== 生命周期 ==========
 watch(() => showPaymentModal.value, (show) => {
-  if (show) fetchGateways()
+  if (show)
+    fetchGateways()
 })
 
 watch(() => showOrderDetail.value, (show) => {
-  if (!show) stopAutoRefresh()
+  if (!show)
+    stopAutoRefresh()
 })
 
 onUnmounted(() => {
@@ -465,7 +541,9 @@ onMounted(() => {
         <!-- 当前余额 -->
         <NGridItem span="24 800:10">
           <div class="balance-display">
-            <NText class="balance-label">当前余额</NText>
+            <NText class="balance-label">
+              当前余额
+            </NText>
             <div class="balance-value">
               <span class="balance-currency">¥</span>
               <span class="balance-number">{{ userBalance.toFixed(2) }}</span>
@@ -476,7 +554,9 @@ onMounted(() => {
         <!-- 快速充值 -->
         <NGridItem span="24 800:14">
           <div class="quick-recharge-section">
-            <NText class="section-title">在线充值</NText>
+            <NText class="section-title">
+              在线充值
+            </NText>
 
             <!-- 快速选择金额 -->
             <NSpace class="amount-buttons" wrap>
@@ -501,7 +581,9 @@ onMounted(() => {
                 class="recharge-input"
                 @update:value="onCustomAmountChange"
               >
-                <template #prefix>¥</template>
+                <template #prefix>
+                  ¥
+                </template>
               </NInputNumber>
 
               <NButton
@@ -530,8 +612,12 @@ onMounted(() => {
             style="width: 120px"
             @update:value="handleSearch"
           />
-          <NButton size="small" @click="handleReset">重置</NButton>
-          <NButton size="small" type="warning" ghost @click="handleRefreshAllPending">批量刷新</NButton>
+          <NButton size="small" @click="handleReset">
+            重置
+          </NButton>
+          <NButton size="small" type="warning" ghost @click="handleRefreshAllPending">
+            批量刷新
+          </NButton>
         </NSpace>
       </template>
       <div class="table-container">
@@ -556,6 +642,7 @@ onMounted(() => {
       title="选择支付方式"
       class="payment-modal"
       :auto-focus="false"
+      :mask-closable="!creating"
     >
       <NSpin :show="gatewaysLoading">
         <div v-if="payGateways.length > 0" class="gateway-grid">
@@ -587,8 +674,12 @@ onMounted(() => {
                       <span>{{ payTypeIcon(gateway.pay_type) }}</span>
                     </div>
                     <div class="gateway-title">
-                      <NText class="gateway-name">{{ gateway.name }}</NText>
-                      <NText depth="3" class="gateway-type">{{ paymentTypeMap[gateway.pay_type] || gateway.pay_type }}</NText>
+                      <NText class="gateway-name">
+                        {{ gateway.name }}
+                      </NText>
+                      <NText depth="3" class="gateway-type">
+                        {{ paymentTypeMap[gateway.pay_type] || gateway.pay_type }}
+                      </NText>
                     </div>
                   </div>
                   <NText depth="3" class="gateway-desc">
@@ -617,10 +708,12 @@ onMounted(() => {
 
       <template #footer>
         <NSpace justify="end">
-          <NButton @click="showPaymentModal = false">取消</NButton>
+          <NButton :disabled="creating" @click="showPaymentModal = false">
+            取消
+          </NButton>
           <NButton
             type="primary"
-            :disabled="!selectedGateway"
+            :disabled="!selectedGateway || creating"
             :loading="creating"
             @click="createRechargeOrder"
           >
@@ -635,59 +728,69 @@ onMounted(() => {
       <template #header-extra>
         <NSpace v-if="selectedOrder?.status === 0 && autoRefreshTimer" align="center" :size="4">
           <NSpin size="small" />
-          <NText depth="3" style="font-size: 12px">自动刷新中</NText>
+          <NText depth="3" style="font-size: 12px">
+            自动刷新中
+          </NText>
         </NSpace>
       </template>
 
-      <div v-if="selectedOrder" class="order-detail">
-        <!-- 二维码区域：仅待支付且有支付链接时显示 -->
-        <div v-if="selectedOrder.status === 0 && selectedOrder.pay_url" class="qrcode-section">
-          <NQrCode :value="selectedOrder.pay_url" :size="180" />
-          <NText depth="3" style="margin-top: 8px; font-size: 13px; text-align: center; display: block">
-            请使用手机扫码完成支付
-          </NText>
-          <NDivider />
-        </div>
+      <NSpin :show="detailLoading">
+        <div v-if="selectedOrder" class="order-detail">
+          <!-- 二维码区域：仅待支付且有支付链接时显示 -->
+          <div v-if="selectedOrder.status === 0 && selectedOrder.pay_url" class="qrcode-section">
+            <NQrCode :value="selectedOrder.pay_url" :size="180" />
+            <NText depth="3" style="margin-top: 8px; font-size: 13px; text-align: center; display: block">
+              请使用手机扫码完成支付
+            </NText>
+            <NDivider />
+          </div>
 
-        <NDescriptions :column="1" label-placement="left">
-          <NDescriptionsItem label="订单号">
-            {{ selectedOrder.order_no }}
-          </NDescriptionsItem>
-          <NDescriptionsItem label="交易号">
-            {{ selectedOrder.trade_no || '-' }}
-          </NDescriptionsItem>
-          <NDescriptionsItem label="充值金额">
-            <NText type="success">¥{{ Number(selectedOrder.amount).toFixed(2) }}</NText>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="手续费">
-            {{ selectedOrder.fee > 0 ? `¥${Number(selectedOrder.fee).toFixed(2)}` : '无' }}
-          </NDescriptionsItem>
-          <NDescriptionsItem label="实际支付">
-            <NText type="info">¥{{ Number(selectedOrder.pay_amount).toFixed(2) }}</NText>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="支付方式">
-            {{ paymentTypeMap[selectedOrder.payment_type] || selectedOrder.payment_type }}
-          </NDescriptionsItem>
-          <NDescriptionsItem label="支付时间">
-            {{ selectedOrder.paid_at ? formatTime(selectedOrder.paid_at) : '未支付' }}
-          </NDescriptionsItem>
-          <NDescriptionsItem label="创建时间">
-            {{ formatTime(selectedOrder.create_time) }}
-          </NDescriptionsItem>
-          <NDescriptionsItem label="更新时间">
-            {{ formatTime(selectedOrder.update_time) }}
-          </NDescriptionsItem>
-          <NDescriptionsItem label="订单状态">
-            <NTag :type="(statusMap[selectedOrder.status] || { type: 'default' }).type">
-              {{ (statusMap[selectedOrder.status] || { label: '未知' }).label }}
-            </NTag>
-          </NDescriptionsItem>
-        </NDescriptions>
-      </div>
+          <NDescriptions :column="1" label-placement="left">
+            <NDescriptionsItem label="订单号">
+              {{ selectedOrder.order_no }}
+            </NDescriptionsItem>
+            <NDescriptionsItem label="交易号">
+              {{ selectedOrder.trade_no || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem label="充值金额">
+              <NText type="success">
+                ¥{{ Number(selectedOrder.amount).toFixed(2) }}
+              </NText>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="手续费">
+              {{ selectedOrder.fee > 0 ? `¥${Number(selectedOrder.fee).toFixed(2)}` : '无' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem label="实际支付">
+              <NText type="info">
+                ¥{{ Number(selectedOrder.pay_amount).toFixed(2) }}
+              </NText>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="支付方式">
+              {{ paymentTypeMap[selectedOrder.payment_type] || selectedOrder.payment_type }}
+            </NDescriptionsItem>
+            <NDescriptionsItem label="支付时间">
+              {{ selectedOrder.paid_at ? formatTime(selectedOrder.paid_at) : '未支付' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem label="创建时间">
+              {{ formatTime(selectedOrder.create_time) }}
+            </NDescriptionsItem>
+            <NDescriptionsItem label="更新时间">
+              {{ formatTime(selectedOrder.update_time) }}
+            </NDescriptionsItem>
+            <NDescriptionsItem label="订单状态">
+              <NTag :type="(statusMap[selectedOrder.status] || { type: 'default' }).type">
+                {{ (statusMap[selectedOrder.status] || { label: '未知' }).label }}
+              </NTag>
+            </NDescriptionsItem>
+          </NDescriptions>
+        </div>
+      </NSpin>
 
       <template #footer>
         <NSpace justify="end">
-          <NButton @click="showOrderDetail = false">关闭</NButton>
+          <NButton @click="showOrderDetail = false">
+            关闭
+          </NButton>
           <NButton
             v-if="selectedOrder"
             type="info"

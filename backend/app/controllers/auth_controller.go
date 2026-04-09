@@ -175,7 +175,7 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 		return
 	}
 
-	if err := models.DeleteVerificationCodesByEmail(req.Email, "register"); err != nil && isNonProductionMode() {
+	if err := models.DeleteVerificationCodesByContact(req.Email, "register"); err != nil && isNonProductionMode() {
 		fmt.Printf("[REGISTER-DEBUG] cleanup verification codes failed: %v\n", err)
 	}
 
@@ -213,24 +213,16 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 	// 获取语言（优先请求体，其次请求头，默认英文）
 	lang := getLangFromRequest(c, req.Lang)
 
-	tpl, err := models.GetEmailTemplate("register_code", lang)
-	var subject, body string
 	expireMinStr := fmt.Sprintf("%d", config.GlobalConfig.RegisterCodeExpireMinutes)
-
-	if err == nil && tpl != nil {
-		subject = strings.ReplaceAll(tpl.Subject, "{app_name}", config.GlobalConfig.AppName)
-		body = strings.ReplaceAll(tpl.Content, "{code}", code)
-		body = strings.ReplaceAll(body, "{app_name}", config.GlobalConfig.AppName)
-		body = strings.ReplaceAll(body, "{expire_minutes}", expireMinStr)
-	} else {
-		// 降级使用默认硬编码内容
-		if lang == "zh-CN" {
-			subject = fmt.Sprintf("【%s】注册验证码", config.GlobalConfig.AppName)
-			body = fmt.Sprintf("您的验证码是：%s，有效期%s分钟。", code, expireMinStr)
-		} else {
-			subject = fmt.Sprintf("[%s] Registration Code", config.GlobalConfig.AppName)
-			body = fmt.Sprintf("Your code is: %s, valid for %s minutes.", code, expireMinStr)
-		}
+	emailSvc := services.NewEmailService()
+	subject, body, err := emailSvc.RenderTemplateMail("register_code", lang, map[string]string{
+		"code":           code,
+		"expire_minutes": expireMinStr,
+	})
+	if err != nil {
+		fmt.Printf("[ERROR] Failed to render register email template: %v\n", err)
+		utils.Fail(c, 500, "Failed to render email template")
+		return
 	}
 
 	// 如果配置了SMTP，发送真实邮件
@@ -586,7 +578,7 @@ func (ctrl *AuthController) ResetPasswordConfirm(c *gin.Context) {
 	}
 
 	// 重置成功后：清理该邮箱所有重置密码验证码
-	_ = models.DeleteVerificationCodesByEmail(req.Email, "reset_password")
+	_ = models.DeleteVerificationCodesByContact(req.Email, "reset_password")
 
 	user, err := models.GetUserByEmail(req.Email)
 	if err != nil {

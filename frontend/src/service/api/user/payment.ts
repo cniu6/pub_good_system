@@ -71,6 +71,10 @@ interface OrderStatusResponse {
   paid_at: number | null
 }
 
+function createIdempotencyKey(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 // ========================================
 // 用户端支付 API
 // ========================================
@@ -82,7 +86,9 @@ export function fetchPayGateways() {
 
 /** 创建充值订单 */
 export function createPaymentOrder(data: { gateway_id: number, amount: number, subject?: string }) {
-  return request.Post<Service.ResponseResult<CreateOrderResponse>>('/api/v1/user/payment/create', data)
+  return request.Post<Service.ResponseResult<CreateOrderResponse>>('/api/v1/user/payment/create', data, {
+    headers: { 'X-Idempotency-Key': createIdempotencyKey('user-payment-create') },
+  })
 }
 
 /** 获取充值订单列表 */

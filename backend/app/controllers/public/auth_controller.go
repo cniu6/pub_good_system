@@ -330,7 +330,7 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 		return
 	}
 
-	if err := models.DeleteVerificationCodesByEmail(req.Email, "register"); err != nil && isNonProductionMode() {
+	if err := models.DeleteVerificationCodesByContact(req.Email, "register"); err != nil && isNonProductionMode() {
 		fmt.Printf("[REGISTER-DEBUG] cleanup verification codes failed: %v\n", err)
 	}
 
@@ -524,7 +524,7 @@ func (ctrl *AuthController) ResetPasswordConfirm(c *gin.Context) {
 		utils.Fail(c, 400, "Invalid or expired reset token")
 		return
 	}
-	_ = models.DeleteVerificationCodesByEmail(req.Email, "reset_password")
+	_ = models.DeleteVerificationCodesByContact(req.Email, "reset_password")
 
 	// 获取用户
 	user, err := models.GetUserByEmail(req.Email)

@@ -6,6 +6,27 @@ interface Ilogin {
   authGuard?: 'user' | 'admin'
 }
 
+interface ActionMessageResponse {
+  message?: string
+}
+
+interface RegisterPayload {
+  username: string
+  password: string
+  email: string
+  code: string
+  nickname?: string
+  lang?: string
+}
+
+interface ResetPasswordConfirmPayload {
+  email: string
+  code: string
+  new_password: string
+}
+
+interface UserProfileResponse extends Api.Login.Info {}
+
 /** 用户登录 */
 export function fetchLogin(data: Ilogin) {
   const methodInstance = request.Post<Service.ResponseResult<Api.Login.Info>>('/api/v1/public/login', data)
@@ -31,27 +52,27 @@ export function fetchUserRoutes(params: { id: number }) {
 
 /** 发送注册验证码 */
 export function fetchSendRegisterCode(data: { email: string, lang: string }) {
-  return request.Post<Service.ResponseResult<any>>('/api/v1/public/send-register-code', data)
+  return request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/public/send-register-code', data)
 }
 
 /** 用户注册 */
-export function fetchRegister(data: any) {
-  return request.Post<Service.ResponseResult<any>>('/api/v1/public/register', data)
+export function fetchRegister(data: RegisterPayload) {
+  return request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/public/register', data)
 }
 
 /** 发送重置密码邮件 */
 export function fetchSendResetEmail(data: { email: string, lang: string }) {
-  return request.Post<Service.ResponseResult<any>>('/api/v1/public/forgot-password', data)
+  return request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/public/forgot-password', data)
 }
 
 /** 确认重置密码 */
-export function fetchResetPasswordConfirm(data: any) {
-  return request.Post<Service.ResponseResult<any>>('/api/v1/public/reset-password', data)
+export function fetchResetPasswordConfirm(data: ResetPasswordConfirmPayload) {
+  return request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/public/reset-password', data)
 }
 
 /** 获取用户信息 */
 export function fetchUserProfile() {
-  return request.Get<Service.ResponseResult<any>>('/api/v1/user/profile')
+  return request.Get<Service.ResponseResult<UserProfileResponse>>('/api/v1/user/profile')
 }
 
 /** 获取当前用户 API Key */
@@ -60,13 +81,23 @@ export function fetchUserApiKey() {
 }
 
 /** 更新用户信息 */
-export function fetchUpdateProfile(data: any) {
-  return request.Put<Service.ResponseResult<any>>('/api/v1/user/profile', data)
+export function fetchUpdateProfile(data: {
+  nickname?: string
+  avatar?: string
+  gender?: 0 | 1 | 2
+  birthday?: number | null
+  motto?: string
+  mobile?: string
+  back_ground?: string
+  language?: string
+  country?: string
+}) {
+  return request.Put<Service.ResponseResult<ActionMessageResponse>>('/api/v1/user/profile', data)
 }
 
 /** 修改密码 */
 export function fetchChangePassword(data: { old_password: string, new_password: string }) {
-  return request.Put<Service.ResponseResult<any>>('/api/v1/user/password', data)
+  return request.Put<Service.ResponseResult<ActionMessageResponse>>('/api/v1/user/password', data)
 }
 
 /** 重置API密钥 */

@@ -48,20 +48,10 @@ func (s *EmailService) SendEmail(to, subject, body string) error {
 
 // SendTemplateEmail 发送模板邮件
 func (s *EmailService) SendTemplateEmail(to, template_name, lang string, vars map[string]string) error {
-	// 获取模板
-	tpl, err := models.GetEmailTemplate(template_name, lang)
+	subject, content, err := s.RenderTemplateMail(template_name, lang, vars)
 	if err != nil {
-		return fmt.Errorf("模板不存在: %s (%s)", template_name, lang)
+		return err
 	}
-
-	// 合并默认变量
-	all_vars := s.buildDefaultVars(vars)
-
-	// 渲染主题
-	subject := s.renderTemplate(tpl.Subject, all_vars)
-
-	// 渲染内容
-	content := s.renderTemplate(tpl.Content, all_vars)
 
 	// 包装 HTML 布局
 	htmlBody := s.WrapHTMLLayout(subject, content)
@@ -86,6 +76,19 @@ func (s *EmailService) SendTemplateEmail(to, template_name, lang string, vars ma
 	go models.CreateEmailLog(to, subject, content, template_name, status, error_msg)
 
 	return send_err
+}
+
+// RenderTemplateMail 仅渲染模板，不直接发送，用于老控制器复用统一模板链路。
+func (s *EmailService) RenderTemplateMail(templateName, lang string, vars map[string]string) (subject string, content string, err error) {
+	tpl, err := models.GetEmailTemplate(templateName, lang)
+	if err != nil {
+		return "", "", fmt.Errorf("模板不存在: %s (%s)", templateName, lang)
+	}
+
+	allVars := s.buildDefaultVars(vars)
+	subject = s.renderTemplate(tpl.Subject, allVars)
+	content = s.renderTemplate(tpl.Content, allVars)
+	return subject, content, nil
 }
 
 // SendVerificationCode 发送验证码邮件

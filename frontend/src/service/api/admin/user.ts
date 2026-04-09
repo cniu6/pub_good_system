@@ -37,6 +37,20 @@ export interface AdminUser {
   language: string
   country: string
   token: string
+  realname_status?: 0 | 1 | 2 | null
+  realname?: Api.Login.RealnameSummary
+}
+
+export interface AdminUserRealnameSummary {
+  has_verification: boolean
+  id?: number
+  status?: 0 | 1 | 2
+  real_name?: string
+  certificate_type?: 1 | 2 | 3
+  certificate_no?: string
+  submitted_at?: number | null
+  reviewed_at?: number | null
+  reject_reason?: string
 }
 
 interface UserListResponse {
@@ -48,6 +62,7 @@ interface UserListResponse {
 
 interface UserDetailResponse {
   user: AdminUser
+  realname?: AdminUserRealnameSummary
 }
 
 interface LoginAsUserResponse {
@@ -60,6 +75,16 @@ interface LoginAsUserResponse {
 
 interface ResetApiKeyResponse {
   apikey: string
+}
+
+interface UserMoneyChangeResponse {
+  message: string
+  log: Entity.UserMoneyLog
+}
+
+interface UserScoreChangeResponse {
+  message: string
+  log: Entity.UserScoreLog
 }
 
 export function normalizeAdminUserRole(role?: string): Entity.RoleType {
@@ -97,6 +122,7 @@ export function toLoginInfo(user: AdminUser, token: string): Api.Login.Info {
     token: user.token,
     updateTime: user.update_time ?? null,
     createTime: user.create_time ?? null,
+    realname: user.realname,
     accessToken: token,
     refreshToken: '',
   }
@@ -110,58 +136,6 @@ export function openLoginAsUserWindow(user: AdminUser, token: string, refreshTok
     role: [normalizeAdminUserRole(user.role)],
     userInfo: toLoginInfo(user, token),
   }, targetUrl)
-}
-
-// =====================================================
-// 兼容资料/vue 的命名导出（给 views/admin/users 直接引用）
-// =====================================================
-
-export function fetchAdminUserPage(params: {
-  page?: number
-  page_size?: number
-  keyword?: string
-  status?: number | null
-  role?: string
-}) {
-  return adminUserApi.list(params)
-}
-
-export function createUser(data: Parameters<typeof adminUserApi.create>[0]) {
-  return adminUserApi.create(data)
-}
-
-export function deleteUser(userId: number) {
-  return adminUserApi.delete(userId)
-}
-
-export function updateUserStatus(userId: number, data: { status: number }) {
-  return adminUserApi.updateStatus(userId, Number(data.status))
-}
-
-export function updateAdminUserProfile(userId: number, data: Record<string, any>) {
-  // 后端允许更新的字段比这里的类型更宽；此处保持兼容，交由后端校验/忽略未知字段
-  return request.Put<Service.ResponseResult<null>>(`${BASE_URL}/${userId}`, data)
-}
-
-export function loginAsUser(userId: number) {
-  return adminUserApi.loginAsUser(userId)
-}
-
-export function resetUserApikey(userId: number) {
-  return adminUserApi.resetApiKey(userId)
-}
-
-export function resetUserPassword(
-  arg1: number | { user_id: number, password: string },
-  arg2?: { password: string },
-) {
-  // 兼容两种调用：
-  // 1) resetUserPassword({ user_id, password })（资料/vue）
-  // 2) resetUserPassword(id, { password })（资料/vue users/index.vue 动态 import 调用）
-  if (typeof arg1 === 'number') {
-    return adminUserApi.resetPassword(arg1, arg2?.password || '')
-  }
-  return adminUserApi.resetPassword(arg1.user_id, arg1.password)
 }
 
 // 用户简要信息类型
@@ -196,6 +170,7 @@ export const adminUserApi = {
     keyword?: string
     status?: number | null
     role?: string
+    realname_status?: 0 | 1 | 2 | null
   }) {
     return request.Get<Service.ResponseResult<UserListResponse>>(BASE_URL, { params })
   },
@@ -212,6 +187,9 @@ export const adminUserApi = {
     email: string
     nickname?: string
     mobile?: string
+    language?: string
+    country?: string
+    level?: number
     role?: string
     status?: number
   }) {
@@ -223,6 +201,8 @@ export const adminUserApi = {
     nickname?: string
     email?: string
     mobile?: string
+    language?: string
+    country?: string
     role?: string
     status?: number
   }) {
@@ -247,7 +227,8 @@ export const adminUserApi = {
   // 批量获取用户简要信息
   // 返回 map[id]UserSimpleInfo，方便通过 ID 快速查找
   async batchSimpleInfo(ids: number[]): Promise<Record<number, UserSimpleInfo>> {
-    if (!ids.length) return {}
+    if (!ids.length)
+      return {}
     const res = await request.Post<Service.ResponseResult<UserBatchSimpleInfoResponse>>(`${BASE_URL}/batch-simple`, { ids })
     return res.isSuccess ? (res.data?.users || {}) : {}
   },
@@ -269,22 +250,22 @@ export const adminUserApi = {
 
   // 变更用户余额（增减）
   changeMoney(id: number, data: { money: number, memo?: string }) {
-    return request.Post(`${BASE_URL}/${id}/money/change`, data)
+    return request.Post<Service.ResponseResult<UserMoneyChangeResponse>>(`${BASE_URL}/${id}/money/change`, data)
   },
 
   // 直接设置用户余额
   setMoney(id: number, data: { money: number, memo?: string }) {
-    return request.Put(`${BASE_URL}/${id}/money`, data)
+    return request.Put<Service.ResponseResult<UserMoneyChangeResponse>>(`${BASE_URL}/${id}/money`, data)
   },
 
   // 变更用户积分（增减）
   changeScore(id: number, data: { score: number, memo?: string }) {
-    return request.Post(`${BASE_URL}/${id}/score/change`, data)
+    return request.Post<Service.ResponseResult<UserScoreChangeResponse>>(`${BASE_URL}/${id}/score/change`, data)
   },
 
   // 直接设置用户积分
   setScore(id: number, data: { score: number, memo?: string }) {
-    return request.Put(`${BASE_URL}/${id}/score`, data)
+    return request.Put<Service.ResponseResult<UserScoreChangeResponse>>(`${BASE_URL}/${id}/score`, data)
   },
 }
 
@@ -316,4 +297,52 @@ export const adminScoreLogApi = {
   delete(id: number) {
     return request.Delete<Service.ResponseResult<{ message: string }>>(`${SCORE_LOGS_URL}/${id}`)
   },
+}
+
+// =====================================================
+// 兼容资料/vue 的命名导出（给 views/admin/users 直接引用）
+// =====================================================
+
+export function fetchAdminUserPage(params: {
+  page?: number
+  page_size?: number
+  keyword?: string
+  status?: number | null
+  role?: string
+  realname_status?: 0 | 1 | 2 | null
+}) {
+  return adminUserApi.list(params)
+}
+
+export function createUser(data: Parameters<typeof adminUserApi.create>[0]) {
+  return adminUserApi.create(data)
+}
+
+export function deleteUser(userId: number) {
+  return adminUserApi.delete(userId)
+}
+
+export function updateUserStatus(userId: number, data: { status: number }) {
+  return adminUserApi.updateStatus(userId, Number(data.status))
+}
+
+export function updateAdminUserProfile(userId: number, data: Record<string, any>) {
+  return request.Put<Service.ResponseResult<null>>(`${BASE_URL}/${userId}`, data)
+}
+
+export function loginAsUser(userId: number) {
+  return adminUserApi.loginAsUser(userId)
+}
+
+export function resetUserApikey(userId: number) {
+  return adminUserApi.resetApiKey(userId)
+}
+
+export function resetUserPassword(
+  arg1: number | { user_id: number, password: string },
+  arg2?: { password: string },
+) {
+  if (typeof arg1 === 'number')
+    return adminUserApi.resetPassword(arg1, arg2?.password || '')
+  return adminUserApi.resetPassword(arg1.user_id, arg1.password)
 }

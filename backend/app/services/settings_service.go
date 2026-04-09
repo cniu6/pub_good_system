@@ -182,6 +182,12 @@ type PublicAppConfig struct {
 	GeetestCaptchaId   string `json:"geetest_captcha_id"`
 	EmailVerifyEnabled bool   `json:"email_verify_enabled"`
 	SMSVerifyEnabled   bool   `json:"sms_verify_enabled"`
+	RealnameEnabled    bool   `json:"realname_enabled"`
+	RealnameNotifyText string `json:"realname_notify_text"`
+	WithdrawEnabled    bool     `json:"withdraw_enabled"`
+	WithdrawMinAmount  float64  `json:"withdraw_min_amount"`
+	WithdrawNotifyText string   `json:"withdraw_notify_text"`
+	WithdrawAccountTypes []string `json:"withdraw_account_types"`
 }
 
 // VerifyConfig 验证码功能开关运行时配置
@@ -197,7 +203,11 @@ type SMSRuntimeConfig struct {
 	SecretKey    string
 	SignName     string
 	TemplateCode string
+	TemplateCodeEN string
 	Region       string
+	Endpoint     string
+	SdkAppID     string
+	BodyFormat   string
 }
 
 // GeetestRuntimeConfig is the effective config used by backend validation.
@@ -289,12 +299,16 @@ func (s *SettingsService) GetSMSRuntimeConfig() SMSRuntimeConfig {
 	}
 
 	return SMSRuntimeConfig{
-		Provider:     get("sms_provider", config.GlobalConfig.SMSProvider),
-		AccessKey:    get("sms_access_key", config.GlobalConfig.SMSAccessKey),
-		SecretKey:    get("sms_secret_key", config.GlobalConfig.SMSSecretKey),
-		SignName:     get("sms_sign_name", config.GlobalConfig.SMSSignName),
-		TemplateCode: get("sms_template_code", config.GlobalConfig.SMSTemplateCode),
-		Region:       get("sms_region", config.GlobalConfig.SMSRegion),
+		Provider:       get("sms_provider", config.GlobalConfig.SMSProvider),
+		AccessKey:      get("sms_access_key", config.GlobalConfig.SMSAccessKey),
+		SecretKey:      get("sms_secret_key", config.GlobalConfig.SMSSecretKey),
+		SignName:       get("sms_sign_name", config.GlobalConfig.SMSSignName),
+		TemplateCode:   get("sms_template_code", config.GlobalConfig.SMSTemplateCode),
+		TemplateCodeEN: get("sms_template_code_en", config.GlobalConfig.SMSTemplateCodeEN),
+		Region:         get("sms_region", config.GlobalConfig.SMSRegion),
+		Endpoint:       get("sms_endpoint", config.GlobalConfig.SMSEndpoint),
+		SdkAppID:       get("sms_sdk_app_id", config.GlobalConfig.SMSSdkAppID),
+		BodyFormat:     get("sms_body_format", config.GlobalConfig.SMSBodyFormat),
 	}
 }
 
@@ -315,12 +329,16 @@ func GetGlobalSMSRuntimeConfig() SMSRuntimeConfig {
 		return GlobalSettingsService.GetSMSRuntimeConfig()
 	}
 	return SMSRuntimeConfig{
-		Provider:     config.GlobalConfig.SMSProvider,
-		AccessKey:    config.GlobalConfig.SMSAccessKey,
-		SecretKey:    config.GlobalConfig.SMSSecretKey,
-		SignName:     config.GlobalConfig.SMSSignName,
-		TemplateCode: config.GlobalConfig.SMSTemplateCode,
-		Region:       config.GlobalConfig.SMSRegion,
+		Provider:       config.GlobalConfig.SMSProvider,
+		AccessKey:      config.GlobalConfig.SMSAccessKey,
+		SecretKey:      config.GlobalConfig.SMSSecretKey,
+		SignName:       config.GlobalConfig.SMSSignName,
+		TemplateCode:   config.GlobalConfig.SMSTemplateCode,
+		TemplateCodeEN: config.GlobalConfig.SMSTemplateCodeEN,
+		Region:         config.GlobalConfig.SMSRegion,
+		Endpoint:       config.GlobalConfig.SMSEndpoint,
+		SdkAppID:       config.GlobalConfig.SMSSdkAppID,
+		BodyFormat:     config.GlobalConfig.SMSBodyFormat,
 	}
 }
 
@@ -340,7 +358,11 @@ func ApplyGlobalRuntimeConfig() {
 	config.GlobalConfig.SMSSecretKey = smsConfig.SecretKey
 	config.GlobalConfig.SMSSignName = smsConfig.SignName
 	config.GlobalConfig.SMSTemplateCode = smsConfig.TemplateCode
+	config.GlobalConfig.SMSTemplateCodeEN = smsConfig.TemplateCodeEN
 	config.GlobalConfig.SMSRegion = smsConfig.Region
+	config.GlobalConfig.SMSEndpoint = smsConfig.Endpoint
+	config.GlobalConfig.SMSSdkAppID = smsConfig.SdkAppID
+	config.GlobalConfig.SMSBodyFormat = smsConfig.BodyFormat
 }
 
 // GetPublicAppConfig returns public app config consumed by frontend bootstrap.
@@ -362,7 +384,37 @@ func (s *SettingsService) GetPublicAppConfig() *PublicAppConfig {
 		GeetestCaptchaId:   geetestConfig.CaptchaID,
 		EmailVerifyEnabled: verifyConfig.EmailEnabled,
 		SMSVerifyEnabled:   verifyConfig.SMSEnabled,
+		RealnameEnabled:    s.GetBoolWithDefault("realname_enabled", true),
+		RealnameNotifyText: s.GetWithDefault("realname_notify_text", "完成实名认证后可享受更多服务"),
+		WithdrawEnabled:    s.GetBoolWithDefault("withdraw_enabled", true),
+		WithdrawMinAmount:  parseJSONFloatWithDefault(s.GetWithDefault("withdraw_min_amount", "10"), 10),
+		WithdrawNotifyText: s.GetWithDefault("withdraw_notify_text", "提现申请提交后需管理员审核，通过后人工打款。"),
+		WithdrawAccountTypes: parseJSONStringArrayWithDefault(s.GetWithDefault("withdraw_account_types", "[\"bank\",\"alipay\",\"wechat\",\"usdt\"]"), []string{"bank", "alipay", "wechat", "usdt"}),
 	}
+}
+
+func parseJSONFloatWithDefault(val string, fallback float64) float64 {
+	var result float64
+	if err := json.Unmarshal([]byte(val), &result); err != nil {
+		return fallback
+	}
+	return result
+}
+
+func parseJSONStringArrayWithDefault(val string, fallback []string) []string {
+	var result []string
+	if err := json.Unmarshal([]byte(val), &result); err != nil || len(result) == 0 {
+		return fallback
+	}
+	return result
+}
+
+func ParseJSONFloatForPublic(val string, fallback float64) float64 {
+	return parseJSONFloatWithDefault(val, fallback)
+}
+
+func ParseJSONStringArrayForPublic(val string, fallback []string) []string {
+	return parseJSONStringArrayWithDefault(val, fallback)
 }
 
 // UpdateSettingsWithCache updates settings in DB and invalidates cache.

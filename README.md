@@ -153,6 +153,7 @@ controllers/
 |------|------|
 | [doc/JWT认证.md](doc/JWT认证.md) | Token 生成与验证 |
 | [doc/邮件系统.md](doc/邮件系统.md) | 邮件发送与模板管理 |
+| [doc/短信插件系统.md](doc/短信插件系统.md) | 短信插件（阿里云/腾讯云/自定义HTTP） |
 | [doc/插件系统.md](doc/插件系统.md) | 插件开发指南 |
 | [doc/数据库模型.md](doc/数据库模型.md) | 数据模型与操作 |
 | [doc/配置系统.md](doc/配置系统.md) | 配置管理 |

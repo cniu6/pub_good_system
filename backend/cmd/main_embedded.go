@@ -61,6 +61,12 @@ func main() {
 	// 初始化支付订单表
 	models.InitPaymentOrdersTable()
 
+	// 初始化提现申请表
+	models.InitWithdrawRequestsTable()
+
+	// 初始化接口幂等键表
+	models.InitIdempotencyKeysTable()
+
 	// 初始化支付通道表
 	models.InitPayGatewaysTable()
 
@@ -70,6 +76,7 @@ func main() {
 	// 启动定时清理任务：间隔可通过 CLEANUP_INTERVAL_MINUTES 配置，默认10分钟
 	// 清理状态仅在内存中记录，不输出周期性日志，可通过接口查询
 	services.StartCleanupTask()
+	models.CleanupExpiredIdempotencyKeys()
 
 	// 初始化短信服务
 	services.InitSMSService()

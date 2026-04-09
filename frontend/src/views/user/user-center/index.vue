@@ -6,6 +6,7 @@ import ApiTab from './components/ApiTab.vue'
 import SettingsTab from './components/SettingsTab.vue'
 import SecurityTab from './components/SecurityTab.vue'
 import MoneyScoreTab from './components/MoneyScoreTab.vue'
+import RealnameTab from './components/RealnameTab.vue'
 import NovaIcon from '@/components/common/NovaIcon.vue'
 
 const authStore = useAuthStore()
@@ -59,6 +60,9 @@ async function handleAvatarSubmit() {
       showAvatarModal.value = false
       window.$message.success('头像更新成功')
     }
+    else {
+      window.$message.error(response.message || '头像更新失败')
+    }
   }
   catch (error) {
     console.error('更新头像失败', error)
@@ -83,6 +87,9 @@ async function handleMottoSubmit() {
       authStore.updateUserInfo({ motto: nextMotto })
       showMottoModal.value = false
       window.$message.success('签名更新成功')
+    }
+    else {
+      window.$message.error(response.message || '签名更新失败')
     }
   }
   catch (error) {
@@ -109,6 +116,9 @@ async function handleBgSubmit() {
       authStore.updateUserInfo({ backGround: nextBg })
       showBgModal.value = false
       window.$message.success('背景图更新成功')
+    }
+    else {
+      window.$message.error(response.message || '背景图更新失败')
     }
   }
   catch (error) {
@@ -163,7 +173,7 @@ onActivated(() => {
           <n-h3 class="user-name">
             <span class="user-name-text">{{ userInfo?.nickname || userInfo?.userName || '用户' }}</span>
             <n-text v-if="userInfo?.userName" depth="3" class="user-name-account">
-              ({{ userInfo.userName }})
+              (@{{ userInfo.userName }})
             </n-text>
           </n-h3>
           <n-text depth="3" class="user-email ml-2">
@@ -244,6 +254,9 @@ onActivated(() => {
         </n-tab-pane>
         <n-tab-pane name="moneyScore" tab="余额与积分">
           <MoneyScoreTab />
+        </n-tab-pane>
+        <n-tab-pane name="realname" tab="实名认证">
+          <RealnameTab />
         </n-tab-pane>
       </n-tabs>
     </n-card>

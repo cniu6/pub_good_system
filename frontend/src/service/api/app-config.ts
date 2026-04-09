@@ -29,6 +29,16 @@ export interface AppConfig {
   // 验证码开关
   email_verify_enabled: boolean
   sms_verify_enabled: boolean
+
+  // 实名认证配置
+  realname_enabled: boolean
+  realname_notify_text: string
+
+  // 提现配置
+  withdraw_enabled: boolean
+  withdraw_min_amount: number
+  withdraw_notify_text: string
+  withdraw_account_types: string[]
 }
 
 /**

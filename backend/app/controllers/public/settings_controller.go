@@ -38,6 +38,20 @@ type AppConfigResponse struct {
 
 	// 语言配置
 	DefaultLang string `json:"default_lang"`
+
+	// 验证码开关
+	EmailVerifyEnabled bool `json:"email_verify_enabled"`
+	SMSVerifyEnabled   bool `json:"sms_verify_enabled"`
+
+	// 实名认证配置
+	RealnameEnabled    bool   `json:"realname_enabled"`
+	RealnameNotifyText string `json:"realname_notify_text"`
+
+	// 提现配置
+	WithdrawEnabled      bool     `json:"withdraw_enabled"`
+	WithdrawMinAmount    float64  `json:"withdraw_min_amount"`
+	WithdrawNotifyText   string   `json:"withdraw_notify_text"`
+	WithdrawAccountTypes []string `json:"withdraw_account_types"`
 }
 
 // GetAppConfig 获取应用配置
@@ -79,6 +93,14 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 		DefaultLang:        "zhCN",
 		GeetestEnabled:     false,
 		GeetestCaptchaId:   "",
+		EmailVerifyEnabled: true,
+		SMSVerifyEnabled:   false,
+		RealnameEnabled:    true,
+		RealnameNotifyText: "完成实名认证后可享受更多服务",
+		WithdrawEnabled:    true,
+		WithdrawMinAmount:  10,
+		WithdrawNotifyText: "提现申请提交后需管理员审核，通过后人工打款。",
+		WithdrawAccountTypes: []string{"bank", "alipay", "wechat", "usdt"},
 	}
 
 	// 构建配置map
@@ -114,6 +136,30 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 	}
 	if v, ok := configMap["default_lang"]; ok {
 		response.DefaultLang = v
+	}
+	if v, ok := configMap["email_verify_enabled"]; ok {
+		response.EmailVerifyEnabled = v == "true" || v == "1"
+	}
+	if v, ok := configMap["sms_verify_enabled"]; ok {
+		response.SMSVerifyEnabled = v == "true" || v == "1"
+	}
+	if v, ok := configMap["realname_enabled"]; ok {
+		response.RealnameEnabled = v == "true" || v == "1"
+	}
+	if v, ok := configMap["realname_notify_text"]; ok && strings.TrimSpace(v) != "" {
+		response.RealnameNotifyText = v
+	}
+	if v, ok := configMap["withdraw_enabled"]; ok {
+		response.WithdrawEnabled = v == "true" || v == "1"
+	}
+	if v, ok := configMap["withdraw_min_amount"]; ok && strings.TrimSpace(v) != "" {
+		response.WithdrawMinAmount = services.ParseJSONFloatForPublic(v, 10)
+	}
+	if v, ok := configMap["withdraw_notify_text"]; ok && strings.TrimSpace(v) != "" {
+		response.WithdrawNotifyText = v
+	}
+	if v, ok := configMap["withdraw_account_types"]; ok && strings.TrimSpace(v) != "" {
+		response.WithdrawAccountTypes = services.ParseJSONStringArrayForPublic(v, []string{"bank", "alipay", "wechat", "usdt"})
 	}
 	enabled := config.GlobalConfig.GeetestEnabled
 	if v, ok := configMap["geetest_enabled"]; ok {

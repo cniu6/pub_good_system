@@ -1,18 +1,18 @@
 import { defineStore } from 'pinia'
 import type { MenuOption } from 'naive-ui'
-import { type RouteRecordRaw } from 'vue-router'
+import type { RouteRecordRaw } from 'vue-router'
 import type { AppRouteMode } from '@/router'
 import { router } from '@/router'
 import { getAdminBasePath } from '@/router/constants'
 import { staticRoutes } from '@/router/routes.static'
 import { fetchUserRoutes } from '@/service'
-import { authStorage, $t } from '@/utils'
+import { $t, authStorage } from '@/utils'
 import { createAdminMenus, createMenus, createRoutes, generateCacheRoutes } from './helper'
 
 interface RoutesStatus {
   isInitAuthRoute: boolean
   menus: MenuOption[]
-  adminMenus: MenuOption[]
+  adminMenus: any[]
   rowRoutes: AppRoute.RowRoute[]
   activeMenu: string | null
   cacheRoutes: string[]
@@ -114,14 +114,15 @@ export const useRouteStore = defineStore('route-store', {
             const adminModule = await import(
               /* webpackChunkName: "admin-core" */
               /* vite: {"chunkName": "admin-core"} */
-              '@/router/admin.routes'
-            ) as { getAdminRoutes: () => unknown[] }
-            const adminRoutes = adminModule.getAdminRoutes()
+              '@/router/admin.routes',
+            ) as { getAdminRoutes: () => RouteRecordRaw[] }
+            const adminRoutes: RouteRecordRaw[] = adminModule.getAdminRoutes()
             for (const route of adminRoutes) {
-              router.addRoute(route as RouteRecordRaw)
+              router.addRoute(route)
             }
             // 使用 helper 生成支持嵌套层级的管理端菜单
-            this.adminMenus = createAdminMenus(adminRoutes as any[])
+            const adminMenus = createAdminMenus(adminRoutes as unknown[])
+            this.adminMenus = adminMenus
           }
           catch (error) {
             console.error('[Security] Failed to load admin routes:', error)

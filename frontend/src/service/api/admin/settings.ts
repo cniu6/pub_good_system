@@ -9,7 +9,7 @@ import { request } from '../../http'
 export type SettingType = 'string' | 'number' | 'boolean' | 'json'
 
 // 配置分类
-export type SettingCategory = 'basic' | 'security' | 'email' | 'sms' | 'custom'
+export type SettingCategory = 'basic' | 'security' | 'email' | 'sms' | 'payment' | 'custom'
 
 // 配置项 DTO
 export interface SettingDTO {
@@ -170,6 +170,9 @@ export function fetchSetting(key: string) {
 
 /**
  * 更新单个配置值
+ * 这里故意保留通用返回类型：
+ * 配置项是动态的，后端这组接口主要承载通用 message/data 包装，
+ * 业务层应以 isSuccess/message 为准，不在 API 层对 data 做过度收窄。
  */
 export function updateSetting(key: string, value: string) {
   return request.Put<Service.ResponseResult<any>>(`/api/v1/admin/settings/${key}`, { value })
@@ -177,6 +180,9 @@ export function updateSetting(key: string, value: string) {
 
 /**
  * 更新配置元数据
+ * 这里故意保留通用返回类型：
+ * 元数据编辑面向自定义配置 CRUD，后端返回体以通用成功消息为主，
+ * 由调用页面按实际场景消费，避免把动态配置结构错误固化到类型层。
  */
 export function updateSettingMeta(key: string, data: UpdateSettingMetaRequest) {
   return request.Put<Service.ResponseResult<any>>(`/api/v1/admin/settings/${key}/meta`, data)
@@ -184,6 +190,9 @@ export function updateSettingMeta(key: string, data: UpdateSettingMetaRequest) {
 
 /**
  * 批量更新配置
+ * 这里故意保留通用返回类型：
+ * batch 接口服务多个配置分类，返回体没有稳定业务实体，
+ * 当前只需要统一判断 isSuccess/message。
  */
 export function batchUpdateSettings(settings: Record<string, string>) {
   return request.Put<Service.ResponseResult<any>>('/api/v1/admin/settings/batch', { settings })
@@ -198,6 +207,8 @@ export function createSetting(data: CreateSettingRequest) {
 
 /**
  * 删除配置（仅限自定义配置）
+ * 这里故意保留通用返回类型：
+ * 删除后前端只依赖通用成功/失败语义，不依赖固定 data 结构。
  */
 export function deleteSetting(key: string) {
   return request.Delete<Service.ResponseResult<any>>(`/api/v1/admin/settings/${key}`)
@@ -205,6 +216,8 @@ export function deleteSetting(key: string) {
 
 /**
  * 重启后端服务
+ * 这里故意保留通用返回类型：
+ * 重启接口本质是一次命令触发，前端只消费通用 message，不绑定具体 data 结构。
  */
 export function restartBackend() {
   return request.Post<Service.ResponseResult<any>>('/api/v1/admin/settings/restart-backend')

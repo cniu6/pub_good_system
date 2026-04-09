@@ -236,16 +236,20 @@ async function handleApplyQuerySettings() {
     queryDays.value = Math.max(1, Math.floor(queryDays.value || 1))
     maxCount.value = Math.max(20, Math.min(10000, Math.floor(maxCount.value || 500)))
 
-    await adminApi.settings.batchUpdate({
+    const res = await adminApi.settings.batchUpdate({
       operation_log_query_days: String(queryDays.value),
       operation_log_max_count: String(maxCount.value),
     })
-
-    query.page = 1
-    pagination.page = 1
-    applyDateRange()
-    await fetchLogs()
-    message.success('查询设置已更新')
+    if (res.isSuccess) {
+      query.page = 1
+      pagination.page = 1
+      applyDateRange()
+      await fetchLogs()
+      message.success(res.message || '查询设置已更新')
+    }
+    else {
+      message.error(res.message || '更新查询设置失败')
+    }
   }
   catch {
     message.error('更新查询设置失败')

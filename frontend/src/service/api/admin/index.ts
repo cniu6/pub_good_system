@@ -23,7 +23,8 @@ function createLazyModule<T extends Record<string, (...args: any[]) => any>>(
     get(_, method: string) {
       return async (...args: any[]) => {
         if (!cached) {
-          if (!loading) loading = loader()
+          if (!loading)
+            loading = loader()
           cached = await loading
         }
         return (cached as any)[method](...args)
@@ -35,6 +36,9 @@ function createLazyModule<T extends Record<string, (...args: any[]) => any>>(
 export const adminApi = {
   user: createLazyModule(() => import('./user').then(m => m.adminUserApi)),
   log: createLazyModule(() => import('./log').then(m => m.adminLogApi)),
+  smsLog: createLazyModule(() => import('./sms-log').then(m => m.adminSMSLogApi)),
+  emailTemplate: createLazyModule(() => import('./email-template').then(m => m.adminEmailTemplateApi)),
   settings: createLazyModule(() => import('./settings').then(m => m.adminSettingsApi)),
   dashboard: createLazyModule(() => import('./dashboard').then(m => m.adminDashboardApi)),
+  realname: createLazyModule(() => import('./realname').then(m => m.adminRealnameApi)),
 }

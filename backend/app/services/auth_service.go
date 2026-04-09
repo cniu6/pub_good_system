@@ -55,6 +55,36 @@ type LoginResult struct {
 	RefreshToken     string   `json:"refreshToken"`
 	ExpiresAt        int64    `json:"expiresAt"`
 	RefreshExpiresAt int64    `json:"-"`
+	Realname         any      `json:"realname,omitempty"`
+}
+
+func buildLoginRealnameSummary(userID uint64) map[string]any {
+	summary := map[string]any{
+		"hasVerification": false,
+	}
+
+	// 登录态也补齐实名摘要，避免前端首次登录后本地 userInfo 比 profile 接口少一拍。
+	verification, err := models.GetRealnameVerificationByUserID(userID)
+	if err != nil || verification == nil {
+		return summary
+	}
+
+	summary["hasVerification"] = true
+	summary["id"] = verification.ID
+	summary["status"] = verification.Status
+	summary["realName"] = verification.RealName
+	summary["certificateType"] = verification.CertificateType
+	summary["certificateNo"] = verification.CertificateNo
+	summary["submittedAt"] = verification.SubmittedAt
+	summary["reviewedAt"] = verification.ReviewedAt
+	summary["rejectReason"] = verification.RejectReason
+
+	return summary
+}
+
+// BuildLoginRealnameSummaryForAPI 复用登录态实名摘要构造，保持普通登录/刷新/管理员代登录返回一致。
+func BuildLoginRealnameSummaryForAPI(userID uint64) map[string]any {
+	return buildLoginRealnameSummary(userID)
 }
 
 // Login 用户登录
@@ -124,6 +154,7 @@ func (s *AuthService) Login(username, password, authGuard, clientIP string) (*Lo
 		RefreshToken:     refreshToken,
 		ExpiresAt:        time.Now().Unix() + int64(accessTTL.Seconds()),
 		RefreshExpiresAt: time.Now().Unix() + int64(refreshTTL.Seconds()),
+		Realname:         buildLoginRealnameSummary(user.ID),
 	}, nil
 }
 
@@ -217,6 +248,7 @@ func (s *AuthService) RefreshToken(refreshToken, authGuard, clientIP, userAgent,
 		RefreshToken:     newRefreshToken,
 		ExpiresAt:        accessExpiresAt,
 		RefreshExpiresAt: refreshExpiresAt,
+		Realname:         buildLoginRealnameSummary(user.ID),
 	}, nil
 }
 

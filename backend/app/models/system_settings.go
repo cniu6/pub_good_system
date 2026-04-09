@@ -142,16 +142,29 @@ var defaultSettings = []SystemSetting{
 
 	// ===== 短信设置 =====
 	{Key: "sms_verify_enabled", Value: "false", Type: "boolean", Category: "sms", Label: "短信验证码", Description: "是否启用短信验证码功能（关闭后修改手机号无需验证）", IsPublic: true, IsEditable: true, SortOrder: 0},
-	{Key: "sms_provider", Value: "console", Type: "string", Category: "sms", Label: "短信服务商", Description: "短信服务商标识：console(控制台日志)、aliyun(阿里云)、tencent(腾讯云)", IsPublic: false, IsEditable: true, SortOrder: 1},
+	{Key: "sms_provider", Value: "console", Type: "string", Category: "sms", Label: "短信服务商", Description: "短信服务商标识：console(控制台日志)、aliyun(阿里云)、tencent(腾讯云)、custom(自定义HTTP)", IsPublic: false, IsEditable: true, SortOrder: 1},
 	{Key: "sms_access_key", Value: "", Type: "string", Category: "sms", Label: "AccessKey", Description: "短信服务商 AccessKey / API Key", IsPublic: false, IsEditable: true, SortOrder: 2},
 	{Key: "sms_secret_key", Value: "", Type: "string", Category: "sms", Label: "SecretKey", Description: "短信服务商 SecretKey / API Secret", IsPublic: false, IsEditable: true, SortOrder: 3},
 	{Key: "sms_sign_name", Value: "", Type: "string", Category: "sms", Label: "短信签名", Description: "短信签名（如：F.st）", IsPublic: false, IsEditable: true, SortOrder: 4},
-	{Key: "sms_template_code", Value: "", Type: "string", Category: "sms", Label: "验证码模板ID", Description: "短信验证码模板ID", IsPublic: false, IsEditable: true, SortOrder: 5},
-	{Key: "sms_region", Value: "", Type: "string", Category: "sms", Label: "服务区域", Description: "短信服务区域（部分服务商需要）", IsPublic: false, IsEditable: true, SortOrder: 6},
+	{Key: "sms_template_code", Value: "", Type: "string", Category: "sms", Label: "默认模板ID", Description: "默认短信模板 ID / Code，通常用于中文或默认语言", IsPublic: false, IsEditable: true, SortOrder: 5},
+	{Key: "sms_template_code_en", Value: "", Type: "string", Category: "sms", Label: "英文模板ID", Description: "英文短信模板 ID / Code，可选；未填写时回退默认模板", IsPublic: false, IsEditable: true, SortOrder: 6},
+	{Key: "sms_region", Value: "", Type: "string", Category: "sms", Label: "服务区域", Description: "短信服务区域（部分服务商需要）", IsPublic: false, IsEditable: true, SortOrder: 7},
+	{Key: "sms_sdk_app_id", Value: "", Type: "string", Category: "sms", Label: "腾讯云 AppID", Description: "腾讯云短信 SmsSdkAppId", IsPublic: false, IsEditable: true, SortOrder: 8},
+	{Key: "sms_endpoint", Value: "", Type: "string", Category: "sms", Label: "HTTP Endpoint", Description: "自定义短信网关请求地址", IsPublic: false, IsEditable: true, SortOrder: 9},
+	{Key: "sms_body_format", Value: "json", Type: "string", Category: "sms", Label: "请求体格式", Description: "自定义短信网关请求体格式：json 或 form", IsPublic: false, IsEditable: true, SortOrder: 10},
 
 	// ===== 支付设置 =====
 	{Key: "payment_enabled", Value: "false", Type: "boolean", Category: "payment", Label: "支付功能", Description: "是否启用在线支付充值功能", IsPublic: true, IsEditable: true, SortOrder: 0},
 	{Key: "payment_order_expire_minutes", Value: "30", Type: "number", Category: "payment", Label: "订单有效期", Description: "订单有效期（分钟），超时自动取消", IsPublic: false, IsEditable: true, SortOrder: 1},
+	{Key: "withdraw_enabled", Value: "true", Type: "boolean", Category: "payment", Label: "提现功能", Description: "是否启用用户提现申请功能", IsPublic: true, IsEditable: true, SortOrder: 2},
+	{Key: "withdraw_min_amount", Value: "10", Type: "number", Category: "payment", Label: "最低提现金额", Description: "用户单次提现的最低金额", IsPublic: true, IsEditable: true, SortOrder: 3},
+	{Key: "withdraw_notify_text", Value: "提现申请提交后需管理员审核，通过后人工打款。", Type: "string", Category: "payment", Label: "提现提示语", Description: "显示在用户提现页面的说明文案", IsPublic: true, IsEditable: true, SortOrder: 4},
+	{Key: "withdraw_account_types", Value: "[\"bank\",\"alipay\",\"wechat\",\"usdt\"]", Type: "json", Category: "payment", Label: "支持收款方式", Description: "用户可选择的提现收款方式列表(JSON数组)", IsPublic: true, IsEditable: true, SortOrder: 5},
+
+	// ===== 实名认证设置 =====
+	{Key: "realname_enabled", Value: "true", Type: "boolean", Category: "security", Label: "实名认证功能", Description: "是否启用实名认证功能入口", IsPublic: true, IsEditable: true, SortOrder: 10},
+	{Key: "realname_review_required", Value: "true", Type: "boolean", Category: "security", Label: "实名认证审核", Description: "是否需要管理员审核实名认证申请", IsPublic: false, IsEditable: true, SortOrder: 11},
+	{Key: "realname_notify_text", Value: "完成实名认证后可享受更多服务", Type: "string", Category: "security", Label: "实名认证提示语", Description: "显示在用户实名认证页面的提示文案", IsPublic: true, IsEditable: true, SortOrder: 12},
 }
 
 // initDefaultSettings 初始化默认配置

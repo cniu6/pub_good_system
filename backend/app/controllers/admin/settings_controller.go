@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"fst/backend/app/models"
+	sms_plugin "fst/backend/app/plugins/sms"
 	"fst/backend/app/services"
 	"fst/backend/internal/config"
 	"fst/backend/internal/db"
@@ -677,10 +678,37 @@ func (ctrl *SettingsController) resolveSettingValueForAdmin(setting models.Syste
 			val = config.GlobalConfig.SMSTemplateCode
 		}
 		return val
+	case "sms_template_code_en":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			val = config.GlobalConfig.SMSTemplateCodeEN
+		}
+		return val
 	case "sms_region":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
 			val = config.GlobalConfig.SMSRegion
+		}
+		return val
+	case "sms_sdk_app_id":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			val = config.GlobalConfig.SMSSdkAppID
+		}
+		return val
+	case "sms_endpoint":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			val = config.GlobalConfig.SMSEndpoint
+		}
+		return val
+	case "sms_body_format":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			val = config.GlobalConfig.SMSBodyFormat
+		}
+		if val == "" {
+			val = "json"
 		}
 		return val
 	default:
@@ -822,17 +850,26 @@ func (ctrl *SettingsController) refreshRuntimeConfig() {
 	config.GlobalConfig.SMSSecretKey = smsConfig.SecretKey
 	config.GlobalConfig.SMSSignName = smsConfig.SignName
 	config.GlobalConfig.SMSTemplateCode = smsConfig.TemplateCode
+	config.GlobalConfig.SMSTemplateCodeEN = smsConfig.TemplateCodeEN
 	config.GlobalConfig.SMSRegion = smsConfig.Region
+	config.GlobalConfig.SMSEndpoint = smsConfig.Endpoint
+	config.GlobalConfig.SMSSdkAppID = smsConfig.SdkAppID
+	config.GlobalConfig.SMSBodyFormat = smsConfig.BodyFormat
 
 	if services.GlobalSMSService != nil {
-		services.GlobalSMSService.SetConfig(services.SMSConfig{
-			Provider:     smsConfig.Provider,
-			AccessKey:    smsConfig.AccessKey,
-			SecretKey:    smsConfig.SecretKey,
-			SignName:     smsConfig.SignName,
-			TemplateCode: smsConfig.TemplateCode,
-			Region:       smsConfig.Region,
-		})
+		smsSvcCfg := services.SMSConfig{
+			Provider:       smsConfig.Provider,
+			AccessKey:      smsConfig.AccessKey,
+			SecretKey:      smsConfig.SecretKey,
+			SignName:       smsConfig.SignName,
+			TemplateCode:   smsConfig.TemplateCode,
+			TemplateCodeEN: smsConfig.TemplateCodeEN,
+			Region:         smsConfig.Region,
+			Endpoint:       smsConfig.Endpoint,
+			SdkAppID:       smsConfig.SdkAppID,
+			BodyFormat:     smsConfig.BodyFormat,
+		}
+		sms_plugin.ApplyRuntimeProvider(smsSvcCfg)
 	}
 }
 

@@ -767,6 +767,138 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/admin/realname": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取所有实名认证申请列表（分页）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-实名认证管理"
+                ],
+                "summary": "获取实名认证列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键词（姓名、证件号）",
+                        "name": "keyword",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "状态: 0=待审核, 1=通过, 2=拒绝",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/realname/review": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员审核用户的实名认证申请",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-实名认证管理"
+                ],
+                "summary": "审核实名认证",
+                "parameters": [
+                    {
+                        "description": "审核信息",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app_controllers_admin.ReviewRealnameRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/realname/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据ID获取实名认证详情",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-实名认证管理"
+                ],
+                "summary": "获取实名认证详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "实名认证记录ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/admin/settings": {
             "get": {
                 "security": [
@@ -1082,6 +1214,228 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/admin/sms-logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "分页获取短信发送记录，支持按手机号、服务商、模板名、语言、状态筛选",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-短信日志"
+                ],
+                "summary": "获取短信发送记录列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "手机号（模糊）",
+                        "name": "phone",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "服务商: aliyun, tencent, custom, console",
+                        "name": "provider",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "模板名称",
+                        "name": "template_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "语言: zh-CN, en-US",
+                        "name": "lang",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": -1,
+                        "description": "状态: -1=全部, 0=失败, 1=成功",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "开始时间 (YYYY-MM-DD HH:MM:SS)",
+                        "name": "start_time",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "结束时间 (YYYY-MM-DD HH:MM:SS)",
+                        "name": "end_time",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/sms-logs/clean": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "删除指定日期之前的短信日志",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-短信日志"
+                ],
+                "summary": "清理短信发送记录",
+                "parameters": [
+                    {
+                        "description": "清理参数 {before: '2025-01-01 00:00:00'}",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/sms-logs/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取短信发送总数、成功数、失败数",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-短信日志"
+                ],
+                "summary": "短信发送统计",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/sms-logs/template-names": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取短信日志中出现的所有模板名，用于筛选",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-短信日志"
+                ],
+                "summary": "获取短信模板名列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/sms-logs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据 ID 获取短信日志详情，包含完整响应内容",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-短信日志"
+                ],
+                "summary": "获取短信发送记录详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "日志ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/admin/users": {
             "get": {
                 "security": [
@@ -1125,6 +1479,12 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "状态",
                         "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "实名认证状态: 0=待审核, 1=通过, 2=拒绝",
+                        "name": "realname_status",
                         "in": "query"
                     }
                 ],
@@ -1289,7 +1649,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/app_controllers_admin.AdminUserDetailResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -2461,7 +2833,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/app_controllers_user.ProfileResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -2491,6 +2875,71 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/app_controllers_user.UpdateProfileRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/user/realname": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取当前用户的实名认证状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "实名认证"
+                ],
+                "summary": "获取实名认证状态",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "用户提交实名认证申请",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "实名认证"
+                ],
+                "summary": "提交实名认证",
+                "parameters": [
+                    {
+                        "description": "实名认证信息",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app_controllers_user.SubmitRealnameRequest"
                         }
                     }
                 ],
@@ -2774,6 +3223,49 @@ const docTemplate = `{
                 }
             }
         },
+        "app_controllers_admin.AdminUserDetailResponse": {
+            "type": "object",
+            "properties": {
+                "realname": {
+                    "$ref": "#/definitions/app_controllers_admin.AdminUserRealnameSummary"
+                },
+                "user": {
+                    "$ref": "#/definitions/fst_backend_app_models.User"
+                }
+            }
+        },
+        "app_controllers_admin.AdminUserRealnameSummary": {
+            "type": "object",
+            "properties": {
+                "certificate_no": {
+                    "type": "string"
+                },
+                "certificate_type": {
+                    "type": "integer"
+                },
+                "has_verification": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "real_name": {
+                    "type": "string"
+                },
+                "reject_reason": {
+                    "type": "string"
+                },
+                "reviewed_at": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "submitted_at": {
+                    "type": "integer"
+                }
+            }
+        },
         "app_controllers_admin.BatchUpdateSettingsRequest": {
             "type": "object",
             "required": [
@@ -2882,6 +3374,26 @@ const docTemplate = `{
                 }
             }
         },
+        "app_controllers_admin.ReviewRealnameRequest": {
+            "type": "object",
+            "required": [
+                "id",
+                "status"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "reject_reason": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "integer",
+                    "maximum": 2,
+                    "minimum": 1
+                }
+            }
+        },
         "app_controllers_admin.SettingsListResponse": {
             "type": "object",
             "properties": {
@@ -2933,6 +3445,9 @@ const docTemplate = `{
         "app_controllers_public.AppConfigResponse": {
             "type": "object",
             "properties": {
+                "allow_delete_account": {
+                    "type": "boolean"
+                },
                 "allow_register": {
                     "description": "功能开关",
                     "type": "boolean"
@@ -2944,6 +3459,10 @@ const docTemplate = `{
                     "description": "语言配置",
                     "type": "string"
                 },
+                "email_verify_enabled": {
+                    "description": "验证码开关",
+                    "type": "boolean"
+                },
                 "geetest_captcha_id": {
                     "description": "极验配置",
                     "type": "string"
@@ -2952,6 +3471,13 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "icp": {
+                    "type": "string"
+                },
+                "realname_enabled": {
+                    "description": "实名认证配置",
+                    "type": "boolean"
+                },
+                "realname_notify_text": {
                     "type": "string"
                 },
                 "site_desc": {
@@ -2964,6 +3490,9 @@ const docTemplate = `{
                     "description": "基本配置",
                     "type": "string"
                 },
+                "sms_verify_enabled": {
+                    "type": "boolean"
+                },
                 "version": {
                     "type": "string"
                 }
@@ -2975,6 +3504,9 @@ const docTemplate = `{
                 "password"
             ],
             "properties": {
+                "authGuard": {
+                    "type": "string"
+                },
                 "password": {
                     "type": "string"
                 },
@@ -2992,6 +3524,9 @@ const docTemplate = `{
                 "refreshToken"
             ],
             "properties": {
+                "authGuard": {
+                    "type": "string"
+                },
                 "refreshToken": {
                     "type": "string"
                 }
@@ -3116,6 +3651,127 @@ const docTemplate = `{
                 }
             }
         },
+        "app_controllers_user.ProfileRealnameSummary": {
+            "type": "object",
+            "properties": {
+                "certificateNo": {
+                    "type": "string"
+                },
+                "certificateType": {
+                    "type": "integer"
+                },
+                "hasVerification": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "realName": {
+                    "type": "string"
+                },
+                "rejectReason": {
+                    "type": "string"
+                },
+                "reviewedAt": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "submittedAt": {
+                    "type": "integer"
+                }
+            }
+        },
+        "app_controllers_user.ProfileResponse": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "backGround": {
+                    "type": "string"
+                },
+                "back_ground": {
+                    "type": "string"
+                },
+                "birthday": {
+                    "type": "integer"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "createTime": {
+                    "type": "integer"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "gender": {
+                    "type": "integer"
+                },
+                "groupId": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "joinIp": {
+                    "type": "string"
+                },
+                "joinTime": {
+                    "type": "integer"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "lastLoginIp": {
+                    "type": "string"
+                },
+                "lastLoginTime": {
+                    "type": "integer"
+                },
+                "level": {
+                    "type": "integer"
+                },
+                "loginFailure": {
+                    "type": "integer"
+                },
+                "mobile": {
+                    "type": "string"
+                },
+                "money": {
+                    "type": "number"
+                },
+                "motto": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "realname": {
+                    "$ref": "#/definitions/app_controllers_user.ProfileRealnameSummary"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "updateTime": {
+                    "type": "integer"
+                },
+                "userName": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "app_controllers_user.SendEmailCodeRequest": {
             "type": "object",
             "required": [
@@ -3137,6 +3793,35 @@ const docTemplate = `{
             ],
             "properties": {
                 "new_mobile": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_user.SubmitRealnameRequest": {
+            "type": "object",
+            "required": [
+                "certificate_back",
+                "certificate_front",
+                "certificate_no",
+                "certificate_type",
+                "real_name"
+            ],
+            "properties": {
+                "certificate_back": {
+                    "type": "string"
+                },
+                "certificate_front": {
+                    "type": "string"
+                },
+                "certificate_no": {
+                    "type": "string"
+                },
+                "certificate_type": {
+                    "type": "integer",
+                    "maximum": 3,
+                    "minimum": 1
+                },
+                "real_name": {
                     "type": "string"
                 }
             }
@@ -3257,6 +3942,98 @@ const docTemplate = `{
                     }
                 },
                 "label": {
+                    "type": "string"
+                }
+            }
+        },
+        "fst_backend_app_models.User": {
+            "type": "object",
+            "properties": {
+                "apikey": {
+                    "type": "string"
+                },
+                "avatar": {
+                    "type": "string"
+                },
+                "back_ground": {
+                    "type": "string"
+                },
+                "birthday": {
+                    "type": "integer"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "create_time": {
+                    "type": "integer"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "gender": {
+                    "type": "integer"
+                },
+                "group_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "join_ip": {
+                    "type": "string"
+                },
+                "join_time": {
+                    "type": "integer"
+                },
+                "language": {
+                    "description": "Requested additions",
+                    "type": "string"
+                },
+                "last_login_ip": {
+                    "type": "string"
+                },
+                "last_login_time": {
+                    "type": "integer"
+                },
+                "level": {
+                    "type": "integer"
+                },
+                "lock_until": {
+                    "description": "账户锁定到期时间（时间戳）",
+                    "type": "integer"
+                },
+                "login_failure": {
+                    "type": "integer"
+                },
+                "mobile": {
+                    "type": "string"
+                },
+                "money": {
+                    "type": "number"
+                },
+                "motto": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "role": {
+                    "description": "'user' or 'admin'",
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "token": {
+                    "type": "string"
+                },
+                "update_time": {
+                    "type": "integer"
+                },
+                "username": {
                     "type": "string"
                 }
             }

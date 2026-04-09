@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { useAuthStore } from '@/store'
-import { useSettingsStore } from '@/store'
-import { fetchUserSessions, revokeSession, revokeAllSessions, deactivateAccount, fetchUserStats } from '@/service'
+import { computed, onMounted, ref } from 'vue'
+import { deactivateAccount, fetchUserSessions, fetchUserStats, revokeAllSessions, revokeSession } from '@/service'
+import { useAuthStore, useSettingsStore } from '@/store'
 import NovaIcon from '@/components/common/NovaIcon.vue'
 import GeetestCaptcha from '@/components/common/GeetestCaptcha.vue'
 import { geetestManager } from '@/utils/geetest'
@@ -10,13 +10,28 @@ const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 const allowDeleteAccount = computed(() => settingsStore.allowDeleteAccount)
 
+interface SessionItem {
+  id: number | string
+  device?: string
+  user_agent?: string
+  ip?: string
+  login_at?: number | null
+}
+
+interface UserSecurityStats {
+  daysJoined?: number
+  loginCount?: number
+  money?: number
+  score?: number
+}
+
 const isGeetestEnabled = computed(() => geetestManager.isEnabled())
 const deactivateGeetestRef = ref<any>(null)
 const deactivateCaptchaKey = ref(0)
 
-const sessions = ref<any[]>([])
+const sessions = ref<SessionItem[]>([])
 const sessionsLoading = ref(false)
-const stats = ref<any>(null)
+const stats = ref<UserSecurityStats | null>(null)
 
 const showDeactivateModal = ref(false)
 const deactivateForm = ref({
@@ -25,13 +40,19 @@ const deactivateForm = ref({
 })
 const deactivating = ref(false)
 
-function parseBrowser(ua: string): string {
-  if (!ua) return ''
-  if (ua.includes('Edg/')) return 'Edge'
-  if (ua.includes('Chrome/') && !ua.includes('Edg/')) return 'Chrome'
-  if (ua.includes('Firefox/')) return 'Firefox'
-  if (ua.includes('Safari/') && !ua.includes('Chrome/')) return 'Safari'
-  if (ua.includes('OPR/') || ua.includes('Opera/')) return 'Opera'
+function parseBrowser(ua?: string): string {
+  if (!ua)
+    return ''
+  if (ua.includes('Edg/'))
+    return 'Edge'
+  if (ua.includes('Chrome/') && !ua.includes('Edg/'))
+    return 'Chrome'
+  if (ua.includes('Firefox/'))
+    return 'Firefox'
+  if (ua.includes('Safari/') && !ua.includes('Chrome/'))
+    return 'Safari'
+  if (ua.includes('OPR/') || ua.includes('Opera/'))
+    return 'Opera'
   return ''
 }
 
@@ -64,7 +85,7 @@ async function loadStats() {
   }
 }
 
-async function handleRevokeSession(sessionId: number) {
+async function handleRevokeSession(sessionId: number | string) {
   try {
     const response = await revokeSession(sessionId)
     if (response.isSuccess) {
@@ -152,8 +173,9 @@ async function doDeactivate() {
   }
 }
 
-function formatTime(timestamp: number) {
-  if (!timestamp) return 'N/A'
+function formatTime(timestamp?: number | null) {
+  if (!timestamp)
+    return 'N/A'
   return new Date(timestamp * 1000).toLocaleString()
 }
 

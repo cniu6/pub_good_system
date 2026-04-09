@@ -8,7 +8,7 @@ const emit = defineEmits<{
 }>()
 
 async function updataToken() {
-  const res = await fetchUpdateToken({ token: 'test token' })
+  const res = await fetchUpdateToken({ refreshToken: 'test token' })
   emit('update', res)
 }
 </script>

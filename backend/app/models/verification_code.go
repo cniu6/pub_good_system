@@ -12,7 +12,7 @@ func InitVerificationCodeTable() {
 		// 表不存在，创建新表
 		schema := `CREATE TABLE IF NOT EXISTS verification_codes (
 			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-			email VARCHAR(255) NOT NULL COMMENT '邮箱地址',
+			contact VARCHAR(255) NOT NULL COMMENT '联系方式(邮箱或手机号)',
 			code VARCHAR(10) NOT NULL COMMENT '验证码',
 			code_type VARCHAR(20) NOT NULL COMMENT '类型:register=注册,reset_password=重置密码',
 			expires_at TIMESTAMP NOT NULL COMMENT '过期时间',
@@ -20,9 +20,9 @@ func InitVerificationCodeTable() {
 			is_deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否软删除:0=正常,1=已删除',
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-			INDEX idx_email_type (email, code_type),
-			INDEX idx_email_type_active_created (email, code_type, is_used, is_deleted, created_at),
-			INDEX idx_email_code_type_active (email, code, code_type, is_used, is_deleted),
+			INDEX idx_contact_type (contact, code_type),
+			INDEX idx_contact_type_active_created (contact, code_type, is_used, is_deleted, created_at),
+			INDEX idx_contact_code_type_active (contact, code, code_type, is_used, is_deleted),
 			INDEX idx_expires_at (expires_at),
 			INDEX idx_is_deleted (is_deleted)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
@@ -42,6 +42,15 @@ func InitVerificationCodeTable() {
 
 // repairVerificationCodeTable 检查并修复表字段
 func repairVerificationCodeTable() {
+	// 兼容旧表：早期字段名使用 email，但现在验证码同时服务邮箱与手机号。
+	if db.CheckColumnExists("verification_codes", "email") && !db.CheckColumnExists("verification_codes", "contact") {
+		if _, err := db.DB.Exec("ALTER TABLE verification_codes CHANGE COLUMN email contact VARCHAR(255) NOT NULL COMMENT '联系方式(邮箱或手机号)'"); err != nil {
+			log.Printf("[Init] Failed to rename verification_codes.email to contact: %v", err)
+		} else {
+			log.Printf("[Init] Renamed verification_codes.email to contact")
+		}
+	}
+
 	// 定义需要删除的错误字段名（之前版本创建的错误字段）
 	wrongColumns := []string{"type", "expire_at"}
 	for _, col := range wrongColumns {
@@ -57,6 +66,7 @@ func repairVerificationCodeTable() {
 
 	// 定义需要的正确字段
 	requiredColumns := map[string]string{
+		"contact":    "ALTER TABLE verification_codes ADD COLUMN contact VARCHAR(255) NOT NULL DEFAULT '' COMMENT '联系方式(邮箱或手机号)'",
 		"code_type":  "ALTER TABLE verification_codes ADD COLUMN code_type VARCHAR(20) NOT NULL DEFAULT 'register' COMMENT '类型:register=注册,reset_password=重置密码'",
 		"expires_at": "ALTER TABLE verification_codes ADD COLUMN expires_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '过期时间'",
 		"is_used":    "ALTER TABLE verification_codes ADD COLUMN is_used TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已使用:0=未使用,1=已使用'",
@@ -77,8 +87,8 @@ func repairVerificationCodeTable() {
 	}
 
 	indexRepairs := map[string]string{
-		"idx_email_type_active_created": "ALTER TABLE verification_codes ADD INDEX idx_email_type_active_created (email, code_type, is_used, is_deleted, created_at)",
-		"idx_email_code_type_active":    "ALTER TABLE verification_codes ADD INDEX idx_email_code_type_active (email, code, code_type, is_used, is_deleted)",
+		"idx_contact_type_active_created": "ALTER TABLE verification_codes ADD INDEX idx_contact_type_active_created (contact, code_type, is_used, is_deleted, created_at)",
+		"idx_contact_code_type_active":    "ALTER TABLE verification_codes ADD INDEX idx_contact_code_type_active (contact, code, code_type, is_used, is_deleted)",
 	}
 
 	for indexName, alterSQL := range indexRepairs {
@@ -89,7 +99,7 @@ func repairVerificationCodeTable() {
 // VerificationCode 验证码模型
 type VerificationCode struct {
 	ID        uint64    `db:"id" json:"id"`
-	Email     string    `db:"email" json:"email"`
+	Contact   string    `db:"contact" json:"contact"`
 	Code      string    `db:"code" json:"code"`
 	CodeType  string    `db:"code_type" json:"code_type"`
 	ExpiresAt time.Time `db:"expires_at" json:"expires_at"`
@@ -99,28 +109,29 @@ type VerificationCode struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
-// CreateVerificationCode 创建验证码记录
-func CreateVerificationCode(email, code, codeType string, expiresAt time.Time) error {
-	// 先将该邮箱该类型的旧验证码标记为软删除
+// CreateVerificationCode 创建验证码记录。
+// contact 既可以是邮箱，也可以是手机号。
+func CreateVerificationCode(contact, code, codeType string, expiresAt time.Time) error {
+	// 先将该联系方式该类型的旧验证码标记为软删除
 	_, err := db.DB.Exec(
-		"UPDATE verification_codes SET is_deleted = 1 WHERE email = ? AND code_type = ? AND is_deleted = 0 AND is_used = 0",
-		email, codeType,
+		"UPDATE verification_codes SET is_deleted = 1 WHERE contact = ? AND code_type = ? AND is_deleted = 0 AND is_used = 0",
+		contact, codeType,
 	)
 	if err != nil {
 		return err
 	}
 
-	query := `INSERT INTO verification_codes (email, code, code_type, expires_at, is_used, is_deleted) 
+	query := `INSERT INTO verification_codes (contact, code, code_type, expires_at, is_used, is_deleted) 
 			  VALUES (?, ?, ?, ?, 0, 0)`
-	_, err = db.DB.Exec(query, email, code, codeType, expiresAt)
+	_, err = db.DB.Exec(query, contact, code, codeType, expiresAt)
 	return err
 }
 
-func HasRecentVerificationCode(email, codeType string, since time.Time) (bool, error) {
+func HasRecentVerificationCode(contact, codeType string, since time.Time) (bool, error) {
 	var count int
 	err := db.DB.Get(&count,
-		"SELECT COUNT(*) FROM verification_codes WHERE email = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND created_at >= ?",
-		email, codeType, since,
+		"SELECT COUNT(*) FROM verification_codes WHERE contact = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND created_at >= ?",
+		contact, codeType, since,
 	)
 	if err != nil {
 		return false, err
@@ -128,13 +139,13 @@ func HasRecentVerificationCode(email, codeType string, since time.Time) (bool, e
 	return count > 0, nil
 }
 
-// GetValidVerificationCode 获取有效的验证码（未使用、未过期、未软删除）
-func GetValidVerificationCode(email, codeType string) (*VerificationCode, error) {
+// GetValidVerificationCode 获取有效的验证码（未使用、未过期、未软删除）。
+func GetValidVerificationCode(contact, codeType string) (*VerificationCode, error) {
 	var vc VerificationCode
 	query := `SELECT * FROM verification_codes 
-			  WHERE email = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND expires_at > NOW()
+			  WHERE contact = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND expires_at > NOW()
 			  ORDER BY created_at DESC LIMIT 1`
-	err := db.DB.Get(&vc, query, email, codeType)
+	err := db.DB.Get(&vc, query, contact, codeType)
 	if err != nil {
 		return nil, err
 	}
@@ -147,18 +158,18 @@ func MarkVerificationCodeAsUsed(id uint64) error {
 	return err
 }
 
-func ConsumeVerificationCode(email, code, codeType string) (bool, error) {
+func ConsumeVerificationCode(contact, code, codeType string) (bool, error) {
 	result, err := db.DB.Exec(
 		`UPDATE verification_codes
 		 SET is_used = 1
 		 WHERE id = (
 		 	SELECT id FROM (
 		 		SELECT id FROM verification_codes
-		 		WHERE email = ? AND code = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND expires_at > NOW()
+		 		WHERE contact = ? AND code = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND expires_at > NOW()
 		 		ORDER BY created_at DESC LIMIT 1
 		 	) AS latest
 		 ) AND is_used = 0`,
-		email, code, codeType,
+		contact, code, codeType,
 	)
 	if err != nil {
 		return false, err
@@ -176,10 +187,10 @@ func MarkVerificationCodeAsDeleted(id uint64) error {
 	return err
 }
 
-// DeleteVerificationCodesByEmail 彻底删除指定邮箱的所有验证码记录（用于注册/重置成功后清理）
-func DeleteVerificationCodesByEmail(email string, codeType string) error {
-	query := `DELETE FROM verification_codes WHERE email = ?`
-	args := []interface{}{email}
+// DeleteVerificationCodesByContact 彻底删除指定联系方式的所有验证码记录（用于注册/重置成功后清理）
+func DeleteVerificationCodesByContact(contact string, codeType string) error {
+	query := `DELETE FROM verification_codes WHERE contact = ?`
+	args := []interface{}{contact}
 	if codeType != "" {
 		query += ` AND code_type = ?`
 		args = append(args, codeType)
@@ -203,12 +214,12 @@ func CleanupOldVerificationCodes() error {
 }
 
 // VerifyCode 验证验证码是否正确（改进版：直接匹配代码）
-func VerifyCode(email, code, codeType string) (bool, uint64, error) {
+func VerifyCode(contact, code, codeType string) (bool, uint64, error) {
 	var vc VerificationCode
 	query := `SELECT id, code, expires_at FROM verification_codes 
-			  WHERE email = ? AND code = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 
+			  WHERE contact = ? AND code = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 
 			  ORDER BY created_at DESC LIMIT 1`
-	err := db.DB.Get(&vc, query, email, code, codeType)
+	err := db.DB.Get(&vc, query, contact, code, codeType)
 	if err != nil {
 		return false, 0, err
 	}

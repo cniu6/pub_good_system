@@ -136,35 +136,16 @@ function transformAuthRoutesToMenus(userRoutes: AppRoute.Route[]) {
  * 从 RouteRecordRaw 格式的管理端路由生成侧边栏菜单
  * 支持嵌套层级：menuType === 'dir' 的路由作为分组目录，其子路由作为子菜单项
  */
-export function createAdminMenus(adminRoutes: Array<{
-  path: string
-  children?: Array<{
-    path: string
-    name?: string | symbol | null
-    meta?: {
-      hide?: boolean
-      title?: string
-      icon?: string
-      menuType?: string
-    }
-    children?: Array<{
-      path: string
-      name?: string | symbol | null
-      meta?: {
-        hide?: boolean
-        title?: string
-        icon?: string
-      }
-    }>
-  }>
-}>): MenuOption[] {
+export function createAdminMenus(adminRoutes: Array<any>): MenuOption[] {
   const menus: MenuOption[] = []
 
   for (const route of adminRoutes) {
-    if (!route.children) continue
+    if (!route.children)
+      continue
 
     for (const child of route.children) {
-      if (child.meta?.hide) continue
+      if (child.meta?.hide)
+        continue
 
       const basePath = route.path.endsWith('/') ? route.path : `${route.path}/`
 
@@ -172,8 +153,8 @@ export function createAdminMenus(adminRoutes: Array<{
       if (child.meta?.menuType === 'dir' && child.children?.length) {
         const dirPath = `${basePath}${child.path}`
         const subMenus: MenuOption[] = child.children
-          .filter(sub => !sub.meta?.hide)
-          .map((sub) => {
+          .filter((sub: any) => !sub.meta?.hide)
+          .map((sub: any) => {
             const fullPath = `${dirPath}/${sub.path}`
             return {
               label: () => h(RouterLink, { to: { path: fullPath } }, { default: () => (sub.meta?.title as string) || sub.name }),

@@ -1,54 +1,8 @@
-<template>
-  <n-card title="余额日志管理">
-    <n-space vertical>
-      <n-space>
-        <n-input v-model:value="searchForm.keyword" placeholder="搜索备注/金额" clearable style="width: 200px" @keyup.enter="handleSearch" />
-        <n-input-number v-model:value="searchForm.user_id" placeholder="用户ID" style="width: 140px" :show-button="false" />
-        <n-button type="primary" @click="handleSearch">搜索</n-button>
-        <n-button @click="handleReset">重置</n-button>
-        <n-button type="success" @click="handleAdd">变更余额</n-button>
-      </n-space>
-
-      <n-data-table
-        :columns="columns"
-        :data="logList"
-        :loading="loading"
-        :pagination="pagination"
-        :row-key="(row: Entity.UserMoneyLog) => row.id"
-        striped
-        size="small"
-        @update:page="handlePageChange"
-        @update:page-size="handlePageSizeChange"
-      />
-    </n-space>
-
-    <n-modal v-model:show="showModal" title="变更用户余额" preset="card" style="width: 500px">
-      <n-form :model="addForm" label-placement="left" label-width="80px">
-        <n-form-item label="用户ID" required>
-          <n-input-number v-model:value="addForm.user_id" placeholder="输入用户ID" :show-button="false" style="width: 100%" />
-        </n-form-item>
-        <n-form-item label="金额" required>
-          <n-input-number v-model:value="addForm.money" placeholder="正数充值，负数扣款" :precision="2" :step="0.01" style="width: 100%" />
-        </n-form-item>
-        <n-form-item label="备注">
-          <I18nMemoEditor v-model="addForm.memo" />
-        </n-form-item>
-      </n-form>
-      <template #footer>
-        <n-space justify="end">
-          <n-button @click="showModal = false">取消</n-button>
-          <n-button type="primary" :loading="submitting" @click="handleSubmit">确定</n-button>
-        </n-space>
-      </template>
-    </n-modal>
-  </n-card>
-</template>
-
 <script setup lang="ts">
-import { ref, reactive, onMounted, h } from 'vue'
-import { NButton, useMessage, useDialog } from 'naive-ui'
+import { h, onMounted, reactive, ref } from 'vue'
+import { NButton, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
-import { adminUserApi, adminMoneyLogApi } from '@/service/api/admin/user'
+import { adminMoneyLogApi, adminUserApi } from '@/service/api/admin/user'
 import { parseMemo } from '@/utils/memo'
 import I18nMemoEditor from '@/components/common/I18nMemoEditor.vue'
 
@@ -143,12 +97,15 @@ async function fetchData() {
     if (res.isSuccess) {
       logList.value = res.data?.list || []
       pagination.itemCount = res.data?.total || 0
-    } else {
+    }
+    else {
       message.error(res.message || '获取余额日志失败')
     }
-  } catch (e) {
+  }
+  catch {
     message.error('获取余额日志失败')
-  } finally {
+  }
+  finally {
     loading.value = false
   }
 }
@@ -195,16 +152,23 @@ async function handleSubmit() {
   submitting.value = true
   try {
     const memoStr = Object.keys(addForm.memo).length > 0 ? JSON.stringify(addForm.memo) : ''
-    await adminUserApi.changeMoney(addForm.user_id, {
+    const res = await adminUserApi.changeMoney(addForm.user_id, {
       money: addForm.money,
       memo: memoStr,
     })
-    message.success('余额变更成功')
-    showModal.value = false
-    fetchData()
-  } catch (e: unknown) {
+    if (res.isSuccess) {
+      message.success(res.message || '余额变更成功')
+      showModal.value = false
+      fetchData()
+    }
+    else {
+      message.error(res.message || '余额变更失败')
+    }
+  }
+  catch (e: unknown) {
     message.error((e instanceof Error ? e.message : null) || '操作失败')
-  } finally {
+  }
+  finally {
     submitting.value = false
   }
 }
@@ -217,10 +181,16 @@ function handleDelete(id: number) {
     negativeText: '取消',
     onPositiveClick: async () => {
       try {
-        await adminMoneyLogApi.delete(id)
-        message.success('删除成功')
-        fetchData()
-      } catch {
+        const res = await adminMoneyLogApi.delete(id)
+        if (res.isSuccess) {
+          message.success(res.message || '删除成功')
+          fetchData()
+        }
+        else {
+          message.error(res.message || '删除失败')
+        }
+      }
+      catch {
         message.error('删除失败')
       }
     },
@@ -229,3 +199,59 @@ function handleDelete(id: number) {
 
 onMounted(() => fetchData())
 </script>
+
+<template>
+  <n-card title="余额日志管理">
+    <n-space vertical>
+      <n-space>
+        <n-input v-model:value="searchForm.keyword" placeholder="搜索备注/金额" clearable style="width: 200px" @keyup.enter="handleSearch" />
+        <n-input-number v-model:value="searchForm.user_id" placeholder="用户ID" style="width: 140px" :show-button="false" />
+        <NButton type="primary" @click="handleSearch">
+          搜索
+        </NButton>
+        <NButton @click="handleReset">
+          重置
+        </NButton>
+        <NButton type="success" @click="handleAdd">
+          变更余额
+        </NButton>
+      </n-space>
+
+      <n-data-table
+        :columns="columns"
+        :data="logList"
+        :loading="loading"
+        :pagination="pagination"
+        :row-key="(row: Entity.UserMoneyLog) => row.id"
+        striped
+        size="small"
+        @update:page="handlePageChange"
+        @update:page-size="handlePageSizeChange"
+      />
+    </n-space>
+
+    <n-modal v-model:show="showModal" title="变更用户余额" preset="card" style="width: 500px">
+      <n-form :model="addForm" label-placement="left" label-width="80px">
+        <n-form-item label="用户ID" required>
+          <n-input-number v-model:value="addForm.user_id" placeholder="输入用户ID" :show-button="false" style="width: 100%" />
+        </n-form-item>
+        <n-form-item label="金额" required>
+          <n-input-number v-model:value="addForm.money" placeholder="正数充值，负数扣款" :precision="2" :step="0.01" style="width: 100%" />
+        </n-form-item>
+        <n-form-item label="备注">
+          <I18nMemoEditor v-model="addForm.memo" />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <n-space justify="end">
+          <NButton @click="showModal = false">
+            取消
+          </NButton>
+          <NButton type="primary" :loading="submitting" @click="handleSubmit">
+            确定
+          </NButton>
+        </n-space>
+      </template>
+    </n-modal>
+  </n-card>
+</template>

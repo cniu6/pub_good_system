@@ -97,7 +97,7 @@ async function fetchDashboard() {
   loading.value = true
   try {
     const res = await adminApi.dashboard.getStatistics()
-    if (res.code === 200 && res.data) {
+    if (res.isSuccess && res.data) {
       const stats = res.data.statistics
       if (stats) {
         Object.assign(statistics, stats)

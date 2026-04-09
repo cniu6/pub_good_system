@@ -18,24 +18,30 @@ func NewUserService() *UserService {
 
 // UserListQuery 用户列表查询参数
 type UserListQuery struct {
-	Page     int    `form:"page" json:"page"`
-	PageSize int    `form:"page_size" json:"page_size"`
-	Keyword  string `form:"keyword" json:"keyword"`
-	Status   *uint8 `form:"status" json:"status"`
-	GroupID  uint64 `form:"group_id" json:"group_id"`
+	Page           int    `form:"page" json:"page"`
+	PageSize       int    `form:"page_size" json:"page_size"`
+	Keyword        string `form:"keyword" json:"keyword"`
+	Status         *uint8 `form:"status" json:"status"`
+	GroupID        uint64 `form:"group_id" json:"group_id"`
+	RealnameStatus *uint8 `form:"realname_status" json:"realname_status"`
+}
+
+type AdminUserListItem struct {
+	models.User
+	RealnameStatus *uint8 `db:"realname_status" json:"realname_status"`
 }
 
 // UserListResult 用户列表返回结果
 type UserListResult struct {
-	List     []models.User `json:"list"`
-	Total    int64         `json:"total"`
-	Page     int           `json:"page"`
-	PageSize int           `json:"page_size"`
+	List     []AdminUserListItem `json:"list"`
+	Total    int64               `json:"total"`
+	Page     int                 `json:"page"`
+	PageSize int                 `json:"page_size"`
 }
 
 // GetList 分页获取用户列表
 func (s *UserService) GetList(query *UserListQuery) (*UserListResult, error) {
-	var users []models.User
+	var users []AdminUserListItem
 	var total int64
 
 	// 默认分页参数
@@ -47,25 +53,42 @@ func (s *UserService) GetList(query *UserListQuery) (*UserListResult, error) {
 	}
 
 	// 构建查询条件
-	where := "WHERE delete_time IS NULL"
+	// 显式带上 users. 前缀，避免与联表字段（如 rv.status）产生歧义或误命中。
+	where := "WHERE users.delete_time IS NULL"
 	args := []interface{}{}
 
 	if query.Keyword != "" {
-		where += " AND (username LIKE ? OR nickname LIKE ? OR email LIKE ? OR mobile LIKE ?)"
+		where += " AND (users.username LIKE ? OR users.nickname LIKE ? OR users.email LIKE ? OR users.mobile LIKE ?)"
 		kw := "%" + query.Keyword + "%"
 		args = append(args, kw, kw, kw, kw)
 	}
 	if query.Status != nil {
-		where += " AND status = ?"
+		where += " AND users.status = ?"
 		args = append(args, *query.Status)
 	}
 	if query.GroupID > 0 {
-		where += " AND group_id = ?"
+		where += " AND users.group_id = ?"
 		args = append(args, query.GroupID)
 	}
+	if query.RealnameStatus != nil {
+		where += " AND rv.status = ?"
+		args = append(args, *query.RealnameStatus)
+	}
+
+	fromClause := ` FROM users
+		LEFT JOIN (
+			SELECT t.user_id, t.status
+			FROM user_realname_verifications t
+			INNER JOIN (
+				SELECT user_id, MAX(id) AS max_id
+				FROM user_realname_verifications
+				WHERE delete_time IS NULL
+				GROUP BY user_id
+			) latest ON latest.max_id = t.id
+		) rv ON rv.user_id = users.id `
 
 	// 查询总数
-	count_query := "SELECT COUNT(*) FROM users " + where
+	count_query := "SELECT COUNT(*)" + fromClause + where
 	err := db.DB.Get(&total, count_query, args...)
 	if err != nil {
 		return nil, err
@@ -73,7 +96,8 @@ func (s *UserService) GetList(query *UserListQuery) (*UserListResult, error) {
 
 	// 分页查询
 	offset := (query.Page - 1) * query.PageSize
-	list_query := "SELECT * FROM users " + where + " ORDER BY id DESC LIMIT ? OFFSET ?"
+	// 关联每个用户最后一条未删除实名记录的状态，方便管理员列表直接展示认证结果。
+	list_query := "SELECT users.*, rv.status AS realname_status" + fromClause + where + " ORDER BY users.id DESC LIMIT ? OFFSET ?"
 	args = append(args, query.PageSize, offset)
 
 	err = db.DB.Select(&users, list_query, args...)
@@ -111,6 +135,9 @@ type UserCreateRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Nickname string `json:"nickname"`
 	Mobile   string `json:"mobile"`
+	Language string `json:"language"`
+	Country  string `json:"country"`
+	Level    uint64 `json:"level"`
 	Role     string `json:"role"`
 	Status   uint8  `json:"status"`
 	GroupID  uint64 `json:"group_id"`
@@ -135,6 +162,9 @@ func (s *UserService) Create(req *UserCreateRequest) (*models.User, error) {
 		Email:    req.Email,
 		Nickname: req.Nickname,
 		Mobile:   req.Mobile,
+		Language: req.Language,
+		Country:  req.Country,
+		Level:    req.Level,
 		Role:     req.Role,
 		Status:   req.Status,
 		GroupId:  req.GroupID,
@@ -143,6 +173,9 @@ func (s *UserService) Create(req *UserCreateRequest) (*models.User, error) {
 
 	if user.Role == "" {
 		user.Role = "user"
+	}
+	if user.Language == "" {
+		user.Language = "zh-CN"
 	}
 
 	err := models.CreateUser(user)
@@ -155,20 +188,21 @@ func (s *UserService) Create(req *UserCreateRequest) (*models.User, error) {
 
 // UserUpdateRequest 更新用户请求
 type UserUpdateRequest struct {
-	ID         uint64 `json:"id" binding:"required"`
-	Nickname   string `json:"nickname"`
-	Email      string `json:"email"`
-	Mobile     string `json:"mobile"`
-	Avatar     string `json:"avatar"`
-	Gender     *uint8 `json:"gender"`     // 指针类型，允许设置为0（保密）
-	Birthday   *int64 `json:"birthday"`
-	Motto      string `json:"motto"`
-	BackGround string `json:"back_ground"`
-	Language   string `json:"language"`
-	Country    string `json:"country"`
-	Role       string `json:"role"`
-	Status     uint8  `json:"status"`
-	GroupID    uint64 `json:"group_id"`
+	ID         uint64  `json:"id" binding:"required"`
+	Nickname   *string `json:"nickname"`
+	Email      *string `json:"email"`
+	Mobile     *string `json:"mobile"`
+	Avatar     *string `json:"avatar"`
+	Gender     *uint8  `json:"gender"`     // 指针类型，允许设置为0（保密）
+	Birthday   *int64  `json:"birthday"`
+	Motto      *string `json:"motto"`
+	BackGround *string `json:"back_ground"`
+	Language   *string `json:"language"`
+	Country    *string `json:"country"`
+	Level      *uint64 `json:"level"`
+	Role       *string `json:"role"`
+	Status     *uint8  `json:"status"`
+	GroupID    *uint64 `json:"group_id"`
 }
 
 // Update 更新用户
@@ -179,26 +213,26 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 	}
 
 	// 检查邮箱是否被其他用户使用
-	if req.Email != "" && req.Email != user.Email {
-		existing, _ := models.GetUserByEmail(req.Email)
+	if req.Email != nil && *req.Email != user.Email {
+		existing, _ := models.GetUserByEmail(*req.Email)
 		if existing != nil && existing.ID != user.ID {
 			return errors.New("邮箱已被使用")
 		}
-		user.Email = req.Email
+		user.Email = *req.Email
 	}
-	if req.Mobile != "" && req.Mobile != user.Mobile {
-		existing, _ := models.GetUserByMobile(req.Mobile)
+	if req.Mobile != nil && *req.Mobile != user.Mobile {
+		existing, _ := models.GetUserByMobile(*req.Mobile)
 		if existing != nil && existing.ID != user.ID {
 			return errors.New("手机号已被使用")
 		}
-		user.Mobile = req.Mobile
+		user.Mobile = *req.Mobile
 	}
 
-	if req.Nickname != "" {
-		user.Nickname = req.Nickname
+	if req.Nickname != nil {
+		user.Nickname = *req.Nickname
 	}
-	if req.Avatar != "" {
-		user.Avatar = req.Avatar
+	if req.Avatar != nil {
+		user.Avatar = *req.Avatar
 	}
 	if req.Gender != nil {
 		user.Gender = *req.Gender
@@ -206,26 +240,29 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 	if req.Birthday != nil {
 		user.Birthday = req.Birthday
 	}
-	if req.Motto != "" {
-		user.Motto = req.Motto
+	if req.Motto != nil {
+		user.Motto = *req.Motto
 	}
-	if req.BackGround != "" {
-		user.BackGround = req.BackGround
+	if req.BackGround != nil {
+		user.BackGround = *req.BackGround
 	}
-	if req.Language != "" {
-		user.Language = req.Language
+	if req.Language != nil {
+		user.Language = *req.Language
 	}
-	if req.Country != "" {
-		user.Country = req.Country
+	if req.Country != nil {
+		user.Country = *req.Country
 	}
-	if req.Role != "" {
-		user.Role = req.Role
+	if req.Level != nil && *req.Level > 0 {
+		user.Level = *req.Level
 	}
-	if req.Status > 0 {
-		user.Status = req.Status
+	if req.Role != nil {
+		user.Role = *req.Role
 	}
-	if req.GroupID > 0 {
-		user.GroupId = req.GroupID
+	if req.Status != nil {
+		user.Status = *req.Status
+	}
+	if req.GroupID != nil && *req.GroupID > 0 {
+		user.GroupId = *req.GroupID
 	}
 
 	now := time.Now().Unix()
@@ -234,7 +271,7 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 	query := `UPDATE users SET nickname = :nickname, email = :email, mobile = :mobile,
 			  avatar = :avatar, gender = :gender, birthday = :birthday, motto = :motto,
 			  back_ground = :back_ground, language = :language, country = :country,
-			  role = :role, status = :status, group_id = :group_id, update_time = :update_time
+			  level = :level, role = :role, status = :status, group_id = :group_id, update_time = :update_time
 			  WHERE id = :id`
 	_, err = db.DB.NamedExec(query, user)
 	return err

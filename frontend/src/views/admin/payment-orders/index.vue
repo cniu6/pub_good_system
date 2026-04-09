@@ -63,25 +63,27 @@
       <!-- 详情弹窗 -->
       <n-modal v-model:show="showDetail" title="订单详情" preset="card" style="width: 600px">
         <template v-if="detailOrder">
-          <n-descriptions :column="2" bordered label-placement="left">
-            <n-descriptions-item label="订单号">{{ detailOrder.order_no }}</n-descriptions-item>
-            <n-descriptions-item label="用户ID">{{ detailOrder.user_id }}</n-descriptions-item>
-            <n-descriptions-item label="第三方交易号">{{ detailOrder.trade_no || '-' }}</n-descriptions-item>
-            <n-descriptions-item label="支付通道">{{ detailOrder.payment_channel }}</n-descriptions-item>
-            <n-descriptions-item label="支付方式">{{ paymentTypeMap[detailOrder.payment_type] || detailOrder.payment_type }}</n-descriptions-item>
-            <n-descriptions-item label="金额">¥{{ Number(detailOrder.amount).toFixed(2) }}</n-descriptions-item>
-            <n-descriptions-item label="订单标题">{{ detailOrder.subject || '-' }}</n-descriptions-item>
-            <n-descriptions-item label="状态">
-              <n-tag :type="(statusMap[detailOrder.status] || {}).type || 'default'" size="small">
-                {{ (statusMap[detailOrder.status] || {}).label || '未知' }}
-              </n-tag>
-            </n-descriptions-item>
-            <n-descriptions-item label="通知次数">{{ detailOrder.notify_count }}</n-descriptions-item>
-            <n-descriptions-item label="客户端IP">{{ detailOrder.client_ip || '-' }}</n-descriptions-item>
-            <n-descriptions-item label="创建时间">{{ formatTime(detailOrder.create_time) }}</n-descriptions-item>
-            <n-descriptions-item label="支付时间">{{ detailOrder.paid_at ? formatTime(detailOrder.paid_at) : '-' }}</n-descriptions-item>
-            <n-descriptions-item label="过期时间">{{ formatTime(detailOrder.expire_at) }}</n-descriptions-item>
-          </n-descriptions>
+          <n-spin :show="detailLoading">
+            <n-descriptions :column="2" bordered label-placement="left">
+              <n-descriptions-item label="订单号">{{ detailOrder.order_no }}</n-descriptions-item>
+              <n-descriptions-item label="用户ID">{{ detailOrder.user_id }}</n-descriptions-item>
+              <n-descriptions-item label="第三方交易号">{{ detailOrder.trade_no || '-' }}</n-descriptions-item>
+              <n-descriptions-item label="支付通道">{{ detailOrder.payment_channel }}</n-descriptions-item>
+              <n-descriptions-item label="支付方式">{{ paymentTypeMap[detailOrder.payment_type] || detailOrder.payment_type }}</n-descriptions-item>
+              <n-descriptions-item label="金额">¥{{ Number(detailOrder.amount).toFixed(2) }}</n-descriptions-item>
+              <n-descriptions-item label="订单标题">{{ detailOrder.subject || '-' }}</n-descriptions-item>
+              <n-descriptions-item label="状态">
+                <n-tag :type="(statusMap[detailOrder.status] || {}).type || 'default'" size="small">
+                  {{ (statusMap[detailOrder.status] || {}).label || '未知' }}
+                </n-tag>
+              </n-descriptions-item>
+              <n-descriptions-item label="通知次数">{{ detailOrder.notify_count }}</n-descriptions-item>
+              <n-descriptions-item label="客户端IP">{{ detailOrder.client_ip || '-' }}</n-descriptions-item>
+              <n-descriptions-item label="创建时间">{{ formatTime(detailOrder.create_time) }}</n-descriptions-item>
+              <n-descriptions-item label="支付时间">{{ detailOrder.paid_at ? formatTime(detailOrder.paid_at) : '-' }}</n-descriptions-item>
+              <n-descriptions-item label="过期时间">{{ formatTime(detailOrder.expire_at) }}</n-descriptions-item>
+            </n-descriptions>
+          </n-spin>
         </template>
       </n-modal>
 
@@ -161,6 +163,7 @@ const stats = reactive<PaymentStats>({
 
 // 详情弹窗
 const showDetail = ref(false)
+const detailLoading = ref(false)
 const detailOrder = ref<PaymentOrder | null>(null)
 
 // 补单弹窗
@@ -332,9 +335,23 @@ function handlePageSizeChange(pageSize: number) {
 }
 
 // 详情
-function handleViewDetail(row: PaymentOrder) {
+async function handleViewDetail(row: PaymentOrder) {
   detailOrder.value = row
   showDetail.value = true
+  detailLoading.value = true
+  try {
+    const res = await adminPaymentApi.orderDetail(row.id)
+    if (res.isSuccess && res.data) {
+      detailOrder.value = res.data
+    }
+    else {
+      message.error(res.message || '获取订单详情失败')
+    }
+  } catch {
+    message.error('获取订单详情失败')
+  } finally {
+    detailLoading.value = false
+  }
 }
 
 // 补单

@@ -5,6 +5,9 @@ import { NButton, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns, FormRules } from 'naive-ui'
 import NovaIcon from '@/components/common/NovaIcon.vue'
 import {
+
+  adminUserApi,
+
   createUser,
   deleteUser,
   fetchAdminUserPage,
@@ -12,9 +15,11 @@ import {
   openLoginAsUserWindow,
   resetUserApikey,
   updateAdminUserProfile,
-  type AdminUser,
+
 } from '@/service/api/admin/user'
-import { addScoreLog, generateNos, operateUserMoney, updateUserScore, type MoneyOperationPayload } from '@/service/api/admin/finance'
+import type { AdminUser, AdminUserRealnameSummary, UserSimpleInfo } from '@/service/api/admin/user'
+import { addScoreLog, fetchWithdrawRecords, generateNos, operateUserMoney } from '@/service/api/admin/finance'
+import type { MoneyOperationPayload, WithdrawRecord } from '@/service/api/admin/finance'
 
 const route = useRoute()
 const message = useMessage()
@@ -23,6 +28,7 @@ const dialog = useDialog()
 // 搜索表单
 const searchForm = reactive({
   keyword: '',
+  realnameStatus: null as 0 | 1 | 2 | null,
 })
 
 // 角色选项 - 移除"全部角色"选项
@@ -37,6 +43,12 @@ const userStatusOptions = [
   { label: '禁用', value: 0 },
 ]
 
+const realnameFilterOptions = [
+  { label: '待审核', value: 0 },
+  { label: '已通过', value: 1 },
+  { label: '已拒绝', value: 2 },
+]
+
 // 性别选项（使用数字类型）
 const genderOptions = [
   { label: '未知', value: 0 },
@@ -44,11 +56,16 @@ const genderOptions = [
   { label: '女', value: 2 },
 ]
 
+const languageOptions = [
+  { label: '中文', value: 'zh-CN' },
+  { label: 'English', value: 'en-US' },
+]
+
 // 分页
 const pagination = reactive({
   page: 1,
   pageSize: 10, // 改为默认10个/页
-  total: 0,
+  itemCount: 0,
   showSizePicker: true,
   pageSizes: [10, 20, 50, 100],
 })
@@ -68,6 +85,8 @@ const userForm = reactive({
   nickname: '',
   email: '',
   mobile: '',
+  language: 'zh-CN',
+  country: '',
   password: '',
   role: 'user',
   level: 1,
@@ -108,13 +127,10 @@ const rules: FormRules = {
   ],
 }
 
-// 密码验证规则：新建用户时必填，编辑时可选
+// 密码验证规则：仅新建用户时填写，编辑密码请使用专用“重置密码”流程
 const passwordRule = computed(() => {
-  if (isEdit.value) {
-    return [
-      { min: 6, message: '密码长度不能少于6个字符', trigger: 'blur' },
-    ]
-  }
+  if (isEdit.value)
+    return []
   return [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码长度不能少于6个字符', trigger: 'blur' },
@@ -124,7 +140,11 @@ const passwordRule = computed(() => {
 // 用户详情相关
 const showUserDetailModal = ref(false)
 const selectedUser = ref<AdminUser | null>(null)
+const selectedUserRealname = ref<AdminUserRealnameSummary | null>(null)
 const resettingApikey = ref(false)
+const showWithdrawDetailModal = ref(false)
+const withdrawDetail = ref<WithdrawRecord | null>(null)
+const adminUserMap = ref<Record<number, UserSimpleInfo>>({})
 
 // 重置密码相关
 const showResetPasswordModal = ref(false)
@@ -159,8 +179,18 @@ const orderStatusOptions = [
 // 积分管理相关
 const scoreForm = reactive({
   amount: 0,
-  operation: 'modify', // 'modify', 'log', 'both'
+  operation: 'modify', // 'modify', 'log'
   memo: '',
+})
+
+const withdrawLoading = ref(false)
+const withdrawData = ref<WithdrawRecord[]>([])
+const withdrawPagination = reactive({
+  page: 1,
+  pageSize: 10,
+  itemCount: 0,
+  showSizePicker: true,
+  pageSizes: [10, 20, 50],
 })
 
 // 重置密码表单验证规则
@@ -182,6 +212,20 @@ const resetPasswordRules = {
     },
   ],
 }
+
+const balanceAmountLabel = computed(() => {
+  if (['log_only', 'log_order'].includes(balanceForm.operation)) {
+    return '日志金额'
+  }
+  return '金额'
+})
+
+const balanceAmountPlaceholder = computed(() => {
+  if (['log_only', 'log_order'].includes(balanceForm.operation)) {
+    return '请输入日志金额（正数收入，负数支出）'
+  }
+  return '请输入金额（正数增加，负数减少）'
+})
 
 // 表格列配置
 const columns: DataTableColumns<AdminUser> = [
@@ -222,6 +266,12 @@ const columns: DataTableColumns<AdminUser> = [
     width: 120,
   },
   {
+    title: '语言',
+    key: 'language',
+    width: 100,
+    render: (row: AdminUser) => formatLanguage(row.language),
+  },
+  {
     title: '角色',
     key: 'role',
     width: 100,
@@ -257,12 +307,27 @@ const columns: DataTableColumns<AdminUser> = [
     width: 100,
     render: (row: AdminUser) => {
       const statusMap: Record<string, { type: string, text: string }> = {
-        '1': { type: 'success', text: '启用' },
-        '0': { type: 'error', text: '禁用' },
+        1: { type: 'success', text: '启用' },
+        0: { type: 'error', text: '禁用' },
       }
       const statusKey = String(row.status)
       const status = statusMap[statusKey] || { type: 'default', text: '未知' }
       return h(NTag, { type: status.type as any }, { default: () => status.text })
+    },
+  },
+  {
+    title: '实名认证',
+    key: 'realname_status',
+    width: 110,
+    render: (row: AdminUser) => {
+      const status = row.realname_status
+      return h(
+        NTag,
+        { type: getRealnameStatusType(status === null ? undefined : status), size: 'small' },
+        {
+          default: () => getRealnameStatusText(status === null ? undefined : status),
+        },
+      )
     },
   },
   {
@@ -334,21 +399,22 @@ async function fetchData() {
       page: pagination.page,
       page_size: pagination.pageSize,
       keyword: searchForm.keyword || undefined,
+      realname_status: searchForm.realnameStatus ?? undefined,
     })
 
     if (response.isSuccess) {
       const data = response.data
       if (Array.isArray(data)) {
         userData.value = data
-        pagination.total = response.total || 0
+        pagination.itemCount = response.total || 0
       }
       else if (data && data.list) {
         userData.value = data.list || []
-        pagination.total = data.total || response.total || 0
+        pagination.itemCount = data.total || response.total || 0
       }
       else {
         userData.value = []
-        pagination.total = response.total || 0
+        pagination.itemCount = response.total || 0
       }
     }
     else {
@@ -364,9 +430,85 @@ async function fetchData() {
 }
 
 // 查看用户详情
-function handleViewUserDetail(user: AdminUser) {
-  selectedUser.value = user
-  showUserDetailModal.value = true
+async function handleViewUserDetail(user: AdminUser) {
+  try {
+    const response: any = await adminUserApi.detail(user.id)
+    if (!response.isSuccess || !response.data?.user) {
+      message.error(response.message || '获取用户详情失败')
+      return
+    }
+    selectedUser.value = response.data.user
+    selectedUserRealname.value = response.data.realname || { has_verification: false }
+    showUserDetailModal.value = true
+  }
+  catch {
+    message.error('获取用户详情失败')
+  }
+}
+
+function getRealnameStatusText(status?: number) {
+  const map: Record<number, string> = {
+    0: '待审核',
+    1: '已通过',
+    2: '已拒绝',
+  }
+  return status !== undefined ? map[status] || '未知' : '未认证'
+}
+
+function getRealnameStatusType(status?: number): 'default' | 'warning' | 'success' | 'error' {
+  const map: Record<number, 'warning' | 'success' | 'error'> = {
+    0: 'warning',
+    1: 'success',
+    2: 'error',
+  }
+  return status !== undefined ? map[status] || 'default' : 'default'
+}
+
+function maskCertificateNo(no?: string) {
+  if (!no)
+    return '-'
+  if (no.length < 8)
+    return no
+  return `${no.slice(0, 4)}****${no.slice(-4)}`
+}
+
+function maskAccountNo(accountNo?: string) {
+  if (!accountNo)
+    return '-'
+  if (accountNo.length <= 8)
+    return accountNo
+  return `${accountNo.slice(0, 4)}****${accountNo.slice(-4)}`
+}
+
+function formatTime(ts?: number | null) {
+  return ts ? new Date(ts * 1000).toLocaleString() : '-'
+}
+
+function getWithdrawStatusMeta(status?: number): { type: 'warning' | 'info' | 'error' | 'success', label: string } {
+  const map: Record<number, { type: 'warning' | 'info' | 'error' | 'success', label: string }> = {
+    0: { type: 'warning', label: '待审核' },
+    1: { type: 'info', label: '待打款' },
+    2: { type: 'error', label: '已拒绝' },
+    3: { type: 'success', label: '已打款' },
+  }
+  return status !== undefined ? map[status] || { type: 'info', label: '未知' } : { type: 'info', label: '未知' }
+}
+
+function getAdminDisplayName(adminId?: number | null) {
+  if (!adminId)
+    return '-'
+  const admin = adminUserMap.value[adminId]
+  return admin?.nickname || admin?.username || `管理员#${adminId}`
+}
+
+function formatLanguage(language?: string) {
+  if (!language)
+    return '-'
+  if (language === 'zh-CN')
+    return '中文'
+  if (language === 'en-US')
+    return 'English'
+  return language
 }
 
 // 添加用户
@@ -390,16 +532,19 @@ function handleEdit(user: AdminUser) {
     nickname: user.nickname || '',
     email: user.email || '',
     mobile: user.mobile || '',
+    language: user.language || 'zh-CN',
+    country: user.country || '',
     password: '',
     role: user.role,
     level: user.level,
     status: statusValue,
     avatar: user.avatar || '',
     gender: user.gender || 0,
-    birthday: user.birthday ? new Date(user.birthday as any) : null,
+    birthday: user.birthday ? Number(user.birthday) * 1000 : null,
     motto: user.motto || '',
   })
   showUserModal.value = true
+  fetchWithdrawData()
 }
 
 // 删除用户
@@ -518,6 +663,8 @@ function resetUserForm() {
     nickname: '',
     email: '',
     mobile: '',
+    language: 'zh-CN',
+    country: '',
     password: '',
     role: 'user',
     level: 1,
@@ -539,9 +686,6 @@ async function handleSubmit() {
       const originalUser = selectedUser.value
       const changedData: any = {}
 
-      if (userForm.username !== originalUser?.username) {
-        changedData.username = userForm.username
-      }
       if (userForm.nickname !== (originalUser?.nickname || '')) {
         changedData.nickname = userForm.nickname
       }
@@ -551,8 +695,11 @@ async function handleSubmit() {
       if (userForm.mobile !== (originalUser?.mobile || '')) {
         changedData.mobile = userForm.mobile
       }
-      if (userForm.password && userForm.password.trim()) {
-        changedData.password = userForm.password
+      if (userForm.language !== (originalUser?.language || 'zh-CN')) {
+        changedData.language = userForm.language
+      }
+      if (userForm.country !== (originalUser?.country || '')) {
+        changedData.country = userForm.country
       }
       if (userForm.role !== originalUser?.role) {
         changedData.role = userForm.role
@@ -573,10 +720,10 @@ async function handleSubmit() {
         changedData.gender = userForm.gender
       }
 
-      const originalBirthday = originalUser?.birthday ? new Date(originalUser.birthday as any).getTime() : null
-      const formBirthday = userForm.birthday ? userForm.birthday.getTime?.() : null
+      const originalBirthday = originalUser?.birthday ? Number(originalUser.birthday) * 1000 : null
+      const formBirthday = userForm.birthday ? Number(userForm.birthday) : null
       if (originalBirthday !== formBirthday) {
-        changedData.birthday = userForm.birthday
+        changedData.birthday = formBirthday ? Math.floor(formBirthday / 1000) : null
       }
 
       if (userForm.motto !== (originalUser?.motto || '')) {
@@ -600,7 +747,18 @@ async function handleSubmit() {
       }
     }
     else {
-      const userPayload = { ...userForm }
+      const userPayload = {
+        username: userForm.username,
+        password: userForm.password,
+        email: userForm.email,
+        nickname: userForm.nickname,
+        mobile: userForm.mobile,
+        language: userForm.language,
+        country: userForm.country,
+        level: userForm.level,
+        role: userForm.role,
+        status: userForm.status,
+      }
       const response: any = await createUser(userPayload as any)
       if (response.isSuccess) {
         message.success('创建成功')
@@ -613,7 +771,6 @@ async function handleSubmit() {
     }
   }
   catch (error) {
-    // eslint-disable-next-line no-console
     console.error('表单验证失败:', error)
   }
   finally {
@@ -636,6 +793,7 @@ function handleSearch() {
 function handleReset() {
   Object.assign(searchForm, {
     keyword: '',
+    realnameStatus: null,
   })
   pagination.page = 1
   fetchData()
@@ -650,6 +808,11 @@ function handlePageChange(page: number) {
 // 每页大小变化
 function handlePageSizeChange(pageSize: number) {
   pagination.pageSize = pageSize
+  pagination.page = 1
+  fetchData()
+}
+
+function handleRealnameStatusChange() {
   pagination.page = 1
   fetchData()
 }
@@ -708,8 +871,114 @@ function resetForms() {
   scoreForm.operation = 'modify'
   scoreForm.memo = ''
 
+  withdrawData.value = []
+  withdrawPagination.page = 1
+  withdrawPagination.pageSize = 10
+  withdrawPagination.itemCount = 0
+
   activeTab.value = 'details'
 }
+
+function handleUserModalTabChange(tab: string) {
+  activeTab.value = tab
+  if (tab === 'withdraw' && isEdit.value) {
+    fetchWithdrawData()
+  }
+}
+
+async function fetchWithdrawData() {
+  if (!selectedUser.value)
+    return
+
+  withdrawLoading.value = true
+  try {
+    const response: any = await fetchWithdrawRecords({
+      page: withdrawPagination.page,
+      page_size: withdrawPagination.pageSize,
+      user_id: selectedUser.value.id,
+    })
+    if (response.isSuccess) {
+      withdrawData.value = response.data?.list || []
+      withdrawPagination.itemCount = response.data?.total || 0
+      const adminIds = Array.from(new Set(withdrawData.value.flatMap(item => [item.reviewed_by, item.paid_by]).filter(Boolean) as number[]))
+      adminUserMap.value = await adminUserApi.batchSimpleInfo(adminIds)
+    }
+    else {
+      message.error(response.message || '获取提现记录失败')
+    }
+  }
+  catch {
+    message.error('获取提现记录失败')
+  }
+  finally {
+    withdrawLoading.value = false
+  }
+}
+
+function handleWithdrawPageChange(page: number) {
+  withdrawPagination.page = page
+  fetchWithdrawData()
+}
+
+function handleWithdrawPageSizeChange(pageSize: number) {
+  withdrawPagination.pageSize = pageSize
+  withdrawPagination.page = 1
+  fetchWithdrawData()
+}
+
+function openWithdrawDetail(row: WithdrawRecord) {
+  withdrawDetail.value = row
+  showWithdrawDetailModal.value = true
+}
+
+const withdrawColumns: DataTableColumns<WithdrawRecord> = [
+  { title: 'ID', key: 'id', width: 80 },
+  {
+    title: '金额',
+    key: 'amount',
+    width: 100,
+    render: row => `¥${(Number(row.amount) || 0).toFixed(2)}`,
+  },
+  {
+    title: '状态',
+    key: 'status',
+    width: 100,
+    render: (row) => {
+      const status = getWithdrawStatusMeta(row.status)
+      return h(NTag, { type: status.type }, () => status.label)
+    },
+  },
+  { title: '方式', key: 'account_type', width: 90 },
+  { title: '账户名称', key: 'account_name', width: 120, ellipsis: true },
+  {
+    title: '收款账号',
+    key: 'account_no',
+    width: 160,
+    ellipsis: true,
+    render: row => maskAccountNo(row.account_no),
+  },
+  { title: '审核人', key: 'reviewed_by', width: 110, render: row => getAdminDisplayName(row.reviewed_by) },
+  { title: '打款人', key: 'paid_by', width: 110, render: row => getAdminDisplayName(row.paid_by) },
+  {
+    title: '申请时间',
+    key: 'create_time',
+    width: 170,
+    render: row => formatTime(row.create_time),
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 90,
+    render: row => h(
+      'a',
+      {
+        style: 'color: var(--n-primary-color); cursor: pointer;',
+        onClick: () => openWithdrawDetail(row),
+      },
+      '详情',
+    ),
+  },
+]
 
 // 处理余额操作
 async function handleBalanceOperation() {
@@ -756,7 +1025,6 @@ async function handleBalanceOperation() {
     }
   }
   catch (error) {
-    // eslint-disable-next-line no-console
     console.error('余额操作失败:', error)
     message.error('操作失败')
   }
@@ -769,7 +1037,7 @@ async function handleBalanceOperation() {
 async function handleAutoFillOrderNo() {
   try {
     const res: any = await generateNos()
-    if (res.code === 200 || res.code === 0) {
+    if (res.isSuccess && res.data?.order_no) {
       balanceForm.orderNo = res.data.order_no
       message.success('订单号已自动生成')
     }
@@ -786,7 +1054,7 @@ async function handleAutoFillOrderNo() {
 async function handleAutoFillTradeNo() {
   try {
     const res: any = await generateNos()
-    if (res.code === 200 || res.code === 0) {
+    if (res.isSuccess && res.data?.trade_no) {
       balanceForm.tradeNo = res.data.trade_no
       message.success('交易号已自动生成')
     }
@@ -807,17 +1075,23 @@ async function handleScoreOperation() {
   try {
     submitting.value = true
 
+    if (Number(scoreForm.amount) === 0) {
+      message.warning('积分不能为 0')
+      return
+    }
+
     if (scoreForm.operation === 'modify') {
-      const response: any = await updateUserScore(selectedUser.value.id, {
+      const response: any = await adminUserApi.changeScore(selectedUser.value.id, {
         score: scoreForm.amount,
+        memo: scoreForm.memo,
       })
       if (response.isSuccess) {
-        message.success('积分修改成功')
+        message.success('积分变更成功')
         fetchData()
         showUserModal.value = false
       }
       else {
-        message.error(response.message || '积分修改失败')
+        message.error(response.message || '积分变更失败')
       }
     }
     else if (scoreForm.operation === 'log') {
@@ -833,33 +1107,8 @@ async function handleScoreOperation() {
         message.error(response.message || '积分日志添加失败')
       }
     }
-    else if (scoreForm.operation === 'both') {
-      const logResponse: any = await addScoreLog(selectedUser.value.id, {
-        score: scoreForm.amount,
-        memo: scoreForm.memo,
-      })
-
-      if (logResponse.isSuccess) {
-        const updateResponse: any = await updateUserScore(selectedUser.value.id, {
-          score: scoreForm.amount,
-        })
-
-        if (updateResponse.isSuccess) {
-          message.success('积分日志添加并修改成功')
-          fetchData()
-          showUserModal.value = false
-        }
-        else {
-          message.error('日志添加成功，但积分修改失败')
-        }
-      }
-      else {
-        message.error(logResponse.message || '积分日志添加失败')
-      }
-    }
   }
   catch (error) {
-    // eslint-disable-next-line no-console
     console.error('积分操作失败:', error)
     message.error('操作失败')
   }
@@ -899,7 +1148,7 @@ async function handleScoreOperation() {
     <n-card class="search-card" :bordered="false">
       <n-form :model="searchForm" label-placement="left" :label-width="80">
         <n-grid :cols="24" :x-gap="16" responsive="screen">
-          <n-form-item-gi span="24 600:12 800:12" label="关键词">
+          <n-form-item-gi span="24 600:10 800:10" label="关键词">
             <n-input
               v-model:value="searchForm.keyword"
               placeholder="搜索ID/用户名/邮箱/手机/昵称/角色/状态/等级"
@@ -907,7 +1156,16 @@ async function handleScoreOperation() {
               @keyup.enter="handleSearch"
             />
           </n-form-item-gi>
-          <n-form-item-gi span="24 600:12 800:12" class="search-actions">
+          <n-form-item-gi span="24 600:6 800:6" label="实名认证">
+            <n-select
+              v-model:value="searchForm.realnameStatus"
+              :options="realnameFilterOptions"
+              clearable
+              placeholder="全部"
+              @update:value="handleRealnameStatusChange"
+            />
+          </n-form-item-gi>
+          <n-form-item-gi span="24 600:8 800:8" class="search-actions">
             <NSpace justify="center">
               <NButton type="primary" class="search-btn" @click="handleSearch">
                 <template #icon>
@@ -943,13 +1201,13 @@ async function handleScoreOperation() {
       <div class="pagination-container">
         <div class="pagination-info">
           <n-text depth="3">
-            共 {{ pagination.total }} 条记录，当前第 {{ pagination.page }} 页，每页显示 {{ pagination.pageSize }} 条
+            共 {{ pagination.itemCount }} 条记录，当前第 {{ pagination.page }} 页，每页显示 {{ pagination.pageSize }} 条
           </n-text>
         </div>
         <n-pagination
           v-model:page="pagination.page"
           v-model:page-size="pagination.pageSize"
-          :item-count="pagination.total"
+          :item-count="pagination.itemCount"
           :page-sizes="pagination.pageSizes"
           :show-size-picker="pagination.showSizePicker"
           show-quick-jumper
@@ -977,7 +1235,7 @@ async function handleScoreOperation() {
         </NButton>
       </template>
 
-      <n-tabs v-model:value="activeTab" type="line" animated>
+      <n-tabs v-model:value="activeTab" type="line" animated @update:value="handleUserModalTabChange">
         <!-- 详情标签页 -->
         <n-tab-pane name="details" tab="详情">
           <n-form
@@ -1005,7 +1263,7 @@ async function handleScoreOperation() {
                 <n-input
                   v-model:value="userForm.email"
                   placeholder="请输入邮箱"
-                  @blur="userForm.email = userForm.email.includes('@') ? userForm.email.split('@')[0] + '@' + userForm.email.split('@')[1].toLowerCase() : userForm.email"
+                  @blur="userForm.email = userForm.email.includes('@') ? `${userForm.email.split('@')[0]}@${userForm.email.split('@')[1].toLowerCase()}` : userForm.email"
                 />
               </n-form-item-gi>
               <n-form-item-gi label="手机" path="mobile">
@@ -1014,7 +1272,20 @@ async function handleScoreOperation() {
                   placeholder="请输入手机号"
                 />
               </n-form-item-gi>
-              <n-form-item-gi span="2" label="密码" path="password" :rule="passwordRule">
+              <n-form-item-gi label="语言" path="language">
+                <n-select
+                  v-model:value="userForm.language"
+                  :options="languageOptions"
+                  placeholder="选择语言"
+                />
+              </n-form-item-gi>
+              <n-form-item-gi label="国家" path="country">
+                <n-input
+                  v-model:value="userForm.country"
+                  placeholder="请输入国家/地区"
+                />
+              </n-form-item-gi>
+              <n-form-item-gi v-if="!isEdit" span="2" label="密码" path="password" :rule="passwordRule">
                 <n-input
                   v-model:value="userForm.password"
                   type="password"
@@ -1022,7 +1293,7 @@ async function handleScoreOperation() {
                   show-password-on="click"
                 />
                 <template #feedback>
-                  <span class="password-tip">{{ isEdit ? '留空则不修改密码' : '请设置密码' }}</span>
+                  <span class="password-tip">请设置密码</span>
                 </template>
               </n-form-item-gi>
               <n-form-item-gi label="角色" path="role">
@@ -1113,10 +1384,10 @@ async function handleScoreOperation() {
 
               <!-- 余额操作 -->
               <n-form label-placement="left" :label-width="100">
-                <n-form-item label="金额">
+                <n-form-item v-if="balanceForm.operation !== 'order_only'" :label="balanceAmountLabel">
                   <n-input-number
                     v-model:value="balanceForm.amount"
-                    placeholder="请输入金额（正数增加，负数减少）"
+                    :placeholder="balanceAmountPlaceholder"
                     :precision="2"
                     :step="0.01"
                   />
@@ -1125,18 +1396,32 @@ async function handleScoreOperation() {
                 <n-form-item label="操作类型">
                   <n-radio-group v-model:value="balanceForm.operation">
                     <NSpace wrap>
-                      <n-radio value="balance_only">仅修改余额</n-radio>
-                      <n-radio value="log_only">仅添加日志</n-radio>
-                      <n-radio value="order_only">仅操作订单</n-radio>
-                      <n-radio value="balance_log">修改余额 + 添加日志</n-radio>
-                      <n-radio value="balance_order">修改余额 + 操作订单</n-radio>
-                      <n-radio value="log_order">添加日志 + 操作订单</n-radio>
-                      <n-radio value="both">余额 + 日志 + 订单</n-radio>
+                      <n-radio value="balance_only">
+                        仅修改余额
+                      </n-radio>
+                      <n-radio value="log_only">
+                        仅记录余额日志
+                      </n-radio>
+                      <n-radio value="order_only">
+                        仅更新订单状态
+                      </n-radio>
+                      <n-radio value="balance_log">
+                        修改余额 + 记录日志
+                      </n-radio>
+                      <n-radio value="balance_order">
+                        修改余额 + 更新订单
+                      </n-radio>
+                      <n-radio value="log_order">
+                        记录日志 + 更新订单
+                      </n-radio>
+                      <n-radio value="both">
+                        余额 + 日志 + 订单
+                      </n-radio>
                     </NSpace>
                   </n-radio-group>
                 </n-form-item>
 
-                <n-form-item v-if="!['balance_only', 'order_only'].includes(balanceForm.operation)" label="备注">
+                <n-form-item v-if="['log_only', 'balance_log', 'log_order', 'both'].includes(balanceForm.operation)" label="备注">
                   <n-input
                     v-model:value="balanceForm.memo"
                     type="textarea"
@@ -1179,6 +1464,42 @@ async function handleScoreOperation() {
                   />
                 </n-form-item>
 
+                <n-alert
+                  v-if="balanceForm.operation === 'order_only'"
+                  type="info"
+                  :show-icon="false"
+                  style="margin-bottom: 16px;"
+                >
+                  此模式只会更新订单状态，不会修改用户余额，也不会写入余额日志。
+                </n-alert>
+
+                <n-alert
+                  v-if="balanceForm.operation === 'balance_order'"
+                  type="info"
+                  :show-icon="false"
+                  style="margin-bottom: 16px;"
+                >
+                  此模式只会修改余额并更新订单状态，不会额外写入余额日志。
+                </n-alert>
+
+                <n-alert
+                  v-if="balanceForm.operation === 'log_order'"
+                  type="info"
+                  :show-icon="false"
+                  style="margin-bottom: 16px;"
+                >
+                  此模式只会记录一条余额日志并更新订单状态，不会实际修改用户余额。
+                </n-alert>
+
+                <n-alert
+                  v-if="balanceForm.operation === 'both'"
+                  type="info"
+                  :show-icon="false"
+                  style="margin-bottom: 16px;"
+                >
+                  此模式会同时修改余额、写入余额日志，并更新订单状态。
+                </n-alert>
+
                 <n-form-item>
                   <NButton type="primary" :loading="submitting" @click="handleBalanceOperation">
                     确定操作
@@ -1215,19 +1536,16 @@ async function handleScoreOperation() {
                   <n-radio-group v-model:value="scoreForm.operation">
                     <NSpace>
                       <n-radio value="modify">
-                        直接修改
+                        变更积分
                       </n-radio>
                       <n-radio value="log">
-                        直接加日志
-                      </n-radio>
-                      <n-radio value="both">
-                        同时修改+日志
+                        仅记录日志
                       </n-radio>
                     </NSpace>
                   </n-radio-group>
                 </n-form-item>
 
-                <n-form-item v-if="scoreForm.operation !== 'modify'" label="备注">
+                <n-form-item label="备注">
                   <n-input
                     v-model:value="scoreForm.memo"
                     type="textarea"
@@ -1244,6 +1562,19 @@ async function handleScoreOperation() {
               </n-form>
             </NSpace>
           </div>
+        </n-tab-pane>
+
+        <n-tab-pane v-if="isEdit" name="withdraw" tab="提现">
+          <n-data-table
+            :columns="withdrawColumns"
+            :data="withdrawData"
+            :loading="withdrawLoading"
+            :pagination="withdrawPagination"
+            size="small"
+            :row-key="(row: WithdrawRecord) => row.id"
+            @update:page="handleWithdrawPageChange"
+            @update:page-size="handleWithdrawPageSizeChange"
+          />
         </n-tab-pane>
       </n-tabs>
 
@@ -1289,6 +1620,12 @@ async function handleScoreOperation() {
             <n-descriptions-item label="手机">
               {{ selectedUser?.mobile || '-' }}
             </n-descriptions-item>
+            <n-descriptions-item label="语言">
+              {{ formatLanguage(selectedUser?.language) }}
+            </n-descriptions-item>
+            <n-descriptions-item label="国家">
+              {{ selectedUser?.country || '-' }}
+            </n-descriptions-item>
             <n-descriptions-item label="角色">
               {{ selectedUser?.role === 'admin' ? '管理员' : '用户' }}
             </n-descriptions-item>
@@ -1327,6 +1664,34 @@ async function handleScoreOperation() {
               <n-text type="info">
                 {{ selectedUser?.score || '0' }}
               </n-text>
+            </n-descriptions-item>
+          </n-descriptions>
+        </div>
+
+        <div class="detail-section">
+          <h3 class="section-title">
+            实名认证
+          </h3>
+          <n-descriptions :column="2" bordered size="small">
+            <n-descriptions-item label="认证状态">
+              <NTag :type="getRealnameStatusType(selectedUserRealname?.status)">
+                {{ selectedUserRealname?.has_verification ? getRealnameStatusText(selectedUserRealname?.status) : '未认证' }}
+              </NTag>
+            </n-descriptions-item>
+            <n-descriptions-item label="真实姓名">
+              {{ selectedUserRealname?.real_name || '-' }}
+            </n-descriptions-item>
+            <n-descriptions-item label="证件号码">
+              {{ maskCertificateNo(selectedUserRealname?.certificate_no) }}
+            </n-descriptions-item>
+            <n-descriptions-item label="提交时间">
+              {{ selectedUserRealname?.submitted_at ? new Date(selectedUserRealname.submitted_at * 1000).toLocaleString() : '-' }}
+            </n-descriptions-item>
+            <n-descriptions-item label="审核时间">
+              {{ selectedUserRealname?.reviewed_at ? new Date(selectedUserRealname.reviewed_at * 1000).toLocaleString() : '-' }}
+            </n-descriptions-item>
+            <n-descriptions-item label="拒绝原因">
+              {{ selectedUserRealname?.reject_reason || '-' }}
             </n-descriptions-item>
           </n-descriptions>
         </div>
@@ -1402,6 +1767,63 @@ async function handleScoreOperation() {
             重置密码
           </NButton>
         </NSpace>
+      </template>
+    </n-modal>
+
+    <n-modal v-model:show="showWithdrawDetailModal" preset="card" title="提现记录详情" style="width: 620px;" :bordered="false">
+      <template v-if="withdrawDetail">
+        <n-descriptions :column="1" bordered label-placement="left">
+          <n-descriptions-item label="申请ID">
+            {{ withdrawDetail.id }}
+          </n-descriptions-item>
+          <n-descriptions-item label="用户ID">
+            {{ withdrawDetail.user_id }}
+          </n-descriptions-item>
+          <n-descriptions-item label="提现金额">
+            ¥{{ Number(withdrawDetail.amount).toFixed(2) }}
+          </n-descriptions-item>
+          <n-descriptions-item label="状态">
+            <NTag :type="getWithdrawStatusMeta(withdrawDetail.status).type">
+              {{ getWithdrawStatusMeta(withdrawDetail.status).label }}
+            </NTag>
+          </n-descriptions-item>
+          <n-descriptions-item label="收款方式">
+            {{ withdrawDetail.account_type }}
+          </n-descriptions-item>
+          <n-descriptions-item label="账户名称">
+            {{ withdrawDetail.account_name }}
+          </n-descriptions-item>
+          <n-descriptions-item label="收款账号">
+            {{ withdrawDetail.account_no }}
+          </n-descriptions-item>
+          <n-descriptions-item label="收款人">
+            {{ withdrawDetail.real_name }}
+          </n-descriptions-item>
+          <n-descriptions-item label="用户备注">
+            {{ withdrawDetail.remark || '-' }}
+          </n-descriptions-item>
+          <n-descriptions-item label="审核备注">
+            {{ withdrawDetail.review_remark || '-' }}
+          </n-descriptions-item>
+          <n-descriptions-item label="打款备注">
+            {{ withdrawDetail.transfer_remark || '-' }}
+          </n-descriptions-item>
+          <n-descriptions-item label="申请时间">
+            {{ formatTime(withdrawDetail.create_time) }}
+          </n-descriptions-item>
+          <n-descriptions-item label="审核时间">
+            {{ formatTime(withdrawDetail.reviewed_at) }}
+          </n-descriptions-item>
+          <n-descriptions-item label="审核人">
+            {{ getAdminDisplayName(withdrawDetail.reviewed_by) }}
+          </n-descriptions-item>
+          <n-descriptions-item label="打款时间">
+            {{ formatTime(withdrawDetail.paid_at) }}
+          </n-descriptions-item>
+          <n-descriptions-item label="打款人">
+            {{ getAdminDisplayName(withdrawDetail.paid_by) }}
+          </n-descriptions-item>
+        </n-descriptions>
       </template>
     </n-modal>
 

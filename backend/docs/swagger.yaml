@@ -5,6 +5,34 @@ definitions:
       memo:
         type: string
     type: object
+  app_controllers_admin.AdminUserDetailResponse:
+    properties:
+      realname:
+        $ref: '#/definitions/app_controllers_admin.AdminUserRealnameSummary'
+      user:
+        $ref: '#/definitions/fst_backend_app_models.User'
+    type: object
+  app_controllers_admin.AdminUserRealnameSummary:
+    properties:
+      certificate_no:
+        type: string
+      certificate_type:
+        type: integer
+      has_verification:
+        type: boolean
+      id:
+        type: integer
+      real_name:
+        type: string
+      reject_reason:
+        type: string
+      reviewed_at:
+        type: integer
+      status:
+        type: integer
+      submitted_at:
+        type: integer
+    type: object
   app_controllers_admin.BatchUpdateSettingsRequest:
     properties:
       settings:
@@ -77,6 +105,20 @@ definitions:
     required:
     - content
     type: object
+  app_controllers_admin.ReviewRealnameRequest:
+    properties:
+      id:
+        type: integer
+      reject_reason:
+        type: string
+      status:
+        maximum: 2
+        minimum: 1
+        type: integer
+    required:
+    - id
+    - status
+    type: object
   app_controllers_admin.SettingsListResponse:
     properties:
       categories:
@@ -110,6 +152,8 @@ definitions:
     type: object
   app_controllers_public.AppConfigResponse:
     properties:
+      allow_delete_account:
+        type: boolean
       allow_register:
         description: 功能开关
         type: boolean
@@ -118,12 +162,20 @@ definitions:
       default_lang:
         description: 语言配置
         type: string
+      email_verify_enabled:
+        description: 验证码开关
+        type: boolean
       geetest_captcha_id:
         description: 极验配置
         type: string
       geetest_enabled:
         type: boolean
       icp:
+        type: string
+      realname_enabled:
+        description: 实名认证配置
+        type: boolean
+      realname_notify_text:
         type: string
       site_desc:
         type: string
@@ -132,11 +184,15 @@ definitions:
       site_name:
         description: 基本配置
         type: string
+      sms_verify_enabled:
+        type: boolean
       version:
         type: string
     type: object
   app_controllers_public.LoginRequest:
     properties:
+      authGuard:
+        type: string
       password:
         type: string
       userName:
@@ -148,6 +204,8 @@ definitions:
     type: object
   app_controllers_public.RefreshTokenRequest:
     properties:
+      authGuard:
+        type: string
       refreshToken:
         type: string
     required:
@@ -233,6 +291,86 @@ definitions:
     required:
     - password
     type: object
+  app_controllers_user.ProfileRealnameSummary:
+    properties:
+      certificateNo:
+        type: string
+      certificateType:
+        type: integer
+      hasVerification:
+        type: boolean
+      id:
+        type: integer
+      realName:
+        type: string
+      rejectReason:
+        type: string
+      reviewedAt:
+        type: integer
+      status:
+        type: integer
+      submittedAt:
+        type: integer
+    type: object
+  app_controllers_user.ProfileResponse:
+    properties:
+      avatar:
+        type: string
+      back_ground:
+        type: string
+      backGround:
+        type: string
+      birthday:
+        type: integer
+      country:
+        type: string
+      createTime:
+        type: integer
+      email:
+        type: string
+      gender:
+        type: integer
+      groupId:
+        type: integer
+      id:
+        type: integer
+      joinIp:
+        type: string
+      joinTime:
+        type: integer
+      language:
+        type: string
+      lastLoginIp:
+        type: string
+      lastLoginTime:
+        type: integer
+      level:
+        type: integer
+      loginFailure:
+        type: integer
+      mobile:
+        type: string
+      money:
+        type: number
+      motto:
+        type: string
+      nickname:
+        type: string
+      realname:
+        $ref: '#/definitions/app_controllers_user.ProfileRealnameSummary'
+      role:
+        type: string
+      score:
+        type: integer
+      status:
+        type: integer
+      updateTime:
+        type: integer
+      userName:
+        type: string
+      username:
+        type: string
+    type: object
   app_controllers_user.SendEmailCodeRequest:
     properties:
       lang:
@@ -248,6 +386,27 @@ definitions:
         type: string
     required:
     - new_mobile
+    type: object
+  app_controllers_user.SubmitRealnameRequest:
+    properties:
+      certificate_back:
+        type: string
+      certificate_front:
+        type: string
+      certificate_no:
+        type: string
+      certificate_type:
+        maximum: 3
+        minimum: 1
+        type: integer
+      real_name:
+        type: string
+    required:
+    - certificate_back
+    - certificate_front
+    - certificate_no
+    - certificate_type
+    - real_name
     type: object
   app_controllers_user.UpdateProfileRequest:
     properties:
@@ -326,6 +485,68 @@ definitions:
           $ref: '#/definitions/fst_backend_app_models.SettingDTO'
         type: array
       label:
+        type: string
+    type: object
+  fst_backend_app_models.User:
+    properties:
+      apikey:
+        type: string
+      avatar:
+        type: string
+      back_ground:
+        type: string
+      birthday:
+        type: integer
+      country:
+        type: string
+      create_time:
+        type: integer
+      email:
+        type: string
+      gender:
+        type: integer
+      group_id:
+        type: integer
+      id:
+        type: integer
+      join_ip:
+        type: string
+      join_time:
+        type: integer
+      language:
+        description: Requested additions
+        type: string
+      last_login_ip:
+        type: string
+      last_login_time:
+        type: integer
+      level:
+        type: integer
+      lock_until:
+        description: 账户锁定到期时间（时间戳）
+        type: integer
+      login_failure:
+        type: integer
+      mobile:
+        type: string
+      money:
+        type: number
+      motto:
+        type: string
+      nickname:
+        type: string
+      role:
+        description: '''user'' or ''admin'''
+        type: string
+      score:
+        type: integer
+      status:
+        type: integer
+      token:
+        type: string
+      update_time:
+        type: integer
+      username:
         type: string
     type: object
   fst_backend_app_services.UserCreateRequest:
@@ -869,6 +1090,89 @@ paths:
       summary: 管理端-支付统计
       tags:
       - 管理端-支付
+  /api/v1/admin/realname:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有实名认证申请列表（分页）
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索关键词（姓名、证件号）
+        in: query
+        name: keyword
+        type: string
+      - description: '状态: 0=待审核, 1=通过, 2=拒绝'
+        in: query
+        name: status
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取实名认证列表
+      tags:
+      - Admin-实名认证管理
+  /api/v1/admin/realname/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取实名认证详情
+      parameters:
+      - description: 实名认证记录ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取实名认证详情
+      tags:
+      - Admin-实名认证管理
+  /api/v1/admin/realname/review:
+    post:
+      consumes:
+      - application/json
+      description: 管理员审核用户的实名认证申请
+      parameters:
+      - description: 审核信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_admin.ReviewRealnameRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 审核实名认证
+      tags:
+      - Admin-实名认证管理
   /api/v1/admin/settings:
     get:
       consumes:
@@ -1063,6 +1367,146 @@ paths:
       summary: 获取指定分类的配置
       tags:
       - Admin-系统配置
+  /api/v1/admin/sms-logs:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取短信发送记录，支持按手机号、服务商、模板名、语言、状态筛选
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 手机号（模糊）
+        in: query
+        name: phone
+        type: string
+      - description: '服务商: aliyun, tencent, custom, console'
+        in: query
+        name: provider
+        type: string
+      - description: 模板名称
+        in: query
+        name: template_name
+        type: string
+      - description: '语言: zh-CN, en-US'
+        in: query
+        name: lang
+        type: string
+      - default: -1
+        description: '状态: -1=全部, 0=失败, 1=成功'
+        in: query
+        name: status
+        type: integer
+      - description: 开始时间 (YYYY-MM-DD HH:MM:SS)
+        in: query
+        name: start_time
+        type: string
+      - description: 结束时间 (YYYY-MM-DD HH:MM:SS)
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取短信发送记录列表
+      tags:
+      - Admin-短信日志
+  /api/v1/admin/sms-logs/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据 ID 获取短信日志详情，包含完整响应内容
+      parameters:
+      - description: 日志ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取短信发送记录详情
+      tags:
+      - Admin-短信日志
+  /api/v1/admin/sms-logs/clean:
+    post:
+      consumes:
+      - application/json
+      description: 删除指定日期之前的短信日志
+      parameters:
+      - description: '清理参数 {before: ''2025-01-01 00:00:00''}'
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 清理短信发送记录
+      tags:
+      - Admin-短信日志
+  /api/v1/admin/sms-logs/stats:
+    get:
+      consumes:
+      - application/json
+      description: 获取短信发送总数、成功数、失败数
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 短信发送统计
+      tags:
+      - Admin-短信日志
+  /api/v1/admin/sms-logs/template-names:
+    get:
+      consumes:
+      - application/json
+      description: 获取短信日志中出现的所有模板名，用于筛选
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取短信模板名列表
+      tags:
+      - Admin-短信日志
   /api/v1/admin/users:
     get:
       consumes:
@@ -1086,6 +1530,10 @@ paths:
       - description: 状态
         in: query
         name: status
+        type: integer
+      - description: '实名认证状态: 0=待审核, 1=通过, 2=拒绝'
+        in: query
+        name: realname_status
         type: integer
       produces:
       - application/json
@@ -1161,7 +1609,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.Response'
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/app_controllers_admin.AdminUserDetailResponse'
+              type: object
       security:
       - BearerAuth: []
       summary: 获取用户详情
@@ -1926,7 +2379,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.Response'
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/app_controllers_user.ProfileResponse'
+              type: object
       security:
       - BearerAuth: []
       summary: 获取个人信息
@@ -1955,6 +2413,46 @@ paths:
       summary: 更新个人信息
       tags:
       - 用户中心
+  /api/v1/user/realname:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户的实名认证状态
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取实名认证状态
+      tags:
+      - 实名认证
+    post:
+      consumes:
+      - application/json
+      description: 用户提交实名认证申请
+      parameters:
+      - description: 实名认证信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_user.SubmitRealnameRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 提交实名认证
+      tags:
+      - 实名认证
   /api/v1/user/resetapikey:
     post:
       consumes:

@@ -64,6 +64,16 @@ export function getAdminRoutes(): RouteRecordRaw[] {
             activeMenu: '/users',
           },
         },
+        // ── 实名认证管理（独立页面）──
+        {
+          path: 'realname',
+          name: 'admin-realname',
+          component: () => import('@/views/admin/realname/index.vue'),
+          meta: {
+            title: '实名认证',
+            icon: 'icon-park-outline:id-card',
+          },
+        },
         // ── 财务中心（分组目录）──
         {
           path: 'finance',
@@ -110,6 +120,15 @@ export function getAdminRoutes(): RouteRecordRaw[] {
               meta: {
                 title: '支付订单',
                 icon: 'icon-park-outline:transaction-order',
+              },
+            },
+            {
+              path: 'withdraw',
+              name: 'admin-withdraw',
+              component: () => import('@/views/admin/withdraw/index.vue'),
+              meta: {
+                title: '提现管理',
+                icon: 'icon-park-outline:wallet-two',
               },
             },
           ],

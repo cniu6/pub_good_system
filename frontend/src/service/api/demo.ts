@@ -1,6 +1,9 @@
 import { blankInstance, request } from '../http'
 
 // ==================== Demo 请求示例 ====================
+// 说明：
+// 该文件仅用于演示/联调不同请求形态，返回结构本身就是开放示例。
+// 因此这里故意保留宽泛的 any 类型，不纳入业务 API 的严格类型收窄范围。
 
 /** GET 请求示例 */
 export function fetchGet(params: Record<string, any>) {

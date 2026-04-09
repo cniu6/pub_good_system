@@ -10,18 +10,70 @@ interface UserScoreLogListResponse {
   total: number
 }
 
+interface WithdrawListResponse {
+  list: Entity.WithdrawRecord[]
+  total: number
+}
+
+function createIdempotencyKey(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+interface UserSettingsResponse {
+  language: string
+  theme: string
+  notify_email: boolean
+}
+
+interface UserStatsResponse {
+  daysJoined?: number
+  loginCount?: number
+  totalMoneyLogs?: number
+  totalScoreLogs?: number
+  totalWithdraws?: number
+  totalRechargeOrders?: number
+}
+
+interface ActionMessageResponse {
+  message?: string
+}
+
+interface VerifyChangeResponse extends ActionMessageResponse {
+  verified?: boolean
+}
+
+interface UserSessionItem {
+  id: number | string
+  token?: string
+  ip?: string
+  user_agent?: string
+  device?: string
+  login_at?: number
+  is_current?: boolean
+  create_time?: number
+  expire_time?: number
+  last_active_time?: number
+}
+
+interface UserDashboardResponse {
+  money: number
+  score: number
+  loginCount: number
+  daysJoined: number
+}
+
 // ========================================
 // 用户设置
 // ========================================
 
 /** 获取用户设置 */
 export function fetchUserSettings() {
-  return request.Get<Service.ResponseResult<any>>('/api/v1/user/settings')
+  return request.Get<Service.ResponseResult<UserSettingsResponse>>('/api/v1/user/settings')
 }
 
 /** 更新用户设置 */
 export function updateUserSettings(data: { language?: string, theme?: string, notify_email?: boolean }) {
-  return request.Put<Service.ResponseResult<any>>('/api/v1/user/settings', data)
+  return request.Put<Service.ResponseResult<ActionMessageResponse>>('/api/v1/user/settings', data)
 }
 
 // ========================================
@@ -30,7 +82,7 @@ export function updateUserSettings(data: { language?: string, theme?: string, no
 
 /** 获取用户统计 */
 export function fetchUserStats() {
-  return request.Get<Service.ResponseResult<any>>('/api/v1/user/stats')
+  return request.Get<Service.ResponseResult<UserStatsResponse>>('/api/v1/user/stats')
 }
 
 // ========================================
@@ -39,12 +91,12 @@ export function fetchUserStats() {
 
 /** 发送修改邮箱验证码 */
 export function sendEmailChangeCode(data: { new_email: string, lang?: string }) {
-  return request.Post<Service.ResponseResult<any>>('/api/v1/user/email/send-code', data)
+  return request.Post<Service.ResponseResult<VerifyChangeResponse>>('/api/v1/user/email/send-code', data)
 }
 
 /** 验证并修改邮箱 */
 export function verifyEmailChange(data: { new_email: string, code: string }) {
-  return request.Post<Service.ResponseResult<any>>('/api/v1/user/email/verify', data)
+  return request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/user/email/verify', data)
 }
 
 // ========================================
@@ -53,12 +105,12 @@ export function verifyEmailChange(data: { new_email: string, code: string }) {
 
 /** 发送修改手机号验证码 */
 export function sendPhoneChangeCode(data: { new_mobile: string }) {
-  return request.Post<Service.ResponseResult<any>>('/api/v1/user/phone/send-code', data)
+  return request.Post<Service.ResponseResult<VerifyChangeResponse>>('/api/v1/user/phone/send-code', data)
 }
 
 /** 验证并修改手机号 */
 export function verifyPhoneChange(data: { new_mobile: string, code: string }) {
-  return request.Post<Service.ResponseResult<any>>('/api/v1/user/phone/verify', data)
+  return request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/user/phone/verify', data)
 }
 
 // ========================================
@@ -67,7 +119,7 @@ export function verifyPhoneChange(data: { new_mobile: string, code: string }) {
 
 /** 注销账号 */
 export function deactivateAccount(data: { password: string, reason?: string }) {
-  return request.Post<Service.ResponseResult<any>>('/api/v1/user/deactivate', data)
+  return request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/user/deactivate', data)
 }
 
 // ========================================
@@ -76,17 +128,17 @@ export function deactivateAccount(data: { password: string, reason?: string }) {
 
 /** 获取登录会话列表 */
 export function fetchUserSessions() {
-  return request.Get<Service.ResponseResult<any>>('/api/v1/user/sessions')
+  return request.Get<Service.ResponseResult<UserSessionItem[]>>('/api/v1/user/sessions')
 }
 
 /** 踢出指定会话 */
 export function revokeSession(sessionId: number | string) {
-  return request.Delete<Service.ResponseResult<any>>(`/api/v1/user/sessions/${sessionId}`)
+  return request.Delete<Service.ResponseResult<ActionMessageResponse>>(`/api/v1/user/sessions/${sessionId}`)
 }
 
 /** 踢出所有其他会话 */
 export function revokeAllSessions() {
-  return request.Post<Service.ResponseResult<any>>('/api/v1/user/sessions/revoke-all')
+  return request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/user/sessions/revoke-all')
 }
 
 // ========================================
@@ -103,11 +155,35 @@ export function fetchMyScoreLogs(params: { page?: number, page_size?: number, ke
   return request.Get<Service.ResponseResult<UserScoreLogListResponse>>('/api/v1/user/score-logs', { params })
 }
 
+/** 获取我的提现记录 */
+export function fetchMyWithdrawRecords(params: { page?: number, page_size?: number, status?: number }) {
+  return request.Get<Service.ResponseResult<WithdrawListResponse>>('/api/v1/user/withdraw', { params })
+}
+
+/** 获取我的提现详情 */
+export function fetchMyWithdrawDetail(id: number) {
+  return request.Get<Service.ResponseResult<Entity.WithdrawRecord>>(`/api/v1/user/withdraw/${id}`)
+}
+
+/** 提交提现申请 */
+export function createWithdrawRequest(data: {
+  amount: number
+  account_type?: string
+  account_name: string
+  account_no: string
+  real_name: string
+  remark?: string
+}) {
+  return request.Post<Service.ResponseResult<Entity.WithdrawRecord>>('/api/v1/user/withdraw', data, {
+    headers: { 'X-Idempotency-Key': createIdempotencyKey('user-withdraw-create') },
+  })
+}
+
 // ========================================
 // 用户仪表盘
 // ========================================
 
 /** 获取用户仪表盘数据 */
 export function fetchDashboard() {
-  return request.Get<Service.ResponseResult<any>>('/api/v1/user/dashboard')
+  return request.Get<Service.ResponseResult<UserDashboardResponse>>('/api/v1/user/dashboard')
 }

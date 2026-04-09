@@ -69,6 +69,24 @@ export const useSettingsStore = defineStore('settings-store', () => {
   // 短信验证码是否启用
   const smsVerifyEnabled = computed(() => config.value?.sms_verify_enabled ?? false)
 
+  // 实名认证功能是否启用
+  const realnameEnabled = computed(() => config.value?.realname_enabled ?? true)
+
+  // 实名认证提示语
+  const realnameNotifyText = computed(() => config.value?.realname_notify_text ?? '')
+
+  // 提现功能是否启用
+  const withdrawEnabled = computed(() => config.value?.withdraw_enabled ?? true)
+
+  // 最低提现金额
+  const withdrawMinAmount = computed(() => config.value?.withdraw_min_amount ?? 10)
+
+  // 提现提示语
+  const withdrawNotifyText = computed(() => config.value?.withdraw_notify_text ?? '')
+
+  // 支持的提现收款方式
+  const withdrawAccountTypes = computed(() => config.value?.withdraw_account_types ?? ['bank', 'alipay', 'wechat', 'usdt'])
+
   // ========================================
   // Actions
   // ========================================
@@ -151,6 +169,12 @@ export const useSettingsStore = defineStore('settings-store', () => {
     geetestCaptchaId,
     emailVerifyEnabled,
     smsVerifyEnabled,
+    realnameEnabled,
+    realnameNotifyText,
+    withdrawEnabled,
+    withdrawMinAmount,
+    withdrawNotifyText,
+    withdrawAccountTypes,
 
     // Actions
     loadConfig,

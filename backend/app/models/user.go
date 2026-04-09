@@ -88,18 +88,7 @@ func CreateUser(user *User) error {
 	if user.Level == 0 {
 		user.Level = 1
 	}
-	if user.Status == 0 {
-		// Caution: if user wants to create inactive user (0), this overrides.
-		// But usually creation implies active or pending.
-		// If 0 is valid "inactive", we shouldn't force 1.
-		// However, Go int zero value is 0. If I don't set it, it inserts 0.
-		// DB default is 1.
-		// If I want DB default, I should not include it in INSERT or use NULL?
-		// NamedExec doesn't skip zero values easily.
-		// I will set it to 1 if it is meant to be active by default.
-		// Let's assume standard creation is active.
-		user.Status = 1
-	}
+	// 管理端允许显式创建“禁用”用户，这里不要把 0 强行覆盖回 1。
 
 	// Ensure language default
 	if user.Language == "" {

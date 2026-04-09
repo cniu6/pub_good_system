@@ -26,6 +26,8 @@ var (
 	publicPaymentCallbackCtrl *public.PaymentCallbackController
 	userProfileCtrl           *user.ProfileController
 	userPaymentCtrl           *user.PaymentController
+	userRealnameCtrl          *user.RealnameController
+	userWithdrawCtrl          *user.WithdrawController
 	systemCtrl                *controllers.SystemController
 	adminUserCtrl             *admin.UserController
 	adminLogCtrl              *admin.LogController
@@ -35,6 +37,9 @@ var (
 	adminDebugCtrl            *admin.DebugController
 	adminMoneyScoreCtrl       *admin.UserMoneyScoreController
 	adminPaymentCtrl          *admin.PaymentController
+	adminRealnameCtrl         *admin.RealnameController
+	adminWithdrawCtrl         *admin.WithdrawController
+	adminSMSLogCtrl          *admin.SMSLogController
 )
 
 // initControllers 初始化所有控制器
@@ -44,6 +49,8 @@ func initControllers() {
 	publicPaymentCallbackCtrl = public.NewPaymentCallbackController()
 	userProfileCtrl = user.NewProfileController()
 	userPaymentCtrl = user.NewPaymentController()
+	userRealnameCtrl = user.NewRealnameController()
+	userWithdrawCtrl = user.NewWithdrawController()
 	systemCtrl = &controllers.SystemController{}
 	adminUserCtrl = admin.NewUserController()
 	adminLogCtrl = admin.NewLogController()
@@ -53,6 +60,9 @@ func initControllers() {
 	adminDebugCtrl = admin.NewDebugController()
 	adminMoneyScoreCtrl = admin.NewUserMoneyScoreController()
 	adminPaymentCtrl = admin.NewPaymentController()
+	adminRealnameCtrl = admin.NewRealnameController()
+	adminWithdrawCtrl = admin.NewWithdrawController()
+	adminSMSLogCtrl = admin.NewSMSLogController()
 }
 
 func SetupRoutes(router *gin.Engine) {
@@ -91,12 +101,14 @@ func SetupRoutes(router *gin.Engine) {
 			// ----------------------------------------
 			// 用户接口 (需要登录，管理员token也可访问)
 			// ----------------------------------------
-			userGroup := v1.Group("/user")
-			userGroup.Use(middleware.AuthMiddlewareForGuard("user", "admin"))
-			{
-				userProfileCtrl.RegisterRoutes(userGroup)
-				userPaymentCtrl.RegisterRoutes(userGroup)
-			}
+		userGroup := v1.Group("/user")
+		userGroup.Use(middleware.AuthMiddlewareForGuard("user", "admin"))
+		{
+			userProfileCtrl.RegisterRoutes(userGroup)
+			userPaymentCtrl.RegisterRoutes(userGroup)
+			userRealnameCtrl.RegisterRoutes(userGroup)
+			userWithdrawCtrl.RegisterRoutes(userGroup)
+		}
 
 			// ----------------------------------------
 			// 系统状态接口 (需要登录，管理员token也可访问)
@@ -154,15 +166,25 @@ func SetupRoutes(router *gin.Engine) {
 					emailTemplates.POST("/:id/reset", adminEmailTplCtrl.Reset)
 				}
 
-				// ----- 邮件发送记录 -----
-				emailLogs := adminGroup.Group("/email-logs")
-				{
-					emailLogs.GET("", adminEmailLogCtrl.List)
-					emailLogs.GET("/stats", adminEmailLogCtrl.Stats)
-					emailLogs.GET("/template-names", adminEmailLogCtrl.TemplateNames)
-					emailLogs.GET("/:id", adminEmailLogCtrl.Detail)
-					emailLogs.POST("/clean", adminEmailLogCtrl.Clean)
-				}
+			// ----- 邮件发送记录 -----
+			emailLogs := adminGroup.Group("/email-logs")
+			{
+				emailLogs.GET("", adminEmailLogCtrl.List)
+				emailLogs.GET("/stats", adminEmailLogCtrl.Stats)
+				emailLogs.GET("/template-names", adminEmailLogCtrl.TemplateNames)
+				emailLogs.GET("/:id", adminEmailLogCtrl.Detail)
+				emailLogs.POST("/clean", adminEmailLogCtrl.Clean)
+			}
+
+			// ----- 短信发送记录 -----
+			smsLogs := adminGroup.Group("/sms-logs")
+			{
+				smsLogs.GET("", adminSMSLogCtrl.List)
+				smsLogs.GET("/stats", adminSMSLogCtrl.Stats)
+				smsLogs.GET("/template-names", adminSMSLogCtrl.TemplateNames)
+				smsLogs.GET("/:id", adminSMSLogCtrl.Detail)
+				smsLogs.POST("/clean", adminSMSLogCtrl.Clean)
+			}
 
 				// ----- 余额/积分管理 -----
 				adminMoneyScoreCtrl.RegisterRoutes(adminGroup)
@@ -170,12 +192,18 @@ func SetupRoutes(router *gin.Engine) {
 				// ----- 系统配置 -----
 				adminSettingsCtrl.RegisterRoutes(adminGroup)
 
-				// ----- 支付订单管理 -----
-				adminPaymentCtrl.RegisterPaymentRoutes(adminGroup)
+			// ----- 支付订单管理 -----
+			adminPaymentCtrl.RegisterPaymentRoutes(adminGroup)
 
-				// ----- 调试工具 -----
-				adminDebugCtrl.RegisterRoutes(adminGroup)
-			}
+			// ----- 实名认证管理 -----
+			adminRealnameCtrl.RegisterRoutes(adminGroup)
+
+			// ----- 提现管理 -----
+			adminWithdrawCtrl.RegisterRoutes(adminGroup)
+
+			// ----- 调试工具 -----
+			adminDebugCtrl.RegisterRoutes(adminGroup)
+		}
 		}
 
 		// ========================================

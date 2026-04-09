@@ -113,7 +113,10 @@ func (ctrl *PaymentController) CompleteOrder(c *gin.Context) {
 	}
 
 	var req AdminCompleteOrderRequest
-	c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Fail(c, 400, "参数错误: "+err.Error())
+		return
+	}
 	req.Memo = utils.Clean_XSS(req.Memo)
 
 	if err := services.AdminCompleteOrder(orderID, req.Memo); err != nil {
