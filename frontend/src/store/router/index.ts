@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia'
-import type { MenuOption } from 'naive-ui'
 import type { RouteRecordRaw } from 'vue-router'
 import type { AppRouteMode } from '@/router'
 import { router } from '@/router'
@@ -8,11 +7,26 @@ import { staticRoutes } from '@/router/routes.static'
 import { fetchUserRoutes } from '@/service'
 import { $t, authStorage } from '@/utils'
 import { createAdminMenus, createMenus, createRoutes, generateCacheRoutes } from './helper'
+import type { AdminMenuRoute } from './helper'
+
+function reportRouteInitError(message: string, error: unknown) {
+  if (import.meta.env.DEV)
+    console.error(message, error)
+}
+
+interface RouteMenuStateItem {
+  key?: string | number
+  label?: unknown
+  icon?: unknown
+  children?: unknown
+  id?: number
+  pid?: number | null
+}
 
 interface RoutesStatus {
   isInitAuthRoute: boolean
-  menus: MenuOption[]
-  adminMenus: any[]
+  menus: RouteMenuStateItem[]
+  adminMenus: RouteMenuStateItem[]
   rowRoutes: AppRoute.RowRoute[]
   activeMenu: string | null
   cacheRoutes: string[]
@@ -31,11 +45,6 @@ export const useRouteStore = defineStore('route-store', {
       menuMode: 'user',
     }
   },
-  getters: {
-    currentMenus(state) {
-      return state.menuMode === 'admin' ? state.adminMenus : state.menus
-    },
-  },
   actions: {
     resetRouteStore() {
       this.resetRoutes()
@@ -49,6 +58,9 @@ export const useRouteStore = defineStore('route-store', {
     },
     setActiveMenu(key: string) {
       this.activeMenu = key
+    },
+    setAdminMenus(menus: RouteMenuStateItem[]) {
+      Reflect.set(this, 'adminMenus', menus)
     },
     setMenuMode(path: string, mode: AppRouteMode = 'user') {
       if (mode === 'admin') {
@@ -69,10 +81,10 @@ export const useRouteStore = defineStore('route-store', {
             throw new Error('Failed to fetch user routes')
           }
 
-          return result.data
+          return result.data as AppRoute.RowRoute[]
         }
         catch (error) {
-          console.error('Failed to initialize route info:', error)
+          reportRouteInitError('Failed to initialize route info:', error)
           throw error
         }
       }
@@ -121,15 +133,15 @@ export const useRouteStore = defineStore('route-store', {
               router.addRoute(route)
             }
             // 使用 helper 生成支持嵌套层级的管理端菜单
-            const adminMenus = createAdminMenus(adminRoutes as unknown[])
-            this.adminMenus = adminMenus
+            const adminMenus = createAdminMenus(adminRoutes as AdminMenuRoute[])
+            this.setAdminMenus(adminMenus)
           }
           catch (error) {
-            console.error('[Security] Failed to load admin routes:', error)
+            reportRouteInitError('[Security] Failed to load admin routes:', error)
           }
         }
         else {
-          this.adminMenus = []
+          this.setAdminMenus([])
         }
 
         this.isInitAuthRoute = true

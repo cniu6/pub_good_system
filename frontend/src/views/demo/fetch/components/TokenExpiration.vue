@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import {
   expiredTokenRequest,
 } from '@/service'
 
+const { t } = useI18n()
+
 const emit = defineEmits<{
-  update: [data: any] // 具名元组语法
+  update: [data: any]
 }>()
 
 async function expiredToken() {
@@ -14,10 +17,10 @@ async function expiredToken() {
 </script>
 
 <template>
-  <n-card title="Token Expiration" size="small">
-    注意观察第二次的请求，token已刷新
+  <n-card :title="t('demo.fetch.tokenExpiration')" size="small">
+    {{ t('demo.fetch.tokenRefreshNotice') }}
     <n-button type="error" @click="expiredToken">
-      click
+      {{ t('demo.fetch.click') }}
     </n-button>
   </n-card>
 </template>

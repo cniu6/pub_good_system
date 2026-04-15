@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/store'
 import { fetchDashboard } from '@/service'
 import Chart from './components/chart.vue'
 
 const authStore = useAuthStore()
+const { t } = useI18n()
 const userInfo = computed(() => authStore.userInfo)
 
 const loading = ref(false)
@@ -21,7 +23,8 @@ async function loadDashboard() {
     }
   }
   catch (error) {
-    console.error('获取仪表盘数据失败', error)
+    if (import.meta.env.DEV)
+      console.error('[workbench] fetch dashboard failed', error)
   }
   finally {
     loading.value = false
@@ -36,10 +39,10 @@ const announcementTagType: Record<string, 'info' | 'success' | 'warning' | 'erro
 }
 
 const announcementTagLabel: Record<string, string> = {
-  info: '通知',
-  success: '消息',
-  warning: '活动',
-  error: '紧急',
+  info: t('workbench.announcementInfo'),
+  success: t('workbench.announcementSuccess'),
+  warning: t('workbench.announcementWarning'),
+  error: t('workbench.announcementError'),
 }
 
 const router = useRouter()
@@ -88,7 +91,7 @@ onMounted(() => {
                     </n-el>
                   </template>
                   <template #header>
-                    <n-statistic label="账户余额">
+                    <n-statistic :label="t('workbench.balance')">
                       <template #prefix>
                         ¥
                       </template>
@@ -109,7 +112,7 @@ onMounted(() => {
                     </n-el>
                   </template>
                   <template #header>
-                    <n-statistic label="积分">
+                    <n-statistic :label="t('workbench.score')">
                       <n-number-animation show-separator :from="0" :to="stats.score || 0" />
                     </n-statistic>
                   </template>
@@ -127,10 +130,10 @@ onMounted(() => {
                     </n-el>
                   </template>
                   <template #header>
-                    <n-statistic label="登录次数">
+                    <n-statistic :label="t('workbench.loginCount')">
                       <n-number-animation show-separator :from="0" :to="stats.loginCount || 0" />
                       <template #suffix>
-                        次
+                        {{ t('workbench.times') }}
                       </template>
                     </n-statistic>
                   </template>
@@ -148,10 +151,10 @@ onMounted(() => {
                     </n-el>
                   </template>
                   <template #header>
-                    <n-statistic label="已加入">
+                    <n-statistic :label="t('workbench.daysJoined')">
                       <n-number-animation :from="0" :to="stats.daysJoined || 0" />
                       <template #suffix>
-                        天
+                        {{ t('workbench.days') }}
                       </template>
                     </n-statistic>
                   </template>
@@ -161,19 +164,19 @@ onMounted(() => {
           </n-grid>
 
           <!-- 快捷操作 -->
-          <n-card title="快捷操作">
+          <n-card :title="t('workbench.quickActions')">
             <n-space>
               <n-button type="primary" @click="goToUserCenter">
                 <template #icon>
                   <nova-icon icon="icon-park-outline:edit" />
                 </template>
-                编辑资料
+                {{ t('workbench.editProfile') }}
               </n-button>
               <n-button @click="router.push('/user/account/user-center')">
                 <template #icon>
                   <nova-icon icon="icon-park-outline:setting-one" />
                 </template>
-                账号设置
+                {{ t('workbench.accountSettings') }}
               </n-button>
             </n-space>
           </n-card>
@@ -194,17 +197,17 @@ onMounted(() => {
               />
               <div>
                 <n-h4 style="margin: 0;">
-                  {{ userInfo?.nickname || userInfo?.userName || '用户' }}，欢迎回来
+                  {{ userInfo?.nickname || userInfo?.userName || t('workbench.user') }}，{{ t('workbench.welcomeBack') }}
                 </n-h4>
                 <n-text depth="3">
-                  {{ userInfo?.role?.includes('admin') ? '管理员' : '普通用户' }} · 等级 {{ stats.level || 0 }}
+                  {{ userInfo?.role?.includes('admin') ? t('workbench.admin') : t('workbench.normalUser') }} · {{ t('workbench.level') }} {{ stats.level || 0 }}
                 </n-text>
               </div>
             </n-flex>
           </n-card>
 
           <!-- 公告 -->
-          <n-card title="公告">
+          <n-card :title="t('workbench.announcements')">
             <n-list>
               <n-list-item v-for="item in announcements" :key="item.id">
                 <template #prefix>
@@ -213,7 +216,7 @@ onMounted(() => {
                     :type="announcementTagType[item.type] || 'info'"
                     size="small"
                   >
-                    {{ announcementTagLabel[item.type] || '通知' }}
+                    {{ announcementTagLabel[item.type] || t('workbench.announcementDefault') }}
                   </n-tag>
                 </template>
                 <n-tooltip trigger="hover">
@@ -225,7 +228,7 @@ onMounted(() => {
                   {{ item.content }}
                 </n-tooltip>
               </n-list-item>
-              <n-empty v-if="announcements.length === 0" description="暂无公告" />
+              <n-empty v-if="announcements.length === 0" :description="t('workbench.noAnnouncements')" />
             </n-list>
           </n-card>
 
@@ -235,7 +238,7 @@ onMounted(() => {
               <n-card>
                 <n-flex vertical align="center">
                   <n-text depth="3">
-                    等级
+                    {{ t('workbench.level') }}
                   </n-text>
                   <n-icon-wrapper :size="46" :border-radius="999">
                     <nova-icon :size="26" icon="icon-park-outline:level" />
@@ -250,7 +253,7 @@ onMounted(() => {
               <n-card>
                 <n-flex vertical align="center">
                   <n-text depth="3">
-                    积分
+                    {{ t('workbench.score') }}
                   </n-text>
                   <n-el>
                     <n-icon-wrapper :size="46" color="var(--warning-color)" :border-radius="999">

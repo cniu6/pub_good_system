@@ -1,12 +1,12 @@
 <template>
   <n-card>
     <n-tabs v-model:value="activeTab" type="line" animated>
-      <n-tab-pane name="money" tab="余额记录">
+      <n-tab-pane name="money" :tab="t('moneyScore.moneyRecords')">
         <n-space vertical>
           <n-space>
-            <n-input v-model:value="moneyKeyword" placeholder="搜索备注" clearable style="width: 200px" @keyup.enter="fetchMoneyLogs" />
-            <n-button type="primary" @click="fetchMoneyLogs">搜索</n-button>
-            <n-button @click="moneyKeyword = ''; moneyPagination.page = 1; fetchMoneyLogs()">重置</n-button>
+            <n-input v-model:value="moneyKeyword" :placeholder="t('moneyScore.searchRemark')" clearable style="width: 200px" @keyup.enter="fetchMoneyLogs" />
+            <n-button type="primary" @click="fetchMoneyLogs">{{ t('moneyScore.search') }}</n-button>
+            <n-button @click="moneyKeyword = ''; moneyPagination.page = 1; fetchMoneyLogs()">{{ t('moneyScore.reset') }}</n-button>
           </n-space>
           <n-data-table
             :columns="moneyColumns"
@@ -21,12 +21,12 @@
         </n-space>
       </n-tab-pane>
 
-      <n-tab-pane name="score" tab="积分记录">
+      <n-tab-pane name="score" :tab="t('moneyScore.scoreRecords')">
         <n-space vertical>
           <n-space>
-            <n-input v-model:value="scoreKeyword" placeholder="搜索备注" clearable style="width: 200px" @keyup.enter="fetchScoreLogs" />
-            <n-button type="primary" @click="fetchScoreLogs">搜索</n-button>
-            <n-button @click="scoreKeyword = ''; scorePagination.page = 1; fetchScoreLogs()">重置</n-button>
+            <n-input v-model:value="scoreKeyword" :placeholder="t('moneyScore.searchRemark')" clearable style="width: 200px" @keyup.enter="fetchScoreLogs" />
+            <n-button type="primary" @click="fetchScoreLogs">{{ t('moneyScore.search') }}</n-button>
+            <n-button @click="scoreKeyword = ''; scorePagination.page = 1; fetchScoreLogs()">{{ t('moneyScore.reset') }}</n-button>
           </n-space>
           <n-data-table
             :columns="scoreColumns"
@@ -46,12 +46,14 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, h, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { fetchMyMoneyLogs, fetchMyScoreLogs } from '@/service/api/user/user-center'
 import { parseMemo } from '@/utils/memo'
 
 const message = useMessage()
+const { t } = useI18n()
 
 const activeTab = ref('money')
 
@@ -69,7 +71,7 @@ const moneyPagination = reactive({
 const moneyColumns: DataTableColumns<Entity.UserMoneyLog> = [
   { title: 'ID', key: 'id', width: 70 },
   {
-    title: '变动金额',
+    title: t('moneyScore.moneyChange'),
     key: 'money',
     width: 120,
     render: row => {
@@ -81,25 +83,25 @@ const moneyColumns: DataTableColumns<Entity.UserMoneyLog> = [
     },
   },
   {
-    title: '变动前',
+    title: t('moneyScore.beforeChange'),
     key: 'before',
     width: 110,
     render: row => `¥${(Number(row.before) || 0).toFixed(2)}`,
   },
   {
-    title: '变动后',
+    title: t('moneyScore.afterChange'),
     key: 'after',
     width: 110,
     render: row => `¥${(Number(row.after) || 0).toFixed(2)}`,
   },
   {
-    title: '备注',
+    title: t('moneyScore.remark'),
     key: 'memo',
     ellipsis: { tooltip: true },
     render: row => parseMemo(row.memo),
   },
   {
-    title: '时间',
+    title: t('moneyScore.time'),
     key: 'create_time',
     width: 170,
     render: row => row.create_time ? new Date(row.create_time * 1000).toLocaleString() : '-',
@@ -118,10 +120,10 @@ async function fetchMoneyLogs() {
       moneyLogs.value = res.data?.list || []
       moneyPagination.itemCount = res.data?.total || 0
     } else {
-      message.error(res.message || '获取余额记录失败')
+      message.error(res.message || t('moneyScore.fetchMoneyFailed'))
     }
   } catch {
-    message.error('获取余额记录失败')
+    message.error(t('moneyScore.fetchMoneyFailed'))
   } finally {
     moneyLoading.value = false
   }
@@ -141,7 +143,7 @@ const scorePagination = reactive({
 const scoreColumns: DataTableColumns<Entity.UserScoreLog> = [
   { title: 'ID', key: 'id', width: 70 },
   {
-    title: '积分变动',
+    title: t('moneyScore.scoreChange'),
     key: 'score',
     width: 120,
     render: row => {
@@ -153,25 +155,25 @@ const scoreColumns: DataTableColumns<Entity.UserScoreLog> = [
     },
   },
   {
-    title: '变动前',
+    title: t('moneyScore.beforeChange'),
     key: 'before',
     width: 100,
     render: row => `${Number(row.before) || 0}`,
   },
   {
-    title: '变动后',
+    title: t('moneyScore.afterChange'),
     key: 'after',
     width: 100,
     render: row => `${Number(row.after) || 0}`,
   },
   {
-    title: '备注',
+    title: t('moneyScore.remark'),
     key: 'memo',
     ellipsis: { tooltip: true },
     render: row => parseMemo(row.memo),
   },
   {
-    title: '时间',
+    title: t('moneyScore.time'),
     key: 'create_time',
     width: 170,
     render: row => row.create_time ? new Date(row.create_time * 1000).toLocaleString() : '-',
@@ -190,10 +192,10 @@ async function fetchScoreLogs() {
       scoreLogs.value = res.data?.list || []
       scorePagination.itemCount = res.data?.total || 0
     } else {
-      message.error(res.message || '获取积分记录失败')
+      message.error(res.message || t('moneyScore.fetchScoreFailed'))
     }
   } catch {
-    message.error('获取积分记录失败')
+    message.error(t('moneyScore.fetchScoreFailed'))
   } finally {
     scoreLoading.value = false
   }

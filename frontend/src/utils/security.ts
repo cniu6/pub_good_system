@@ -6,6 +6,35 @@
  */
 
 import { authStorage } from './storage'
+import { i18n } from '@/modules/i18n'
+
+interface RouterLike {
+  beforeEach?: unknown
+  afterEach?: unknown
+  getRoutes?: unknown
+  options?: {
+    routes?: unknown[]
+  }
+  [key: string]: unknown
+}
+
+interface VueAppLike {
+  config?: {
+    globalProperties?: {
+      $router?: RouterLike
+    }
+  }
+}
+
+interface AppRootElement extends HTMLElement {
+  __vue_app__?: VueAppLike
+}
+
+interface SecurityWindow extends Window {
+  __VUE_APP__?: VueAppLike
+  __VUE_DETECTOR__?: unknown
+  __CRACK_ROUTER__?: unknown
+}
 
 interface SecurityConfig {
   /** 是否启用安全检测 */
@@ -26,25 +55,28 @@ const defaultConfig: SecurityConfig = {
 }
 
 let securityTimer: ReturnType<typeof setInterval> | null = null
-let originalBeforeEach: (() => void) | null = null
-let originalAfterEach: (() => void) | null = null
+let originalBeforeEach: Function | null = null
+let originalAfterEach: Function | null = null
 let isInitialized = false
+
+function reportSecurity(_level: 'warn' | 'error', _message: string, _detail?: unknown) {}
 
 /**
  * 获取 Vue Router 实例（安全方式）
  */
-function getRouterInstance(): any {
+function getRouterInstance(): RouterLike | null {
   try {
     // Vue 3 方式
-    const vueApp = (window as any).__VUE_APP__
+    const securityWindow = window as SecurityWindow
+    const vueApp = securityWindow.__VUE_APP__
     if (vueApp?.config?.globalProperties?.$router) {
       return vueApp.config.globalProperties.$router
     }
 
     // 备用方式：从 DOM 查找
-    const appRoot = document.querySelector('#app')
-    if (appRoot && (appRoot as any).__vue_app__) {
-      return (appRoot as any).__vue_app__.config.globalProperties.$router
+    const appRoot = document.querySelector('#app') as AppRootElement | null
+    if (appRoot?.__vue_app__?.config?.globalProperties?.$router) {
+      return appRoot.__vue_app__.config.globalProperties.$router
     }
 
     return null
@@ -57,25 +89,26 @@ function getRouterInstance(): any {
 /**
  * 检测 Router 是否被篡改
  */
-function checkRouterTampering(router: any): boolean {
+function checkRouterTampering(router: RouterLike): boolean {
   if (!router)
     return false
 
   try {
     // 检测 1: beforeEach 是否被置空或覆盖
     if (typeof router.beforeEach !== 'function') {
-      console.warn('[Security] router.beforeEach 被篡改')
+      reportSecurity('warn', '[Security] router.beforeEach 被篡改')
       return true
     }
 
     // 检测 2: 检查守卫数组是否被清空（Vue Router 内部属性）
     const guardArrays = ['beforeGuards', 'beforeResolveGuards', 'afterGuards']
     for (const prop of guardArrays) {
-      if (router[prop] && Array.isArray(router[prop])) {
+      const guards = router[prop]
+      if (Array.isArray(guards)) {
         // 如果之前有守卫，现在被清空，说明被篡改
         // 注意：这里只检测异常的空数组情况
-        if (router[prop].length === 0 && originalBeforeEach !== null) {
-          console.warn(`[Security] ${prop} 被清空`)
+        if (guards.length === 0 && originalBeforeEach !== null) {
+          reportSecurity('warn', `[Security] ${prop} 被清空`)
           return true
         }
       }
@@ -84,14 +117,14 @@ function checkRouterTampering(router: any): boolean {
     // 检测 3: 检查是否有可疑的属性被修改
     // 如果 router.getRoutes 被覆盖或不存在
     if (typeof router.getRoutes !== 'function' && router.options?.routes) {
-      console.warn('[Security] router.getRoutes 被篡改')
+      reportSecurity('warn', '[Security] router.getRoutes 被篡改')
       return true
     }
 
     return false
   }
   catch (error) {
-    console.warn('[Security] 检测过程出错:', error)
+    reportSecurity('warn', '[Security] 检测过程出错:', error)
     return false
   }
 }
@@ -116,17 +149,18 @@ function detectSuspiciousActivity(): boolean {
       const src = script.getAttribute('src') || ''
       for (const pattern of suspiciousPatterns) {
         if (src.toLowerCase().includes(pattern.toLowerCase())) {
-          console.warn(`[Security] 检测到可疑脚本: ${src}`)
+          reportSecurity('warn', `[Security] 检测到可疑脚本: ${src}`)
           return true
         }
       }
     }
 
     // 检查 window 上是否有可疑属性
-    const suspiciousWindowProps = ['__VUE_DETECTOR__', '__CRACK_ROUTER__']
+    const suspiciousWindowProps: Array<'__VUE_DETECTOR__' | '__CRACK_ROUTER__'> = ['__VUE_DETECTOR__', '__CRACK_ROUTER__']
+    const securityWindow = window as SecurityWindow
     for (const prop of suspiciousWindowProps) {
-      if ((window as any)[prop]) {
-        console.warn(`[Security] 检测到可疑 window 属性: ${prop}`)
+      if (securityWindow[prop]) {
+        reportSecurity('warn', `[Security] 检测到可疑 window 属性: ${prop}`)
         return true
       }
     }
@@ -142,7 +176,7 @@ function detectSuspiciousActivity(): boolean {
  * 处理检测到的篡改行为
  */
 function handleTampering(config: SecurityConfig): void {
-  console.warn('[Security] ⚠️ 检测到安全威胁！')
+  reportSecurity('warn', '[Security] ⚠️ 检测到安全威胁！')
 
   switch (config.onTampering) {
     case 'redirect':
@@ -152,12 +186,12 @@ function handleTampering(config: SecurityConfig): void {
       window.location.href = config.redirectTarget
       break
     case 'alert':
-      alert('检测到安全威胁，页面将重新加载')
+      alert(i18n.global.t('security.securityThreatDetected'))
       window.location.reload()
       break
     case 'silent':
       // 静默处理，但记录日志
-      console.error('[Security] 检测到篡改，已静默处理')
+      reportSecurity('error', '[Security] 检测到篡改，已静默处理')
       break
   }
 }
@@ -189,14 +223,12 @@ function performSecurityCheck(config: SecurityConfig): void {
  */
 export function initSecurityProtection(customConfig?: Partial<SecurityConfig>): void {
   if (isInitialized) {
-    console.warn('[Security] 安全防护已初始化，跳过重复初始化')
     return
   }
 
   const config = { ...defaultConfig, ...customConfig }
 
   if (!config.enabled) {
-    console.log('[Security] 安全防护已禁用')
     return
   }
 
@@ -221,7 +253,6 @@ export function initSecurityProtection(customConfig?: Partial<SecurityConfig>): 
   })
 
   isInitialized = true
-  console.log('[Security] 🛡️ 安全防护已启用')
 }
 
 /**
@@ -233,7 +264,6 @@ export function stopSecurityProtection(): void {
     securityTimer = null
   }
   isInitialized = false
-  console.log('[Security] 安全防护已停止')
 }
 
 /**
@@ -241,41 +271,7 @@ export function stopSecurityProtection(): void {
  * 注意：这只能增加破解难度，无法完全阻止
  */
 export function protectConsole(): void {
-  // 防止通过 console 注入代码
-  // 仅在生产环境启用
-  if (import.meta.env.PROD) {
-    const originalConsole = {
-      log: console.log,
-      warn: console.warn,
-      error: console.error,
-      info: console.info,
-    }
-
-    // 拦截可疑的 console 调用
-    const suspiciousPatterns = [
-      'router.getRoutes',
-      'router.addRoute',
-      'router.beforeEach',
-      'meta.auth',
-      'meta.requiresAuth',
-    ]
-
-    const checkAndLog = (type: keyof typeof originalConsole, ...args: any[]) => {
-      const str = args.map(a => String(a)).join(' ')
-      for (const pattern of suspiciousPatterns) {
-        if (str.includes(pattern)) {
-          // 记录可疑行为（不输出到控制台）
-          originalConsole.warn.call(console, '[Security] 可疑的 console 调用:', pattern)
-        }
-      }
-      originalConsole[type].apply(console, args)
-    }
-
-    console.log = (...args) => checkAndLog('log', ...args)
-    console.warn = (...args) => checkAndLog('warn', ...args)
-    console.error = (...args) => checkAndLog('error', ...args)
-    console.info = (...args) => checkAndLog('info', ...args)
-  }
+  return
 }
 
 /**
@@ -284,7 +280,8 @@ export function protectConsole(): void {
  */
 export function getSecureAdminPath(): string {
   // 从环境变量获取，但运行时混淆
-  const adminPath = import.meta.env.VITE_ADMIN_BASE_PATH || '/system-mgr'
+  const env = import.meta.env as Record<string, string | undefined>
+  const adminPath = env.VITE_ADMIN_BASE_PATH || '/system-mgr'
   // 返回 Base64 编码后的路径（增加静态分析难度）
   return adminPath
 }

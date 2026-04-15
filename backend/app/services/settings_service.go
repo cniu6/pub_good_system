@@ -217,6 +217,15 @@ type GeetestRuntimeConfig struct {
 	CaptchaKey string
 }
 
+// RealnameAPIRuntimeConfig 实名认证API运行时配置
+type RealnameAPIRuntimeConfig struct {
+	Enabled   bool   // 是否启用自动实名认证验证
+	Provider  string // 提供商: aliyun, tencent, baidu, custom
+	AppKey    string // App Key / Access Key
+	AppSecret string // App Secret / Secret Key
+	Endpoint  string // 可选，自定义API地址
+}
+
 func parseBoolSetting(val string) bool {
 	return val == "true" || val == "1" || strings.EqualFold(val, "true")
 }
@@ -267,6 +276,42 @@ func GetGlobalGeetestRuntimeConfig() GeetestRuntimeConfig {
 		Enabled:    config.GlobalConfig.GeetestEnabled && captchaID != "" && captchaKey != "",
 		CaptchaID:  captchaID,
 		CaptchaKey: captchaKey,
+	}
+}
+
+// GetRealnameAPIRuntimeConfig returns effective realname API config.
+func (s *SettingsService) GetRealnameAPIRuntimeConfig() RealnameAPIRuntimeConfig {
+	get := func(dbKey, envFallback string) string {
+		if val, ok := s.Get(dbKey); ok && strings.TrimSpace(val) != "" {
+			return strings.TrimSpace(val)
+		}
+		return envFallback
+	}
+
+	enabled := parseBoolSetting(get("realname_api_enabled", "false"))
+	appKey := get("realname_api_app_key", "")
+	appSecret := get("realname_api_app_secret", "")
+
+	// 只有当启用且有密钥时才认为真正启用
+	enabled = enabled && appKey != "" && appSecret != ""
+
+	return RealnameAPIRuntimeConfig{
+		Enabled:   enabled,
+		Provider:  get("realname_api_provider", "aliyun"),
+		AppKey:    appKey,
+		AppSecret: appSecret,
+		Endpoint:  get("realname_api_endpoint", ""),
+	}
+}
+
+// GetGlobalRealnameAPIRuntimeConfig returns effective realname API config with global cache.
+func GetGlobalRealnameAPIRuntimeConfig() RealnameAPIRuntimeConfig {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.GetRealnameAPIRuntimeConfig()
+	}
+	return RealnameAPIRuntimeConfig{
+		Enabled:  false,
+		Provider: "aliyun",
 	}
 }
 

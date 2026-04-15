@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import {
   withoutToken,
 } from '@/service'
+
+const { t } = useI18n()
 
 const emit = defineEmits<{
   update: [data: any] // 具名元组语法
@@ -14,9 +17,9 @@ async function withoutTokenRequest() {
 </script>
 
 <template>
-  <n-card title="Do not carry tokens" size="small">
+  <n-card :title="t('demo.fetch.noToken')" size="small">
     <n-button @click="withoutTokenRequest">
-      click
+      {{ t('demo.fetch.click') }}
     </n-button>
   </n-card>
 </template>

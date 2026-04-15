@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
 function testMsg() {
-  window.$message.error('Once upon a time you dressed so fine')
+  window.$message.error(t('demo.multi.testMessage'))
 }
 </script>
 
@@ -9,14 +13,14 @@ function testMsg() {
     text-center
     c-red
   >
-    三级菜单页
+    {{ t('demo.multi.thirdLevelPage') }}
     <n-button
       strong
       secondary
       type="success"
       @click="testMsg"
     >
-      testMsg
+      {{ t('demo.multi.testMessage') }}
     </n-button>
   </div>
 </template>

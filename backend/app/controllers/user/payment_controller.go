@@ -6,6 +6,7 @@ import (
 	"fst/backend/app/services"
 	"fst/backend/internal/middleware"
 	"fst/backend/utils"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -90,7 +91,12 @@ func (ctrl *PaymentController) CreateOrder(c *gin.Context) {
 		ClientIP:  clientIP,
 	}, notifyURL, returnURL)
 	if err != nil {
-		utils.Fail(c, 400, err.Error())
+		if services.IsClientError(err) {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
+		log.Printf("[PAYMENT] create order failed for user_id=%d: %v", uid, err)
+		utils.Fail(c, 500, "创建订单失败，请稍后重试")
 		return
 	}
 

@@ -8,6 +8,8 @@ import { authStorage, langToFrontendFormat } from '@/utils'
 import { useRouteStore } from './router'
 import { useTabStore } from './tab'
 
+type LoginInfoPayload = Api.Login.Info & { expiresAt?: number }
+
 interface AuthStatus {
   userInfo: Api.Login.Info | null
   token: string
@@ -75,34 +77,37 @@ export const useAuthStore = defineStore('auth-store', {
         const mode = getRuntimeRouteMode()
         const authGuard = mode === 'admin' ? 'admin' : 'user'
         const { isSuccess, data } = await fetchLogin({ userName, password, authGuard })
-        if (!isSuccess)
+        const loginData = data as LoginInfoPayload | undefined
+        if (!isSuccess || !loginData)
           return
 
         // 处理登录信息
-        await this.handleLoginInfo(data as any)
-      }
-      catch (e) {
-        console.warn('[Login Error]:', e)
+        await this.handleLoginInfo(loginData)
+      } catch {
+        // do nothing
       }
     },
 
     /* 处理登录返回的数据 */
-    async handleLoginInfo(data: Api.Login.Info & { expiresAt?: number }) {
+    async handleLoginInfo(data: LoginInfoPayload) {
+      const roles: Entity.RoleType[] = Array.isArray(data.role) && data.role.length ? data.role : ['user']
+      const userInfo: LoginInfoPayload = { ...data, role: roles }
+
       // 将token和userInfo保存下来
-      authStorage.setActive('userInfo', data)
-      authStorage.setActive('accessToken', data.accessToken)
-      authStorage.setActive('refreshToken', data.refreshToken)
-      authStorage.setActive('role', data.role?.length ? data.role : ['user'])
+      authStorage.setActive('userInfo', userInfo)
+      authStorage.setActive('accessToken', userInfo.accessToken)
+      authStorage.setActive('refreshToken', userInfo.refreshToken)
+      authStorage.setActive('role', roles)
 
-      const isAdmin = data.role.includes('admin')
+      const isAdmin = roles.includes('admin')
 
-      if (data.expiresAt) {
-        authStorage.setActive('accessTokenExpiresAt', data.expiresAt)
-        this.accessTokenExpiresAt = data.expiresAt
+      if (userInfo.expiresAt) {
+        authStorage.setActive('accessTokenExpiresAt', userInfo.expiresAt)
+        this.accessTokenExpiresAt = userInfo.expiresAt
       }
 
-      this.token = data.accessToken
-      this.userInfo = data
+      this.token = userInfo.accessToken
+      this.userInfo = userInfo
 
       // 添加路由和菜单
       const routeStore = useRouteStore()
@@ -150,7 +155,9 @@ export const useAuthStore = defineStore('auth-store', {
             appStore.setAppLang(frontendLang)
           }
         }
-      } catch {}
+      } catch {
+        // do nothing
+      }
     },
 
     /**
@@ -170,8 +177,6 @@ export const useAuthStore = defineStore('auth-store', {
       const now = Math.floor(Date.now() / 1000)
       const delaySeconds = expiresAt - now - aheadSeconds
 
-      console.log(`[Auth] Token 将在 ${delaySeconds} 秒后尝试自动刷新`)
-
       if (delaySeconds <= 0) {
         // 已经到期或即将到期，立即刷新
         this.refreshTokenSilently()
@@ -189,32 +194,37 @@ export const useAuthStore = defineStore('auth-store', {
     async refreshTokenSilently() {
       try {
         const refreshToken = authStorage.get('refreshToken')
-        if (!refreshToken) return
+        if (!refreshToken) {
+          await this.logout()
+          return
+        }
 
         const mode = getRuntimeRouteMode()
         const authGuard = mode === 'admin' ? 'admin' : 'user'
 
         const { isSuccess, data } = await fetchUpdateToken({ refreshToken, authGuard })
-        if (!isSuccess) {
-          console.warn('[Auth] 自动刷新 Token 失败，可能是 refresh token 已过期')
+        const nextLoginInfo = data as LoginInfoPayload | undefined
+        if (!isSuccess || !nextLoginInfo) {
+          await this.logout()
           return
         }
 
         // 更新存储
-        authStorage.setActive('accessToken', data.accessToken)
-        authStorage.setActive('refreshToken', data.refreshToken)
-        if ((data as any).expiresAt) {
-          authStorage.setActive('accessTokenExpiresAt', (data as any).expiresAt)
-          this.accessTokenExpiresAt = (data as any).expiresAt
+        authStorage.setActive('accessToken', nextLoginInfo.accessToken)
+        authStorage.setActive('refreshToken', nextLoginInfo.refreshToken)
+        if (nextLoginInfo.expiresAt) {
+          authStorage.setActive('accessTokenExpiresAt', nextLoginInfo.expiresAt)
+          this.accessTokenExpiresAt = nextLoginInfo.expiresAt
         }
 
-        this.token = data.accessToken
-        console.log('[Auth] Token 自动刷新成功')
+        this.token = nextLoginInfo.accessToken
+        this.userInfo = this.userInfo ? { ...this.userInfo, ...nextLoginInfo } : nextLoginInfo
+        authStorage.setActive('userInfo', this.userInfo)
 
         // 安排下一次刷新
         this.setupAutoRefresh()
-      } catch (error) {
-        console.error('[Auth] 自动刷新 Token 异常:', error)
+      } catch {
+        await this.logout()
       }
     }
   },

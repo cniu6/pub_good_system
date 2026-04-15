@@ -26,6 +26,7 @@ const appStore = useAppStore()
 const routeStore = useRouteStore()
 
 const { layoutMode } = storeToRefs(useAppStore())
+const currentMenus = computed(() => routeStore.menuMode === 'admin' ? routeStore.adminMenus : routeStore.menus)
 
 const {
   layout,
@@ -33,7 +34,7 @@ const {
 } = useLayoutMenu({
   mode: layoutMode,
   accordion: true,
-  menus: computed(() => routeStore.currentMenus), // 使用 computed 确保异步加载后能触发更新
+  menus: currentMenus,
 } as any)
 
 watch(() => route.path, () => {

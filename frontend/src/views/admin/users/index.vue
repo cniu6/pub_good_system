@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { NButton, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns, FormRules } from 'naive-ui'
@@ -24,6 +25,12 @@ import type { MoneyOperationPayload, WithdrawRecord } from '@/service/api/admin/
 const route = useRoute()
 const message = useMessage()
 const dialog = useDialog()
+const { t } = useI18n()
+
+function reportAdminUsersError(message: string, error?: unknown) {
+  if (import.meta.env.DEV)
+    console.error(message, error)
+}
 
 // 搜索表单
 const searchForm = reactive({
@@ -32,34 +39,34 @@ const searchForm = reactive({
 })
 
 // 角色选项 - 移除"全部角色"选项
-const roleOptions = [
-  { label: '管理员', value: 'admin' },
-  { label: '普通用户', value: 'user' },
-]
+const roleOptions = computed(() => [
+  { label: t('adminUsers.admin'), value: 'admin' },
+  { label: t('adminUsers.normalUser'), value: 'user' },
+])
 
 // 状态选项 - 编辑用（使用数字类型）
-const userStatusOptions = [
-  { label: '启用', value: 1 },
-  { label: '禁用', value: 0 },
-]
+const userStatusOptions = computed(() => [
+  { label: t('adminUsers.enabled'), value: 1 },
+  { label: t('adminUsers.disabled'), value: 0 },
+])
 
-const realnameFilterOptions = [
-  { label: '待审核', value: 0 },
-  { label: '已通过', value: 1 },
-  { label: '已拒绝', value: 2 },
-]
+const realnameFilterOptions = computed(() => [
+  { label: t('realname.pending'), value: 0 },
+  { label: t('realname.approved'), value: 1 },
+  { label: t('realname.rejected'), value: 2 },
+])
 
 // 性别选项（使用数字类型）
-const genderOptions = [
-  { label: '未知', value: 0 },
-  { label: '男', value: 1 },
-  { label: '女', value: 2 },
-]
+const genderOptions = computed(() => [
+  { label: t('adminUsers.unknown'), value: 0 },
+  { label: t('adminUsers.male'), value: 1 },
+  { label: t('adminUsers.female'), value: 2 },
+])
 
-const languageOptions = [
-  { label: '中文', value: 'zh-CN' },
-  { label: 'English', value: 'en-US' },
-]
+const languageOptions = computed(() => [
+  { label: t('adminUsersDetail.chinese'), value: 'zh-CN' },
+  { label: t('adminUsersDetail.english'), value: 'en-US' },
+])
 
 // 分页
 const pagination = reactive({
@@ -100,25 +107,25 @@ const userForm = reactive({
 // 表单验证规则
 const rules: FormRules = {
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 3, max: 20, message: '用户名长度在3-20个字符', trigger: 'blur' },
+    { required: true, message: t('adminUsers.enterUsername'), trigger: 'blur' },
+    { min: 3, max: 20, message: t('adminUsers.usernameLength'), trigger: 'blur' },
   ],
   email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email' as any, message: '请输入正确的邮箱格式', trigger: 'blur' },
+    { required: true, message: t('adminUsers.enterEmail'), trigger: 'blur' },
+    { type: 'email' as any, message: t('adminUsers.invalidEmail'), trigger: 'blur' },
   ],
   role: [
-    { required: true, message: '请选择角色', trigger: 'change' },
+    { required: true, message: t('adminUsers.selectRole'), trigger: 'change' },
   ],
   level: [
-    { type: 'number' as any, message: '请输入有效的等级', trigger: 'change' },
+    { type: 'number' as any, message: t('adminUsers.enterValidLevel'), trigger: 'change' },
   ],
   status: [
     {
       required: true,
       validator: (_rule: any, value: any) => {
         if (value === null || value === undefined || value === '') {
-          return new Error('请选择状态')
+          return new Error(t('adminUsers.selectStatus'))
         }
         return true
       },
@@ -132,8 +139,8 @@ const passwordRule = computed(() => {
   if (isEdit.value)
     return []
   return [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于6个字符', trigger: 'blur' },
+    { required: true, message: t('adminUsers.enterPassword'), trigger: 'blur' },
+    { min: 8, message: t('adminUsers.passwordLength'), trigger: 'blur' },
   ]
 })
 
@@ -168,13 +175,13 @@ const balanceForm = reactive({
   orderStatus: 1,
 })
 
-const orderStatusOptions = [
-  { label: '待支付(0)', value: 0 },
-  { label: '已支付(1)', value: 1 },
-  { label: '已取消(2)', value: 2 },
-  { label: '已退款(3)', value: 3 },
-  { label: '支付失败(4)', value: 4 },
-]
+const orderStatusOptions = computed(() => [
+  { label: `${t('adminUsersDetail.pendingPayment')}(0)`, value: 0 },
+  { label: `${t('adminUsersDetail.paid')}(1)`, value: 1 },
+  { label: `${t('adminUsersDetail.cancelled')}(2)`, value: 2 },
+  { label: `${t('adminUsersDetail.refunded')}(3)`, value: 3 },
+  { label: `${t('adminUsersDetail.paymentFailed')}(4)`, value: 4 },
+])
 
 // 积分管理相关
 const scoreForm = reactive({
@@ -196,15 +203,15 @@ const withdrawPagination = reactive({
 // 重置密码表单验证规则
 const resetPasswordRules = {
   newPassword: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于6个字符', trigger: 'blur' },
+    { required: true, message: t('adminUsers.enterNewPassword'), trigger: 'blur' },
+    { min: 8, message: t('adminUsers.passwordLength'), trigger: 'blur' },
   ],
   confirmPassword: [
-    { required: true, message: '请确认密码', trigger: 'blur' },
+    { required: true, message: t('adminUsers.confirmPasswordPrompt'), trigger: 'blur' },
     {
       validator: (_rule: any, value: string) => {
         if (value !== resetPasswordForm.newPassword) {
-          return new Error('两次输入的密码不一致')
+          return new Error(t('adminUsers.passwordMismatch'))
         }
         return true
       },
@@ -215,16 +222,16 @@ const resetPasswordRules = {
 
 const balanceAmountLabel = computed(() => {
   if (['log_only', 'log_order'].includes(balanceForm.operation)) {
-    return '日志金额'
+    return t('adminUsers.logAmount')
   }
-  return '金额'
+  return t('adminUsers.amount')
 })
 
 const balanceAmountPlaceholder = computed(() => {
   if (['log_only', 'log_order'].includes(balanceForm.operation)) {
-    return '请输入日志金额（正数收入，负数支出）'
+    return t('adminUsers.logAmountPlaceholder')
   }
-  return '请输入金额（正数增加，负数减少）'
+  return t('adminUsers.amountPlaceholder')
 })
 
 // 表格列配置
@@ -239,84 +246,84 @@ const columns: DataTableColumns<AdminUser> = [
     width: 80,
   },
   {
-    title: '用户名',
+    title: t('adminUsers.username'),
     key: 'username',
     width: 120,
   },
   {
-    title: '昵称',
+    title: t('adminUsers.nickname'),
     key: 'nickname',
     width: 120,
   },
   {
-    title: '用户组',
+    title: t('adminUsers.userGroup'),
     key: 'group_id',
     width: 80,
     render: (row: AdminUser) => row.group_id?.toString() || '-',
   },
   {
-    title: '邮箱',
+    title: t('adminUsers.email'),
     key: 'email',
     width: 200,
     ellipsis: true,
   },
   {
-    title: '手机',
+    title: t('adminUsers.mobile'),
     key: 'mobile',
     width: 120,
   },
   {
-    title: '语言',
+    title: t('adminUsers.language'),
     key: 'language',
     width: 100,
     render: (row: AdminUser) => formatLanguage(row.language),
   },
   {
-    title: '角色',
+    title: t('adminUsers.role'),
     key: 'role',
     width: 100,
     render: (row: AdminUser) => {
       const roleMap: Record<string, { type: string, label: string }> = {
-        admin: { type: 'error', label: '管理员' },
-        user: { type: 'success', label: '用户' },
+        admin: { type: 'error', label: t('adminUsers.admin') },
+        user: { type: 'success', label: t('adminUsers.user') },
       }
       const role = roleMap[row.role] || { type: 'default', label: row.role }
       return h(NTag, { type: role.type as any }, () => role.label)
     },
   },
   {
-    title: '等级',
+    title: t('adminUsers.level'),
     key: 'level',
     width: 80,
   },
   {
-    title: '余额',
+    title: t('adminUsers.balance'),
     key: 'money',
     width: 100,
     render: (row: AdminUser) => `¥${(Number(row.money) || 0).toFixed(2)}`,
   },
   {
-    title: '积分',
+    title: t('adminUsers.score'),
     key: 'score',
     width: 80,
     render: (row: AdminUser) => (Number(row.score) || 0).toString(),
   },
   {
-    title: '状态',
+    title: t('adminUsers.status'),
     key: 'status',
     width: 100,
     render: (row: AdminUser) => {
       const statusMap: Record<string, { type: string, text: string }> = {
-        1: { type: 'success', text: '启用' },
-        0: { type: 'error', text: '禁用' },
+        1: { type: 'success', text: t('adminUsers.enabled') },
+        0: { type: 'error', text: t('adminUsers.disabled') },
       }
       const statusKey = String(row.status)
-      const status = statusMap[statusKey] || { type: 'default', text: '未知' }
+      const status = statusMap[statusKey] || { type: 'default', text: t('adminUsers.unknown') }
       return h(NTag, { type: status.type as any }, { default: () => status.text })
     },
   },
   {
-    title: '实名认证',
+    title: t('adminUsers.realnameStatus'),
     key: 'realname_status',
     width: 110,
     render: (row: AdminUser) => {
@@ -331,7 +338,7 @@ const columns: DataTableColumns<AdminUser> = [
     },
   },
   {
-    title: '注册时间',
+    title: t('adminUsers.registerTime'),
     key: 'create_time',
     width: 180,
     render: (row: AdminUser) => {
@@ -346,7 +353,7 @@ const columns: DataTableColumns<AdminUser> = [
     },
   },
   {
-    title: '更新时间',
+    title: t('adminUsers.updateTime'),
     key: 'update_time',
     width: 180,
     render: (row: AdminUser) => {
@@ -361,7 +368,7 @@ const columns: DataTableColumns<AdminUser> = [
     },
   },
   {
-    title: '操作',
+    title: t('adminUsers.actions'),
     key: 'actions',
     width: 250,
     render: (row: AdminUser) => {
@@ -370,22 +377,22 @@ const columns: DataTableColumns<AdminUser> = [
           size: 'small',
           type: 'info',
           onClick: () => handleViewUserDetail(row),
-        }, () => '详情'),
+        }, () => t('adminUsers.detail')),
         h(NButton, {
           size: 'small',
           type: 'primary',
           onClick: () => handleEdit(row),
-        }, () => '编辑'),
+        }, () => t('adminUsers.edit')),
         h(NButton, {
           size: 'small',
           type: 'success',
           onClick: () => handleLoginAsUser(row),
-        }, () => '登录'),
+        }, () => t('adminUsers.loginAs')),
         h(NButton, {
           size: 'small',
           type: 'error',
           onClick: () => handleDelete(row.id),
-        }, () => '删除'),
+        }, () => t('adminUsers.delete')),
       ])
     },
   },
@@ -418,11 +425,11 @@ async function fetchData() {
       }
     }
     else {
-      message.error(response.message || '获取用户列表失败')
+      message.error(response.message || t('adminUsers.fetchListFailed'))
     }
   }
   catch {
-    message.error('获取用户列表失败')
+    message.error(t('adminUsers.fetchListFailed'))
   }
   finally {
     loading.value = false
@@ -434,7 +441,7 @@ async function handleViewUserDetail(user: AdminUser) {
   try {
     const response: any = await adminUserApi.detail(user.id)
     if (!response.isSuccess || !response.data?.user) {
-      message.error(response.message || '获取用户详情失败')
+      message.error(response.message || t('adminUsers.fetchDetailFailed'))
       return
     }
     selectedUser.value = response.data.user
@@ -442,17 +449,17 @@ async function handleViewUserDetail(user: AdminUser) {
     showUserDetailModal.value = true
   }
   catch {
-    message.error('获取用户详情失败')
+    message.error(t('adminUsers.fetchDetailFailed'))
   }
 }
 
 function getRealnameStatusText(status?: number) {
   const map: Record<number, string> = {
-    0: '待审核',
-    1: '已通过',
-    2: '已拒绝',
+    0: t('realname.pending'),
+    1: t('realname.approved'),
+    2: t('realname.rejected'),
   }
-  return status !== undefined ? map[status] || '未知' : '未认证'
+  return status !== undefined ? map[status] || t('adminUsers.unknown') : t('adminUsers.unverified')
 }
 
 function getRealnameStatusType(status?: number): 'default' | 'warning' | 'success' | 'error' {
@@ -486,28 +493,28 @@ function formatTime(ts?: number | null) {
 
 function getWithdrawStatusMeta(status?: number): { type: 'warning' | 'info' | 'error' | 'success', label: string } {
   const map: Record<number, { type: 'warning' | 'info' | 'error' | 'success', label: string }> = {
-    0: { type: 'warning', label: '待审核' },
-    1: { type: 'info', label: '待打款' },
-    2: { type: 'error', label: '已拒绝' },
-    3: { type: 'success', label: '已打款' },
+    0: { type: 'warning', label: t('moneyScore.statusPending') },
+    1: { type: 'info', label: t('moneyScore.statusApproved') },
+    2: { type: 'error', label: t('moneyScore.statusRejected') },
+    3: { type: 'success', label: t('moneyScore.statusPaid') },
   }
-  return status !== undefined ? map[status] || { type: 'info', label: '未知' } : { type: 'info', label: '未知' }
+  return status !== undefined ? map[status] || { type: 'info', label: t('adminUsers.unknown') } : { type: 'info', label: t('adminUsers.unknown') }
 }
 
 function getAdminDisplayName(adminId?: number | null) {
   if (!adminId)
     return '-'
   const admin = adminUserMap.value[adminId]
-  return admin?.nickname || admin?.username || `管理员#${adminId}`
+  return admin?.nickname || admin?.username || t('adminUsers.adminFallback', { id: adminId })
 }
 
 function formatLanguage(language?: string) {
   if (!language)
     return '-'
   if (language === 'zh-CN')
-    return '中文'
+    return t('adminUsersDetail.chinese')
   if (language === 'en-US')
-    return 'English'
+    return t('adminUsersDetail.english')
   return language
 }
 
@@ -550,23 +557,23 @@ function handleEdit(user: AdminUser) {
 // 删除用户
 function handleDelete(userId: number) {
   dialog.warning({
-    title: '确认删除',
-    content: '确定要删除这个用户吗？此操作不可恢复。',
-    positiveText: '确定',
-    negativeText: '取消',
+    title: t('adminUsers.confirmDeleteTitle'),
+    content: t('adminUsers.confirmDeleteContent'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       try {
         const response: any = await deleteUser(userId)
         if (response.isSuccess) {
-          message.success('删除成功')
+          message.success(t('adminUsers.deleteSuccess'))
           fetchData()
         }
         else {
-          message.error(response.message || '删除失败')
+          message.error(response.message || t('adminUsers.deleteFailed'))
         }
       }
       catch {
-        message.error('删除失败')
+        message.error(t('adminUsers.deleteFailed'))
       }
     },
   })
@@ -578,25 +585,25 @@ async function handleResetApikey() {
     return
 
   dialog.warning({
-    title: '确认重置',
-    content: '确定要重置用户的API密钥吗？重置后旧的密钥将失效。',
-    positiveText: '确定',
-    negativeText: '取消',
+    title: t('adminUsers.confirmResetApiKeyTitle'),
+    content: t('adminUsers.confirmResetApiKeyContent'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       try {
         resettingApikey.value = true
         const response: any = await resetUserApikey(selectedUser.value!.id)
         if (response.isSuccess) {
-          message.success('API密钥重置成功')
+          message.success(t('adminUsers.resetApiKeySuccess'))
           showUserDetailModal.value = false
           fetchData()
         }
         else {
-          message.error(response.message || 'API密钥重置失败')
+          message.error(response.message || t('adminUsers.resetApiKeyFailed'))
         }
       }
       catch {
-        message.error('API密钥重置失败')
+        message.error(t('adminUsers.resetApiKeyFailed'))
       }
       finally {
         resettingApikey.value = false
@@ -619,15 +626,15 @@ function handleShowResetPassword() {
 async function handleResetPassword() {
   try {
     if (!resetPasswordForm.newPassword) {
-      message.error('请输入新密码')
+      message.error(t('adminUsers.enterNewPassword'))
       return
     }
-    if (resetPasswordForm.newPassword.length < 6) {
-      message.error('密码长度不能少于6个字符')
+    if (resetPasswordForm.newPassword.length < 8) {
+      message.error(t('adminUsers.passwordLength'))
       return
     }
     if (resetPasswordForm.newPassword !== resetPasswordForm.confirmPassword) {
-      message.error('两次输入的密码不一致')
+      message.error(t('adminUsers.passwordMismatch'))
       return
     }
 
@@ -639,17 +646,17 @@ async function handleResetPassword() {
     })
 
     if (response.isSuccess) {
-      message.success('密码重置成功')
+      message.success(t('adminUsers.resetPasswordSuccess'))
       showResetPasswordModal.value = false
       showUserDetailModal.value = false
       fetchData()
     }
     else {
-      message.error(response.message || '密码重置失败')
+      message.error(response.message || t('adminUsers.resetPasswordFailed'))
     }
   }
   catch {
-    message.error('密码重置失败')
+    message.error(t('adminUsers.resetPasswordFailed'))
   }
   finally {
     resettingPassword.value = false
@@ -731,19 +738,19 @@ async function handleSubmit() {
       }
 
       if (Object.keys(changedData).length === 0) {
-        message.warning('没有检测到任何变化')
+        message.warning(t('adminUsers.noChangesDetected'))
         submitting.value = false
         return
       }
 
       const response: any = await updateAdminUserProfile(selectedUser.value?.id as number, changedData)
       if (response.isSuccess) {
-        message.success('更新成功')
+        message.success(t('adminUsers.updateSuccess'))
         showUserModal.value = false
         fetchData()
       }
       else {
-        message.error(response.message || '更新失败')
+        message.error(response.message || t('adminUsers.updateFailed'))
       }
     }
     else {
@@ -761,17 +768,17 @@ async function handleSubmit() {
       }
       const response: any = await createUser(userPayload as any)
       if (response.isSuccess) {
-        message.success('创建成功')
+        message.success(t('adminUsers.createSuccess'))
         showUserModal.value = false
         fetchData()
       }
       else {
-        message.error(response.message || '创建失败')
+        message.error(response.message || t('adminUsers.createFailed'))
       }
     }
   }
   catch (error) {
-    console.error('表单验证失败:', error)
+    reportAdminUsersError('[adminUsers] form validation failed', error)
   }
   finally {
     submitting.value = false
@@ -820,19 +827,19 @@ function handleRealnameStatusChange() {
 // 以用户身份登录（在新标签页打开，不污染管理员登录态）
 function handleLoginAsUser(user: AdminUser) {
   dialog.warning({
-    title: '确认登录',
-    content: `确定要以用户 "${user.username}" 的身份登录吗？`,
-    positiveText: '确定',
-    negativeText: '取消',
+    title: t('adminUsers.confirmLoginTitle'),
+    content: t('adminUsers.confirmLoginContent', { username: user.username }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       const res: any = await loginAsUser(user.id)
       if (res.isSuccess && res.data?.user && res.data?.token) {
         const targetUrl = `/user/dashboard?_t=${Date.now()}`
         openLoginAsUserWindow(res.data.user, res.data.token, res.data.refreshToken, res.data.expiresAt, targetUrl)
-        message.success('已在新标签页打开用户后台')
+        message.success(t('adminUsers.openedUserConsole'))
       }
       else {
-        message.error(res.message || '登录失败')
+        message.error(res.message || t('adminUsers.loginFailed'))
       }
     },
   })
@@ -849,8 +856,7 @@ onMounted(() => {
 
 // 头像加载错误处理
 function handleAvatarError() {
-  // eslint-disable-next-line no-console
-  console.log('头像加载失败')
+  reportAdminUsersError('[adminUsers] avatar load failed')
 }
 
 // 切换全屏
@@ -904,11 +910,11 @@ async function fetchWithdrawData() {
       adminUserMap.value = await adminUserApi.batchSimpleInfo(adminIds)
     }
     else {
-      message.error(response.message || '获取提现记录失败')
+      message.error(response.message || t('moneyScore.fetchWithdrawFailed'))
     }
   }
   catch {
-    message.error('获取提现记录失败')
+    message.error(t('moneyScore.fetchWithdrawFailed'))
   }
   finally {
     withdrawLoading.value = false
@@ -934,13 +940,13 @@ function openWithdrawDetail(row: WithdrawRecord) {
 const withdrawColumns: DataTableColumns<WithdrawRecord> = [
   { title: 'ID', key: 'id', width: 80 },
   {
-    title: '金额',
+    title: t('adminUsers.amount'),
     key: 'amount',
     width: 100,
     render: row => `¥${(Number(row.amount) || 0).toFixed(2)}`,
   },
   {
-    title: '状态',
+    title: t('adminUsers.status'),
     key: 'status',
     width: 100,
     render: (row) => {
@@ -948,25 +954,25 @@ const withdrawColumns: DataTableColumns<WithdrawRecord> = [
       return h(NTag, { type: status.type }, () => status.label)
     },
   },
-  { title: '方式', key: 'account_type', width: 90 },
-  { title: '账户名称', key: 'account_name', width: 120, ellipsis: true },
+  { title: t('adminUsers.method'), key: 'account_type', width: 90 },
+  { title: t('moneyScore.accountName'), key: 'account_name', width: 120, ellipsis: true },
   {
-    title: '收款账号',
+    title: t('moneyScore.accountNo'),
     key: 'account_no',
     width: 160,
     ellipsis: true,
     render: row => maskAccountNo(row.account_no),
   },
-  { title: '审核人', key: 'reviewed_by', width: 110, render: row => getAdminDisplayName(row.reviewed_by) },
-  { title: '打款人', key: 'paid_by', width: 110, render: row => getAdminDisplayName(row.paid_by) },
+  { title: t('adminUsers.reviewer'), key: 'reviewed_by', width: 110, render: row => getAdminDisplayName(row.reviewed_by) },
+  { title: t('adminUsers.payer'), key: 'paid_by', width: 110, render: row => getAdminDisplayName(row.paid_by) },
   {
-    title: '申请时间',
+    title: t('moneyScore.createdAt'),
     key: 'create_time',
     width: 170,
     render: row => formatTime(row.create_time),
   },
   {
-    title: '操作',
+    title: t('adminUsers.actions'),
     key: 'actions',
     width: 90,
     render: row => h(
@@ -975,7 +981,7 @@ const withdrawColumns: DataTableColumns<WithdrawRecord> = [
         style: 'color: var(--n-primary-color); cursor: pointer;',
         onClick: () => openWithdrawDetail(row),
       },
-      '详情',
+      t('adminUsers.detail'),
     ),
   },
 ]
@@ -992,17 +998,17 @@ async function handleBalanceOperation() {
     const needsAmount = balanceForm.operation !== 'order_only'
 
     if (needsAmount && balanceForm.amount === null) {
-      message.warning('金额不能为空')
+      message.warning(t('adminUsers.amountRequired'))
       return
     }
 
     if (needsAmount && Number(balanceForm.amount) === 0) {
-      message.warning('涉及余额或日志操作时，金额不能为 0')
+      message.warning(t('adminUsers.amountCannotBeZero'))
       return
     }
 
     if (isOrder && !balanceForm.orderNo) {
-      message.warning('涉及订单操作时，订单号不能为空')
+      message.warning(t('adminUsers.orderNoRequired'))
       return
     }
 
@@ -1016,17 +1022,17 @@ async function handleBalanceOperation() {
     })
 
     if (response.isSuccess) {
-      message.success('余额操作成功')
+      message.success(t('adminUsers.balanceOperationSuccess'))
       fetchData()
       showUserModal.value = false
     }
     else {
-      message.error(response.message || '余额操作失败')
+      message.error(response.message || t('adminUsers.balanceOperationFailed'))
     }
   }
   catch (error) {
-    console.error('余额操作失败:', error)
-    message.error('操作失败')
+    reportAdminUsersError('[adminUsers] balance operation failed', error)
+    message.error(t('adminUsers.operationFailed'))
   }
   finally {
     submitting.value = false
@@ -1039,14 +1045,14 @@ async function handleAutoFillOrderNo() {
     const res: any = await generateNos()
     if (res.isSuccess && res.data?.order_no) {
       balanceForm.orderNo = res.data.order_no
-      message.success('订单号已自动生成')
+      message.success(t('adminUsers.orderNoGenerated'))
     }
     else {
-      message.error(res.message || '生成订单号失败')
+      message.error(res.message || t('adminUsers.generateOrderNoFailed'))
     }
   }
   catch {
-    message.error('生成订单号失败')
+    message.error(t('adminUsers.generateOrderNoFailed'))
   }
 }
 
@@ -1056,14 +1062,14 @@ async function handleAutoFillTradeNo() {
     const res: any = await generateNos()
     if (res.isSuccess && res.data?.trade_no) {
       balanceForm.tradeNo = res.data.trade_no
-      message.success('交易号已自动生成')
+      message.success(t('adminUsers.tradeNoGenerated'))
     }
     else {
-      message.error(res.message || '生成交易号失败')
+      message.error(res.message || t('adminUsers.generateTradeNoFailed'))
     }
   }
   catch {
-    message.error('生成交易号失败')
+    message.error(t('adminUsers.generateTradeNoFailed'))
   }
 }
 
@@ -1076,7 +1082,7 @@ async function handleScoreOperation() {
     submitting.value = true
 
     if (Number(scoreForm.amount) === 0) {
-      message.warning('积分不能为 0')
+      message.warning(t('adminUsers.scoreCannotBeZero'))
       return
     }
 
@@ -1086,12 +1092,12 @@ async function handleScoreOperation() {
         memo: scoreForm.memo,
       })
       if (response.isSuccess) {
-        message.success('积分变更成功')
+        message.success(t('adminUsers.scoreChangedSuccess'))
         fetchData()
         showUserModal.value = false
       }
       else {
-        message.error(response.message || '积分变更失败')
+        message.error(response.message || t('adminUsers.scoreChangedFailed'))
       }
     }
     else if (scoreForm.operation === 'log') {
@@ -1100,17 +1106,17 @@ async function handleScoreOperation() {
         memo: scoreForm.memo,
       })
       if (response.isSuccess) {
-        message.success('积分日志添加成功')
+        message.success(t('adminUsers.scoreLogAddedSuccess'))
         showUserModal.value = false
       }
       else {
-        message.error(response.message || '积分日志添加失败')
+        message.error(response.message || t('adminUsers.scoreLogAddedFailed'))
       }
     }
   }
   catch (error) {
-    console.error('积分操作失败:', error)
-    message.error('操作失败')
+    reportAdminUsersError('[adminUsers] score operation failed', error)
+    message.error(t('adminUsers.operationFailed'))
   }
   finally {
     submitting.value = false
@@ -1125,20 +1131,20 @@ async function handleScoreOperation() {
       <div class="header-content">
         <div class="header-title">
           <NovaIcon :size="24" class="title-icon" icon="icon-park-outline:user" />
-          <span>用户管理</span>
+          <span>{{ t('adminUsers.userManagement') }}</span>
         </div>
         <NSpace :wrap="false" :size="12" class="header-actions">
           <NButton @click="handleRefresh">
             <template #icon>
               <NovaIcon icon="icon-park-outline:refresh" />
             </template>
-            刷新
+            {{ t('common.reload') }}
           </NButton>
           <NButton type="primary" @click="handleAdd">
             <template #icon>
               <NovaIcon icon="icon-park-outline:plus" />
             </template>
-            添加用户
+            {{ t('adminUsers.addUser') }}
           </NButton>
         </NSpace>
       </div>
@@ -1148,20 +1154,20 @@ async function handleScoreOperation() {
     <n-card class="search-card" :bordered="false">
       <n-form :model="searchForm" label-placement="left" :label-width="80">
         <n-grid :cols="24" :x-gap="16" responsive="screen">
-          <n-form-item-gi span="24 600:10 800:10" label="关键词">
+          <n-form-item-gi span="24 600:10 800:10" :label="t('adminRealname.keyword')">
             <n-input
               v-model:value="searchForm.keyword"
-              placeholder="搜索ID/用户名/邮箱/手机/昵称/角色/状态/等级"
+              :placeholder="t('adminUsers.searchPlaceholder')"
               clearable
               @keyup.enter="handleSearch"
             />
           </n-form-item-gi>
-          <n-form-item-gi span="24 600:6 800:6" label="实名认证">
+          <n-form-item-gi span="24 600:6 800:6" :label="t('adminUsers.realnameStatus')">
             <n-select
               v-model:value="searchForm.realnameStatus"
               :options="realnameFilterOptions"
               clearable
-              placeholder="全部"
+              :placeholder="t('common.all')"
               @update:value="handleRealnameStatusChange"
             />
           </n-form-item-gi>
@@ -1171,13 +1177,13 @@ async function handleScoreOperation() {
                 <template #icon>
                   <NovaIcon icon="icon-park-outline:search" />
                 </template>
-                搜索
+                {{ t('moneyScore.search') }}
               </NButton>
               <NButton class="reset-btn" @click="handleReset">
                 <template #icon>
                   <NovaIcon icon="icon-park-outline:refresh" />
                 </template>
-                重置
+                {{ t('common.reset') }}
               </NButton>
             </NSpace>
           </n-form-item-gi>
@@ -1201,7 +1207,7 @@ async function handleScoreOperation() {
       <div class="pagination-container">
         <div class="pagination-info">
           <n-text depth="3">
-            共 {{ pagination.itemCount }} 条记录，当前第 {{ pagination.page }} 页，每页显示 {{ pagination.pageSize }} 条
+            {{ t('adminUsers.paginationInfo', { total: pagination.itemCount, page: pagination.page, pageSize: pagination.pageSize }) }}
           </n-text>
         </div>
         <n-pagination
@@ -1221,7 +1227,7 @@ async function handleScoreOperation() {
     <n-modal
       v-model:show="showUserModal"
       preset="card"
-      :title="isEdit ? '编辑用户' : '添加用户'"
+      :title="isEdit ? t('adminUsers.editUser') : t('adminUsers.addUser')"
       :style="isFullscreen ? 'width: 100vw; height: 100vh; max-width: none; max-height: none;' : 'width: 800px;'"
       :bordered="false"
       :closable="!isFullscreen"
@@ -1237,7 +1243,7 @@ async function handleScoreOperation() {
 
       <n-tabs v-model:value="activeTab" type="line" animated @update:value="handleUserModalTabChange">
         <!-- 详情标签页 -->
-        <n-tab-pane name="details" tab="详情">
+        <n-tab-pane name="details" :tab="t('adminUsers.detail')">
           <n-form
             ref="formRef"
             :model="userForm"
@@ -1246,103 +1252,103 @@ async function handleScoreOperation() {
             :label-width="100"
           >
             <n-grid :cols="2" :x-gap="16">
-              <n-form-item-gi label="用户名" path="username">
+              <n-form-item-gi :label="t('adminUsers.username')" path="username">
                 <n-input
                   v-model:value="userForm.username"
-                  placeholder="请输入用户名"
+                  :placeholder="t('adminUsers.enterUsername')"
                   :disabled="isEdit"
                 />
               </n-form-item-gi>
-              <n-form-item-gi label="昵称" path="nickname">
+              <n-form-item-gi :label="t('adminUsers.nickname')" path="nickname">
                 <n-input
                   v-model:value="userForm.nickname"
-                  placeholder="请输入昵称"
+                  :placeholder="t('adminUsers.enterNickname')"
                 />
               </n-form-item-gi>
-              <n-form-item-gi label="邮箱" path="email">
+              <n-form-item-gi :label="t('adminUsers.email')" path="email">
                 <n-input
                   v-model:value="userForm.email"
-                  placeholder="请输入邮箱"
+                  :placeholder="t('adminUsers.enterEmail')"
                   @blur="userForm.email = userForm.email.includes('@') ? `${userForm.email.split('@')[0]}@${userForm.email.split('@')[1].toLowerCase()}` : userForm.email"
                 />
               </n-form-item-gi>
-              <n-form-item-gi label="手机" path="mobile">
+              <n-form-item-gi :label="t('adminUsers.mobile')" path="mobile">
                 <n-input
                   v-model:value="userForm.mobile"
-                  placeholder="请输入手机号"
+                  :placeholder="t('adminUsers.enterMobile')"
                 />
               </n-form-item-gi>
-              <n-form-item-gi label="语言" path="language">
+              <n-form-item-gi :label="t('adminUsers.language')" path="language">
                 <n-select
                   v-model:value="userForm.language"
                   :options="languageOptions"
-                  placeholder="选择语言"
+                  :placeholder="t('adminUsers.selectLanguage')"
                 />
               </n-form-item-gi>
-              <n-form-item-gi label="国家" path="country">
+              <n-form-item-gi :label="t('adminUsers.country')" path="country">
                 <n-input
                   v-model:value="userForm.country"
-                  placeholder="请输入国家/地区"
+                  :placeholder="t('adminUsers.enterCountry')"
                 />
               </n-form-item-gi>
-              <n-form-item-gi v-if="!isEdit" span="2" label="密码" path="password" :rule="passwordRule">
+              <n-form-item-gi v-if="!isEdit" span="2" :label="t('adminUsers.password')" path="password" :rule="passwordRule">
                 <n-input
                   v-model:value="userForm.password"
                   type="password"
-                  placeholder="请输入新密码"
+                  :placeholder="t('adminUsers.enterNewPassword')"
                   show-password-on="click"
                 />
                 <template #feedback>
-                  <span class="password-tip">请设置密码</span>
+                  <span class="password-tip">{{ t('adminUsers.setPasswordTip') }}</span>
                 </template>
               </n-form-item-gi>
-              <n-form-item-gi label="角色" path="role">
+              <n-form-item-gi :label="t('adminUsers.role')" path="role">
                 <n-select
                   v-model:value="userForm.role"
                   :options="roleOptions"
-                  placeholder="选择角色"
+                  :placeholder="t('adminUsers.selectRole')"
                 />
               </n-form-item-gi>
-              <n-form-item-gi label="等级" path="level">
+              <n-form-item-gi :label="t('adminUsers.level')" path="level">
                 <n-input-number
                   v-model:value="userForm.level"
-                  placeholder="请输入用户等级"
+                  :placeholder="t('adminUsers.enterUserLevel')"
                   :min="0"
                   :max="100"
                 />
               </n-form-item-gi>
-              <n-form-item-gi label="状态" path="status">
+              <n-form-item-gi :label="t('adminUsers.status')" path="status">
                 <n-select
                   v-model:value="userForm.status"
                   :options="userStatusOptions"
-                  placeholder="选择状态"
+                  :placeholder="t('adminUsers.selectStatus')"
                 />
               </n-form-item-gi>
-              <n-form-item-gi label="性别" path="gender">
+              <n-form-item-gi :label="t('adminUsers.gender')" path="gender">
                 <n-select
                   v-model:value="userForm.gender"
                   :options="genderOptions"
-                  placeholder="选择性别"
+                  :placeholder="t('adminUsers.selectGender')"
                 />
               </n-form-item-gi>
-              <n-form-item-gi span="2" label="生日" path="birthday">
+              <n-form-item-gi span="2" :label="t('adminUsers.birthday')" path="birthday">
                 <n-date-picker
                   v-model:value="userForm.birthday"
                   type="date"
-                  placeholder="选择生日"
+                  :placeholder="t('adminUsers.selectBirthday')"
                   clearable
                 />
               </n-form-item-gi>
-              <n-form-item-gi span="2" label="头像" path="avatar">
+              <n-form-item-gi span="2" :label="t('adminUsers.avatar')" path="avatar">
                 <NSpace vertical>
                   <n-input
                     v-model:value="userForm.avatar"
-                    placeholder="请输入头像URL"
+                    :placeholder="t('adminUsers.enterAvatarUrl')"
                   />
                   <!-- 头像预览 -->
                   <div v-if="userForm.avatar" class="avatar-preview">
                     <n-text depth="3" style="font-size: 12px;">
-                      预览：
+                      {{ t('adminUsers.preview') }}:
                     </n-text>
                     <n-avatar
                       :src="userForm.avatar"
@@ -1353,11 +1359,11 @@ async function handleScoreOperation() {
                   </div>
                 </NSpace>
               </n-form-item-gi>
-              <n-form-item-gi span="2" label="座右铭" path="motto">
+              <n-form-item-gi span="2" :label="t('adminUsers.motto')" path="motto">
                 <n-input
                   v-model:value="userForm.motto"
                   type="textarea"
-                  placeholder="请输入座右铭"
+                  :placeholder="t('adminUsers.enterMotto')"
                   :rows="3"
                 />
               </n-form-item-gi>
@@ -1366,13 +1372,13 @@ async function handleScoreOperation() {
         </n-tab-pane>
 
         <!-- 余额标签页 -->
-        <n-tab-pane v-if="isEdit" name="balance" tab="余额">
+        <n-tab-pane v-if="isEdit" name="balance" :tab="t('adminUsers.balance')">
           <div class="balance-management">
             <NSpace vertical size="large">
               <!-- 当前余额显示 -->
-              <n-card title="当前余额" size="small">
+              <n-card :title="t('adminUsers.currentBalance')" size="small">
                 <n-statistic
-                  label="用户余额"
+                  :label="t('adminUsers.userBalance')"
                   :value="selectedUser?.money || 0"
                   :precision="2"
                 >
@@ -1393,74 +1399,74 @@ async function handleScoreOperation() {
                   />
                 </n-form-item>
 
-                <n-form-item label="操作类型">
+                <n-form-item :label="t('adminUsers.operationType')">
                   <n-radio-group v-model:value="balanceForm.operation">
                     <NSpace wrap>
                       <n-radio value="balance_only">
-                        仅修改余额
+                        {{ t('adminUsers.balanceOnly') }}
                       </n-radio>
                       <n-radio value="log_only">
-                        仅记录余额日志
+                        {{ t('adminUsers.logOnly') }}
                       </n-radio>
                       <n-radio value="order_only">
-                        仅更新订单状态
+                        {{ t('adminUsers.orderOnly') }}
                       </n-radio>
                       <n-radio value="balance_log">
-                        修改余额 + 记录日志
+                        {{ t('adminUsers.balanceLog') }}
                       </n-radio>
                       <n-radio value="balance_order">
-                        修改余额 + 更新订单
+                        {{ t('adminUsers.balanceOrder') }}
                       </n-radio>
                       <n-radio value="log_order">
-                        记录日志 + 更新订单
+                        {{ t('adminUsers.logOrder') }}
                       </n-radio>
                       <n-radio value="both">
-                        余额 + 日志 + 订单
+                        {{ t('adminUsers.allInOne') }}
                       </n-radio>
                     </NSpace>
                   </n-radio-group>
                 </n-form-item>
 
-                <n-form-item v-if="['log_only', 'balance_log', 'log_order', 'both'].includes(balanceForm.operation)" label="备注">
+                <n-form-item v-if="['log_only', 'balance_log', 'log_order', 'both'].includes(balanceForm.operation)" :label="t('moneyScore.remark')">
                   <n-input
                     v-model:value="balanceForm.memo"
                     type="textarea"
-                    placeholder="请输入操作备注"
+                    :placeholder="t('adminUsers.enterOperationRemark')"
                     :rows="3"
                   />
                 </n-form-item>
 
-                <n-form-item v-if="['order_only', 'balance_order', 'log_order', 'both'].includes(balanceForm.operation)" label="订单号">
+                <n-form-item v-if="['order_only', 'balance_order', 'log_order', 'both'].includes(balanceForm.operation)" :label="t('recharge.orderNo')">
                   <n-input-group>
                     <n-input
                       v-model:value="balanceForm.orderNo"
-                      placeholder="请输入订单号（必填）"
+                      :placeholder="t('adminUsers.enterOrderNoRequired')"
                       style="flex: 1"
                     />
                     <NButton type="primary" ghost @click="handleAutoFillOrderNo">
-                      自动生成
+                      {{ t('adminUsers.autoGenerate') }}
                     </NButton>
                   </n-input-group>
                 </n-form-item>
 
-                <n-form-item v-if="['order_only', 'balance_order', 'log_order', 'both'].includes(balanceForm.operation)" label="交易号">
+                <n-form-item v-if="['order_only', 'balance_order', 'log_order', 'both'].includes(balanceForm.operation)" :label="t('recharge.tradeNo')">
                   <n-input-group>
                     <n-input
                       v-model:value="balanceForm.tradeNo"
-                      placeholder="请输入第三方交易号（可选）"
+                      :placeholder="t('adminUsers.enterTradeNoOptional')"
                       style="flex: 1"
                     />
                     <NButton type="primary" ghost @click="handleAutoFillTradeNo">
-                      自动生成
+                      {{ t('adminUsers.autoGenerate') }}
                     </NButton>
                   </n-input-group>
                 </n-form-item>
 
-                <n-form-item v-if="['order_only', 'balance_order', 'log_order', 'both'].includes(balanceForm.operation)" label="订单状态">
+                <n-form-item v-if="['order_only', 'balance_order', 'log_order', 'both'].includes(balanceForm.operation)" :label="t('recharge.orderStatus')">
                   <n-select
                     v-model:value="balanceForm.orderStatus"
                     :options="orderStatusOptions"
-                    placeholder="请选择订单状态"
+                    :placeholder="t('adminUsers.selectOrderStatus')"
                   />
                 </n-form-item>
 
@@ -1470,7 +1476,7 @@ async function handleScoreOperation() {
                   :show-icon="false"
                   style="margin-bottom: 16px;"
                 >
-                  此模式只会更新订单状态，不会修改用户余额，也不会写入余额日志。
+                  {{ t('adminUsers.orderOnlyHint') }}
                 </n-alert>
 
                 <n-alert
@@ -1479,7 +1485,7 @@ async function handleScoreOperation() {
                   :show-icon="false"
                   style="margin-bottom: 16px;"
                 >
-                  此模式只会修改余额并更新订单状态，不会额外写入余额日志。
+                  {{ t('adminUsers.balanceOrderHint') }}
                 </n-alert>
 
                 <n-alert
@@ -1488,7 +1494,7 @@ async function handleScoreOperation() {
                   :show-icon="false"
                   style="margin-bottom: 16px;"
                 >
-                  此模式只会记录一条余额日志并更新订单状态，不会实际修改用户余额。
+                  {{ t('adminUsers.logOrderHint') }}
                 </n-alert>
 
                 <n-alert
@@ -1497,12 +1503,12 @@ async function handleScoreOperation() {
                   :show-icon="false"
                   style="margin-bottom: 16px;"
                 >
-                  此模式会同时修改余额、写入余额日志，并更新订单状态。
+                  {{ t('adminUsers.allInOneHint') }}
                 </n-alert>
 
                 <n-form-item>
                   <NButton type="primary" :loading="submitting" @click="handleBalanceOperation">
-                    确定操作
+                    {{ t('adminUsers.confirmOperation') }}
                   </NButton>
                 </n-form-item>
               </n-form>
@@ -1511,52 +1517,52 @@ async function handleScoreOperation() {
         </n-tab-pane>
 
         <!-- 积分标签页 -->
-        <n-tab-pane v-if="isEdit" name="score" tab="积分">
+        <n-tab-pane v-if="isEdit" name="score" :tab="t('adminUsers.score')">
           <div class="score-management">
             <NSpace vertical size="large">
               <!-- 当前积分显示 -->
-              <n-card title="当前积分" size="small">
+              <n-card :title="t('adminUsers.currentScore')" size="small">
                 <n-statistic
-                  label="用户积分"
+                  :label="t('adminUsers.userScore')"
                   :value="selectedUser?.score || 0"
                 />
               </n-card>
 
               <!-- 积分操作 -->
               <n-form label-placement="left" :label-width="100">
-                <n-form-item label="积分">
+                <n-form-item :label="t('adminUsers.score')">
                   <n-input-number
                     v-model:value="scoreForm.amount"
-                    placeholder="请输入积分（正数增加，负数减少）"
+                    :placeholder="t('adminUsers.scorePlaceholder')"
                     :step="1"
                   />
                 </n-form-item>
 
-                <n-form-item label="操作类型">
+                <n-form-item :label="t('adminUsers.operationType')">
                   <n-radio-group v-model:value="scoreForm.operation">
                     <NSpace>
                       <n-radio value="modify">
-                        变更积分
+                        {{ t('adminUsers.modifyScore') }}
                       </n-radio>
                       <n-radio value="log">
-                        仅记录日志
+                        {{ t('adminUsers.logOnly') }}
                       </n-radio>
                     </NSpace>
                   </n-radio-group>
                 </n-form-item>
 
-                <n-form-item label="备注">
+                <n-form-item :label="t('moneyScore.remark')">
                   <n-input
                     v-model:value="scoreForm.memo"
                     type="textarea"
-                    placeholder="请输入操作备注"
+                    :placeholder="t('adminUsers.enterOperationRemark')"
                     :rows="3"
                   />
                 </n-form-item>
 
                 <n-form-item>
                   <NButton type="primary" :loading="submitting" @click="handleScoreOperation">
-                    确定操作
+                    {{ t('adminUsers.confirmOperation') }}
                   </NButton>
                 </n-form-item>
               </n-form>
@@ -1564,7 +1570,7 @@ async function handleScoreOperation() {
           </div>
         </n-tab-pane>
 
-        <n-tab-pane v-if="isEdit" name="withdraw" tab="提现">
+        <n-tab-pane v-if="isEdit" name="withdraw" :tab="t('moneyScore.withdrawRecords')">
           <n-data-table
             :columns="withdrawColumns"
             :data="withdrawData"
@@ -1581,10 +1587,10 @@ async function handleScoreOperation() {
       <template #footer>
         <NSpace justify="end">
           <NButton @click="showUserModal = false">
-            取消
+            {{ t('common.cancel') }}
           </NButton>
           <NButton v-if="activeTab === 'details'" type="primary" :loading="submitting" @click="handleSubmit">
-            {{ isEdit ? '更新' : '创建' }}
+            {{ isEdit ? t('adminUsers.update') : t('adminUsers.create') }}
           </NButton>
         </NSpace>
       </template>
@@ -1594,7 +1600,7 @@ async function handleScoreOperation() {
     <n-modal
       v-model:show="showUserDetailModal"
       preset="card"
-      title="用户详情"
+      :title="t('adminUsers.userDetail')"
       style="width: 700px;"
       :bordered="false"
     >
@@ -1602,40 +1608,40 @@ async function handleScoreOperation() {
         <!-- 基本信息区域 -->
         <div class="detail-section">
           <h3 class="section-title">
-            基本信息
+            {{ t('profile.basicInfo') }}
           </h3>
           <n-descriptions :column="3" bordered size="small">
-            <n-descriptions-item label="用户ID">
+            <n-descriptions-item :label="t('profile.userId')">
               {{ selectedUser?.id }}
             </n-descriptions-item>
-            <n-descriptions-item label="用户名">
+            <n-descriptions-item :label="t('profile.username')">
               {{ selectedUser?.username }}
             </n-descriptions-item>
-            <n-descriptions-item label="昵称">
+            <n-descriptions-item :label="t('profile.nickname')">
               {{ selectedUser?.nickname || '-' }}
             </n-descriptions-item>
-            <n-descriptions-item label="邮箱">
+            <n-descriptions-item :label="t('profile.emailAddress')">
               {{ selectedUser?.email || '-' }}
             </n-descriptions-item>
-            <n-descriptions-item label="手机">
+            <n-descriptions-item :label="t('profile.phoneNumber')">
               {{ selectedUser?.mobile || '-' }}
             </n-descriptions-item>
-            <n-descriptions-item label="语言">
+            <n-descriptions-item :label="t('adminUsers.language')">
               {{ formatLanguage(selectedUser?.language) }}
             </n-descriptions-item>
-            <n-descriptions-item label="国家">
+            <n-descriptions-item :label="t('adminUsers.country')">
               {{ selectedUser?.country || '-' }}
             </n-descriptions-item>
-            <n-descriptions-item label="角色">
-              {{ selectedUser?.role === 'admin' ? '管理员' : '用户' }}
+            <n-descriptions-item :label="t('adminUsers.role')">
+              {{ selectedUser?.role === 'admin' ? t('adminUsers.admin') : t('adminUsers.user') }}
             </n-descriptions-item>
-            <n-descriptions-item label="用户组">
+            <n-descriptions-item :label="t('adminUsers.userGroup')">
               {{ selectedUser?.group_id || '-' }}
             </n-descriptions-item>
-            <n-descriptions-item label="性别">
-              {{ selectedUser?.gender === 1 ? '男' : selectedUser?.gender === 2 ? '女' : '未知' }}
+            <n-descriptions-item :label="t('profile.gender')">
+              {{ selectedUser?.gender === 1 ? t('adminUsers.male') : selectedUser?.gender === 2 ? t('adminUsers.female') : t('adminUsers.unknown') }}
             </n-descriptions-item>
-            <n-descriptions-item label="生日">
+            <n-descriptions-item :label="t('profile.birthday')">
               {{ selectedUser?.birthday ? new Date(selectedUser.birthday).toLocaleDateString() : '-' }}
             </n-descriptions-item>
           </n-descriptions>
@@ -1644,23 +1650,23 @@ async function handleScoreOperation() {
         <!-- 账户状态区域 -->
         <div class="detail-section">
           <h3 class="section-title">
-            账户状态
+            {{ t('adminUsers.accountStatus') }}
           </h3>
           <n-descriptions :column="2" bordered size="small">
-            <n-descriptions-item label="等级">
+            <n-descriptions-item :label="t('adminUsers.level')">
               {{ selectedUser?.level || '-' }}
             </n-descriptions-item>
-            <n-descriptions-item label="状态">
+            <n-descriptions-item :label="t('adminUsers.status')">
               <NTag :type="(selectedUser?.status === 1) ? 'success' : 'error'">
-                {{ (selectedUser?.status === 1) ? '启用' : '禁用' }}
+                {{ (selectedUser?.status === 1) ? t('adminUsers.enabled') : t('adminUsers.disabled') }}
               </NTag>
             </n-descriptions-item>
-            <n-descriptions-item label="余额">
+            <n-descriptions-item :label="t('adminUsers.balance')">
               <n-text type="success">
                 ¥{{ selectedUser?.money ? Number(selectedUser.money).toFixed(2) : '0.00' }}
               </n-text>
             </n-descriptions-item>
-            <n-descriptions-item label="积分">
+            <n-descriptions-item :label="t('adminUsers.score')">
               <n-text type="info">
                 {{ selectedUser?.score || '0' }}
               </n-text>
@@ -1670,27 +1676,27 @@ async function handleScoreOperation() {
 
         <div class="detail-section">
           <h3 class="section-title">
-            实名认证
+            {{ t('route.admin-realname') }}
           </h3>
           <n-descriptions :column="2" bordered size="small">
-            <n-descriptions-item label="认证状态">
+            <n-descriptions-item :label="t('adminUsers.realnameVerifyStatus')">
               <NTag :type="getRealnameStatusType(selectedUserRealname?.status)">
-                {{ selectedUserRealname?.has_verification ? getRealnameStatusText(selectedUserRealname?.status) : '未认证' }}
+                {{ selectedUserRealname?.has_verification ? getRealnameStatusText(selectedUserRealname?.status) : t('adminUsers.unverified') }}
               </NTag>
             </n-descriptions-item>
-            <n-descriptions-item label="真实姓名">
+            <n-descriptions-item :label="t('realname.realName')">
               {{ selectedUserRealname?.real_name || '-' }}
             </n-descriptions-item>
-            <n-descriptions-item label="证件号码">
+            <n-descriptions-item :label="t('realname.certificateNo')">
               {{ maskCertificateNo(selectedUserRealname?.certificate_no) }}
             </n-descriptions-item>
-            <n-descriptions-item label="提交时间">
+            <n-descriptions-item :label="t('realname.submittedAt')">
               {{ selectedUserRealname?.submitted_at ? new Date(selectedUserRealname.submitted_at * 1000).toLocaleString() : '-' }}
             </n-descriptions-item>
-            <n-descriptions-item label="审核时间">
+            <n-descriptions-item :label="t('realname.reviewedAt')">
               {{ selectedUserRealname?.reviewed_at ? new Date(selectedUserRealname.reviewed_at * 1000).toLocaleString() : '-' }}
             </n-descriptions-item>
-            <n-descriptions-item label="拒绝原因">
+            <n-descriptions-item :label="t('realname.rejectReason')">
               {{ selectedUserRealname?.reject_reason || '-' }}
             </n-descriptions-item>
           </n-descriptions>
@@ -1699,25 +1705,25 @@ async function handleScoreOperation() {
         <!-- 登录信息区域 -->
         <div class="detail-section">
           <h3 class="section-title">
-            登录信息
+            {{ t('profile.loginInfo') }}
           </h3>
           <n-descriptions :column="2" bordered size="small">
-            <n-descriptions-item label="注册时间">
+            <n-descriptions-item :label="t('profile.registerTime')">
               {{ selectedUser?.create_time ? new Date(selectedUser.create_time * 1000).toLocaleString() : '-' }}
             </n-descriptions-item>
-            <n-descriptions-item label="最后登录">
+            <n-descriptions-item :label="t('profile.lastLogin')">
               {{ selectedUser?.last_login_time ? new Date(selectedUser.last_login_time * 1000).toLocaleString() : '-' }}
             </n-descriptions-item>
-            <n-descriptions-item label="注册IP">
+            <n-descriptions-item :label="t('profile.registerIp')">
               {{ selectedUser?.join_ip || '-' }}
             </n-descriptions-item>
-            <n-descriptions-item label="最后登录IP">
+            <n-descriptions-item :label="t('profile.lastLoginIp')">
               {{ selectedUser?.last_login_ip || '-' }}
             </n-descriptions-item>
-            <n-descriptions-item label="登录失败次数">
+            <n-descriptions-item :label="t('adminUsers.loginFailureCount')">
               {{ selectedUser?.login_failure || '0' }}
             </n-descriptions-item>
-            <n-descriptions-item label="更新时间">
+            <n-descriptions-item :label="t('profile.updateTime')">
               {{ selectedUser?.update_time ? new Date(selectedUser.update_time * 1000).toLocaleString() : '-' }}
             </n-descriptions-item>
           </n-descriptions>
@@ -1726,23 +1732,23 @@ async function handleScoreOperation() {
         <!-- 其他信息区域 -->
         <div class="detail-section">
           <h3 class="section-title">
-            其他信息
+            {{ t('adminUsers.otherInfo') }}
           </h3>
           <n-descriptions :column="1" bordered size="small">
-            <n-descriptions-item label="API密钥">
+            <n-descriptions-item :label="t('adminUsers.apiKey')">
               <NSpace align="center" size="small">
                 <n-text code style="font-size: 12px;">
                   {{ selectedUser?.apikey || '-' }}
                 </n-text>
                 <NButton size="tiny" type="warning" :loading="resettingApikey" @click="handleResetApikey">
-                  重置
+                  {{ t('common.reset') }}
                 </NButton>
               </NSpace>
             </n-descriptions-item>
-            <n-descriptions-item label="座右铭">
+            <n-descriptions-item :label="t('adminUsers.motto')">
               {{ selectedUser?.motto || '-' }}
             </n-descriptions-item>
-            <n-descriptions-item label="头像">
+            <n-descriptions-item :label="t('adminUsers.avatar')">
               <NSpace v-if="selectedUser?.avatar" vertical size="small">
                 <n-avatar :src="selectedUser.avatar" size="large" />
                 <n-text depth="3" style="font-size: 12px;">
@@ -1751,7 +1757,7 @@ async function handleScoreOperation() {
               </NSpace>
               <span v-else>-</span>
             </n-descriptions-item>
-            <n-descriptions-item label="背景">
+            <n-descriptions-item :label="t('adminUsers.background')">
               {{ selectedUser?.back_ground || '-' }}
             </n-descriptions-item>
           </n-descriptions>
@@ -1761,66 +1767,66 @@ async function handleScoreOperation() {
       <template #footer>
         <NSpace justify="end">
           <NButton @click="showUserDetailModal = false">
-            关闭
+            {{ t('common.close') }}
           </NButton>
           <NButton type="error" @click="handleShowResetPassword">
-            重置密码
+            {{ t('adminUsers.resetPassword') }}
           </NButton>
         </NSpace>
       </template>
     </n-modal>
 
-    <n-modal v-model:show="showWithdrawDetailModal" preset="card" title="提现记录详情" style="width: 620px;" :bordered="false">
+    <n-modal v-model:show="showWithdrawDetailModal" preset="card" :title="t('adminUsers.withdrawDetail')" style="width: 620px;" :bordered="false">
       <template v-if="withdrawDetail">
         <n-descriptions :column="1" bordered label-placement="left">
-          <n-descriptions-item label="申请ID">
+          <n-descriptions-item :label="t('moneyScore.applicationId')">
             {{ withdrawDetail.id }}
           </n-descriptions-item>
-          <n-descriptions-item label="用户ID">
+          <n-descriptions-item :label="t('adminRealname.userId')">
             {{ withdrawDetail.user_id }}
           </n-descriptions-item>
-          <n-descriptions-item label="提现金额">
+          <n-descriptions-item :label="t('moneyScore.withdrawAmount')">
             ¥{{ Number(withdrawDetail.amount).toFixed(2) }}
           </n-descriptions-item>
-          <n-descriptions-item label="状态">
+          <n-descriptions-item :label="t('moneyScore.status')">
             <NTag :type="getWithdrawStatusMeta(withdrawDetail.status).type">
               {{ getWithdrawStatusMeta(withdrawDetail.status).label }}
             </NTag>
           </n-descriptions-item>
-          <n-descriptions-item label="收款方式">
+          <n-descriptions-item :label="t('moneyScore.accountType')">
             {{ withdrawDetail.account_type }}
           </n-descriptions-item>
-          <n-descriptions-item label="账户名称">
+          <n-descriptions-item :label="t('moneyScore.accountName')">
             {{ withdrawDetail.account_name }}
           </n-descriptions-item>
-          <n-descriptions-item label="收款账号">
+          <n-descriptions-item :label="t('moneyScore.accountNo')">
             {{ withdrawDetail.account_no }}
           </n-descriptions-item>
-          <n-descriptions-item label="收款人">
+          <n-descriptions-item :label="t('moneyScore.realName')">
             {{ withdrawDetail.real_name }}
           </n-descriptions-item>
-          <n-descriptions-item label="用户备注">
+          <n-descriptions-item :label="t('moneyScore.userRemark')">
             {{ withdrawDetail.remark || '-' }}
           </n-descriptions-item>
-          <n-descriptions-item label="审核备注">
+          <n-descriptions-item :label="t('moneyScore.reviewRemark')">
             {{ withdrawDetail.review_remark || '-' }}
           </n-descriptions-item>
-          <n-descriptions-item label="打款备注">
+          <n-descriptions-item :label="t('moneyScore.transferRemark')">
             {{ withdrawDetail.transfer_remark || '-' }}
           </n-descriptions-item>
-          <n-descriptions-item label="申请时间">
+          <n-descriptions-item :label="t('moneyScore.createdAt')">
             {{ formatTime(withdrawDetail.create_time) }}
           </n-descriptions-item>
-          <n-descriptions-item label="审核时间">
+          <n-descriptions-item :label="t('moneyScore.reviewedAt')">
             {{ formatTime(withdrawDetail.reviewed_at) }}
           </n-descriptions-item>
-          <n-descriptions-item label="审核人">
+          <n-descriptions-item :label="t('adminUsers.reviewer')">
             {{ getAdminDisplayName(withdrawDetail.reviewed_by) }}
           </n-descriptions-item>
-          <n-descriptions-item label="打款时间">
+          <n-descriptions-item :label="t('moneyScore.paidAt')">
             {{ formatTime(withdrawDetail.paid_at) }}
           </n-descriptions-item>
-          <n-descriptions-item label="打款人">
+          <n-descriptions-item :label="t('adminUsers.payer')">
             {{ getAdminDisplayName(withdrawDetail.paid_by) }}
           </n-descriptions-item>
         </n-descriptions>
@@ -1831,7 +1837,7 @@ async function handleScoreOperation() {
     <n-modal
       v-model:show="showResetPasswordModal"
       preset="card"
-      title="重置密码"
+      :title="t('adminUsers.resetPassword')"
       style="width: 500px;"
       :bordered="false"
     >
@@ -1841,19 +1847,19 @@ async function handleScoreOperation() {
         label-placement="left"
         :label-width="100"
       >
-        <n-form-item label="新密码" path="newPassword">
+        <n-form-item :label="t('profile.newPassword')" path="newPassword">
           <n-input
             v-model:value="resetPasswordForm.newPassword"
             type="password"
-            placeholder="请输入新密码"
+            :placeholder="t('adminUsers.enterNewPassword')"
             show-password-on="click"
           />
         </n-form-item>
-        <n-form-item label="确认密码" path="confirmPassword">
+        <n-form-item :label="t('profile.confirmPassword')" path="confirmPassword">
           <n-input
             v-model:value="resetPasswordForm.confirmPassword"
             type="password"
-            placeholder="请再次输入新密码"
+            :placeholder="t('profile.enterConfirmPassword')"
             show-password-on="click"
           />
         </n-form-item>
@@ -1861,10 +1867,10 @@ async function handleScoreOperation() {
       <template #footer>
         <NSpace justify="end">
           <NButton @click="showResetPasswordModal = false">
-            取消
+            {{ t('common.cancel') }}
           </NButton>
           <NButton type="primary" :loading="resettingPassword" @click="handleResetPassword">
-            确定重置
+            {{ t('adminUsers.confirmReset') }}
           </NButton>
         </NSpace>
       </template>

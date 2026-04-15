@@ -114,10 +114,10 @@ export default defineConfig(({ mode }) => {
           entryFileNames: 'assets/js/[name]-[hash].js',
           assetFileNames: (assetInfo) => {
             const name = assetInfo.name || ''
-            if (/\.(png|jpe?g|gif|svg|webp|ico)$/.test(name)) {
+            if (/\.(?:png|jpe?g|gif|svg|webp|ico)$/.test(name)) {
               return 'assets/img/[name]-[hash][extname]'
             }
-            if (/\.(woff2?|eot|ttf|otf)$/.test(name)) {
+            if (/\.(?:woff2?|eot|ttf|otf)$/.test(name)) {
               return 'assets/fonts/[name]-[hash][extname]'
             }
             if (/\.css$/.test(name)) {

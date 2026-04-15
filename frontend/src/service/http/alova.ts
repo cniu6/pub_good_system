@@ -14,6 +14,7 @@ import {
   handleRefreshToken,
   handleResponseError,
   handleServiceResult,
+  normalizeRequestError,
 } from './handle'
 
 const { onAuthRequired, onResponseRefreshToken } = createServerTokenAuthentication<VueHookType>({
@@ -88,7 +89,7 @@ export function createAlovaInstance(
             return response.blob()
 
           // 返回json数据
-          const apiData = await response.json()
+          const apiData = await response.json() as Record<string, unknown>
           // 请求成功
           if (apiData[_backendConfig.codeKey] === _backendConfig.successCode)
             return handleServiceResult(apiData)
@@ -101,9 +102,10 @@ export function createAlovaInstance(
         const errorResult = handleResponseError(response)
         return handleServiceResult(errorResult, false)
       },
-      onError: (error, method) => {
-        const tip = `[${method.type}] - [${method.url}] - ${error.message}`
-        window.$message?.warning(tip)
+      onError: async (error, method) => {
+        const normalizedError = normalizeRequestError(error, method.url)
+        window.$message?.error(normalizedError.message)
+        throw handleServiceResult(normalizedError, false)
       },
 
       onComplete: async (_method) => {

@@ -8,6 +8,29 @@ import {
 } from './config'
 
 type ErrorStatus = keyof typeof ERROR_STATUS
+type BackendBusinessPayload = Record<string, unknown> & { data?: unknown }
+type LoginTokenPayload = Api.Login.Info & { expiresAt?: number }
+
+export function normalizeRequestError(error: unknown, requestUrl?: string): Service.RequestError {
+  const rawMessage = error instanceof Error ? error.message : String(error || '')
+  const lowerMessage = rawMessage.toLowerCase()
+  const isNetworkFailure = lowerMessage.includes('failed to fetch')
+    || lowerMessage.includes('networkerror')
+    || lowerMessage.includes('load failed')
+    || lowerMessage.includes('fetch failed')
+    || lowerMessage.includes('network request failed')
+
+  const message = isNetworkFailure
+    ? `${ERROR_STATUS.network}: ${requestUrl || ERROR_STATUS.default}`
+    : `${ERROR_STATUS.unknown}: ${rawMessage || ERROR_STATUS.default}`
+
+  return {
+    errorType: 'Response Error',
+    code: isNetworkFailure ? 'NETWORK_ERROR' : 'UNKNOWN_ERROR',
+    message,
+    data: null,
+  }
+}
 
 /**
  * @description: 处理请求成功，但返回后端服务器报错
@@ -37,12 +60,14 @@ export function handleResponseError(response: Response) {
  * @param {boolean} noErrorTip 是否不显示错误提示
  * @return {*}
  */
-export function handleBusinessError(data: Record<string, any>, config: Required<Service.BackendConfig>, noErrorTip?: boolean) {
+export function handleBusinessError(data: BackendBusinessPayload, config: Required<Service.BackendConfig>, noErrorTip?: boolean) {
   const { codeKey, msgKey } = config
+  const rawCode = data[codeKey]
+  const rawMessage = data[msgKey]
   const error: Service.RequestError = {
     errorType: 'Business Error',
-    code: data[codeKey],
-    message: data[msgKey],
+    code: typeof rawCode === 'number' || typeof rawCode === 'string' ? rawCode : 0,
+    message: typeof rawMessage === 'string' ? rawMessage : ERROR_STATUS.default,
     data: data.data,
   }
 
@@ -59,12 +84,12 @@ export function handleBusinessError(data: Record<string, any>, config: Required<
  * @param {boolean} isSuccess
  * @return {*} result
  */
-export function handleServiceResult(data: any, isSuccess: boolean = true) {
+export function handleServiceResult<T extends object>(data: T, isSuccess: boolean = true) {
   const result = {
     isSuccess,
     errorType: null,
     ...data,
-  }
+  } as T & { isSuccess: boolean, errorType: Service.RequestErrorType }
   return result
 }
 
@@ -83,19 +108,24 @@ export async function handleRefreshToken() {
   // 刷新token
   const mode = getRuntimeRouteMode()
   const authGuard = mode === 'admin' ? 'admin' : 'user'
-  const { data } = await fetchUpdateToken({ refreshToken: authStorage.get('refreshToken'), authGuard })
-  if (data) {
-    const expiresAt = (data as Api.Login.Info & { expiresAt?: number }).expiresAt
-    authStorage.setActive('accessToken', data.accessToken)
-    authStorage.setActive('refreshToken', data.refreshToken)
-    if (expiresAt) {
-      authStorage.setActive('accessTokenExpiresAt', expiresAt)
+  try {
+    const result = await fetchUpdateToken({ refreshToken: authStorage.get('refreshToken'), authGuard })
+    const data = result.data as LoginTokenPayload | null
+    if (result.isSuccess && data) {
+      authStorage.setActive('accessToken', data.accessToken)
+      authStorage.setActive('refreshToken', data.refreshToken)
+      if (data.expiresAt) {
+        authStorage.setActive('accessTokenExpiresAt', data.expiresAt)
+      }
+      return
     }
   }
-  else {
-    // 刷新失败，退出
-    await authStore.logout()
+  catch {
+    // noop: 统一走退出逻辑
   }
+
+  // 刷新失败，退出
+  await authStore.logout()
 }
 
 export function showError(error: Service.RequestError) {

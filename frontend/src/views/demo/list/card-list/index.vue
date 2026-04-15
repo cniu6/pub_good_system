@@ -1,52 +1,56 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
 const currentRadio = ref(0)
 
 const cardData = [
   {
-    title: '一类',
+    title: t('demo.cardList.category1'),
     id: 1,
     children: [
       {
         id: 0,
-        title: '卡片',
-        content: '卡片内容',
+        title: t('demo.cardList.card'),
+        content: t('demo.cardList.cardContent'),
       },
       {
         id: 1,
-        title: '卡片2',
-        content: '卡片2内容',
+        title: t('demo.cardList.card2'),
+        content: t('demo.cardList.card2Content'),
       },
     ],
   },
   {
-    title: '二类',
+    title: t('demo.cardList.category2'),
     id: 2,
     children: [
       {
         id: 0,
-        title: '卡片',
-        content: '卡片内容',
+        title: t('demo.cardList.card'),
+        content: t('demo.cardList.cardContent'),
       },
       {
         id: 1,
-        title: '卡片2',
-        content: '卡片2内容',
+        title: t('demo.cardList.card2'),
+        content: t('demo.cardList.card2Content'),
       },
     ],
   },
   {
-    title: '三类',
+    title: t('demo.cardList.category3'),
     id: 3,
     children: [
       {
         id: 0,
-        title: '卡片',
-        content: '卡片内容',
+        title: t('demo.cardList.card'),
+        content: t('demo.cardList.cardContent'),
       },
       {
         id: 1,
-        title: '卡片2',
-        content: '卡片2内容',
+        title: t('demo.cardList.card2'),
+        content: t('demo.cardList.card2Content'),
       },
     ],
   },
@@ -54,7 +58,7 @@ const cardData = [
 const radioDate = [
   {
     value: 0,
-    label: '全部',
+    label: t('common.all'),
   },
   ...cardData.map((item) => {
     return { value: item.id, label: item.title }
@@ -96,7 +100,7 @@ const radioDate = [
             <n-thing
               content-indented
               :title="card.title"
-              description="09/30/2022"
+              :description="t('demo.cardList.date')"
               :content="card.content"
             >
               <template #avatar>
@@ -110,12 +114,12 @@ const radioDate = [
               <template #action>
                 <n-space justify="space-between">
                   <span />
-                  <n-button>开通</n-button>
+                  <n-button>{{ t('demo.cardList.activate') }}</n-button>
                 </n-space>
               </template>
               <template #header-extra>
                 <n-tag type="info">
-                  生效中
+                  {{ t('demo.cardList.active') }}
                 </n-tag>
               </template>
             </n-thing>

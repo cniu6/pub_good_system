@@ -1,81 +1,82 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { group } from 'radash'
 import NoticeList from '../common/NoticeList.vue'
+
+const { t } = useI18n()
 
 const MassageData = ref<Entity.Message[]>([
   {
     id: 0,
     type: 0,
-    title: 'Admin 已经完成40%了！',
+    title: t('notices.adminProgress40'),
     icon: 'icon-park-outline:tips-one',
-    tagTitle: '未开始',
+    tagTitle: t('notices.notStarted'),
     tagType: 'info',
-    description: '项目稳定推进中，很快就能看到正式版了',
+    description: t('notices.projectProgressDesc'),
     date: '2022-2-2 12:22',
   },
   {
     id: 1,
     type: 0,
-    title: 'Admin 已经添加通知功能！',
+    title: t('notices.notificationFeatureAdded'),
     icon: 'icon-park-outline:comment-one',
-    tagTitle: '未开始',
+    tagTitle: t('notices.notStarted'),
     tagType: 'success',
     date: '2022-2-2 12:22',
   },
   {
     id: 2,
     type: 0,
-    title: 'Admin 已经添加路由功能！',
+    title: t('notices.routeFeatureAdded'),
     icon: 'icon-park-outline:message-emoji',
-    tagTitle: '未开始',
+    tagTitle: t('notices.notStarted'),
     tagType: 'warning',
-    description: '项目稳定推进中...',
+    description: t('notices.projectProgressShort'),
     date: '2022-2-5 18:32',
   },
   {
     id: 3,
     type: 0,
-    title:
-          'Admin 已经添加菜单导航功能！Admin 已经添加菜单导航功能！Admin 已经添加菜单导航功能！Admin 已经添加菜单导航功能！',
+    title: t('notices.menuFeatureAdded'),
     icon: 'icon-park-outline:tips-one',
-    tagTitle: '未开始',
+    tagTitle: t('notices.notStarted'),
     tagType: 'error',
-    description:
-          '项目稳定推进中...项目稳定推进中...项目稳定推进中...项目稳定推进中...项目稳定推进中...项目稳定推进中...项目稳定推进中...',
+    description: t('notices.projectProgressLong'),
     date: '2022-2-5 18:32',
   },
   {
     id: 4,
     type: 0,
-    title: 'Admin开始启动了！',
+    title: t('notices.adminStarted'),
     icon: 'icon-park-outline:tips-one',
-    tagTitle: '未开始',
-    description: '项目稳定推进中...',
+    tagTitle: t('notices.notStarted'),
+    description: t('notices.projectProgressShort'),
     date: '2022-2-5 18:32',
   },
   {
     id: 5,
     type: 1,
-    title: '相见恨晚??',
+    title: t('notices.regretMeeting'),
     icon: 'icon-park-outline:comment',
-    description: '项目稳定推进中，很快就能看到正式版了',
+    description: t('notices.projectProgressDesc'),
     date: '2022-2-2 12:22',
   },
   {
     id: 6,
     type: 1,
-    title: '动态路由已完成！',
+    title: t('notices.dynamicRouteDone'),
     icon: 'icon-park-outline:comment',
-    description: '项目稳定推进中，很快就能看到正式版了',
+    description: t('notices.projectProgressDesc'),
     date: '2022-2-25 12:22',
   },
   {
     id: 7,
     type: 2,
-    title: '接下来需要完善一些',
+    title: t('notices.needImprovement'),
     icon: 'icon-park-outline:beach-umbrella',
-    tagTitle: '未开始',
-    description: '项目稳定推进中，很快就能看到正式版了',
+    tagTitle: t('notices.notStarted'),
+    description: t('notices.projectProgressDesc'),
     date: '2022-2-2 12:22',
   },
 ])
@@ -84,7 +85,7 @@ function handleRead(id: number) {
   const data = MassageData.value.find(i => i.id === id)
   if (data)
     data.isRead = true
-  window.$message.success(`id: ${id}`)
+  window.$message.success(t('notices.readSuccess', { id }))
 }
 const massageCount = computed(() => {
   return MassageData.value.filter(i => !i.isRead).length

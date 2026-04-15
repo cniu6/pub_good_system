@@ -1,5 +1,4 @@
 const STORAGE_PREFIX = import.meta.env.VITE_STORAGE_PREFIX
-const AUTH_TRANSFER_WINDOW_NAME_PREFIX = '__FST_AUTH_TRANSFER__:'
 
 type AuthStorageKey = 'userInfo' | 'accessToken' | 'refreshToken' | 'accessTokenExpiresAt' | 'role'
 type AuthStorageScope = 'local' | 'session'
@@ -96,6 +95,11 @@ const authLocal = createLocalStorage<AuthStorageValueMap>()
 const authSession = createSessionStorage<Pick<Storage.Session, AuthStorageKey>>()
 const authIsolationSession = createSessionStorage<Pick<Storage.Session, 'authIsolation'>>()
 
+function reportAuthStorageError(message: string, error: unknown) {
+  if (import.meta.env.DEV)
+    console.error(message, error)
+}
+
 function getActiveAuthScope(): AuthStorageScope {
   return authIsolationSession.get('authIsolation') ? 'session' : 'local'
 }
@@ -128,27 +132,6 @@ function setAuthSnapshotInScope(snapshot: AuthStorageSnapshot, scope: AuthStorag
     setAuthKeyInScope(key, value, scope)
   })
 }
-
-function consumeTransferredAuthSession() {
-  const rawWindowName = window.name
-  if (!rawWindowName || !rawWindowName.startsWith(AUTH_TRANSFER_WINDOW_NAME_PREFIX)) {
-    return
-  }
-
-  try {
-    const snapshot = JSON.parse(rawWindowName.slice(AUTH_TRANSFER_WINDOW_NAME_PREFIX.length)) as AuthStorageSnapshot
-    authIsolationSession.set('authIsolation', true)
-    setAuthSnapshotInScope(snapshot, 'session')
-  }
-  catch (error) {
-    console.error('[AuthStorage] Failed to consume transferred auth session:', error)
-  }
-  finally {
-    window.name = ''
-  }
-}
-
-consumeTransferredAuthSession()
 
 export const authStorage = {
   /**
@@ -189,13 +172,35 @@ export const authStorage = {
     AUTH_STORAGE_KEYS.forEach(key => removeAuthKeyFromScope(key, scope))
   },
   openSessionWindow(snapshot: AuthStorageSnapshot, targetUrl = '/') {
+    const targetLocation = new URL(targetUrl, window.location.origin)
+    if (targetLocation.origin !== window.location.origin) {
+      reportAuthStorageError('[AuthStorage] Rejected cross-origin session handoff target:', targetLocation.toString())
+      return false
+    }
+
     const targetWindow = window.open('about:blank', '_blank')
     if (!targetWindow) {
       return false
     }
 
-    targetWindow.name = `${AUTH_TRANSFER_WINDOW_NAME_PREFIX}${JSON.stringify(snapshot)}`
-    targetWindow.location.replace(targetUrl)
-    return true
+    try {
+      targetWindow.sessionStorage.setItem(`${STORAGE_PREFIX}authIsolation`, JSON.stringify(true))
+      AUTH_STORAGE_KEYS.forEach((key) => {
+        const value = snapshot[key]
+        const storageKey = `${STORAGE_PREFIX}${String(key)}`
+        if (value === undefined || value === null || value === '') {
+          targetWindow.sessionStorage.removeItem(storageKey)
+          return
+        }
+        targetWindow.sessionStorage.setItem(storageKey, JSON.stringify(value))
+      })
+      targetWindow.location.replace(targetLocation.toString())
+      return true
+    }
+    catch (error) {
+      reportAuthStorageError('[AuthStorage] Failed to open isolated session window:', error)
+      targetWindow.close()
+      return false
+    }
   },
 }

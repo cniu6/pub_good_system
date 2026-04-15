@@ -10,8 +10,8 @@ import (
 	"fst/backend/internal/config"
 	"fst/backend/internal/middleware"
 	"fst/backend/utils"
+	"log"
 	"math/big"
-	"math/rand"
 	"regexp"
 	"strings"
 	"time"
@@ -39,7 +39,7 @@ func NewAuthController() *AuthController {
 
 type RegisterRequest struct {
 	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Password string `json:"password" binding:"required,min=8"`
 	Email    string `json:"email" binding:"required,email,max=255"`
 	Code     string `json:"code" binding:"required"`
 }
@@ -64,7 +64,7 @@ type ResetEmailRequest struct {
 type ResetPasswordConfirmRequest struct {
 	Email       string `json:"email" binding:"required,email"`
 	Code        string `json:"code" binding:"required"`
-	NewPassword string `json:"new_password" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=8"`
 }
 
 type RefreshTokenRequest struct {
@@ -190,7 +190,7 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	result, err := ctrl.auth_svc.Login(username, req.Password, authGuard, clientIP)
 	if err != nil {
 		if isNonProductionMode() {
-			fmt.Printf("[LOGIN-DEBUG] %v\n", err)
+			log.Printf("[AUTH] login failed: code=%d, message=%s", err.Code, err.Message)
 		}
 		utils.Fail(c, err.Code, err.Message)
 		return
@@ -203,7 +203,7 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	refreshTokenHash := hashToken(result.RefreshToken)
 	if err := models.CreateUserSession(result.ID, authGuard, accessTokenHash, refreshTokenHash, clientIP, userAgent, device, result.ExpiresAt, result.RefreshExpiresAt); err != nil {
 		if isNonProductionMode() {
-			fmt.Printf("[LOGIN-DEBUG] create session failed: %v\n", err)
+			log.Printf("[AUTH] create login session failed: user_id=%d, err=%v", result.ID, err)
 		}
 		utils.Fail(c, 500, "Failed to create login session")
 		return
@@ -322,16 +322,19 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 	}
 
 	if err := ctrl.auth_svc.Register(user); err != nil {
-		if isNonProductionMode() {
-			utils.Fail(c, 500, fmt.Sprintf("Failed to create user: %v", err))
+		if utils.IsPasswordValidationError(err) {
+			utils.Fail(c, 400, err.Error())
 			return
+		}
+		if isNonProductionMode() {
+			log.Printf("[AUTH] register failed: %v", err)
 		}
 		utils.Fail(c, 500, "Failed to create user")
 		return
 	}
 
 	if err := models.DeleteVerificationCodesByContact(req.Email, "register"); err != nil && isNonProductionMode() {
-		fmt.Printf("[REGISTER-DEBUG] cleanup verification codes failed: %v\n", err)
+		log.Printf("[AUTH] cleanup register verification codes failed: %v", err)
 	}
 
 	utils.Success(c, gin.H{"message": "User registered successfully"})
@@ -387,8 +390,8 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 	// 检查邮件服务是否可用
 	if !ctrl.email_svc.IsEmailConfigured() {
 		if isNonProductionMode() {
-			fmt.Printf("[DEV] SMTP not configured. Code: %s\n", code)
-			utils.Fail(c, 500, "SMTP not configured (Check server logs for code)")
+			log.Printf("[AUTH] SMTP not configured for register email delivery")
+			utils.Fail(c, 500, "SMTP service not configured")
 			return
 		}
 		utils.Fail(c, 500, "SMTP service not configured")
@@ -403,7 +406,7 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 
 	if err := ctrl.email_svc.SendTemplateEmail(req.Email, "register_code", lang, vars); err != nil {
 		if isNonProductionMode() {
-			fmt.Printf("[DEV] Email send failed. Code: %s, Error: %v\n", code, err)
+			log.Printf("[AUTH] failed to send register verification email: %v", err)
 		}
 		utils.Fail(c, 500, "Failed to send email")
 		return
@@ -476,8 +479,7 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 	// 检查邮件服务
 	if !ctrl.email_svc.IsEmailConfigured() {
 		if isNonProductionMode() {
-			fmt.Printf("[DEV] Reset Link: %s\n", resetLink)
-			fmt.Printf("[DEV] Reset Code: %s\n", code)
+			log.Printf("[AUTH] SMTP not configured for reset password email delivery")
 			utils.Success(c, gin.H{"message": "If the email exists, a reset code has been sent"})
 			return
 		}
@@ -492,6 +494,9 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 	}
 
 	if err := ctrl.email_svc.SendTemplateEmail(user.Email, "reset_password", lang, vars); err != nil {
+		if isNonProductionMode() {
+			log.Printf("[AUTH] failed to send reset password email: %v", err)
+		}
 		utils.Success(c, gin.H{"message": "If the email exists, a reset code has been sent"})
 		return
 	}
@@ -535,7 +540,14 @@ func (ctrl *AuthController) ResetPasswordConfirm(c *gin.Context) {
 
 	// 更新密码
 	if err := ctrl.auth_svc.UpdatePassword(user.ID, req.NewPassword); err != nil {
-		utils.Fail(c, 500, "Failed to update password")
+		if utils.IsPasswordValidationError(err) {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
+		if isNonProductionMode() {
+			log.Printf("[AUTH] reset password failed for user_id=%d: %v", user.ID, err)
+		}
+		utils.Fail(c, 500, "Failed to reset password")
 		return
 	}
 
@@ -605,9 +617,7 @@ func (ctrl *AuthController) RegisterRoutes(group *gin.RouterGroup) {
 func generateSecureCode() string {
 	n, err := crypto_rand.Int(crypto_rand.Reader, big.NewInt(1000000))
 	if err != nil {
-		// fallback to math/rand
-		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-		return fmt.Sprintf("%06d", rnd.Intn(1000000))
+		return fmt.Sprintf("%06d", time.Now().UnixNano()%1000000)
 	}
 	return fmt.Sprintf("%06d", n.Int64())
 }

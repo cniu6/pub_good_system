@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NCard,
@@ -23,6 +24,7 @@ import type { DataTableColumns } from 'naive-ui'
 import { adminSMSLogApi, type SMSLog, type SMSLogListParams } from '@/service/api/admin/sms-log'
 
 const message = useMessage()
+const { t } = useI18n()
 
 const loading = ref(false)
 const logList = ref<SMSLog[]>([])
@@ -59,33 +61,33 @@ const cleanBefore = ref('')
 const cleaning = ref(false)
 
 const providerOptions = [
-  { label: '全部', value: '' },
-  { label: '阿里云', value: 'aliyun' },
-  { label: '腾讯云', value: 'tencent' },
-  { label: '自定义HTTP', value: 'custom' },
-  { label: '控制台', value: 'console' },
+  { label: t('adminSMSLogs.all'), value: '' },
+  { label: t('adminSMSLogs.aliyun'), value: 'aliyun' },
+  { label: t('adminSMSLogs.tencent'), value: 'tencent' },
+  { label: t('adminSMSLogs.custom'), value: 'custom' },
+  { label: t('adminSMSLogs.console'), value: 'console' },
 ]
 
 const statusOptions = [
-  { label: '全部', value: -1 },
-  { label: '成功', value: 1 },
-  { label: '失败', value: 0 },
+  { label: t('adminSMSLogs.all'), value: -1 },
+  { label: t('adminSMSLogs.success'), value: 1 },
+  { label: t('adminSMSLogs.failed'), value: 0 },
 ]
 
 const langOptions = [
-  { label: '全部', value: '' },
-  { label: '中文', value: 'zh-CN' },
-  { label: 'English', value: 'en-US' },
+  { label: t('adminSMSLogs.all'), value: '' },
+  { label: t('adminSMSLogs.chinese'), value: 'zh-CN' },
+  { label: t('adminSMSLogs.english'), value: 'en-US' },
 ]
 
 const providerMap: Record<string, { label: string; type: 'info' | 'success' | 'warning' | 'default' }> = {
-  aliyun: { label: '阿里云', type: 'info' },
-  tencent: { label: '腾讯云', type: 'success' },
-  custom: { label: '自定义', type: 'warning' },
-  console: { label: '控制台', type: 'default' },
+  aliyun: { label: t('adminSMSLogs.aliyun'), type: 'info' },
+  tencent: { label: t('adminSMSLogs.tencent'), type: 'success' },
+  custom: { label: t('adminSMSLogs.custom'), type: 'warning' },
+  console: { label: t('adminSMSLogs.console'), type: 'default' },
 }
 
-const detailStatusText = computed(() => detailData.value?.status === 1 ? '成功' : '失败')
+const detailStatusText = computed(() => detailData.value?.status === 1 ? t('adminSMSLogs.success') : t('adminSMSLogs.failed'))
 const detailStatusType = computed(() => detailData.value?.status === 1 ? 'success' : 'error')
 const formattedResponse = computed(() => {
   const raw = detailData.value?.response?.trim()
@@ -100,23 +102,23 @@ const formattedResponse = computed(() => {
 
 async function handleCopyResponse() {
   if (!formattedResponse.value) {
-    message.warning('暂无可复制的响应内容')
+    message.warning(t('adminSMSLogs.noResponseToCopy'))
     return
   }
   try {
     await navigator.clipboard.writeText(formattedResponse.value)
-    message.success('响应内容已复制')
+    message.success(t('adminSMSLogs.responseCopied'))
   }
   catch {
-    message.error('复制失败')
+    message.error(t('adminSMSLogs.copyFailed'))
   }
 }
 
 const columns: DataTableColumns<SMSLog> = [
   { title: 'ID', key: 'id', width: 70 },
-  { title: '手机号', key: 'phone', width: 130 },
+  { title: t('adminSMSLogs.phone'), key: 'phone', width: 130 },
   {
-    title: '服务商',
+    title: t('adminSMSLogs.provider'),
     key: 'provider',
     width: 100,
     render(row) {
@@ -124,26 +126,26 @@ const columns: DataTableColumns<SMSLog> = [
       return h(NTag, { type: p?.type || 'default', size: 'small' }, () => p?.label || row.provider)
     },
   },
-  { title: '模板', key: 'template_name', width: 120, ellipsis: { tooltip: true } },
+  { title: t('adminSMSLogs.template'), key: 'template_name', width: 120, ellipsis: { tooltip: true } },
   {
-    title: '语言',
+    title: t('adminSMSLogs.lang'),
     key: 'lang',
     width: 80,
     render(row) {
-      return row.lang === 'zh-CN' ? '中文' : row.lang === 'en-US' ? 'EN' : row.lang
+      return row.lang === 'zh-CN' ? t('adminSMSLogs.chinese') : row.lang === 'en-US' ? 'EN' : row.lang
     },
   },
-  { title: '内容', key: 'content', ellipsis: { tooltip: true } },
+  { title: t('adminSMSLogs.content'), key: 'content', ellipsis: { tooltip: true } },
   {
-    title: '状态',
+    title: t('adminSMSLogs.status'),
     key: 'status',
     width: 80,
     render(row) {
-      return h(NTag, { type: row.status === 1 ? 'success' : 'error', size: 'small' }, () => row.status === 1 ? '成功' : '失败')
+      return h(NTag, { type: row.status === 1 ? 'success' : 'error', size: 'small' }, () => row.status === 1 ? t('adminSMSLogs.success') : t('adminSMSLogs.failed'))
     },
   },
   {
-    title: '时间',
+    title: t('adminSMSLogs.time'),
     key: 'created_at',
     width: 160,
     render(row) {
@@ -152,11 +154,11 @@ const columns: DataTableColumns<SMSLog> = [
     },
   },
   {
-    title: '操作',
+    title: t('adminSMSLogs.actions'),
     key: 'actions',
     width: 80,
     render(row) {
-      return h(NButton, { size: 'small', type: 'primary', text: true, onClick: () => handleDetail(row) }, () => '详情')
+      return h(NButton, { size: 'small', type: 'primary', text: true, onClick: () => handleDetail(row) }, () => t('adminSMSLogs.detail'))
     },
   },
 ]
@@ -187,7 +189,7 @@ async function fetchList() {
     pagination.itemCount = total.value
   }
   catch {
-    message.error('查询短信日志失败')
+    message.error(t('adminSMSLogs.fetchListFailed'))
   }
   finally {
     loading.value = false
@@ -207,7 +209,7 @@ async function fetchTemplateNames() {
     const res = await adminSMSLogApi.templateNames()
     if (res.data) {
       templateNameOptions.value = [
-        { label: '全部', value: '' },
+        { label: t('adminSMSLogs.all'), value: '' },
         ...res.data.map(n => ({ label: n, value: n })),
       ]
     }
@@ -223,12 +225,12 @@ async function handleDetail(row: SMSLog) {
     const res = await adminSMSLogApi.detail(row.id)
     detailData.value = res.data || null
     if (!detailData.value) {
-      message.warning('未获取到短信日志详情')
+      message.warning(t('adminSMSLogs.noDetailData'))
     }
   }
   catch {
     showDetail.value = false
-    message.error('加载短信日志详情失败')
+    message.error(t('adminSMSLogs.loadDetailFailed'))
   }
   finally {
     detailLoading.value = false
@@ -259,14 +261,14 @@ function handlePageChange(page: number) {
 
 async function handleClean() {
   if (!cleanBefore.value) {
-    message.warning('请选择清理日期')
+    message.warning(t('adminSMSLogs.selectCleanDate'))
     return
   }
   cleaning.value = true
   try {
     const res = await adminSMSLogApi.clean(cleanBefore.value)
     if (res.data) {
-      message.success(`已清理 ${res.data.affected} 条记录`)
+      message.success(t('adminSMSLogs.cleanSuccess', { count: res.data.affected }))
       showClean.value = false
       cleanBefore.value = ''
       fetchList()
@@ -274,7 +276,7 @@ async function handleClean() {
     }
   }
   catch {
-    message.error('清理失败')
+    message.error(t('adminSMSLogs.cleanFailed'))
   }
   finally {
     cleaning.value = false
@@ -303,12 +305,12 @@ onMounted(() => {
     <NGrid :x-gap="12" :y-gap="12" cols="3" style="margin-bottom: 16px;">
       <NGi>
         <NCard size="small">
-          <NStatistic label="总发送" :value="statsData.total" />
+          <NStatistic :label="t('adminSMSLogs.totalSent')" :value="statsData.total" />
         </NCard>
       </NGi>
       <NGi>
         <NCard size="small">
-          <NStatistic label="成功">
+          <NStatistic :label="t('adminSMSLogs.success')">
             <template #default>
               <NText type="success">{{ statsData.success }}</NText>
             </template>
@@ -317,7 +319,7 @@ onMounted(() => {
       </NGi>
       <NGi>
         <NCard size="small">
-          <NStatistic label="失败">
+          <NStatistic :label="t('adminSMSLogs.failed')">
             <template #default>
               <NText type="error">{{ statsData.fail }}</NText>
             </template>
@@ -327,24 +329,24 @@ onMounted(() => {
     </NGrid>
 
     <!-- 列表 -->
-    <NCard title="短信日志">
+    <NCard :title="t('adminSMSLogs.title')">
       <template #header-extra>
         <NSpace>
-          <NButton size="small" type="primary" :loading="loading" @click="fetchList">刷新</NButton>
-          <NButton size="small" type="warning" @click="showClean = true">清理日志</NButton>
+          <NButton size="small" type="primary" :loading="loading" @click="fetchList">{{ t('adminSMSLogs.refresh') }}</NButton>
+          <NButton size="small" type="warning" @click="showClean = true">{{ t('adminSMSLogs.cleanLogs') }}</NButton>
         </NSpace>
       </template>
 
       <!-- 筛选 -->
       <NSpace align="center" style="margin-bottom: 12px;" :wrap="true">
-        <NInput v-model:value="query.phone" placeholder="手机号" clearable size="small" style="width: 140px;" @keyup.enter="handleSearch" />
-        <NSelect v-model:value="query.provider" :options="providerOptions" placeholder="服务商" clearable size="small" style="width: 120px;" />
-        <NSelect v-model:value="query.template_name" :options="templateNameOptions" placeholder="模板" clearable size="small" style="width: 140px;" />
-        <NSelect v-model:value="query.lang" :options="langOptions" placeholder="语言" clearable size="small" style="width: 100px;" />
-        <NSelect v-model:value="query.status" :options="statusOptions" placeholder="状态" size="small" style="width: 90px;" />
+        <NInput v-model:value="query.phone" :placeholder="t('adminSMSLogs.phone')" clearable size="small" style="width: 140px;" @keyup.enter="handleSearch" />
+        <NSelect v-model:value="query.provider" :options="providerOptions" :placeholder="t('adminSMSLogs.provider')" clearable size="small" style="width: 120px;" />
+        <NSelect v-model:value="query.template_name" :options="templateNameOptions" :placeholder="t('adminSMSLogs.template')" clearable size="small" style="width: 140px;" />
+        <NSelect v-model:value="query.lang" :options="langOptions" :placeholder="t('adminSMSLogs.lang')" clearable size="small" style="width: 100px;" />
+        <NSelect v-model:value="query.status" :options="statusOptions" :placeholder="t('adminSMSLogs.status')" size="small" style="width: 90px;" />
         <NDatePicker v-model:value="dateRange" type="datetimerange" clearable size="small" style="width: 340px;" />
-        <NButton size="small" type="primary" @click="handleSearch">搜索</NButton>
-        <NButton size="small" @click="handleReset">重置</NButton>
+        <NButton size="small" type="primary" @click="handleSearch">{{ t('adminSMSLogs.search') }}</NButton>
+        <NButton size="small" @click="handleReset">{{ t('adminSMSLogs.reset') }}</NButton>
       </NSpace>
 
       <NDataTable
@@ -359,18 +361,18 @@ onMounted(() => {
     </NCard>
 
     <!-- 详情弹窗 -->
-    <NModal v-model:show="showDetail" preset="card" title="短信日志详情" style="width: 760px;" :mask-closable="true">
-      <NText v-if="detailLoading" depth="3">加载中...</NText>
+    <NModal v-model:show="showDetail" preset="card" :title="t('adminSMSLogs.detailTitle')" style="width: 760px;" :mask-closable="true">
+      <NText v-if="detailLoading" depth="3">{{ t('adminSMSLogs.loading') }}</NText>
       <NSpace v-else-if="detailData" vertical :size="16">
         <NGrid cols="2" :x-gap="12" :y-gap="12">
           <NGi>
             <NCard size="small" embedded>
-              <NStatistic label="日志ID" :value="detailData.id" />
+              <NStatistic :label="t('adminSMSLogs.logId')" :value="detailData.id" />
             </NCard>
           </NGi>
           <NGi>
             <NCard size="small" embedded>
-              <NStatistic label="发送状态">
+              <NStatistic :label="t('adminSMSLogs.sendStatus')">
                 <template #default>
                   <NTag :type="detailStatusType" size="small">{{ detailStatusText }}</NTag>
                 </template>
@@ -379,56 +381,56 @@ onMounted(() => {
           </NGi>
         </NGrid>
 
-        <NCard size="small" embedded title="基础信息">
+        <NCard size="small" embedded :title="t('adminSMSLogs.basicInfo')">
           <NDescriptions bordered :column="2" label-placement="left">
-            <NDescriptionsItem label="手机号">{{ detailData.phone }}</NDescriptionsItem>
-            <NDescriptionsItem label="服务商">
+            <NDescriptionsItem :label="t('adminSMSLogs.phone')">{{ detailData.phone }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminSMSLogs.provider')">
               <NTag :type="providerMap[detailData.provider]?.type || 'default'" size="small">
                 {{ providerMap[detailData.provider]?.label || detailData.provider }}
               </NTag>
             </NDescriptionsItem>
-            <NDescriptionsItem label="模板ID">{{ detailData.template_code || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="模板名称">{{ detailData.template_name || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="语言">{{ detailData.lang || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="请求ID">{{ detailData.request_id || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="发送时间" :span="2">
+            <NDescriptionsItem :label="t('adminSMSLogs.templateId')">{{ detailData.template_code || '-' }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminSMSLogs.templateName')">{{ detailData.template_name || '-' }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminSMSLogs.lang')">{{ detailData.lang || '-' }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminSMSLogs.requestId')">{{ detailData.request_id || '-' }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminSMSLogs.sendTime')" :span="2">
               {{ detailData.created_at ? new Date(detailData.created_at).toLocaleString() : '-' }}
             </NDescriptionsItem>
           </NDescriptions>
         </NCard>
 
-        <NCard size="small" embedded title="发送内容">
+        <NCard size="small" embedded :title="t('adminSMSLogs.content')">
           <div class="detail-content-block">
             {{ detailData.content || '-' }}
           </div>
         </NCard>
 
-        <NCard v-if="detailData.error_msg" size="small" embedded title="错误信息">
+        <NCard v-if="detailData.error_msg" size="small" embedded :title="t('adminSMSLogs.errorMsg')">
           <NText type="error">{{ detailData.error_msg }}</NText>
         </NCard>
 
-        <NCard v-if="formattedResponse" size="small" embedded title="完整响应">
+        <NCard v-if="formattedResponse" size="small" embedded :title="t('adminSMSLogs.fullResponse')">
           <template #header-extra>
-            <NButton size="small" quaternary @click="handleCopyResponse">复制内容</NButton>
+            <NButton size="small" quaternary @click="handleCopyResponse">{{ t('adminSMSLogs.copyContent') }}</NButton>
           </template>
           <div class="detail-response-block">{{ formattedResponse }}</div>
         </NCard>
       </NSpace>
-      <NText v-else depth="3">暂无详情数据</NText>
+      <NText v-else depth="3">{{ t('adminSMSLogs.noDetailData') }}</NText>
     </NModal>
 
     <!-- 清理弹窗 -->
-    <NModal v-model:show="showClean" preset="card" title="清理短信日志" style="width: 400px;" :mask-closable="false">
+    <NModal v-model:show="showClean" preset="card" :title="t('adminSMSLogs.cleanModalTitle')" style="width: 400px;" :mask-closable="false">
       <NSpace vertical>
-        <NText>删除指定日期之前的所有短信日志，此操作不可撤销。</NText>
+        <NText>{{ t('adminSMSLogs.cleanWarning') }}</NText>
         <NDivider style="margin: 8px 0;" />
-        <NText depth="3">清理此日期之前的记录：</NText>
+        <NText depth="3">{{ t('adminSMSLogs.cleanBeforeLabel') }}</NText>
         <NDatePicker type="datetime" clearable style="width: 100%;" @update:value="handleCleanDateChange" />
       </NSpace>
       <template #footer>
         <NSpace justify="end">
-          <NButton @click="showClean = false">取消</NButton>
-          <NButton type="error" :loading="cleaning" :disabled="!cleanBefore" @click="handleClean">确认清理</NButton>
+          <NButton @click="showClean = false">{{ t('common.cancel') }}</NButton>
+          <NButton type="error" :loading="cleaning" :disabled="!cleanBefore" @click="handleClean">{{ t('adminSMSLogs.confirmClean') }}</NButton>
         </NSpace>
       </template>
     </NModal>

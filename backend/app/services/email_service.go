@@ -5,6 +5,7 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/internal/config"
 	"fst/backend/utils"
+	"log"
 	"strings"
 	"time"
 )
@@ -41,7 +42,9 @@ func (s *EmailService) SendEmail(to, subject, body string) error {
 		error_msg = err.Error()
 	}
 
-	go models.CreateEmailLog(to, subject, body, "", status, error_msg)
+	if logErr := models.CreateEmailLog(to, subject, body, "", status, error_msg); logErr != nil {
+		log.Printf("[Email] 记录邮件日志失败: %v", logErr)
+	}
 
 	return err
 }
@@ -73,7 +76,9 @@ func (s *EmailService) SendTemplateEmail(to, template_name, lang string, vars ma
 		error_msg = send_err.Error()
 	}
 
-	go models.CreateEmailLog(to, subject, content, template_name, status, error_msg)
+	if logErr := models.CreateEmailLog(to, subject, content, template_name, status, error_msg); logErr != nil {
+		log.Printf("[Email] 记录模板邮件日志失败: %v", logErr)
+	}
 
 	return send_err
 }

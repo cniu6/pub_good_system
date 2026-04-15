@@ -8,6 +8,7 @@ import (
 	crypto_rand "crypto/rand"
 	"fst/backend/internal/db"
 	"fst/backend/utils"
+	"log"
 	"math/big"
 	"math/rand"
 	"regexp"
@@ -154,6 +155,10 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 
 	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
+		if utils.IsPasswordValidationError(err) {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
 		utils.Fail(c, 500, "Failed to hash password")
 		return
 	}
@@ -166,17 +171,13 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 	}
 
 	if err := models.CreateUser(user); err != nil {
-		fmt.Printf("[ERROR] Failed to create user: %v\n", err)
-		if isNonProductionMode() {
-			utils.Fail(c, 500, fmt.Sprintf("Failed to create user: %v", err))
-			return
-		}
+		log.Printf("[AUTH] failed to create user: %v", err)
 		utils.Fail(c, 500, "Failed to create user")
 		return
 	}
 
 	if err := models.DeleteVerificationCodesByContact(req.Email, "register"); err != nil && isNonProductionMode() {
-		fmt.Printf("[REGISTER-DEBUG] cleanup verification codes failed: %v\n", err)
+		log.Printf("[AUTH] cleanup register verification codes failed: %v", err)
 	}
 
 	utils.Success(c, gin.H{"message": "User registered successfully"})
@@ -205,7 +206,7 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 	expiresAt := time.Now().Add(time.Duration(config.GlobalConfig.RegisterCodeExpireMinutes) * time.Minute)
 	err := models.CreateVerificationCode(req.Email, code, "register", expiresAt)
 	if err != nil {
-		fmt.Printf("[ERROR] Failed to save verification code: %v\n", err)
+		log.Printf("[AUTH] failed to save register verification code: %v", err)
 		utils.Fail(c, 500, "Failed to generate verification code")
 		return
 	}
@@ -220,7 +221,7 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 		"expire_minutes": expireMinStr,
 	})
 	if err != nil {
-		fmt.Printf("[ERROR] Failed to render register email template: %v\n", err)
+		log.Printf("[AUTH] failed to render register email template: %v", err)
 		utils.Fail(c, 500, "Failed to render email template")
 		return
 	}
@@ -248,24 +249,23 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 		if err != nil {
 			// 如果发送失败，但在开发环境，我们可以返回验证码方便调试
 			if isNonProductionMode() {
-				fmt.Printf("[DEV] Email send failed. Code: %s\n", code)
-				fmt.Printf("[DEV] Error: %v\n", err)
-				utils.Fail(c, 500, "Email send failed (Check server logs for code)")
+				log.Printf("[AUTH] failed to send register email: %v", err)
+				utils.Fail(c, 500, "Failed to send email")
 				return
 			}
-			fmt.Printf("[ERROR] Failed to send email: %v\n", err)
-			utils.Fail(c, 500, "Failed to send email: "+err.Error())
+			log.Printf("[AUTH] failed to send register email: %v", err)
+			utils.Fail(c, 500, "Failed to send email")
 			return
 		}
 	} else {
 		// 没有配置SMTP，在开发模式下直接返回验证码
 		if isNonProductionMode() {
-			fmt.Printf("[DEV] SMTP not configured. Code: %s\n", code)
-			utils.Fail(c, 500, "SMTP not configured (Check server logs for code)")
+			log.Printf("[AUTH] SMTP not configured for register email delivery")
+			utils.Fail(c, 500, "Failed to send email")
 			return
 		}
 		// 生产模式下，如果没有配置SMTP，返回错误
-		utils.Fail(c, 500, "SMTP service not configured")
+		utils.Fail(c, 500, "Failed to send email")
 		return
 	}
 
@@ -316,7 +316,7 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	user, err := models.GetUserByUsernameOrEmail(username)
 	if err != nil {
 		if isNonProductionMode() {
-			fmt.Printf("[LOGIN-DEBUG] user not found for '%s': %v\n", username, err)
+			log.Printf("[AUTH] legacy login failed: invalid account")
 		}
 		utils.Fail(c, 401, "Invalid account or password")
 		return
@@ -349,13 +349,7 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 		// 密码错误，增加失败计数（如果达到阈值会自动锁定）
 		_ = models.IncrementLoginFailure(user.ID, config.GlobalConfig.LoginMaxFailureCount, config.GlobalConfig.LoginLockDurationMinutes)
 		if isNonProductionMode() {
-			pwdPrefix := ""
-			pwdLen := len(user.Password)
-			if pwdLen >= 4 {
-				pwdPrefix = user.Password[0:4]
-			}
-			fmt.Printf("[LOGIN-DEBUG] password mismatch for user '%s' (id=%d), hash_prefix=%s, hash_len=%d\n",
-				user.Username, user.ID, pwdPrefix, pwdLen)
+			log.Printf("[AUTH] legacy login failed: password mismatch for user_id=%d", user.ID)
 		}
 		utils.Fail(c, 401, "Invalid account or password")
 		return
@@ -377,7 +371,7 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	// 更新登录信息（最后登录时间、IP，重置失败次数）
 	if err := models.UpdateLoginInfo(user.ID, clientIP); err != nil {
 		if isNonProductionMode() {
-			fmt.Printf("[LOGIN-DEBUG] Failed to update login info: %v\n", err)
+			log.Printf("[AUTH] failed to update legacy login info: %v", err)
 		}
 		// 不阻止登录，只记录错误
 	}
@@ -482,7 +476,7 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 	expiresAt := time.Now().Add(15 * time.Minute)
 	err = models.CreateVerificationCode(user.Email, code, "reset_password", expiresAt)
 	if err != nil {
-		fmt.Printf("[ERROR] Failed to save reset code: %v\n", err)
+		log.Printf("[AUTH] failed to save reset password code: %v", err)
 		// 即使失败也返回成功，避免邮箱枚举攻击
 		utils.Success(c, gin.H{"message": "If the email exists, a reset code has been sent"})
 		return
@@ -498,7 +492,8 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 		if isNonProductionMode() {
 			frontendURL = "http://localhost:5173"
 		} else {
-			utils.Fail(c, 500, "系统未配置前端地址，请在管理后台「基本设置」中配置")
+			log.Printf("[AUTH] frontend_url missing while preparing legacy reset password email")
+			utils.Success(c, gin.H{"message": "If the email exists, a reset code has been sent"})
 			return
 		}
 	}
@@ -539,19 +534,18 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 		}(user.Email, subject, body, status, errMsg)
 
 		if err != nil {
-			fmt.Printf("[ERROR] Failed to send email: %v\n", err)
-			utils.Fail(c, 500, "Failed to send email")
+			log.Printf("[AUTH] failed to send reset password email: %v", err)
+			utils.Success(c, gin.H{"message": "If the email exists, a reset code has been sent"})
 			return
 		}
 	} else {
 		if isNonProductionMode() {
-			fmt.Printf("[DEV] Reset Password Link: %s\n", resetLink)
-			fmt.Printf("[DEV] Reset Code: %s\n", code)
-			utils.Fail(c, 500, "SMTP not configured (Check server logs for code)")
+			log.Printf("[AUTH] SMTP not configured for reset password email delivery")
+			utils.Success(c, gin.H{"message": "If the email exists, a reset code has been sent"})
 			return
 		}
 		// 生产模式下，如果没有配置SMTP，返回错误
-		utils.Fail(c, 500, "SMTP service not configured")
+		utils.Success(c, gin.H{"message": "If the email exists, a reset code has been sent"})
 		return
 	}
 
@@ -588,6 +582,10 @@ func (ctrl *AuthController) ResetPasswordConfirm(c *gin.Context) {
 
 	hashedPassword, err := utils.HashPassword(req.NewPassword)
 	if err != nil {
+		if utils.IsPasswordValidationError(err) {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
 		utils.Fail(c, 500, "Failed to hash password")
 		return
 	}

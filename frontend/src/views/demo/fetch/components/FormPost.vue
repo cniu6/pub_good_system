@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import {
   fetchFormPost,
 } from '@/service'
+
+const { t } = useI18n()
 
 const emit = defineEmits<{
   update: [data: any] // 具名元组语法
@@ -18,9 +21,9 @@ async function post() {
 </script>
 
 <template>
-  <n-card title="formPost" size="small">
+  <n-card :title="t('demo.fetch.formPost')" size="small">
     <n-button @click="post">
-      click
+      {{ t('demo.fetch.click') }}
     </n-button>
   </n-card>
 </template>

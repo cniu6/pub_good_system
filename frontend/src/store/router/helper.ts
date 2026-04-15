@@ -1,18 +1,40 @@
 import type { MenuOption } from 'naive-ui'
-import type { RouteRecordRaw } from 'vue-router'
+import type { RouteRecordNameGeneric, RouteRecordRaw } from 'vue-router'
 import Layout from '@/layouts/index.vue'
 import { $t, arrayToTree, renderIcon } from '@/utils'
 import { clone, min, omit, pick } from 'radash'
+import { h } from 'vue'
 import { RouterLink } from 'vue-router'
+
+export interface AdminMenuRoute extends Omit<RouteRecordRaw, 'children' | 'meta' | 'name'> {
+  name?: RouteRecordNameGeneric
+  meta?: Partial<AppRoute.RouteMeta>
+  children?: AdminMenuRoute[]
+}
+
+function resolveRouteDisplayText(name?: RouteRecordNameGeneric, title?: string) {
+  const routeName = typeof name === 'string' ? name : ''
+  const fallback = title || routeName
+  return routeName ? $t(`route.${routeName}`, fallback) : fallback
+}
+
+function joinRoutePath(basePath: string, path: string) {
+  if (path.startsWith('/'))
+    return path
+
+  const normalizedBase = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
+  return `${normalizedBase}/${path}`.replace(/\/+/g, '/')
+}
 
 const metaFields: AppRoute.MetaKeys[]
   = ['title', 'icon', 'requiresAuth', 'roles', 'keepAlive', 'hide', 'order', 'href', 'activeMenu', 'withoutTab', 'pinTab', 'menuType']
 
 function standardizedRoutes(route: AppRoute.RowRoute[]) {
-  return clone(route).map((i) => {
-    const route = omit(i, metaFields)
+  const clonedRoutes = clone(route) as AppRoute.RowRoute[]
+  return clonedRoutes.map((item: AppRoute.RowRoute) => {
+    const route = omit(item, metaFields)
 
-    Reflect.set(route, 'meta', pick(i, metaFields))
+    Reflect.set(route, 'meta', pick(item, metaFields))
     return route
   }) as AppRoute.Route[]
 }
@@ -72,7 +94,7 @@ function setRedirect(routes: AppRoute.Route[]) {
         const orderChilds = visibleChilds.filter(child => child.meta.order)
 
         if (orderChilds.length > 0)
-          target = min(orderChilds, i => i.meta.order!) as AppRoute.Route
+          target = min(orderChilds, (child: AppRoute.Route) => child.meta.order!) as AppRoute.Route
 
         if (target)
           route.redirect = target.path
@@ -136,7 +158,7 @@ function transformAuthRoutesToMenus(userRoutes: AppRoute.Route[]) {
  * 从 RouteRecordRaw 格式的管理端路由生成侧边栏菜单
  * 支持嵌套层级：menuType === 'dir' 的路由作为分组目录，其子路由作为子菜单项
  */
-export function createAdminMenus(adminRoutes: Array<any>): MenuOption[] {
+export function createAdminMenus(adminRoutes: AdminMenuRoute[]): MenuOption[] {
   const menus: MenuOption[] = []
 
   for (const route of adminRoutes) {
@@ -147,36 +169,36 @@ export function createAdminMenus(adminRoutes: Array<any>): MenuOption[] {
       if (child.meta?.hide)
         continue
 
-      const basePath = route.path.endsWith('/') ? route.path : `${route.path}/`
+      const basePath = route.path
 
       // 目录类型：生成带 children 的分组菜单
       if (child.meta?.menuType === 'dir' && child.children?.length) {
-        const dirPath = `${basePath}${child.path}`
+        const dirPath = joinRoutePath(basePath, child.path)
         const subMenus: MenuOption[] = child.children
-          .filter((sub: any) => !sub.meta?.hide)
-          .map((sub: any) => {
-            const fullPath = `${dirPath}/${sub.path}`
+          .filter(sub => !sub.meta?.hide)
+          .map((sub) => {
+            const fullPath = joinRoutePath(dirPath, sub.path)
             return {
-              label: () => h(RouterLink, { to: { path: fullPath } }, { default: () => (sub.meta?.title as string) || sub.name }),
+              label: () => h(RouterLink, { to: { path: fullPath } }, { default: () => resolveRouteDisplayText(sub.name, sub.meta?.title) }),
               key: fullPath,
-              icon: sub.meta?.icon ? renderIcon(sub.meta.icon as string) : undefined,
+              icon: typeof sub.meta?.icon === 'string' ? renderIcon(sub.meta.icon) : undefined,
             }
           })
 
         menus.push({
-          label: (child.meta?.title as string) || String(child.name),
+          label: () => resolveRouteDisplayText(child.name, child.meta?.title),
           key: dirPath,
-          icon: child.meta?.icon ? renderIcon(child.meta.icon as string) : undefined,
+          icon: typeof child.meta?.icon === 'string' ? renderIcon(child.meta.icon) : undefined,
           children: subMenus,
         })
       }
       else {
         // 普通页面：生成可点击的菜单项
-        const fullPath = `${basePath}${child.path}`
+        const fullPath = joinRoutePath(basePath, child.path)
         menus.push({
-          label: () => h(RouterLink, { to: { path: fullPath } }, { default: () => (child.meta?.title as string) || child.name }),
+          label: () => h(RouterLink, { to: { path: fullPath } }, { default: () => resolveRouteDisplayText(child.name, child.meta?.title) }),
           key: fullPath,
-          icon: child.meta?.icon ? renderIcon(child.meta.icon as string) : undefined,
+          icon: typeof child.meta?.icon === 'string' ? renderIcon(child.meta.icon) : undefined,
         })
       }
     }

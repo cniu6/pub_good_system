@@ -5,6 +5,7 @@ import (
 	"fst/backend/app/services"
 	"fst/backend/internal/middleware"
 	"fst/backend/utils"
+	"log"
 	"strconv"
 	"time"
 
@@ -58,7 +59,12 @@ func (ctrl *WithdrawController) Create(c *gin.Context) {
 		Remark:      req.Remark,
 	})
 	if err != nil {
-		utils.Fail(c, 400, err.Error())
+		if services.IsClientError(err) {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
+		log.Printf("[WITHDRAW] create request failed for user_id=%d: %v", userID.(uint64), err)
+		utils.Fail(c, 500, "提现申请提交失败，请稍后重试")
 		return
 	}
 	utils.SuccessMsg(c, "提现申请已提交，等待管理员审核", item)

@@ -162,7 +162,7 @@ onBeforeUnmount(() => {
         <div class="hero-badge">{{ t('home.hero.badge') }}</div>
         <h1 class="hero-title">
           {{ t('home.hero.title') }}<br />
-          <span class="gradient-text">Run F.st</span>
+          <span class="gradient-text">{{ t('home.hero.runFst') }}</span>
         </h1>
         <p class="hero-subtitle">{{ t('home.hero.subtitle') }}</p>
         <div class="hero-actions">
@@ -314,21 +314,21 @@ onBeforeUnmount(() => {
             <div class="logo-box">F</div>
             <span class="logo-text">F.st</span>
           </div>
-          <p class="opacity-60 text-sm">Empowering the next generation of full-stack enterprise applications.</p>
+          <p class="opacity-60 text-sm">{{ t('home.hero.tagline') }}</p>
         </div>
         <div class="footer-links">
-          <h4>Platform</h4>
-          <a @click="scroll_to('features')">Features</a>
-          <a @click="scroll_to('tech')">Ecosystem</a>
+          <h4>{{ t('home.footer.platform') }}</h4>
+          <a @click="scroll_to('features')">{{ t('home.footer.features') }}</a>
+          <a @click="scroll_to('tech')">{{ t('home.footer.ecosystem') }}</a>
         </div>
         <div class="footer-links">
-          <h4>Resources</h4>
-          <a href="#">Documentation</a>
-          <a href="#">GitHub</a>
+          <h4>{{ t('home.footer.resources') }}</h4>
+          <a href="#">{{ t('home.footer.documentation') }}</a>
+          <a href="#">{{ t('home.footer.github') }}</a>
         </div>
       </div>
       <div class="container footer-bottom">
-        <p>© 2024 F.st. Built with Passion for Developers.</p>
+        <p>{{ t('home.footer.copyright') }}</p>
       </div>
     </footer>
   </div>

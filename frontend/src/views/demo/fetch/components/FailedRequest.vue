@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import {
   FailedRequest,
 } from '@/service'
 
+const { t } = useI18n()
+
 const emit = defineEmits<{
-  update: [data: any] // 具名元组语法
+  update: [data: any]
 }>()
 
 async function failedRequest() {
@@ -14,9 +17,9 @@ async function failedRequest() {
 </script>
 
 <template>
-  <n-card title="失败-服务器错误" size="small">
+  <n-card :title="t('demo.fetch.serverError')" size="small">
     <n-button type="error" @click="failedRequest">
-      click
+      {{ t('demo.fetch.click') }}
     </n-button>
   </n-card>
 </template>

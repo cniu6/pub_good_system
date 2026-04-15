@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import {
   getBlob,
 } from '@/service'
+
+const { t } = useI18n()
 
 const emit = defineEmits<{
   update: [data: any]
@@ -28,9 +31,9 @@ function downloadLink(data: Blob, name: string) {
 </script>
 
 <template>
-  <n-card title="下载文件" size="small">
+  <n-card :title="t('demo.fetch.download')" size="small">
     <n-button @click="getBlobFile">
-      click
+      {{ t('demo.fetch.click') }}
     </n-button>
   </n-card>
 </template>

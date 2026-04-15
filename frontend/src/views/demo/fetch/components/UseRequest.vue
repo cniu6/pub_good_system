@@ -1,16 +1,18 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import {
   fetchGet,
 } from '@/service'
 
 import { useRequest } from 'alova/client'
 
+const { t } = useI18n()
+
 const emit = defineEmits<{
-  update: [data: any] // 具名元组语法
+  update: [data: any]
 }>()
 
 const { data: fetchGetData, send: sendFetchGet } = useRequest(fetchGet({ a: 112211 }), {
-  // 当immediate为false时，默认不发出
   immediate: false,
 })
 
@@ -21,9 +23,9 @@ async function handleRequestHook() {
 </script>
 
 <template>
-  <n-card title="useRequest风格" size="small">
+  <n-card :title="t('demo.fetch.useRequestStyle')" size="small">
     <n-button @click="handleRequestHook">
-      click
+      {{ t('demo.fetch.click') }}
     </n-button>
   </n-card>
 </template>

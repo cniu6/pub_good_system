@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { h, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NButton, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { adminMoneyLogApi, adminUserApi } from '@/service/api/admin/user'
@@ -8,6 +9,7 @@ import I18nMemoEditor from '@/components/common/I18nMemoEditor.vue'
 
 const message = useMessage()
 const dialog = useDialog()
+const { t } = useI18n()
 const loading = ref(false)
 const submitting = ref(false)
 
@@ -35,9 +37,9 @@ const addForm = reactive({
 
 const columns: DataTableColumns<Entity.UserMoneyLog> = [
   { title: 'ID', key: 'id', width: 70 },
-  { title: '用户ID', key: 'user_id', width: 80 },
+  { title: t('adminRealname.userId'), key: 'user_id', width: 80 },
   {
-    title: '金额变动',
+    title: t('adminMoneyLogs.amountChange'),
     key: 'money',
     width: 120,
     render: (row) => {
@@ -49,31 +51,31 @@ const columns: DataTableColumns<Entity.UserMoneyLog> = [
     },
   },
   {
-    title: '变动前',
+    title: t('moneyScore.beforeChange'),
     key: 'before',
     width: 110,
     render: row => `¥${(Number(row.before) || 0).toFixed(2)}`,
   },
   {
-    title: '变动后',
+    title: t('moneyScore.afterChange'),
     key: 'after',
     width: 110,
     render: row => `¥${(Number(row.after) || 0).toFixed(2)}`,
   },
   {
-    title: '备注',
+    title: t('moneyScore.remark'),
     key: 'memo',
     ellipsis: { tooltip: true },
     render: row => parseMemo(row.memo),
   },
   {
-    title: '时间',
+    title: t('moneyScore.time'),
     key: 'create_time',
     width: 170,
     render: row => row.create_time ? new Date(row.create_time * 1000).toLocaleString() : '-',
   },
   {
-    title: '操作',
+    title: t('moneyScore.actions'),
     key: 'actions',
     width: 80,
     render: row => h(NButton, {
@@ -81,7 +83,7 @@ const columns: DataTableColumns<Entity.UserMoneyLog> = [
       type: 'error',
       text: true,
       onClick: () => handleDelete(row.id),
-    }, { default: () => '删除' }),
+    }, { default: () => t('adminUsers.delete') }),
   },
 ]
 
@@ -99,11 +101,11 @@ async function fetchData() {
       pagination.itemCount = res.data?.total || 0
     }
     else {
-      message.error(res.message || '获取余额日志失败')
+      message.error(res.message || t('moneyScore.fetchMoneyFailed'))
     }
   }
   catch {
-    message.error('获取余额日志失败')
+    message.error(t('moneyScore.fetchMoneyFailed'))
   }
   finally {
     loading.value = false
@@ -142,11 +144,11 @@ function handleAdd() {
 
 async function handleSubmit() {
   if (!addForm.user_id) {
-    message.error('请输入用户ID')
+    message.error(t('adminMoneyLogs.enterUserId'))
     return
   }
   if (addForm.money === 0) {
-    message.error('金额不能为0')
+    message.error(t('adminMoneyLogs.amountCannotBeZero'))
     return
   }
   submitting.value = true
@@ -157,16 +159,16 @@ async function handleSubmit() {
       memo: memoStr,
     })
     if (res.isSuccess) {
-      message.success(res.message || '余额变更成功')
+      message.success(res.message || t('adminMoneyLogs.changeSuccess'))
       showModal.value = false
       fetchData()
     }
     else {
-      message.error(res.message || '余额变更失败')
+      message.error(res.message || t('adminMoneyLogs.changeFailed'))
     }
   }
   catch (e: unknown) {
-    message.error((e instanceof Error ? e.message : null) || '操作失败')
+    message.error((e instanceof Error ? e.message : null) || t('adminUsers.operationFailed'))
   }
   finally {
     submitting.value = false
@@ -175,23 +177,23 @@ async function handleSubmit() {
 
 function handleDelete(id: number) {
   dialog.warning({
-    title: '确认删除',
-    content: '删除日志记录不会影响用户余额，确定删除？',
-    positiveText: '确定',
-    negativeText: '取消',
+    title: t('adminMoneyLogs.confirmDeleteTitle'),
+    content: t('adminMoneyLogs.confirmDeleteContent'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       try {
         const res = await adminMoneyLogApi.delete(id)
         if (res.isSuccess) {
-          message.success(res.message || '删除成功')
+          message.success(res.message || t('adminUsers.deleteSuccess'))
           fetchData()
         }
         else {
-          message.error(res.message || '删除失败')
+          message.error(res.message || t('adminUsers.deleteFailed'))
         }
       }
       catch {
-        message.error('删除失败')
+        message.error(t('adminUsers.deleteFailed'))
       }
     },
   })
@@ -201,19 +203,19 @@ onMounted(() => fetchData())
 </script>
 
 <template>
-  <n-card title="余额日志管理">
+  <n-card :title="t('adminMoneyLogs.title')">
     <n-space vertical>
       <n-space>
-        <n-input v-model:value="searchForm.keyword" placeholder="搜索备注/金额" clearable style="width: 200px" @keyup.enter="handleSearch" />
-        <n-input-number v-model:value="searchForm.user_id" placeholder="用户ID" style="width: 140px" :show-button="false" />
+        <n-input v-model:value="searchForm.keyword" :placeholder="t('adminMoneyLogs.searchPlaceholder')" clearable style="width: 200px" @keyup.enter="handleSearch" />
+        <n-input-number v-model:value="searchForm.user_id" :placeholder="t('adminRealname.userId')" style="width: 140px" :show-button="false" />
         <NButton type="primary" @click="handleSearch">
-          搜索
+          {{ t('moneyScore.search') }}
         </NButton>
         <NButton @click="handleReset">
-          重置
+          {{ t('common.reset') }}
         </NButton>
         <NButton type="success" @click="handleAdd">
-          变更余额
+          {{ t('adminMoneyLogs.changeBalance') }}
         </NButton>
       </n-space>
 
@@ -230,25 +232,25 @@ onMounted(() => fetchData())
       />
     </n-space>
 
-    <n-modal v-model:show="showModal" title="变更用户余额" preset="card" style="width: 500px">
+    <n-modal v-model:show="showModal" :title="t('adminMoneyLogs.changeUserBalance')" preset="card" style="width: 500px">
       <n-form :model="addForm" label-placement="left" label-width="80px">
-        <n-form-item label="用户ID" required>
-          <n-input-number v-model:value="addForm.user_id" placeholder="输入用户ID" :show-button="false" style="width: 100%" />
+        <n-form-item :label="t('adminRealname.userId')" required>
+          <n-input-number v-model:value="addForm.user_id" :placeholder="t('adminMoneyLogs.enterUserIdPlaceholder')" :show-button="false" style="width: 100%" />
         </n-form-item>
-        <n-form-item label="金额" required>
-          <n-input-number v-model:value="addForm.money" placeholder="正数充值，负数扣款" :precision="2" :step="0.01" style="width: 100%" />
+        <n-form-item :label="t('adminUsers.amount')" required>
+          <n-input-number v-model:value="addForm.money" :placeholder="t('adminMoneyLogs.amountPlaceholder')" :precision="2" :step="0.01" style="width: 100%" />
         </n-form-item>
-        <n-form-item label="备注">
+        <n-form-item :label="t('moneyScore.remark')">
           <I18nMemoEditor v-model="addForm.memo" />
         </n-form-item>
       </n-form>
       <template #footer>
         <n-space justify="end">
           <NButton @click="showModal = false">
-            取消
+            {{ t('common.cancel') }}
           </NButton>
           <NButton type="primary" :loading="submitting" @click="handleSubmit">
-            确定
+            {{ t('common.confirm') }}
           </NButton>
         </n-space>
       </template>

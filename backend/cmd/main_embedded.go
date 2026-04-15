@@ -36,6 +36,9 @@ var frontendFS embed.FS
 
 func main() {
 	config.InitConfig()
+	if config.IsProductionMode() {
+		gin.SetMode(gin.ReleaseMode)
+	}
 	db.InitDB()
 
 	// 初始化邮件模板

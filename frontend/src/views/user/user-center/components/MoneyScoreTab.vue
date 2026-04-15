@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { h, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { createWithdrawRequest, fetchMyMoneyLogs, fetchMyScoreLogs, fetchMyWithdrawDetail, fetchMyWithdrawRecords } from '@/service/api/user/user-center'
@@ -8,6 +9,7 @@ import { parseMemo } from '@/utils/memo'
 
 const message = useMessage()
 const settingsStore = useSettingsStore()
+const { t } = useI18n()
 
 const activeTab = ref('money')
 
@@ -25,7 +27,7 @@ const moneyPagination = reactive({
 const moneyColumns: DataTableColumns<Entity.UserMoneyLog> = [
   { title: 'ID', key: 'id', width: 70 },
   {
-    title: '变动金额',
+    title: t('moneyScore.moneyChange'),
     key: 'money',
     width: 120,
     render: (row) => {
@@ -37,25 +39,25 @@ const moneyColumns: DataTableColumns<Entity.UserMoneyLog> = [
     },
   },
   {
-    title: '变动前',
+    title: t('moneyScore.beforeChange'),
     key: 'before',
     width: 110,
     render: row => `¥${(Number(row.before) || 0).toFixed(2)}`,
   },
   {
-    title: '变动后',
+    title: t('moneyScore.afterChange'),
     key: 'after',
     width: 110,
     render: row => `¥${(Number(row.after) || 0).toFixed(2)}`,
   },
   {
-    title: '备注',
+    title: t('moneyScore.remark'),
     key: 'memo',
     ellipsis: { tooltip: true },
     render: row => parseMemo(row.memo),
   },
   {
-    title: '时间',
+    title: t('moneyScore.time'),
     key: 'create_time',
     width: 170,
     render: row => row.create_time ? new Date(row.create_time * 1000).toLocaleString() : '-',
@@ -75,11 +77,11 @@ async function fetchMoneyLogs() {
       moneyPagination.itemCount = res.data?.total || 0
     }
     else {
-      message.error(res.message || '获取余额记录失败')
+      message.error(res.message || t('moneyScore.fetchMoneyFailed'))
     }
   }
   catch {
-    message.error('获取余额记录失败')
+    message.error(t('moneyScore.fetchMoneyFailed'))
   }
   finally {
     moneyLoading.value = false
@@ -100,7 +102,7 @@ const scorePagination = reactive({
 const scoreColumns: DataTableColumns<Entity.UserScoreLog> = [
   { title: 'ID', key: 'id', width: 70 },
   {
-    title: '积分变动',
+    title: t('moneyScore.scoreChange'),
     key: 'score',
     width: 120,
     render: (row) => {
@@ -112,25 +114,25 @@ const scoreColumns: DataTableColumns<Entity.UserScoreLog> = [
     },
   },
   {
-    title: '变动前',
+    title: t('moneyScore.beforeChange'),
     key: 'before',
     width: 100,
     render: row => `${Number(row.before) || 0}`,
   },
   {
-    title: '变动后',
+    title: t('moneyScore.afterChange'),
     key: 'after',
     width: 100,
     render: row => `${Number(row.after) || 0}`,
   },
   {
-    title: '备注',
+    title: t('moneyScore.remark'),
     key: 'memo',
     ellipsis: { tooltip: true },
     render: row => parseMemo(row.memo),
   },
   {
-    title: '时间',
+    title: t('moneyScore.time'),
     key: 'create_time',
     width: 170,
     render: row => row.create_time ? new Date(row.create_time * 1000).toLocaleString() : '-',
@@ -150,11 +152,11 @@ async function fetchScoreLogs() {
       scorePagination.itemCount = res.data?.total || 0
     }
     else {
-      message.error(res.message || '获取积分记录失败')
+      message.error(res.message || t('moneyScore.fetchScoreFailed'))
     }
   }
   catch {
-    message.error('获取积分记录失败')
+    message.error(t('moneyScore.fetchScoreFailed'))
   }
   finally {
     scoreLoading.value = false
@@ -186,15 +188,15 @@ const withdrawForm = reactive({
 })
 
 const accountTypeLabelMap: Record<string, string> = {
-  bank: '银行卡',
-  alipay: '支付宝',
-  wechat: '微信',
+  bank: t('moneyScore.accountTypeBank'),
+  alipay: t('moneyScore.accountTypeAlipay'),
+  wechat: t('moneyScore.accountTypeWechat'),
   usdt: 'USDT',
 }
 
 const withdrawEnabled = computed(() => settingsStore.withdrawEnabled)
 const withdrawMinAmount = computed(() => Number(settingsStore.withdrawMinAmount) || 10)
-const withdrawNotifyText = computed(() => settingsStore.withdrawNotifyText || '提现申请提交后需管理员审核，通过后人工打款。')
+const withdrawNotifyText = computed(() => settingsStore.withdrawNotifyText || t('moneyScore.withdrawNotifyText'))
 const accountTypeOptions = computed(() =>
   settingsStore.withdrawAccountTypes.map((item) => {
     const value = String(item)
@@ -216,20 +218,20 @@ watch(accountTypeOptions, (options) => {
 
 function getWithdrawStatusMeta(status: number) {
   const map: Record<number, { type: 'warning' | 'success' | 'error' | 'info', label: string }> = {
-    0: { type: 'warning', label: '待审核' },
-    1: { type: 'info', label: '待打款' },
-    2: { type: 'error', label: '已拒绝' },
-    3: { type: 'success', label: '已打款' },
+    0: { type: 'warning', label: t('moneyScore.statusPending') },
+    1: { type: 'info', label: t('moneyScore.statusApproved') },
+    2: { type: 'error', label: t('moneyScore.statusRejected') },
+    3: { type: 'success', label: t('moneyScore.statusPaid') },
   }
-  return map[status] || { type: 'info', label: '未知' }
+  return map[status] || { type: 'info', label: t('moneyScore.unknown') }
 }
 
 function getWithdrawStatusHint(status: number) {
   const map: Record<number, string> = {
-    0: '已提交，等待管理员审核',
-    1: '审核已通过，等待管理员人工打款',
-    2: '申请已被拒绝，请查看审核备注',
-    3: '管理员已完成打款，请留意到账情况',
+    0: t('moneyScore.hintPending'),
+    1: t('moneyScore.hintApproved'),
+    2: t('moneyScore.hintRejected'),
+    3: t('moneyScore.hintPaid'),
   }
   return map[status] || '-'
 }
@@ -245,13 +247,13 @@ function maskAccountNo(accountNo?: string) {
 const withdrawColumns: DataTableColumns<Entity.WithdrawRecord> = [
   { title: 'ID', key: 'id', width: 70 },
   {
-    title: '提现金额',
+    title: t('moneyScore.withdrawAmount'),
     key: 'amount',
     width: 120,
     render: row => `¥${(Number(row.amount) || 0).toFixed(2)}`,
   },
   {
-    title: '状态',
+    title: t('moneyScore.status'),
     key: 'status',
     width: 100,
     render: (row) => {
@@ -260,51 +262,51 @@ const withdrawColumns: DataTableColumns<Entity.WithdrawRecord> = [
     },
   },
   {
-    title: '收款方式',
+    title: t('moneyScore.accountType'),
     key: 'account_type',
     width: 100,
     render: row => accountTypeLabelMap[row.account_type] || row.account_type,
   },
-  { title: '账户名称', key: 'account_name', width: 120, ellipsis: { tooltip: true } },
+  { title: t('moneyScore.accountName'), key: 'account_name', width: 120, ellipsis: { tooltip: true } },
   {
-    title: '收款账号',
+    title: t('moneyScore.accountNo'),
     key: 'account_no',
     width: 180,
     ellipsis: { tooltip: true },
     render: row => maskAccountNo(row.account_no),
   },
   {
-    title: '审核时间',
+    title: t('moneyScore.reviewedAt'),
     key: 'reviewed_at',
     width: 170,
     render: row => row.reviewed_at ? new Date(row.reviewed_at * 1000).toLocaleString() : '-',
   },
   {
-    title: '打款时间',
+    title: t('moneyScore.paidAt'),
     key: 'paid_at',
     width: 170,
     render: row => row.paid_at ? new Date(row.paid_at * 1000).toLocaleString() : '-',
   },
   {
-    title: '审核备注',
+    title: t('moneyScore.reviewRemark'),
     key: 'review_remark',
     ellipsis: { tooltip: true },
     render: row => row.review_remark || '-',
   },
   {
-    title: '打款备注',
+    title: t('moneyScore.transferRemark'),
     key: 'transfer_remark',
     ellipsis: { tooltip: true },
     render: row => row.transfer_remark || '-',
   },
   {
-    title: '申请时间',
+    title: t('moneyScore.createdAt'),
     key: 'create_time',
     width: 170,
     render: row => row.create_time ? new Date(row.create_time * 1000).toLocaleString() : '-',
   },
   {
-    title: '操作',
+    title: t('moneyScore.actions'),
     key: 'actions',
     width: 90,
     render: row => h(
@@ -313,7 +315,7 @@ const withdrawColumns: DataTableColumns<Entity.WithdrawRecord> = [
         style: 'color: var(--n-primary-color); cursor: pointer;',
         onClick: () => openWithdrawDetail(row.id),
       },
-      '详情',
+      t('moneyScore.detail'),
     ),
   },
 ]
@@ -330,11 +332,11 @@ async function fetchWithdrawLogs() {
       withdrawPagination.itemCount = res.data?.total || 0
     }
     else {
-      message.error(res.message || '获取提现记录失败')
+      message.error(res.message || t('moneyScore.fetchWithdrawFailed'))
     }
   }
   catch {
-    message.error('获取提现记录失败')
+    message.error(t('moneyScore.fetchWithdrawFailed'))
   }
   finally {
     withdrawLoading.value = false
@@ -351,11 +353,11 @@ async function openWithdrawDetail(id: number) {
       currentWithdraw.value = res.data
     }
     else {
-      message.error(res.message || '获取提现详情失败')
+      message.error(res.message || t('moneyScore.fetchWithdrawDetailFailed'))
     }
   }
   catch {
-    message.error('获取提现详情失败')
+    message.error(t('moneyScore.fetchWithdrawDetailFailed'))
   }
   finally {
     withdrawDetailLoading.value = false
@@ -364,40 +366,40 @@ async function openWithdrawDetail(id: number) {
 
 async function handleWithdrawSubmit() {
   if (!withdrawEnabled.value) {
-    message.error('提现功能暂未开启')
+    message.error(t('moneyScore.withdrawDisabled'))
     showWithdrawModal.value = false
     return
   }
   if (!withdrawForm.amount || withdrawForm.amount <= 0) {
-    message.error('请输入正确的提现金额')
+    message.error(t('moneyScore.enterValidWithdrawAmount'))
     return
   }
   if (withdrawForm.amount < withdrawMinAmount.value) {
-    message.error(`提现金额不能低于 ¥${withdrawMinAmount.value.toFixed(2)}`)
+    message.error(t('moneyScore.withdrawMinAmountError', { amount: withdrawMinAmount.value.toFixed(2) }))
     return
   }
   if (!withdrawForm.account_type || !accountTypeOptions.value.some(option => option.value === withdrawForm.account_type)) {
-    message.error('请选择有效的收款方式')
+    message.error(t('moneyScore.selectValidAccountType'))
     return
   }
   if (!withdrawForm.account_name.trim() || !withdrawForm.account_no.trim() || !withdrawForm.real_name.trim()) {
-    message.error('请完整填写收款信息')
+    message.error(t('moneyScore.completeAccountInfo'))
     return
   }
   if (withdrawForm.account_name.trim().length > 100) {
-    message.error('账户名称不能超过100个字符')
+    message.error(t('moneyScore.accountNameTooLong'))
     return
   }
   if (withdrawForm.account_no.trim().length > 128) {
-    message.error('收款账号不能超过128个字符')
+    message.error(t('moneyScore.accountNoTooLong'))
     return
   }
   if (withdrawForm.real_name.trim().length > 100) {
-    message.error('收款人不能超过100个字符')
+    message.error(t('moneyScore.realNameTooLong'))
     return
   }
   if (withdrawForm.remark.trim().length > 255) {
-    message.error('备注不能超过255个字符')
+    message.error(t('moneyScore.remarkTooLong'))
     return
   }
   withdrawSubmitting.value = true
@@ -411,7 +413,7 @@ async function handleWithdrawSubmit() {
       remark: withdrawForm.remark.trim(),
     })
     if (res.isSuccess) {
-      message.success(res.message || '提现申请已提交')
+      message.success(res.message || t('moneyScore.withdrawSubmitted'))
       showWithdrawModal.value = false
       withdrawForm.amount = 0
       withdrawForm.account_type = accountTypeOptions.value[0]?.value || 'bank'
@@ -424,11 +426,11 @@ async function handleWithdrawSubmit() {
       fetchMoneyLogs()
     }
     else {
-      message.error(res.message || '提现申请失败')
+      message.error(res.message || t('moneyScore.withdrawSubmitFailed'))
     }
   }
   catch {
-    message.error('提现申请失败')
+    message.error(t('moneyScore.withdrawSubmitFailed'))
   }
   finally {
     withdrawSubmitting.value = false
@@ -449,15 +451,15 @@ onMounted(() => fetchMoneyLogs())
 
 <template>
   <n-tabs v-model:value="activeTab" type="line" animated>
-    <n-tab-pane name="money" tab="余额记录">
+    <n-tab-pane name="money" :tab="t('moneyScore.moneyRecords')">
       <n-space vertical>
         <n-space>
-          <n-input v-model:value="moneyKeyword" placeholder="搜索备注" clearable style="width: 200px" @keyup.enter="fetchMoneyLogs" />
+          <n-input v-model:value="moneyKeyword" :placeholder="t('moneyScore.searchRemark')" clearable style="width: 200px" @keyup.enter="fetchMoneyLogs" />
           <n-button type="primary" @click="fetchMoneyLogs">
-            搜索
+            {{ t('moneyScore.search') }}
           </n-button>
           <n-button @click="moneyKeyword = ''; moneyPagination.page = 1; fetchMoneyLogs()">
-            重置
+            {{ t('common.reset') }}
           </n-button>
         </n-space>
         <n-data-table
@@ -473,15 +475,15 @@ onMounted(() => fetchMoneyLogs())
       </n-space>
     </n-tab-pane>
 
-    <n-tab-pane name="score" tab="积分记录">
+    <n-tab-pane name="score" :tab="t('moneyScore.scoreRecords')">
       <n-space vertical>
         <n-space>
-          <n-input v-model:value="scoreKeyword" placeholder="搜索备注" clearable style="width: 200px" @keyup.enter="fetchScoreLogs" />
+          <n-input v-model:value="scoreKeyword" :placeholder="t('moneyScore.searchRemark')" clearable style="width: 200px" @keyup.enter="fetchScoreLogs" />
           <n-button type="primary" @click="fetchScoreLogs">
-            搜索
+            {{ t('moneyScore.search') }}
           </n-button>
           <n-button @click="scoreKeyword = ''; scorePagination.page = 1; fetchScoreLogs()">
-            重置
+            {{ t('common.reset') }}
           </n-button>
         </n-space>
         <n-data-table
@@ -497,14 +499,14 @@ onMounted(() => fetchMoneyLogs())
       </n-space>
     </n-tab-pane>
 
-    <n-tab-pane name="withdraw" tab="提现记录">
+    <n-tab-pane name="withdraw" :tab="t('moneyScore.withdrawRecords')">
       <n-space vertical>
         <n-space justify="space-between" style="width: 100%">
           <n-alert type="info" :show-icon="false" style="flex: 1">
             {{ withdrawNotifyText }}
           </n-alert>
           <n-button type="primary" :disabled="!withdrawEnabled || accountTypeOptions.length === 0" @click="showWithdrawModal = true">
-            申请提现
+            {{ t('moneyScore.applyWithdraw') }}
           </n-button>
         </n-space>
         <n-data-table
@@ -521,90 +523,90 @@ onMounted(() => fetchMoneyLogs())
     </n-tab-pane>
   </n-tabs>
 
-  <n-modal v-model:show="showWithdrawModal" preset="card" title="申请提现" style="width: 520px" :mask-closable="!withdrawSubmitting">
+  <n-modal v-model:show="showWithdrawModal" preset="card" :title="t('moneyScore.applyWithdraw')" style="width: 520px" :mask-closable="!withdrawSubmitting">
     <n-form :model="withdrawForm" label-placement="left" label-width="90">
-      <n-form-item label="最低提现金额">
+      <n-form-item :label="t('moneyScore.minWithdrawAmount')">
         <n-text depth="3">
           ¥{{ withdrawMinAmount.toFixed(2) }}
         </n-text>
       </n-form-item>
-      <n-form-item label="提现金额" required>
-        <n-input-number v-model:value="withdrawForm.amount" :min="0" :precision="2" :step="10" style="width: 100%" placeholder="请输入提现金额" />
+      <n-form-item :label="t('moneyScore.withdrawAmount')" required>
+        <n-input-number v-model:value="withdrawForm.amount" :min="0" :precision="2" :step="10" style="width: 100%" :placeholder="t('moneyScore.enterWithdrawAmount')" />
       </n-form-item>
-      <n-form-item label="收款方式" required>
+      <n-form-item :label="t('moneyScore.accountType')" required>
         <n-select v-model:value="withdrawForm.account_type" :options="accountTypeOptions" :disabled="accountTypeOptions.length === 0" />
       </n-form-item>
-      <n-form-item label="账户名称" required>
-        <n-input v-model:value="withdrawForm.account_name" maxlength="100" show-count placeholder="如：招商银行 / 支付宝" />
+      <n-form-item :label="t('moneyScore.accountName')" required>
+        <n-input v-model:value="withdrawForm.account_name" maxlength="100" show-count :placeholder="t('moneyScore.accountNamePlaceholder')" />
       </n-form-item>
-      <n-form-item label="收款账号" required>
-        <n-input v-model:value="withdrawForm.account_no" maxlength="128" show-count placeholder="请输入银行卡号/支付宝账号等" />
+      <n-form-item :label="t('moneyScore.accountNo')" required>
+        <n-input v-model:value="withdrawForm.account_no" maxlength="128" show-count :placeholder="t('moneyScore.accountNoPlaceholder')" />
       </n-form-item>
-      <n-form-item label="收款人" required>
-        <n-input v-model:value="withdrawForm.real_name" maxlength="100" show-count placeholder="请输入收款人姓名" />
+      <n-form-item :label="t('moneyScore.realName')" required>
+        <n-input v-model:value="withdrawForm.real_name" maxlength="100" show-count :placeholder="t('moneyScore.realNamePlaceholder')" />
       </n-form-item>
-      <n-form-item label="备注">
-        <n-input v-model:value="withdrawForm.remark" type="textarea" :rows="3" maxlength="255" show-count placeholder="可填写补充说明" />
+      <n-form-item :label="t('moneyScore.remark')">
+        <n-input v-model:value="withdrawForm.remark" type="textarea" :rows="3" maxlength="255" show-count :placeholder="t('moneyScore.remarkPlaceholder')" />
       </n-form-item>
     </n-form>
     <template #footer>
       <n-space justify="end">
         <n-button :disabled="withdrawSubmitting" @click="showWithdrawModal = false">
-          取消
+          {{ t('common.cancel') }}
         </n-button>
         <n-button type="primary" :loading="withdrawSubmitting" @click="handleWithdrawSubmit">
-          提交申请
+          {{ t('moneyScore.submitApplication') }}
         </n-button>
       </n-space>
     </template>
   </n-modal>
 
-  <n-modal v-model:show="showWithdrawDetailModal" preset="card" title="提现详情" style="width: 620px">
+  <n-modal v-model:show="showWithdrawDetailModal" preset="card" :title="t('moneyScore.withdrawDetail')" style="width: 620px">
     <template v-if="currentWithdraw">
       <n-spin :show="withdrawDetailLoading">
         <n-descriptions :column="1" bordered label-placement="left">
-          <n-descriptions-item label="申请ID">
+          <n-descriptions-item :label="t('moneyScore.applicationId')">
             {{ currentWithdraw.id }}
           </n-descriptions-item>
-          <n-descriptions-item label="提现金额">
+          <n-descriptions-item :label="t('moneyScore.withdrawAmount')">
             ¥{{ Number(currentWithdraw.amount).toFixed(2) }}
           </n-descriptions-item>
-          <n-descriptions-item label="状态">
+          <n-descriptions-item :label="t('moneyScore.status')">
             <NTag :type="getWithdrawStatusMeta(currentWithdraw.status).type" :bordered="false">
               {{ getWithdrawStatusMeta(currentWithdraw.status).label }}
             </NTag>
           </n-descriptions-item>
-          <n-descriptions-item label="状态说明">
+          <n-descriptions-item :label="t('moneyScore.statusHint')">
             {{ getWithdrawStatusHint(currentWithdraw.status) }}
           </n-descriptions-item>
-          <n-descriptions-item label="收款方式">
+          <n-descriptions-item :label="t('moneyScore.accountType')">
             {{ accountTypeLabelMap[currentWithdraw.account_type] || currentWithdraw.account_type }}
           </n-descriptions-item>
-          <n-descriptions-item label="账户名称">
+          <n-descriptions-item :label="t('moneyScore.accountName')">
             {{ currentWithdraw.account_name }}
           </n-descriptions-item>
-          <n-descriptions-item label="收款账号">
+          <n-descriptions-item :label="t('moneyScore.accountNo')">
             {{ currentWithdraw.account_no }}
           </n-descriptions-item>
-          <n-descriptions-item label="收款人">
+          <n-descriptions-item :label="t('moneyScore.realName')">
             {{ currentWithdraw.real_name }}
           </n-descriptions-item>
-          <n-descriptions-item label="用户备注">
+          <n-descriptions-item :label="t('moneyScore.userRemark')">
             {{ currentWithdraw.remark || '-' }}
           </n-descriptions-item>
-          <n-descriptions-item label="审核备注">
+          <n-descriptions-item :label="t('moneyScore.reviewRemark')">
             {{ currentWithdraw.review_remark || '-' }}
           </n-descriptions-item>
-          <n-descriptions-item label="打款备注">
+          <n-descriptions-item :label="t('moneyScore.transferRemark')">
             {{ currentWithdraw.transfer_remark || '-' }}
           </n-descriptions-item>
-          <n-descriptions-item label="申请时间">
+          <n-descriptions-item :label="t('moneyScore.createdAt')">
             {{ currentWithdraw.create_time ? new Date(currentWithdraw.create_time * 1000).toLocaleString() : '-' }}
           </n-descriptions-item>
-          <n-descriptions-item label="审核时间">
+          <n-descriptions-item :label="t('moneyScore.reviewedAt')">
             {{ currentWithdraw.reviewed_at ? new Date(currentWithdraw.reviewed_at * 1000).toLocaleString() : '-' }}
           </n-descriptions-item>
-          <n-descriptions-item label="打款时间">
+          <n-descriptions-item :label="t('moneyScore.paidAt')">
             {{ currentWithdraw.paid_at ? new Date(currentWithdraw.paid_at * 1000).toLocaleString() : '-' }}
           </n-descriptions-item>
         </n-descriptions>

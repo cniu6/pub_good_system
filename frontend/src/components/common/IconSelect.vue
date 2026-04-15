@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
 interface Props {
   disabled?: boolean
 }
@@ -47,7 +51,7 @@ async function fetchIconAllList(nameList: string[]) {
   // 在数组开头添加
   iconList.unshift({
     prefix: 'local',
-    title: 'Local Icons',
+    title: t('iconSelect.localIcons'),
     icons: svgNames,
     total: svgNames.length,
     uncategorized: svgNames,

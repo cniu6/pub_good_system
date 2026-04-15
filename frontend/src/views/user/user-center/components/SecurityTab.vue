@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { deactivateAccount, fetchUserSessions, fetchUserStats, revokeAllSessions, revokeSession } from '@/service'
 import { useAuthStore, useSettingsStore } from '@/store'
 import NovaIcon from '@/components/common/NovaIcon.vue'
@@ -8,6 +9,7 @@ import { geetestManager } from '@/utils/geetest'
 
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
+const { t } = useI18n()
 const allowDeleteAccount = computed(() => settingsStore.allowDeleteAccount)
 
 interface SessionItem {
@@ -66,7 +68,8 @@ async function loadSessions() {
     }
   }
   catch (error) {
-    console.error('获取会话列表失败', error)
+    if (import.meta.env.DEV)
+      console.error('[securityTab] load sessions failed', error)
   }
   finally {
     sessionsLoading.value = false
@@ -81,7 +84,8 @@ async function loadStats() {
     }
   }
   catch (error) {
-    console.error('获取统计失败', error)
+    if (import.meta.env.DEV)
+      console.error('[securityTab] load stats failed', error)
   }
 }
 
@@ -89,37 +93,41 @@ async function handleRevokeSession(sessionId: number | string) {
   try {
     const response = await revokeSession(sessionId)
     if (response.isSuccess) {
-      window.$message.success('已踢出该会话')
+      window.$message.success(t('securityTab.revokedSession'))
       loadSessions()
     }
     else {
-      window.$message.error(response.message || '操作失败')
+      window.$message.error(response.message || t('adminUsers.operationFailed'))
     }
   }
   catch (error) {
-    window.$message.error(`操作失败: ${error}`)
+    if (import.meta.env.DEV)
+      console.error('[securityTab] revoke session failed', error)
+    window.$message.error(t('securityTab.revokeFailed'))
   }
 }
 
 async function handleRevokeAll() {
   window.$dialog.warning({
-    title: '踢出所有其他会话',
-    content: '确定要踢出除当前会话外的所有登录会话吗？',
-    positiveText: '确定',
-    negativeText: '取消',
+    title: t('securityTab.revokeAllTitle'),
+    content: t('securityTab.revokeAllContent'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       try {
         const response = await revokeAllSessions()
         if (response.isSuccess) {
-          window.$message.success('已踢出所有其他会话')
+          window.$message.success(t('securityTab.revokedAllSessions'))
           loadSessions()
         }
         else {
-          window.$message.error(response.message || '操作失败')
+          window.$message.error(response.message || t('adminUsers.operationFailed'))
         }
       }
       catch (error) {
-        window.$message.error(`操作失败: ${error}`)
+        if (import.meta.env.DEV)
+          console.error('[securityTab] revoke all sessions failed', error)
+        window.$message.error(t('securityTab.revokeAllFailed'))
       }
     },
   })
@@ -127,7 +135,7 @@ async function handleRevokeAll() {
 
 function triggerDeactivate() {
   if (!deactivateForm.value.password) {
-    window.$message.error('请输入密码确认')
+    window.$message.error(t('securityTab.enterPasswordConfirm'))
     return
   }
   if (isGeetestEnabled.value) {
@@ -155,18 +163,20 @@ async function doDeactivate() {
       reason: deactivateForm.value.reason,
     })
     if (response.isSuccess) {
-      window.$message.success('账号已注销')
+      window.$message.success(t('securityTab.accountDeactivated'))
       showDeactivateModal.value = false
       setTimeout(() => {
         authStore.logout()
       }, 1500)
     }
     else {
-      window.$message.error(response.message || '注销失败')
+      window.$message.error(response.message || t('securityTab.deactivateFailed'))
     }
   }
   catch (error) {
-    window.$message.error(`注销失败: ${error}`)
+    if (import.meta.env.DEV)
+      console.error('[securityTab] deactivate failed', error)
+    window.$message.error(t('securityTab.deactivateFailed'))
   }
   finally {
     deactivating.value = false
@@ -175,7 +185,7 @@ async function doDeactivate() {
 
 function formatTime(timestamp?: number | null) {
   if (!timestamp)
-    return 'N/A'
+    return t('profile.na')
   return new Date(timestamp * 1000).toLocaleString()
 }
 
@@ -190,32 +200,32 @@ onMounted(() => {
     <n-space vertical size="large">
       <!-- 登录统计 -->
       <div>
-        <n-h4>登录统计</n-h4>
+        <n-h4>{{ t('securityTab.loginStats') }}</n-h4>
         <n-divider />
         <n-grid cols="2 m:4" :x-gap="16" :y-gap="16" responsive="screen">
           <n-grid-item>
-            <n-statistic label="加入天数" :value="stats?.daysJoined || 0">
+            <n-statistic :label="t('securityTab.daysJoined')" :value="stats?.daysJoined || 0">
               <template #suffix>
-                天
+                {{ t('securityTab.dayUnit') }}
               </template>
             </n-statistic>
           </n-grid-item>
           <n-grid-item>
-            <n-statistic label="登录次数" :value="stats?.loginCount || 0">
+            <n-statistic :label="t('securityTab.loginCount')" :value="stats?.loginCount || 0">
               <template #suffix>
-                次
+                {{ t('securityTab.timesUnit') }}
               </template>
             </n-statistic>
           </n-grid-item>
           <n-grid-item>
-            <n-statistic label="账户余额">
+            <n-statistic :label="t('securityTab.accountBalance')">
               <template #default>
                 ¥{{ stats?.money ? Number(stats.money).toFixed(2) : '0.00' }}
               </template>
             </n-statistic>
           </n-grid-item>
           <n-grid-item>
-            <n-statistic label="积分" :value="stats?.score || 0" />
+            <n-statistic :label="t('adminUsers.score')" :value="stats?.score || 0" />
           </n-grid-item>
         </n-grid>
       </div>
@@ -225,16 +235,16 @@ onMounted(() => {
       <!-- 登录设备管理 -->
       <div>
         <div class="section-header">
-          <n-h4>登录设备管理</n-h4>
+          <n-h4>{{ t('securityTab.sessionManagement') }}</n-h4>
           <n-space>
             <n-button size="small" @click="loadSessions">
               <template #icon>
                 <NovaIcon icon="icon-park-outline:refresh" :size="14" />
               </template>
-              刷新
+              {{ t('common.reload') }}
             </n-button>
             <n-button size="small" type="warning" @click="handleRevokeAll">
-              踢出所有其他设备
+              {{ t('securityTab.revokeAllDevices') }}
             </n-button>
           </n-space>
         </div>
@@ -245,21 +255,21 @@ onMounted(() => {
               <div class="session-info">
                 <div class="session-device">
                   <NovaIcon icon="icon-park-outline:computer" :size="16" class="mr-1" />
-                  {{ session.device || '未知设备' }}
+                  {{ session.device || t('securityTab.unknownDevice') }}
                   <n-tag v-if="parseBrowser(session.user_agent)" size="small" :bordered="false" class="ml-2">
                     {{ parseBrowser(session.user_agent) }}
                   </n-tag>
                 </div>
                 <n-text depth="3" class="session-detail">
-                  IP: {{ session.ip || '未知' }} · 登录时间: {{ formatTime(session.login_at) }}
+                  {{ t('securityTab.sessionDetail', { ip: session.ip || t('securityTab.unknown'), time: formatTime(session.login_at) }) }}
                 </n-text>
               </div>
               <n-button size="small" type="error" @click="handleRevokeSession(session.id)">
-                踢出
+                {{ t('securityTab.revoke') }}
               </n-button>
             </div>
           </n-space>
-          <n-empty v-else description="暂无登录会话记录" />
+          <n-empty v-else :description="t('securityTab.noSessionRecords')" />
         </n-spin>
       </div>
 
@@ -267,45 +277,45 @@ onMounted(() => {
 
       <!-- 账号注销 -->
       <div>
-        <n-h4>危险操作</n-h4>
+        <n-h4>{{ t('securityTab.dangerZone') }}</n-h4>
         <n-divider />
         <div class="danger-zone">
           <div class="danger-info">
-            <span class="danger-label">注销账号</span>
-            <span v-if="allowDeleteAccount" class="danger-desc">注销后账号将无法恢复，请谨慎操作</span>
-            <span v-else class="danger-desc">管理员已关闭账号注销功能</span>
+            <span class="danger-label">{{ t('securityTab.deactivateAccount') }}</span>
+            <span v-if="allowDeleteAccount" class="danger-desc">{{ t('securityTab.deactivateDesc') }}</span>
+            <span v-else class="danger-desc">{{ t('securityTab.deactivateDisabledDesc') }}</span>
           </div>
           <n-tooltip :disabled="allowDeleteAccount">
             <template #trigger>
               <n-button type="error" :disabled="!allowDeleteAccount" @click="showDeactivateModal = true">
-                注销账号
+                {{ t('securityTab.deactivateAccount') }}
               </n-button>
             </template>
-            账号注销功能已被管理员关闭
+            {{ t('securityTab.deactivateDisabledTooltip') }}
           </n-tooltip>
         </div>
       </div>
     </n-space>
 
     <!-- 注销确认弹窗 -->
-    <n-modal v-model:show="showDeactivateModal" preset="dialog" title="注销账号" type="error">
+    <n-modal v-model:show="showDeactivateModal" preset="dialog" :title="t('securityTab.deactivateAccount')" type="error">
       <n-alert type="error" class="mb-4">
-        注销账号后，您的所有数据将被永久删除且无法恢复。请确认此操作。
+        {{ t('securityTab.deactivateWarning') }}
       </n-alert>
       <n-form :model="deactivateForm" label-placement="left" label-width="100px">
-        <n-form-item label="确认密码" required>
+        <n-form-item :label="t('securityTab.confirmPassword')" required>
           <n-input
             v-model:value="deactivateForm.password"
             type="password"
-            placeholder="请输入当前密码以确认"
+            :placeholder="t('securityTab.confirmPasswordPlaceholder')"
             show-password-on="click"
           />
         </n-form-item>
-        <n-form-item label="注销原因">
+        <n-form-item :label="t('securityTab.deactivateReason')">
           <n-input
             v-model:value="deactivateForm.reason"
             type="textarea"
-            placeholder="可选：告诉我们您注销的原因"
+            :placeholder="t('securityTab.deactivateReasonPlaceholder')"
             :rows="3"
           />
         </n-form-item>
@@ -321,10 +331,10 @@ onMounted(() => {
       <template #action>
         <n-space>
           <n-button @click="showDeactivateModal = false">
-            取消
+            {{ t('common.cancel') }}
           </n-button>
           <n-button type="error" :loading="deactivating" @click="triggerDeactivate">
-            确认注销
+            {{ t('securityTab.confirmDeactivate') }}
           </n-button>
         </n-space>
       </template>

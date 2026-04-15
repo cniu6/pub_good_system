@@ -1,19 +1,22 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import lib from '@/../package.json'
+
+const { t } = useI18n()
 </script>
 
 <template>
   <n-space vertical>
-    <n-card title="关于">
-      Nova-admin是一款基于Vue3+vite+TypeScript+NaiveUI的后台管理模板，力求使用简约的代码实现完备功能，降低学习门槛和维护成本，让大家能早点下班做自己的事情
+    <n-card :title="t('demo.about.aboutTitle')">
+      {{ t('demo.about.aboutDesc') }}
     </n-card>
-    <n-card title="信息">
+    <n-card :title="t('demo.about.infoTitle')">
       <n-descriptions
         label-placement="left"
         bordered
         :column="2"
       >
-        <n-descriptions-item label="Github">
+        <n-descriptions-item :label="t('app.github')">
           <n-button
             text
             tag="a"
@@ -21,10 +24,10 @@ import lib from '@/../package.json'
             target="_blank"
             type="primary"
           >
-            Github
+            {{ t('app.github') }}
           </n-button>
         </n-descriptions-item>
-        <n-descriptions-item label="Github">
+        <n-descriptions-item :label="t('app.gitee')">
           <n-button
             text
             tag="a"
@@ -32,10 +35,10 @@ import lib from '@/../package.json'
             target="_blank"
             type="primary"
           >
-            Gitee
+            {{ t('app.gitee') }}
           </n-button>
         </n-descriptions-item>
-        <n-descriptions-item label="预览地址">
+        <n-descriptions-item :label="t('demo.about.previewUrl')">
           <n-button
             text
             tag="a"
@@ -43,17 +46,17 @@ import lib from '@/../package.json'
             target="_blank"
             type="primary"
           >
-            预览地址
+            {{ t('demo.about.previewUrl') }}
           </n-button>
         </n-descriptions-item>
-        <n-descriptions-item label="版本">
+        <n-descriptions-item :label="t('demo.about.version')">
           <n-tag :bordered="false">
             {{ lib.version }}
           </n-tag>
         </n-descriptions-item>
       </n-descriptions>
     </n-card>
-    <n-card title="生产环境依赖">
+    <n-card :title="t('demo.about.prodDeps')">
       <n-descriptions
         label-placement="left"
         bordered
@@ -68,7 +71,7 @@ import lib from '@/../package.json'
         </n-descriptions-item>
       </n-descriptions>
     </n-card>
-    <n-card title="开发环境依赖">
+    <n-card :title="t('demo.about.devDeps')">
       <n-descriptions
         label-placement="left"
         bordered

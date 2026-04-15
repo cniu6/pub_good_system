@@ -57,19 +57,19 @@ const (
 // Submit 提交实名认证
 func (s *RealnameService) Submit(userID uint64, req *RealnameSubmitRequest) error {
 	if GlobalSettingsService != nil && !GlobalSettingsService.GetBoolWithDefault("realname_enabled", true) {
-		return errors.New("实名认证功能暂未开启")
+		return NewClientError("实名认证功能暂未开启")
 	}
 
 	// 参数校验
 	realName := strings.TrimSpace(req.RealName)
 	if len(realName) < 2 || len(realName) > 50 {
-		return errors.New("姓名长度必须在2-50个字符之间")
+		return NewClientError("姓名长度必须在2-50个字符之间")
 	}
 
 	// 姓名只能包含中文、英文字母和点号
 	for _, r := range realName {
 		if !unicode.IsLetter(r) && r != '.' && !unicode.IsSpace(r) {
-			return errors.New("姓名只能包含中文、英文字母和点号")
+			return NewClientError("姓名只能包含中文、英文字母和点号")
 		}
 	}
 
@@ -114,10 +114,10 @@ func (s *RealnameService) Submit(userID uint64, req *RealnameSubmitRequest) erro
 
 	// 在同一事务里锁定并判断最新申请，避免并发下重复提交。
 	if existing != nil && existing.Status == RealnameStatusPending {
-		return errors.New("您有待审核的实名认证申请，请等待审核完成")
+		return NewClientError("您有待审核的实名认证申请，请等待审核完成")
 	}
 	if existing != nil && existing.Status == RealnameStatusApproved {
-		return errors.New("您已通过实名认证，无需再次提交")
+		return NewClientError("您已通过实名认证，无需再次提交")
 	}
 	if existing != nil && existing.Status == RealnameStatusRejected {
 		if err := models.SoftDeleteRealnameVerificationTx(tx, existing.ID); err != nil {
@@ -205,7 +205,7 @@ func (s *RealnameService) validateCertificateType(certType uint8) error {
 	case CertificateTypeIDCard, CertificateTypePassport, CertificateTypeOfficer:
 		return nil
 	default:
-		return errors.New("证件类型无效，支持: 1=身份证, 2=护照, 3=军官证")
+		return NewClientError("证件类型无效，支持: 1=身份证, 2=护照, 3=军官证")
 	}
 }
 
@@ -213,7 +213,7 @@ func (s *RealnameService) validateCertificateType(certType uint8) error {
 func (s *RealnameService) validateCertificateNo(certType uint8, certNo string) error {
 	certNo = strings.TrimSpace(certNo)
 	if certNo == "" {
-		return errors.New("证件号码不能为空")
+		return NewClientError("证件号码不能为空")
 	}
 
 	switch certType {
@@ -224,7 +224,7 @@ func (s *RealnameService) validateCertificateNo(certType uint8, certNo string) e
 	case CertificateTypeOfficer:
 		return s.validateOfficerCert(certNo)
 	default:
-		return errors.New("不支持的证件类型")
+		return NewClientError("不支持的证件类型")
 	}
 }
 
@@ -232,7 +232,7 @@ func (s *RealnameService) validateCertificateNo(certType uint8, certNo string) e
 func (s *RealnameService) validateIDCard(certNo string) error {
 	length := len(certNo)
 	if length != 15 && length != 18 {
-		return errors.New("身份证号码长度应为15位或18位")
+		return NewClientError("身份证号码长度应为15位或18位")
 	}
 
 	// 15位身份证：全是数字
@@ -240,7 +240,7 @@ func (s *RealnameService) validateIDCard(certNo string) error {
 		pattern := `^\d{15}$`
 		match, _ := regexp.MatchString(pattern, certNo)
 		if !match {
-			return errors.New("15位身份证号码格式不正确")
+			return NewClientError("15位身份证号码格式不正确")
 		}
 		return nil
 	}
@@ -249,12 +249,12 @@ func (s *RealnameService) validateIDCard(certNo string) error {
 	pattern := `^(\d{17}[\dXx])$`
 	match, _ := regexp.MatchString(pattern, certNo)
 	if !match {
-		return errors.New("18位身份证号码格式不正确")
+		return NewClientError("18位身份证号码格式不正确")
 	}
 
 	// 校验码验证
 	if !s.verifyIDCardChecksum(certNo) {
-		return errors.New("身份证号码校验码不正确")
+		return NewClientError("身份证号码校验码不正确")
 	}
 
 	return nil
@@ -292,13 +292,13 @@ func (s *RealnameService) verifyIDCardChecksum(idCard string) bool {
 func (s *RealnameService) validatePassport(certNo string) error {
 	length := len(certNo)
 	if length < 6 || length > 20 {
-		return errors.New("护照号码长度应在6-20位之间")
+		return NewClientError("护照号码长度应在6-20位之间")
 	}
 	// 护照号码：字母或数字
 	pattern := `^[A-Za-z0-9]+$`
 	match, _ := regexp.MatchString(pattern, certNo)
 	if !match {
-		return errors.New("护照号码格式不正确，只能包含字母和数字")
+		return NewClientError("护照号码格式不正确，只能包含字母和数字")
 	}
 	return nil
 }
@@ -307,7 +307,7 @@ func (s *RealnameService) validatePassport(certNo string) error {
 func (s *RealnameService) validateOfficerCert(certNo string) error {
 	length := len(certNo)
 	if length < 5 || length > 20 {
-		return errors.New("军官证号码长度应在5-20位之间")
+		return NewClientError("军官证号码长度应在5-20位之间")
 	}
 	return nil
 }

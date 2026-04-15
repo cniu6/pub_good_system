@@ -1,17 +1,17 @@
 <template>
   <n-space vertical :size="16">
-    <n-card title="支付通道管理">
+    <n-card :title="t('route.admin-pay-gateways')">
       <template #header-extra>
         <n-button type="primary" @click="handleCreate">
           <template #icon><n-icon><icon-park-outline-add-one /></n-icon></template>
-          新增通道
+          {{ t('adminPayGateways.addGatewayShort') }}
         </n-button>
       </template>
 
       <n-space vertical>
         <n-space>
-          <n-input v-model:value="keyword" placeholder="搜索通道名称" clearable style="width: 220px" @keyup.enter="loadList" />
-          <n-button type="primary" @click="loadList">搜索</n-button>
+          <n-input v-model:value="keyword" :placeholder="t('adminPayGateways.searchPlaceholder')" clearable style="width: 220px" @keyup.enter="loadList" />
+          <n-button type="primary" @click="loadList">{{ t('moneyScore.search') }}</n-button>
         </n-space>
 
         <n-data-table
@@ -28,96 +28,96 @@
     </n-card>
 
     <!-- 新增/编辑弹窗 -->
-    <n-modal v-model:show="showModal" preset="card" :title="editingId ? '编辑支付通道' : '新增支付通道'" style="width: 680px" :mask-closable="false">
+    <n-modal v-model:show="showModal" preset="card" :title="editingId ? t('adminPayGateways.editGateway') : t('adminPayGateways.addGateway')" style="width: 680px" :mask-closable="false">
       <n-form ref="formRef" :model="form" :rules="formRules" label-placement="left" label-width="100">
         <n-grid :cols="2" :x-gap="16">
           <n-gi>
-            <n-form-item label="通道名称" path="name">
-              <n-input v-model:value="form.name" placeholder="如：支付宝快捷" />
+            <n-form-item :label="t('adminPayGateways.gatewayName')" path="name">
+              <n-input v-model:value="form.name" :placeholder="t('adminPayGateways.gatewayNamePlaceholder')" />
             </n-form-item>
           </n-gi>
           <n-gi>
-            <n-form-item label="通道类型" path="type">
-              <n-select v-model:value="form.type" :options="typeOptions" placeholder="选择通道类型" />
+            <n-form-item :label="t('adminPayGateways.gatewayType')" path="type">
+              <n-select v-model:value="form.type" :options="typeOptions" :placeholder="t('adminPayGateways.gatewayTypePlaceholder')" />
             </n-form-item>
           </n-gi>
           <n-gi>
-            <n-form-item label="支付方式" path="pay_type">
-              <n-select v-model:value="form.pay_type" :options="payTypeOptions" placeholder="选择支付方式" />
+            <n-form-item :label="t('recharge.paymentMethod')" path="pay_type">
+              <n-select v-model:value="form.pay_type" :options="payTypeOptions" :placeholder="t('adminPayGateways.payTypePlaceholder')" />
             </n-form-item>
           </n-gi>
           <n-gi>
-            <n-form-item label="状态" path="status">
+            <n-form-item :label="t('adminUsers.status')" path="status">
               <n-switch v-model:value="form.status" :checked-value="1" :unchecked-value="0">
-                <template #checked>启用</template>
-                <template #unchecked>禁用</template>
+                <template #checked>{{ t('adminUsers.enabled') }}</template>
+                <template #unchecked>{{ t('adminUsers.disabled') }}</template>
               </n-switch>
             </n-form-item>
           </n-gi>
           <n-gi :span="2">
-            <n-form-item label="描述/提示" path="description">
-              <n-input v-model:value="form.description" type="textarea" placeholder="显示在用户端的通道描述信息" :rows="2" />
+            <n-form-item :label="t('adminPayGateways.description')" path="description">
+              <n-input v-model:value="form.description" type="textarea" :placeholder="t('adminPayGateways.descriptionPlaceholder')" :rows="2" />
             </n-form-item>
           </n-gi>
           <n-gi :span="2">
-            <n-form-item label="API 地址" path="api_url">
-              <n-input v-model:value="form.api_url" placeholder="易支付网关地址，如 https://pay.example.com/" />
+            <n-form-item :label="t('adminPayGateways.apiUrl')" path="api_url">
+              <n-input v-model:value="form.api_url" :placeholder="t('adminPayGateways.apiUrlPlaceholder')" />
             </n-form-item>
           </n-gi>
           <n-gi>
-            <n-form-item label="商户ID" path="pid">
-              <n-input v-model:value="form.pid" placeholder="商户PID" />
+            <n-form-item :label="t('adminPayGateways.merchantId')" path="pid">
+              <n-input v-model:value="form.pid" :placeholder="t('adminPayGateways.merchantIdPlaceholder')" />
             </n-form-item>
           </n-gi>
           <n-gi>
-            <n-form-item label="商户密钥" path="key">
-              <n-input v-model:value="form.key" type="password" show-password-on="click" placeholder="商户Key" />
+            <n-form-item :label="t('adminPayGateways.merchantKey')" path="key">
+              <n-input v-model:value="form.key" type="password" show-password-on="click" :placeholder="t('adminPayGateways.merchantKeyPlaceholder')" />
             </n-form-item>
           </n-gi>
           <n-gi :span="2">
-            <n-form-item label="Logo地址" path="logo_url">
-              <n-input v-model:value="form.logo_url" placeholder="通道Logo图片URL（可选）" />
+            <n-form-item :label="t('adminPayGateways.logoUrl')" path="logo_url">
+              <n-input v-model:value="form.logo_url" :placeholder="t('adminPayGateways.logoUrlPlaceholder')" />
             </n-form-item>
           </n-gi>
           <n-gi>
-            <n-form-item label="最低金额" path="min_amount">
+            <n-form-item :label="t('adminPayGateways.minAmount')" path="min_amount">
               <n-input-number v-model:value="form.min_amount" :min="0" :precision="2" style="width: 100%">
                 <template #prefix>¥</template>
               </n-input-number>
             </n-form-item>
           </n-gi>
           <n-gi>
-            <n-form-item label="最高金额" path="max_amount">
+            <n-form-item :label="t('adminPayGateways.maxAmount')" path="max_amount">
               <n-input-number v-model:value="form.max_amount" :min="0" :precision="2" style="width: 100%">
                 <template #prefix>¥</template>
               </n-input-number>
             </n-form-item>
           </n-gi>
           <n-gi>
-            <n-form-item label="手续费率" path="fee_rate">
+            <n-form-item :label="t('adminPayGateways.feeRate')" path="fee_rate">
               <n-input-number v-model:value="form.fee_rate" :min="0" :max="100" style="width: 100%">
                 <template #suffix>%</template>
               </n-input-number>
             </n-form-item>
           </n-gi>
           <n-gi>
-            <n-form-item label="手续费模式" path="fee_mode">
+            <n-form-item :label="t('adminPayGateways.feeMode')" path="fee_mode">
               <n-select v-model:value="form.fee_mode" :options="feeModeOptions" />
             </n-form-item>
           </n-gi>
           <n-gi>
-            <n-form-item label="最低等级" path="min_level">
-              <n-input-number v-model:value="form.min_level" :min="0" style="width: 100%" placeholder="0=不限制" />
+            <n-form-item :label="t('adminPayGateways.minLevel')" path="min_level">
+              <n-input-number v-model:value="form.min_level" :min="0" style="width: 100%" :placeholder="t('adminPayGateways.minLevelPlaceholder')" />
             </n-form-item>
           </n-gi>
           <n-gi>
-            <n-form-item label="排序" path="sort_order">
-              <n-input-number v-model:value="form.sort_order" :min="0" style="width: 100%" placeholder="越小越靠前" />
+            <n-form-item :label="t('adminPayGateways.sortOrder')" path="sort_order">
+              <n-input-number v-model:value="form.sort_order" :min="0" style="width: 100%" :placeholder="t('adminPayGateways.sortOrderPlaceholder')" />
             </n-form-item>
           </n-gi>
           <n-gi :span="2">
-            <n-form-item label="回调地址" path="notify_url">
-              <n-input v-model:value="form.notify_url" placeholder="自定义回调地址（留空使用全局）" />
+            <n-form-item :label="t('adminPayGateways.notifyUrl')" path="notify_url">
+              <n-input v-model:value="form.notify_url" :placeholder="t('adminPayGateways.notifyUrlPlaceholder')" />
             </n-form-item>
           </n-gi>
         </n-grid>
@@ -125,8 +125,8 @@
 
       <template #footer>
         <n-space justify="end">
-          <n-button @click="showModal = false">取消</n-button>
-          <n-button type="primary" :loading="submitting" @click="handleSubmit">确定</n-button>
+          <n-button @click="showModal = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" :loading="submitting" @click="handleSubmit">{{ t('common.confirm') }}</n-button>
         </n-space>
       </template>
     </n-modal>
@@ -135,6 +135,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, h } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useMessage, useDialog, NTag, NButton, NSpace, NImage } from 'naive-ui'
 import type { DataTableColumns, FormRules } from 'naive-ui'
 import {
@@ -147,6 +148,7 @@ import type { PayGateway, PayGatewayCreateRequest } from '@/service/api/admin/pa
 
 const message = useMessage()
 const dialog = useDialog()
+const { t } = useI18n()
 
 const loading = ref(false)
 const list = ref<PayGateway[]>([])
@@ -187,34 +189,34 @@ const defaultForm = (): PayGatewayCreateRequest => ({
 const form = reactive<PayGatewayCreateRequest>(defaultForm())
 
 const formRules: FormRules = {
-  name: [{ required: true, message: '请输入通道名称', trigger: 'blur' }],
-  type: [{ required: true, message: '请选择通道类型', trigger: 'change' }],
-  pay_type: [{ required: true, message: '请选择支付方式', trigger: 'change' }],
+  name: [{ required: true, message: t('adminPayGateways.enterName'), trigger: 'blur' }],
+  type: [{ required: true, message: t('adminPayGateways.selectType'), trigger: 'change' }],
+  pay_type: [{ required: true, message: t('adminPayGateways.selectPayType'), trigger: 'change' }],
 }
 
 const typeOptions = [
-  { label: '易支付 (Epay)', value: 'epay' },
+  { label: t('adminPayGateways.epay'), value: 'epay' },
 ]
 
 const payTypeOptions = [
-  { label: '支付宝', value: 'alipay' },
-  { label: '微信支付', value: 'wxpay' },
-  { label: 'QQ钱包', value: 'qqpay' },
-  { label: '银行卡', value: 'bank' },
-  { label: '京东支付', value: 'jdpay' },
+  { label: t('recharge.alipay'), value: 'alipay' },
+  { label: t('recharge.wechatPay'), value: 'wxpay' },
+  { label: t('recharge.qqWallet'), value: 'qqpay' },
+  { label: t('recharge.bankCard'), value: 'bank' },
+  { label: t('recharge.jdPay'), value: 'jdpay' },
 ]
 
 const feeModeOptions = [
-  { label: '加收（用户多付）', value: 'add' },
-  { label: '包含（到账减少）', value: 'include' },
+  { label: t('adminPayGateways.feeModeAdd'), value: 'add' },
+  { label: t('adminPayGateways.feeModeInclude'), value: 'include' },
 ]
 
 const payTypeMap: Record<string, string> = {
-  alipay: '支付宝',
-  wxpay: '微信支付',
-  qqpay: 'QQ钱包',
-  bank: '银行卡',
-  jdpay: '京东支付',
+  alipay: t('recharge.alipay'),
+  wxpay: t('recharge.wechatPay'),
+  qqpay: t('recharge.qqWallet'),
+  bank: t('recharge.bankCard'),
+  jdpay: t('recharge.jdPay'),
 }
 
 const columns: DataTableColumns<PayGateway> = [
@@ -224,65 +226,65 @@ const columns: DataTableColumns<PayGateway> = [
     width: 60,
   },
   {
-    title: 'Logo',
+    title: t('adminPayGateways.logo'),
     key: 'logo_url',
     width: 60,
     render: (row) => {
       if (row.logo_url) {
         return h(NImage, { src: row.logo_url, width: 32, height: 32, objectFit: 'contain', fallbackSrc: '', style: { borderRadius: '4px' } })
       }
-      return h('span', { style: { color: '#999', fontSize: '12px' } }, '无')
+      return h('span', { style: { color: '#999', fontSize: '12px' } }, t('recharge.none'))
     },
   },
   {
-    title: '通道名称',
+    title: t('adminPayGateways.gatewayName'),
     key: 'name',
     width: 140,
     ellipsis: { tooltip: true },
   },
   {
-    title: '支付方式',
+    title: t('recharge.paymentMethod'),
     key: 'pay_type',
     width: 90,
     render: (row) => payTypeMap[row.pay_type] || row.pay_type,
   },
   {
-    title: '状态',
+    title: t('adminUsers.status'),
     key: 'status',
     width: 70,
-    render: (row) => h(NTag, { type: row.status === 1 ? 'success' : 'default', size: 'small', bordered: false }, () => row.status === 1 ? '启用' : '禁用'),
+    render: (row) => h(NTag, { type: row.status === 1 ? 'success' : 'default', size: 'small', bordered: false }, () => row.status === 1 ? t('adminUsers.enabled') : t('adminUsers.disabled')),
   },
   {
-    title: '金额范围',
+    title: t('adminPayGateways.amountRange'),
     key: 'amount_range',
     width: 140,
     render: (row) => `¥${row.min_amount} - ¥${row.max_amount}`,
   },
   {
-    title: '手续费',
+    title: t('adminPayGateways.fee'),
     key: 'fee_rate',
     width: 80,
-    render: (row) => row.fee_rate > 0 ? `${row.fee_rate}%` : '无',
+    render: (row) => row.fee_rate > 0 ? `${row.fee_rate}%` : t('recharge.none'),
   },
   {
-    title: '最低等级',
+    title: t('adminPayGateways.minLevel'),
     key: 'min_level',
     width: 80,
-    render: (row) => row.min_level > 0 ? `Lv.${row.min_level}` : '不限',
+    render: (row) => row.min_level > 0 ? `Lv.${row.min_level}` : t('adminPayGateways.unlimited'),
   },
   {
-    title: '排序',
+    title: t('adminPayGateways.sortOrder'),
     key: 'sort_order',
     width: 60,
   },
   {
-    title: '操作',
+    title: t('moneyScore.actions'),
     key: 'actions',
     width: 140,
     render: (row) => {
       return h(NSpace, { size: 4 }, () => [
-        h(NButton, { size: 'small', quaternary: true, type: 'primary', onClick: () => handleEdit(row) }, () => '编辑'),
-        h(NButton, { size: 'small', quaternary: true, type: 'error', onClick: () => handleDelete(row) }, () => '删除'),
+        h(NButton, { size: 'small', quaternary: true, type: 'primary', onClick: () => handleEdit(row) }, () => t('adminUsers.edit')),
+        h(NButton, { size: 'small', quaternary: true, type: 'error', onClick: () => handleDelete(row) }, () => t('adminUsers.delete')),
       ])
     },
   },
@@ -297,7 +299,7 @@ async function loadList() {
       pagination.itemCount = res.data?.total || 0
     }
   } catch {
-    message.error('获取通道列表失败')
+    message.error(t('adminPayGateways.fetchListFailed'))
   } finally {
     loading.value = false
   }
@@ -344,24 +346,24 @@ async function handleSubmit() {
     if (editingId.value) {
       const res = await updatePayGateway(editingId.value, form)
       if (res.isSuccess) {
-        message.success('更新成功')
+        message.success(t('adminUsers.updateSuccess'))
         showModal.value = false
         loadList()
       } else {
-        message.error(res.message || '更新失败')
+        message.error(res.message || t('adminUsers.updateFailed'))
       }
     } else {
       const res = await createPayGateway(form)
       if (res.isSuccess) {
-        message.success('创建成功')
+        message.success(t('adminUsers.createSuccess'))
         showModal.value = false
         loadList()
       } else {
-        message.error(res.message || '创建失败')
+        message.error(res.message || t('adminUsers.createFailed'))
       }
     }
   } catch {
-    message.error('操作失败')
+    message.error(t('adminUsers.operationFailed'))
   } finally {
     submitting.value = false
   }
@@ -369,21 +371,21 @@ async function handleSubmit() {
 
 function handleDelete(row: PayGateway) {
   dialog.warning({
-    title: '确认删除',
-    content: `确定要删除通道「${row.name}」吗？`,
-    positiveText: '删除',
-    negativeText: '取消',
+    title: t('adminUsers.delete'),
+    content: t('adminPayGateways.confirmDeleteContent', { name: row.name }),
+    positiveText: t('adminUsers.delete'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       try {
         const res = await deletePayGateway(row.id)
         if (res.isSuccess) {
-          message.success('删除成功')
+          message.success(t('adminUsers.deleteSuccess'))
           loadList()
         } else {
-          message.error(res.message || '删除失败')
+          message.error(res.message || t('adminUsers.deleteFailed'))
         }
       } catch {
-        message.error('删除失败')
+        message.error(t('adminUsers.deleteFailed'))
       }
     },
   })

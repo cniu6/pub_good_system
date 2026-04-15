@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NCard,
@@ -34,6 +35,7 @@ import { useAuthStore } from '@/store'
 
 const message = useMessage()
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 // ========== 加载状态 ==========
 const loading = ref(false)
@@ -72,29 +74,29 @@ const autoRefreshTimer = ref<ReturnType<typeof setInterval> | null>(null)
 const statusFilter = ref(-1)
 
 const statusOptions: SelectOption[] = [
-  { label: '全部状态', value: -1 },
-  { label: '待支付', value: 0 },
-  { label: '已支付', value: 1 },
-  { label: '已取消', value: 2 },
-  { label: '已退款', value: 3 },
-  { label: '支付失败', value: 4 },
+  { label: t('recharge.allStatus'), value: -1 },
+  { label: t('recharge.pending'), value: 0 },
+  { label: t('recharge.paid'), value: 1 },
+  { label: t('recharge.cancelled'), value: 2 },
+  { label: t('recharge.refunded'), value: 3 },
+  { label: t('recharge.failed'), value: 4 },
 ]
 
 // ========== 状态/支付方式映射 ==========
 const statusMap: Record<number, { label: string, type: 'default' | 'success' | 'warning' | 'error' | 'info' }> = {
-  0: { label: '待支付', type: 'warning' },
-  1: { label: '已支付', type: 'success' },
-  2: { label: '已取消', type: 'default' },
-  3: { label: '已退款', type: 'info' },
-  4: { label: '支付失败', type: 'error' },
+  0: { label: t('recharge.pending'), type: 'warning' },
+  1: { label: t('recharge.paid'), type: 'success' },
+  2: { label: t('recharge.cancelled'), type: 'default' },
+  3: { label: t('recharge.refunded'), type: 'info' },
+  4: { label: t('recharge.failed'), type: 'error' },
 }
 
 const paymentTypeMap: Record<string, string> = {
-  alipay: '支付宝',
-  wxpay: '微信支付',
-  qqpay: 'QQ钱包',
-  bank: '银行卡',
-  jdpay: '京东支付',
+  alipay: t('recharge.alipay'),
+  wxpay: t('recharge.wechatPay'),
+  qqpay: t('recharge.qqWallet'),
+  bank: t('recharge.bankCard'),
+  jdpay: t('recharge.jdPay'),
 }
 
 function payTypeIcon(payType: string): string {
@@ -116,14 +118,14 @@ const pagination = reactive<PaginationProps>({
   pageSizes: [20, 40, 80, 100],
   showSizePicker: true,
   prefix(info) {
-    return `共 ${info.itemCount ?? 0} 条`
+    return t('recharge.totalItems', { count: info.itemCount ?? 0 })
   },
 })
 
 // ========== 表格列 ==========
 const columns: DataTableColumns<PaymentOrder> = [
   {
-    title: '订单号/交易号',
+    title: t('recharge.orderTradeNo'),
     key: 'order_no',
     width: 200,
     render(row) {
@@ -134,18 +136,18 @@ const columns: DataTableColumns<PaymentOrder> = [
     },
   },
   {
-    title: '充值金额/实付',
+    title: t('recharge.amountPaid'),
     key: 'amount',
     width: 140,
     render(row) {
       return h('div', { style: 'display:flex;flex-direction:column;gap:2px' }, [
         h('span', { style: 'color:#18a058;font-weight:500' }, `¥${Number(row.amount).toFixed(2)}`),
-        h('span', { style: 'font-size:12px;color:var(--primary-color)' }, `实付 ¥${Number(row.pay_amount).toFixed(2)}`),
+        h('span', { style: 'font-size:12px;color:var(--primary-color)' }, t('recharge.actualPaid', { amount: Number(row.pay_amount).toFixed(2) })),
       ])
     },
   },
   {
-    title: '支付方式',
+    title: t('recharge.paymentMethod'),
     key: 'payment_type',
     width: 100,
     render(row) {
@@ -153,16 +155,16 @@ const columns: DataTableColumns<PaymentOrder> = [
     },
   },
   {
-    title: '状态',
+    title: t('recharge.status'),
     key: 'status',
     width: 90,
     render(row) {
-      const s = statusMap[row.status] || { label: '未知', type: 'default' as const }
+      const s = statusMap[row.status] || { label: t('recharge.unknown'), type: 'default' as const }
       return h(NTag, { type: s.type, size: 'small' }, () => s.label)
     },
   },
   {
-    title: '创建/更新时间',
+    title: t('recharge.createdUpdatedAt'),
     key: 'create_time',
     width: 160,
     render(row) {
@@ -173,19 +175,19 @@ const columns: DataTableColumns<PaymentOrder> = [
     },
   },
   {
-    title: '操作',
+    title: t('recharge.actions'),
     key: 'actions',
     width: 140,
     render(row) {
       const buttons = [
-        h(NButton, { size: 'small', onClick: () => handleViewDetails(row) }, () => '详情'),
+        h(NButton, { size: 'small', onClick: () => handleViewDetails(row) }, () => t('recharge.detail')),
         h(NButton, {
           size: 'small',
           type: 'info',
           ghost: true,
           loading: refreshingOrders.value.has(row.id),
           onClick: () => handleRefreshOrder(row.id),
-        }, () => '刷新'),
+        }, () => t('common.reload')),
       ]
       return h(NSpace, { size: 'small' }, () => buttons)
     },
@@ -219,7 +221,8 @@ async function refreshBalance() {
     }
   }
   catch {
-    console.error('刷新余额失败')
+    if (import.meta.env.DEV)
+      console.error('[recharge] refresh balance failed')
   }
   finally {
     balanceLoading.value = false
@@ -235,11 +238,11 @@ async function fetchGateways() {
       payGateways.value = (res.data.list || []).filter((gw: PayGateway) => gw.status === 1)
     }
     else {
-      message.error('获取支付方式失败')
+      message.error(t('recharge.fetchPaymentMethodsFailed'))
     }
   }
   catch {
-    message.error('获取支付方式失败')
+    message.error(t('recharge.fetchPaymentMethodsFailed'))
   }
   finally {
     gatewaysLoading.value = false
@@ -264,7 +267,7 @@ async function fetchOrders() {
     }
   }
   catch {
-    message.error('获取订单记录失败')
+    message.error(t('recharge.fetchOrdersFailed'))
   }
   finally {
     loading.value = false
@@ -283,7 +286,7 @@ function startAutoRefresh() {
         stopAutoRefresh()
         showOrderDetail.value = false
         await refreshBalance()
-        message.success('付款已完成，余额已更新')
+        message.success(t('recharge.paymentCompletedBalanceUpdated'))
       }
     }
     else {
@@ -302,21 +305,21 @@ function stopAutoRefresh() {
 // ========== 创建充值订单 ==========
 async function createRechargeOrder() {
   if (!selectedGateway.value) {
-    message.warning('请选择支付通道')
+    message.warning(t('recharge.selectGateway'))
     return
   }
   if (!finalAmount.value || finalAmount.value <= 0) {
-    message.warning('请输入充值金额')
+    message.warning(t('recharge.enterAmount'))
     return
   }
 
   const gw = selectedGateway.value
   if (gw.min_amount > 0 && finalAmount.value < gw.min_amount) {
-    message.warning(`该通道最低充值金额为 ¥${gw.min_amount}`)
+    message.warning(t('recharge.minAmountError', { amount: gw.min_amount }))
     return
   }
   if (gw.max_amount > 0 && finalAmount.value > gw.max_amount) {
-    message.warning(`该通道最高充值金额为 ¥${gw.max_amount}`)
+    message.warning(t('recharge.maxAmountError', { amount: gw.max_amount }))
     return
   }
 
@@ -328,7 +331,7 @@ async function createRechargeOrder() {
     })
     if (res.isSuccess && res.data) {
       showPaymentModal.value = false
-      message.success('订单创建成功')
+      message.success(t('recharge.orderCreated'))
 
       // 刷新订单列表
       await fetchOrders()
@@ -372,11 +375,11 @@ async function createRechargeOrder() {
       startAutoRefresh()
     }
     else {
-      message.error((res as any).message || '创建订单失败')
+      message.error((res as any).message || t('recharge.createOrderFailed'))
     }
   }
   catch {
-    message.error('创建订单失败，请稍后重试')
+    message.error(t('recharge.createOrderRetry'))
   }
   finally {
     creating.value = false
@@ -389,7 +392,7 @@ function handlePayment(order: PaymentOrder) {
     window.open(order.pay_url, '_blank')
   }
   else {
-    message.error('支付链接不可用')
+    message.error(t('recharge.paymentUrlUnavailable'))
   }
 }
 
@@ -407,14 +410,14 @@ async function handleViewDetails(order: PaymentOrder) {
       }
     }
     else {
-      message.error(res.message || '获取订单详情失败')
+      message.error(res.message || t('recharge.fetchOrderDetailFailed'))
       if (order.status === 0) {
         startAutoRefresh()
       }
     }
   }
   catch {
-    message.error('获取订单详情失败')
+    message.error(t('recharge.fetchOrderDetailFailed'))
     if (order.status === 0) {
       startAutoRefresh()
     }
@@ -430,7 +433,7 @@ async function handleRefreshOrder(orderId: number) {
   try {
     const res = await checkPaymentOrderStatus(orderId)
     if (res.isSuccess) {
-      message.success('订单状态已刷新')
+      message.success(t('recharge.orderStatusRefreshed'))
       await fetchOrders()
       await refreshBalance()
       if (selectedOrder.value && selectedOrder.value.id === orderId) {
@@ -440,11 +443,11 @@ async function handleRefreshOrder(orderId: number) {
       }
     }
     else {
-      message.error('刷新订单状态失败')
+      message.error(t('recharge.refreshOrderStatusFailed'))
     }
   }
   catch {
-    message.error('刷新订单状态失败')
+    message.error(t('recharge.refreshOrderStatusFailed'))
   }
   finally {
     refreshingOrders.value.delete(orderId)
@@ -478,7 +481,7 @@ function handleReset() {
 async function handleRefreshAllPending() {
   const pending = orderData.value.filter(o => o.status === 0)
   if (pending.length === 0) {
-    message.info('没有待支付的订单')
+    message.info(t('recharge.noPendingOrders'))
     return
   }
   let count = 0
@@ -494,7 +497,7 @@ async function handleRefreshAllPending() {
       refreshingOrders.value.delete(order.id)
     }
   }
-  message.success(`成功刷新 ${count} 个订单状态`)
+  message.success(t('recharge.bulkRefreshSuccess', { count }))
   await fetchOrders()
   await refreshBalance()
 }
@@ -530,10 +533,10 @@ onMounted(() => {
 <template>
   <div class="user-recharge-page">
     <!-- 余额显示和充值操作卡片 -->
-    <NCard class="balance-card" title="账户余额">
+    <NCard class="balance-card" :title="t('recharge.balanceTitle')">
       <template #header-extra>
         <NButton :loading="balanceLoading" size="small" type="primary" ghost @click="refreshBalance">
-          刷新
+          {{ t('common.reload') }}
         </NButton>
       </template>
 
@@ -542,7 +545,7 @@ onMounted(() => {
         <NGridItem span="24 800:10">
           <div class="balance-display">
             <NText class="balance-label">
-              当前余额
+              {{ t('recharge.currentBalance') }}
             </NText>
             <div class="balance-value">
               <span class="balance-currency">¥</span>
@@ -555,7 +558,7 @@ onMounted(() => {
         <NGridItem span="24 800:14">
           <div class="quick-recharge-section">
             <NText class="section-title">
-              在线充值
+              {{ t('recharge.onlineRecharge') }}
             </NText>
 
             <!-- 快速选择金额 -->
@@ -577,7 +580,7 @@ onMounted(() => {
                 :min="0.01"
                 :max="99999.99"
                 :precision="2"
-                placeholder="请输入充值金额"
+                :placeholder="t('recharge.enterAmount')"
                 class="recharge-input"
                 @update:value="onCustomAmountChange"
               >
@@ -592,7 +595,7 @@ onMounted(() => {
                 :loading="creating"
                 @click="showPaymentModal = true"
               >
-                立即充值 ¥{{ finalAmount?.toFixed(2) || '0.00' }}
+                {{ t('recharge.rechargeNow', { amount: finalAmount?.toFixed(2) || '0.00' }) }}
               </NButton>
             </div>
           </div>
@@ -601,22 +604,22 @@ onMounted(() => {
     </NCard>
 
     <!-- 订单记录表格 -->
-    <NCard class="records-card" title="订单记录">
+    <NCard class="records-card" :title="t('recharge.orderRecords')">
       <template #header-extra>
         <NSpace :size="8" align="center">
           <NSelect
             v-model:value="statusFilter"
             :options="statusOptions"
-            placeholder="状态"
+            :placeholder="t('recharge.status')"
             size="small"
             style="width: 120px"
             @update:value="handleSearch"
           />
           <NButton size="small" @click="handleReset">
-            重置
+            {{ t('common.reset') }}
           </NButton>
           <NButton size="small" type="warning" ghost @click="handleRefreshAllPending">
-            批量刷新
+            {{ t('recharge.bulkRefresh') }}
           </NButton>
         </NSpace>
       </template>
@@ -639,7 +642,7 @@ onMounted(() => {
     <NModal
       v-model:show="showPaymentModal"
       preset="card"
-      title="选择支付方式"
+      :title="t('recharge.selectPaymentMethod')"
       class="payment-modal"
       :auto-focus="false"
       :mask-closable="!creating"
@@ -683,15 +686,15 @@ onMounted(() => {
                     </div>
                   </div>
                   <NText depth="3" class="gateway-desc">
-                    {{ gateway.description || '安全便捷的支付方式' }}
+                    {{ gateway.description || t('recharge.safeConvenientPayment') }}
                   </NText>
                 </div>
                 <div class="gateway-details">
                   <NText depth="3" class="gateway-range">
-                    限额: ¥{{ gateway.min_amount }} - ¥{{ gateway.max_amount }}
+                    {{ t('recharge.limitRange', { min: gateway.min_amount, max: gateway.max_amount }) }}
                   </NText>
                   <NText depth="3" class="gateway-fee">
-                    手续费: {{ gateway.fee_rate || 0 }}%
+                    {{ t('recharge.feeRate', { rate: gateway.fee_rate || 0 }) }}
                   </NText>
                   <NTag v-if="gateway.min_level > 0" size="small" type="info">
                     Lv.{{ gateway.min_level }}+
@@ -702,14 +705,14 @@ onMounted(() => {
           </div>
         </div>
         <div v-else class="empty-gateways">
-          <NEmpty description="暂无可用的支付方式" />
+          <NEmpty :description="t('recharge.noPaymentMethods')" />
         </div>
       </NSpin>
 
       <template #footer>
         <NSpace justify="end">
           <NButton :disabled="creating" @click="showPaymentModal = false">
-            取消
+            {{ t('common.cancel') }}
           </NButton>
           <NButton
             type="primary"
@@ -717,19 +720,19 @@ onMounted(() => {
             :loading="creating"
             @click="createRechargeOrder"
           >
-            确认充值
+            {{ t('recharge.confirmRecharge') }}
           </NButton>
         </NSpace>
       </template>
     </NModal>
 
     <!-- 订单详情弹窗 -->
-    <NModal v-model:show="showOrderDetail" preset="card" title="订单详情" class="order-detail-modal">
+    <NModal v-model:show="showOrderDetail" preset="card" :title="t('recharge.orderDetail')" class="order-detail-modal">
       <template #header-extra>
         <NSpace v-if="selectedOrder?.status === 0 && autoRefreshTimer" align="center" :size="4">
           <NSpin size="small" />
           <NText depth="3" style="font-size: 12px">
-            自动刷新中
+            {{ t('recharge.autoRefreshing') }}
           </NText>
         </NSpace>
       </template>
@@ -740,46 +743,46 @@ onMounted(() => {
           <div v-if="selectedOrder.status === 0 && selectedOrder.pay_url" class="qrcode-section">
             <NQrCode :value="selectedOrder.pay_url" :size="180" />
             <NText depth="3" style="margin-top: 8px; font-size: 13px; text-align: center; display: block">
-              请使用手机扫码完成支付
+              {{ t('recharge.scanToPay') }}
             </NText>
             <NDivider />
           </div>
 
           <NDescriptions :column="1" label-placement="left">
-            <NDescriptionsItem label="订单号">
+            <NDescriptionsItem :label="t('recharge.orderNo')">
               {{ selectedOrder.order_no }}
             </NDescriptionsItem>
-            <NDescriptionsItem label="交易号">
+            <NDescriptionsItem :label="t('recharge.tradeNo')">
               {{ selectedOrder.trade_no || '-' }}
             </NDescriptionsItem>
-            <NDescriptionsItem label="充值金额">
+            <NDescriptionsItem :label="t('recharge.rechargeAmount')">
               <NText type="success">
                 ¥{{ Number(selectedOrder.amount).toFixed(2) }}
               </NText>
             </NDescriptionsItem>
-            <NDescriptionsItem label="手续费">
-              {{ selectedOrder.fee > 0 ? `¥${Number(selectedOrder.fee).toFixed(2)}` : '无' }}
+            <NDescriptionsItem :label="t('recharge.fee')">
+              {{ selectedOrder.fee > 0 ? `¥${Number(selectedOrder.fee).toFixed(2)}` : t('recharge.none') }}
             </NDescriptionsItem>
-            <NDescriptionsItem label="实际支付">
+            <NDescriptionsItem :label="t('recharge.actualPayment')">
               <NText type="info">
                 ¥{{ Number(selectedOrder.pay_amount).toFixed(2) }}
               </NText>
             </NDescriptionsItem>
-            <NDescriptionsItem label="支付方式">
+            <NDescriptionsItem :label="t('recharge.paymentMethod')">
               {{ paymentTypeMap[selectedOrder.payment_type] || selectedOrder.payment_type }}
             </NDescriptionsItem>
-            <NDescriptionsItem label="支付时间">
-              {{ selectedOrder.paid_at ? formatTime(selectedOrder.paid_at) : '未支付' }}
+            <NDescriptionsItem :label="t('recharge.paymentTime')">
+              {{ selectedOrder.paid_at ? formatTime(selectedOrder.paid_at) : t('recharge.unpaid') }}
             </NDescriptionsItem>
-            <NDescriptionsItem label="创建时间">
+            <NDescriptionsItem :label="t('recharge.createdAt')">
               {{ formatTime(selectedOrder.create_time) }}
             </NDescriptionsItem>
-            <NDescriptionsItem label="更新时间">
+            <NDescriptionsItem :label="t('recharge.updatedAt')">
               {{ formatTime(selectedOrder.update_time) }}
             </NDescriptionsItem>
-            <NDescriptionsItem label="订单状态">
+            <NDescriptionsItem :label="t('recharge.orderStatus')">
               <NTag :type="(statusMap[selectedOrder.status] || { type: 'default' }).type">
-                {{ (statusMap[selectedOrder.status] || { label: '未知' }).label }}
+                {{ (statusMap[selectedOrder.status] || { label: t('recharge.unknown') }).label }}
               </NTag>
             </NDescriptionsItem>
           </NDescriptions>
@@ -789,7 +792,7 @@ onMounted(() => {
       <template #footer>
         <NSpace justify="end">
           <NButton @click="showOrderDetail = false">
-            关闭
+            {{ t('common.close') }}
           </NButton>
           <NButton
             v-if="selectedOrder"
@@ -798,14 +801,14 @@ onMounted(() => {
             :loading="refreshingOrders.has(selectedOrder.id)"
             @click="handleRefreshOrder(selectedOrder!.id)"
           >
-            刷新订单
+            {{ t('recharge.refreshOrder') }}
           </NButton>
           <NButton
             v-if="selectedOrder?.status === 0 && selectedOrder?.pay_url"
             type="primary"
             @click="handlePayment(selectedOrder!)"
           >
-            立即支付
+            {{ t('recharge.payNow') }}
           </NButton>
         </NSpace>
       </template>

@@ -17,6 +17,8 @@ export const DEFAULT_BACKEND_OPTIONS = {
 /** 请求不成功各种状态的错误 */
 export const ERROR_STATUS = {
   default: $t('http.defaultTip'),
+  network: $t('http.network'),
+  unknown: $t('http.unknown'),
   400: $t('http.400'),
   401: $t('http.401'),
   403: $t('http.403'),

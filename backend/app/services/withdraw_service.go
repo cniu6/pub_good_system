@@ -41,25 +41,25 @@ type PayWithdrawRequest struct {
 func validateWithdrawTextField(value string, fieldName string, maxLen int) (string, error) {
 	value = strings.TrimSpace(value)
 	if utf8.RuneCountInString(value) > maxLen {
-		return "", fmt.Errorf("%s不能超过%d个字符", fieldName, maxLen)
+		return "", NewClientError(fmt.Sprintf("%s不能超过%d个字符", fieldName, maxLen))
 	}
 	return value, nil
 }
 
 func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*models.WithdrawRequest, error) {
 	if userID == 0 {
-		return nil, errors.New("用户不存在")
+		return nil, NewClientError("用户不存在")
 	}
 	if GlobalSettingsService != nil && !GlobalSettingsService.GetBoolWithDefault("withdraw_enabled", true) {
-		return nil, errors.New("提现功能暂未开启")
+		return nil, NewClientError("提现功能暂未开启")
 	}
 	if req.Amount <= 0 {
-		return nil, errors.New("提现金额必须大于0")
+		return nil, NewClientError("提现金额必须大于0")
 	}
 	if GlobalSettingsService != nil {
 		minAmount := parseJSONFloatWithDefault(GlobalSettingsService.GetWithDefault("withdraw_min_amount", "10"), 10)
 		if req.Amount < minAmount {
-			return nil, fmt.Errorf("提现金额不能低于 %.2f", minAmount)
+			return nil, NewClientError(fmt.Sprintf("提现金额不能低于 %.2f", minAmount))
 		}
 	}
 
@@ -89,7 +89,7 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 		return nil, err
 	}
 	if accountName == "" || accountNo == "" || realName == "" {
-		return nil, errors.New("请完整填写收款信息")
+		return nil, NewClientError("请完整填写收款信息")
 	}
 	if GlobalSettingsService != nil {
 		allowedTypes := parseJSONStringArrayWithDefault(GlobalSettingsService.GetWithDefault("withdraw_account_types", "[\"bank\",\"alipay\",\"wechat\",\"usdt\"]"), []string{"bank", "alipay", "wechat", "usdt"})
@@ -101,7 +101,7 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 			}
 		}
 		if !typeAllowed {
-			return nil, errors.New("当前收款方式不可用")
+			return nil, NewClientError("当前收款方式不可用")
 		}
 	}
 
@@ -122,10 +122,10 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 		return nil, err
 	}
 	if user.Status != 1 {
-		return nil, errors.New("当前用户状态不可提现")
+		return nil, NewClientError("当前用户状态不可提现")
 	}
 	if user.Money < req.Amount {
-		return nil, errors.New("账户余额不足")
+		return nil, NewClientError("账户余额不足")
 	}
 
 	var pendingCount int
@@ -133,7 +133,7 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 		return nil, err
 	}
 	if pendingCount > 0 {
-		return nil, errors.New("您有待处理的提现申请，请勿重复提交")
+		return nil, NewClientError("您有待处理的提现申请，请勿重复提交")
 	}
 
 	item := &models.WithdrawRequest{

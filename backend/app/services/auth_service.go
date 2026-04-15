@@ -36,6 +36,23 @@ type ServiceError struct {
 	Message string
 }
 
+type ClientError struct {
+	Message string
+}
+
+func (e *ClientError) Error() string {
+	return e.Message
+}
+
+func NewClientError(message string) error {
+	return &ClientError{Message: message}
+}
+
+func IsClientError(err error) bool {
+	var target *ClientError
+	return errors.As(err, &target)
+}
+
 func (e *ServiceError) Error() string {
 	return e.Message
 }
@@ -46,6 +63,18 @@ func NewServiceError(code int, message string) *ServiceError {
 }
 
 // LoginResult 登录结果
+type LoginRealnameSummary struct {
+	HasVerification bool   `json:"hasVerification"`
+	ID              uint64 `json:"id,omitempty"`
+	Status          uint8  `json:"status,omitempty"`
+	RealName        string `json:"realName,omitempty"`
+	CertificateType uint8  `json:"certificateType,omitempty"`
+	CertificateNo   string `json:"certificateNo,omitempty"`
+	SubmittedAt     *int64 `json:"submittedAt,omitempty"`
+	ReviewedAt      *int64 `json:"reviewedAt,omitempty"`
+	RejectReason    string `json:"rejectReason,omitempty"`
+}
+
 type LoginResult struct {
 	ID               uint64   `json:"id"`
 	UserName         string   `json:"userName"`
@@ -55,13 +84,11 @@ type LoginResult struct {
 	RefreshToken     string   `json:"refreshToken"`
 	ExpiresAt        int64    `json:"expiresAt"`
 	RefreshExpiresAt int64    `json:"-"`
-	Realname         any      `json:"realname,omitempty"`
+	Realname         LoginRealnameSummary `json:"realname,omitempty"`
 }
 
-func buildLoginRealnameSummary(userID uint64) map[string]any {
-	summary := map[string]any{
-		"hasVerification": false,
-	}
+func buildLoginRealnameSummary(userID uint64) LoginRealnameSummary {
+	summary := LoginRealnameSummary{HasVerification: false}
 
 	// 登录态也补齐实名摘要，避免前端首次登录后本地 userInfo 比 profile 接口少一拍。
 	verification, err := models.GetRealnameVerificationByUserID(userID)
@@ -69,21 +96,20 @@ func buildLoginRealnameSummary(userID uint64) map[string]any {
 		return summary
 	}
 
-	summary["hasVerification"] = true
-	summary["id"] = verification.ID
-	summary["status"] = verification.Status
-	summary["realName"] = verification.RealName
-	summary["certificateType"] = verification.CertificateType
-	summary["certificateNo"] = verification.CertificateNo
-	summary["submittedAt"] = verification.SubmittedAt
-	summary["reviewedAt"] = verification.ReviewedAt
-	summary["rejectReason"] = verification.RejectReason
-
+	summary.HasVerification = true
+	summary.ID = verification.ID
+	summary.Status = verification.Status
+	summary.RealName = verification.RealName
+	summary.CertificateType = verification.CertificateType
+	summary.CertificateNo = verification.CertificateNo
+	summary.SubmittedAt = verification.SubmittedAt
+	summary.ReviewedAt = verification.ReviewedAt
+	summary.RejectReason = verification.RejectReason
 	return summary
 }
 
 // BuildLoginRealnameSummaryForAPI 复用登录态实名摘要构造，保持普通登录/刷新/管理员代登录返回一致。
-func BuildLoginRealnameSummaryForAPI(userID uint64) map[string]any {
+func BuildLoginRealnameSummaryForAPI(userID uint64) LoginRealnameSummary {
 	return buildLoginRealnameSummary(userID)
 }
 
@@ -163,7 +189,7 @@ func (s *AuthService) Register(user *models.User) error {
 	// 加密密码
 	hashedPassword, err := utils.HashPassword(user.Password)
 	if err != nil {
-		return errors.New("failed to hash password")
+		return err
 	}
 	user.Password = hashedPassword
 
@@ -256,7 +282,7 @@ func (s *AuthService) RefreshToken(refreshToken, authGuard, clientIP, userAgent,
 func (s *AuthService) UpdatePassword(userID uint64, newPassword string) error {
 	hashedPassword, err := utils.HashPassword(newPassword)
 	if err != nil {
-		return errors.New("failed to hash password")
+		return err
 	}
 	return s.userService.UpdatePassword(userID, hashedPassword)
 }
@@ -265,12 +291,15 @@ func (s *AuthService) UpdatePassword(userID uint64, newPassword string) error {
 func (s *AuthService) ChangePassword(userID uint64, oldPassword, newPassword string) error {
 	user, err := models.GetUserByID(userID)
 	if err != nil {
-		return errors.New("user not found")
+		return NewClientError("user not found")
 	}
 
 	// 验证旧密码
 	if !utils.CheckPasswordHash(oldPassword, user.Password) {
-		return errors.New("incorrect old password")
+		return NewClientError("incorrect old password")
+	}
+	if oldPassword == newPassword {
+		return NewClientError("新密码不能与旧密码相同")
 	}
 
 	return s.UpdatePassword(userID, newPassword)

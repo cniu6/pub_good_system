@@ -5,17 +5,22 @@ import { i18n } from '@/modules/i18n'
 import { authStorage } from '@/utils'
 import { buildAdminEntryUrl, getAdminBasePath } from './constants'
 
+function reportGuardError(message: string, error: unknown) {
+  if (import.meta.env.DEV)
+    console.error(message, error)
+}
+
 async function loadAdminRoutesDynamic() {
   try {
     const { getAdminRoutes } = await import(
       /* webpackChunkName: "admin-core" */
-      '@/router/admin.routes'
+      '@/router/admin.routes',
     )
     const { createAdminMenus } = await import('@/store/router/helper')
     return { getAdminRoutes, createAdminMenus }
   }
   catch (error) {
-    console.error('[Security] Failed to load admin routes dynamically:', error)
+    reportGuardError('[Security] Failed to load admin routes dynamically:', error)
     return null
   }
 }
@@ -30,7 +35,7 @@ function isAdminRoutePath(path: string, mode: AppRouteMode, adminPath: string) {
 
 function isI18nKey(key: string) {
   // 仅对形如 "module.key" 的 key 做翻译，避免把中文标题当 key 触发 missing 警告
-  return key.includes('.') && /^[A-Za-z0-9_.-]+$/.test(key)
+  return key.includes('.') && /^[\w.-]+$/.test(key)
 }
 
 function resolveI18nText(t: (key: string) => string, key: unknown) {
@@ -120,7 +125,7 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
             if (adminModule) {
               const adminRoutes = adminModule.getAdminRoutes()
               adminRoutes.forEach(route => router.addRoute(route))
-              ;(routeStore as any).adminMenus = adminModule.createAdminMenus(adminRoutes)
+              routeStore.setAdminMenus(adminModule.createAdminMenus(adminRoutes))
               next({
                 path: to.fullPath,
                 replace: true,
@@ -132,7 +137,7 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
           }
         }
         catch (error) {
-          console.error('[Security] Failed to load admin routes in guard:', error)
+          reportGuardError('[Security] Failed to load admin routes in guard:', error)
         }
       }
 

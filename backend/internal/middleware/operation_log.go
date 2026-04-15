@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fst/backend/app/models"
 	"io"
+	"log"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -49,10 +50,14 @@ func OperationLogMiddleware(module string, action string) gin.HandlerFunc {
 		var user_id uint64
 		var username string
 		if uid, exists := c.Get("userID"); exists {
-			user_id = uid.(uint64)
+			if parsedUID, ok := uid.(uint64); ok {
+				user_id = parsedUID
+			}
 		}
 		if uname, exists := c.Get("username"); exists {
-			username = uname.(string)
+			if parsedUsername, ok := uname.(string); ok {
+				username = parsedUsername
+			}
 		}
 
 		// 获取响应内容 (限制长度)
@@ -67,7 +72,7 @@ func OperationLogMiddleware(module string, action string) gin.HandlerFunc {
 		}
 
 		// 创建日志记录
-		log := &models.OperationLog{
+		record := &models.OperationLog{
 			UserID:       user_id,
 			Username:     username,
 			Module:       module,
@@ -83,9 +88,11 @@ func OperationLogMiddleware(module string, action string) gin.HandlerFunc {
 		}
 
 		// 异步保存日志
-		go func() {
-			models.CreateOperationLog(log)
-		}()
+		go func(entry *models.OperationLog) {
+			if err := models.CreateOperationLog(entry); err != nil {
+				log.Printf("[OperationLog] 保存失败: %v", err)
+			}
+		}(record)
 	}
 }
 
@@ -102,16 +109,20 @@ func SimpleLogMiddleware(module string) gin.HandlerFunc {
 		var user_id uint64
 		var username string
 		if uid, exists := c.Get("userID"); exists {
-			user_id = uid.(uint64)
+			if parsedUID, ok := uid.(uint64); ok {
+				user_id = parsedUID
+			}
 		}
 		if uname, exists := c.Get("username"); exists {
-			username = uname.(string)
+			if parsedUsername, ok := uname.(string); ok {
+				username = parsedUsername
+			}
 		}
 
 		// 根据请求方法确定操作类型
 		action := getActionByMethod(c.Request.Method)
 
-		log := &models.OperationLog{
+		record := &models.OperationLog{
 			UserID:     user_id,
 			Username:   username,
 			Module:     module,
@@ -124,9 +135,11 @@ func SimpleLogMiddleware(module string) gin.HandlerFunc {
 			Duration:   int(duration),
 		}
 
-		go func() {
-			models.CreateOperationLog(log)
-		}()
+		go func(entry *models.OperationLog) {
+			if err := models.CreateOperationLog(entry); err != nil {
+				log.Printf("[OperationLog] 保存失败: %v", err)
+			}
+		}(record)
 	}
 }
 

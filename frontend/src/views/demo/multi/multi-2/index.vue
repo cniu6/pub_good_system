@@ -1,18 +1,21 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
 const router = useRouter()
+const { t } = useI18n()
 </script>
 
 <template>
   <n-card class="h-130vh">
-    这个页面包含了一个不在侧边菜单的详情页面
+    {{ t('demo.multi.multi2Desc') }}
     <n-button @click="router.push({ path: '/multi/multi2/detail', query: { id: 1 } })">
-      跳转详情子页1
+      {{ t('demo.multi.gotoDetail1') }}
     </n-button>
     <n-button @click="router.push({ path: '/multi/multi2/detail', query: { id: 2 } })">
-      跳转详情子页2
+      {{ t('demo.multi.gotoDetail2') }}
     </n-button>
     <n-button @click="router.push({ path: '/multi/multi2/detail', query: { id: 3 } })">
-      跳转详情子页3
+      {{ t('demo.multi.gotoDetail3') }}
     </n-button>
   </n-card>
 </template>

@@ -2,6 +2,9 @@
 import Quill from 'quill'
 import { useTemplateRef } from 'vue'
 import 'quill/dist/quill.snow.css'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 defineOptions({
   name: 'RichTextEditor',
@@ -50,7 +53,7 @@ function initEditor() {
       ],
     },
 
-    placeholder: 'Insert text here ...',
+    placeholder: t('editor.insertTextHere'),
     theme: 'snow',
   }
   const quill = new Quill(editorRef.value!, options)

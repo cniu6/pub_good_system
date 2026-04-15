@@ -217,10 +217,10 @@ type EpayAPIPayResponse struct {
 	TradeNo   string `json:"trade_no"`
 }
 
-// EpayAPIPay 通过API接口发起支付（mapi.php），返回支付链接
-func EpayAPIPay(config *EpayConfig, order *models.PaymentOrder, notifyURL, returnURL string) (string, error) {
+// EpayAPIPay 通过API接口发起支付（mapi.php），返回支付链接与交易号
+func EpayAPIPay(config *EpayConfig, order *models.PaymentOrder, notifyURL, returnURL string) (string, string, error) {
 	if config.ApiURL == "" || config.PID == "" || config.Key == "" {
-		return "", fmt.Errorf("易支付配置不完整")
+		return "", "", fmt.Errorf("易支付配置不完整")
 	}
 
 	params := map[string]string{
@@ -247,63 +247,57 @@ func EpayAPIPay(config *EpayConfig, order *models.PaymentOrder, notifyURL, retur
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.PostForm(mapiURL, formData)
 	if err != nil {
-		return "", fmt.Errorf("请求支付接口失败: %v", err)
+		return "", "", fmt.Errorf("请求支付接口失败: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("支付接口返回错误状态码: %d", resp.StatusCode)
+		return "", "", fmt.Errorf("支付接口返回错误状态码: %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("读取响应内容失败: %v", err)
+		return "", "", fmt.Errorf("读取响应内容失败: %v", err)
 	}
 
 	if len(body) == 0 {
-		return "", fmt.Errorf("支付接口返回空响应")
+		return "", "", fmt.Errorf("支付接口返回空响应")
 	}
 
 	bodyStr := string(body)
 	if strings.HasPrefix(strings.TrimSpace(bodyStr), "<") {
-		return "", fmt.Errorf("支付接口返回HTML页面而非JSON，可能是API地址配置错误")
+		return "", "", fmt.Errorf("支付接口返回HTML页面而非JSON，可能是API地址配置错误")
 	}
 
 	log.Printf("[Epay] APIPay 响应: %s", bodyStr)
 
 	var payResp EpayAPIPayResponse
 	if err := json.Unmarshal(body, &payResp); err != nil {
-		return "", fmt.Errorf("解析支付响应失败: %v, 响应内容: %s", err, bodyStr)
+		return "", "", fmt.Errorf("解析支付响应失败: %v, 响应内容: %s", err, bodyStr)
 	}
 
 	if payResp.Code != 1 {
-		return "", fmt.Errorf("发起支付失败: %s", payResp.Msg)
+		return "", "", fmt.Errorf("发起支付失败: %s", payResp.Msg)
 	}
 
 	normalizedTradeNo := models.NormalizeTradeNo(payResp.TradeNo)
 
-	// 更新订单交易号（过滤掉远程API可能返回的占位符值）
-	if normalizedTradeNo != "" {
-		models.UpdatePaymentOrderStatus(order.OrderNo, models.PaymentStatusPending, normalizedTradeNo)
-		order.TradeNo = normalizedTradeNo
-	}
-
 	// 优先返回支付链接
 	if payResp.PayURL != "" {
-		return payResp.PayURL, nil
+		return payResp.PayURL, normalizedTradeNo, nil
 	}
 	if payResp.QRCode != "" {
-		return payResp.QRCode, nil
+		return payResp.QRCode, normalizedTradeNo, nil
 	}
 	if payResp.URLScheme != "" {
-		return payResp.URLScheme, nil
+		return payResp.URLScheme, normalizedTradeNo, nil
 	}
 
 	// 构建 cashier 链接
 	if normalizedTradeNo != "" {
 		baseURL := strings.TrimSuffix(mapiURL, "mapi.php") + "cashier.php"
-		return fmt.Sprintf("%s?trade_no=%s", baseURL, normalizedTradeNo), nil
+		return fmt.Sprintf("%s?trade_no=%s", baseURL, normalizedTradeNo), normalizedTradeNo, nil
 	}
 
-	return "", fmt.Errorf("支付接口未返回可用的支付链接")
+	return "", normalizedTradeNo, fmt.Errorf("支付接口未返回可用的支付链接")
 }

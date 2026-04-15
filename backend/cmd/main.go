@@ -41,6 +41,9 @@ import (
 func main() {
 	// 1. 初始化配置
 	config.InitConfig()
+	if config.IsProductionMode() {
+		gin.SetMode(gin.ReleaseMode)
+	}
 
 	// 2. 初始化数据库
 	db.InitDB()

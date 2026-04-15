@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { h, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NTag, useDialog, useMessage } from 'naive-ui'
@@ -23,6 +24,7 @@ const route = useRoute()
 const router = useRouter()
 const message = useMessage()
 const dialog = useDialog()
+const { t } = useI18n()
 
 // 用户ID
 const userId = ref(Number(route.params.id))
@@ -46,9 +48,9 @@ function formatLanguage(language?: string) {
   if (!language)
     return '-'
   if (language === 'zh-CN')
-    return '中文'
+    return t('adminUsersDetail.chinese')
   if (language === 'en-US')
-    return 'English'
+    return t('adminUsersDetail.english')
   return language
 }
 
@@ -100,32 +102,32 @@ const withdrawPagination = reactive({
 // 订单表格列
 const orderColumns = [
   { title: 'ID', key: 'id', width: 80 },
-  { title: '订单号', key: 'order_no', width: 180 },
+  { title: t('adminUsersDetail.orderNo'), key: 'order_no', width: 180 },
   {
-    title: '金额',
+    title: t('adminUsersDetail.amount'),
     key: 'amount',
     width: 100,
     render: (row: any) => `¥${(Number(row.amount) || 0).toFixed(2)}`,
   },
   {
-    title: '状态',
+    title: t('adminUsersDetail.status'),
     key: 'status',
     width: 100,
     render: (row: any) => {
       const statusMap: Record<string, { type: 'default' | 'error' | 'info' | 'success' | 'warning', label: string }> = {
-        0: { type: 'warning', label: '待支付' },
-        1: { type: 'success', label: '已支付' },
-        2: { type: 'default', label: '已取消' },
-        3: { type: 'info', label: '已退款' },
-        4: { type: 'error', label: '支付失败' },
+        0: { type: 'warning', label: t('adminUsersDetail.pendingPayment') },
+        1: { type: 'success', label: t('adminUsersDetail.paid') },
+        2: { type: 'default', label: t('adminUsersDetail.cancelled') },
+        3: { type: 'info', label: t('adminUsersDetail.refunded') },
+        4: { type: 'error', label: t('adminUsersDetail.paymentFailed') },
       }
       const status = statusMap[row.status] || { type: 'default', label: row.status }
       return h(NTag, { type: status.type }, () => status.label)
     },
   },
-  { title: '支付方式', key: 'payment_channel', width: 120 },
+  { title: t('adminUsersDetail.paymentMethod'), key: 'payment_channel', width: 120 },
   {
-    title: '创建时间',
+    title: t('adminUsersDetail.createTime'),
     key: 'create_time',
     width: 180,
     render: (row: any) => {
@@ -145,7 +147,7 @@ const orderColumns = [
 const moneyColumns = [
   { title: 'ID', key: 'id', width: 80 },
   {
-    title: '变动金额',
+    title: t('adminUsersDetail.moneyChange'),
     key: 'money',
     width: 120,
     render: (row: any) => {
@@ -164,20 +166,20 @@ const moneyColumns = [
     },
   },
   {
-    title: '变动前',
+    title: t('adminUsersDetail.beforeChange'),
     key: 'before',
     width: 120,
     render: (row: any) => `¥${(Number(row.before) || 0).toFixed(2)}`,
   },
   {
-    title: '变动后',
+    title: t('adminUsersDetail.afterChange'),
     key: 'after',
     width: 120,
     render: (row: any) => `¥${(Number(row.after) || 0).toFixed(2)}`,
   },
-  { title: '备注', key: 'memo', ellipsis: { tooltip: true }, render: (row: any) => parseMemo(row.memo) },
+  { title: t('adminUsersDetail.remark'), key: 'memo', ellipsis: { tooltip: true }, render: (row: any) => parseMemo(row.memo) },
   {
-    title: '创建时间',
+    title: t('adminUsersDetail.createTime'),
     key: 'create_time',
     width: 180,
     render: (row: any) => {
@@ -197,7 +199,7 @@ const moneyColumns = [
 const scoreColumns = [
   { title: 'ID', key: 'id', width: 80 },
   {
-    title: '变动积分',
+    title: t('adminUsersDetail.scoreChange'),
     key: 'score',
     width: 120,
     render: (row: any) => {
@@ -216,20 +218,20 @@ const scoreColumns = [
     },
   },
   {
-    title: '变动前',
+    title: t('adminUsersDetail.beforeChange'),
     key: 'before',
     width: 120,
     render: (row: any) => (Number(row.before) || 0).toString(),
   },
   {
-    title: '变动后',
+    title: t('adminUsersDetail.afterChange'),
     key: 'after',
     width: 120,
     render: (row: any) => (Number(row.after) || 0).toString(),
   },
-  { title: '备注', key: 'memo', ellipsis: { tooltip: true }, render: (row: any) => parseMemo(row.memo) },
+  { title: t('adminUsersDetail.remark'), key: 'memo', ellipsis: { tooltip: true }, render: (row: any) => parseMemo(row.memo) },
   {
-    title: '创建时间',
+    title: t('adminUsersDetail.createTime'),
     key: 'create_time',
     width: 180,
     render: (row: any) => {
@@ -249,13 +251,13 @@ const scoreColumns = [
 const withdrawColumns = [
   { title: 'ID', key: 'id', width: 80 },
   {
-    title: '提现金额',
+    title: t('adminUsersDetail.withdrawAmount'),
     key: 'amount',
     width: 120,
     render: (row: WithdrawRecord) => `¥${(Number(row.amount) || 0).toFixed(2)}`,
   },
   {
-    title: '状态',
+    title: t('adminUsersDetail.status'),
     key: 'status',
     width: 100,
     render: (row: WithdrawRecord) => {
@@ -263,20 +265,20 @@ const withdrawColumns = [
       return h(NTag, { type: status.type }, () => status.label)
     },
   },
-  { title: '提现方式', key: 'account_type', width: 100 },
-  { title: '账户名称', key: 'account_name', width: 120, ellipsis: { tooltip: true } },
-  { title: '收款账号', key: 'account_no', width: 180, ellipsis: { tooltip: true }, render: (row: WithdrawRecord) => maskAccountNo(row.account_no) },
-  { title: '收款人', key: 'real_name', width: 100 },
-  { title: '审核人', key: 'reviewed_by', width: 120, render: (row: WithdrawRecord) => getAdminDisplayName(row.reviewed_by) },
-  { title: '打款人', key: 'paid_by', width: 120, render: (row: WithdrawRecord) => getAdminDisplayName(row.paid_by) },
+  { title: t('adminUsersDetail.withdrawMethod'), key: 'account_type', width: 100 },
+  { title: t('adminUsersDetail.accountName'), key: 'account_name', width: 120, ellipsis: { tooltip: true } },
+  { title: t('adminUsersDetail.accountNo'), key: 'account_no', width: 180, ellipsis: { tooltip: true }, render: (row: WithdrawRecord) => maskAccountNo(row.account_no) },
+  { title: t('adminUsersDetail.payee'), key: 'real_name', width: 100 },
+  { title: t('adminUsersDetail.reviewer'), key: 'reviewed_by', width: 120, render: (row: WithdrawRecord) => getAdminDisplayName(row.reviewed_by) },
+  { title: t('adminUsersDetail.payer'), key: 'paid_by', width: 120, render: (row: WithdrawRecord) => getAdminDisplayName(row.paid_by) },
   {
-    title: '创建时间',
+    title: t('adminUsersDetail.createTime'),
     key: 'create_time',
     width: 180,
     render: (row: WithdrawRecord) => formatTime(row.create_time),
   },
   {
-    title: '操作',
+    title: t('adminUsersDetail.actions'),
     key: 'actions',
     width: 100,
     render: (row: WithdrawRecord) => h(
@@ -285,7 +287,7 @@ const withdrawColumns = [
         style: 'color: var(--n-primary-color); cursor: pointer;',
         onClick: () => openWithdrawDetail(row),
       },
-      '详情',
+      t('adminUsersDetail.detail'),
     ),
   },
 ]
@@ -303,12 +305,13 @@ async function fetchUserData() {
       realname.value = response.data?.realname || { has_verification: false }
     }
     else {
-      message.error(response.message || '获取用户信息失败')
+      message.error(response.message || t('adminUsersDetail.fetchUserFailed'))
     }
   }
   catch (error) {
-    console.error('获取用户信息失败:', error)
-    message.error('获取用户信息失败')
+    if (import.meta.env.DEV)
+      console.error('[adminUsersDetail] fetch user failed', error)
+    message.error(t('adminUsersDetail.fetchUserFailed'))
   }
   finally {
     loading.value = false
@@ -317,11 +320,11 @@ async function fetchUserData() {
 
 function getRealnameStatusText(status?: number) {
   const map: Record<number, string> = {
-    0: '待审核',
-    1: '已通过',
-    2: '已拒绝',
+    0: t('adminUsersDetail.pendingReview'),
+    1: t('adminUsersDetail.approved'),
+    2: t('adminUsersDetail.rejected'),
   }
-  return status !== undefined ? map[status] || '未知' : '未认证'
+  return status !== undefined ? map[status] || t('adminUsersDetail.unknown') : t('adminUsersDetail.notVerified')
 }
 
 function getRealnameStatusType(status?: number): 'default' | 'warning' | 'success' | 'error' {
@@ -355,19 +358,19 @@ function formatTime(ts?: number | null) {
 
 function getWithdrawStatusMeta(status?: number): { type: 'warning' | 'info' | 'error' | 'success', label: string } {
   const map: Record<number, { type: 'warning' | 'info' | 'error' | 'success', label: string }> = {
-    0: { type: 'warning', label: '待审核' },
-    1: { type: 'info', label: '待打款' },
-    2: { type: 'error', label: '已拒绝' },
-    3: { type: 'success', label: '已打款' },
+    0: { type: 'warning', label: t('adminUsersDetail.pendingReview') },
+    1: { type: 'info', label: t('adminUsersDetail.pendingTransfer') },
+    2: { type: 'error', label: t('adminUsersDetail.rejected') },
+    3: { type: 'success', label: t('adminUsersDetail.transferred') },
   }
-  return status !== undefined ? map[status] || { type: 'info', label: '未知' } : { type: 'info', label: '未知' }
+  return status !== undefined ? map[status] || { type: 'info', label: t('adminUsersDetail.unknown') } : { type: 'info', label: t('adminUsersDetail.unknown') }
 }
 
 function getAdminDisplayName(adminId?: number | null) {
   if (!adminId)
     return '-'
   const admin = adminUserMap.value[adminId]
-  return admin?.nickname || admin?.username || `管理员#${adminId}`
+  return admin?.nickname || admin?.username || t('adminUsersDetail.adminPrefix', { id: adminId })
 }
 
 // 获取订单数据
@@ -388,12 +391,13 @@ async function fetchOrderData() {
       orderPagination.itemCount = response.data.total || 0
     }
     else {
-      message.error(response.message || '获取订单记录失败')
+      message.error(response.message || t('adminUsersDetail.fetchOrdersFailed'))
     }
   }
   catch (error) {
-    console.error('获取订单记录失败:', error)
-    message.error('获取订单记录失败')
+    if (import.meta.env.DEV)
+      console.error('[adminUsersDetail] fetch orders failed', error)
+    message.error(t('adminUsersDetail.fetchOrdersFailed'))
   }
   finally {
     orderLoading.value = false
@@ -418,12 +422,13 @@ async function fetchMoneyData() {
       moneyPagination.itemCount = response.data.total || 0
     }
     else {
-      message.error(response.message || '获取余额记录失败')
+      message.error(response.message || t('adminUsersDetail.fetchMoneyFailed'))
     }
   }
   catch (error) {
-    console.error('获取余额记录失败:', error)
-    message.error('获取余额记录失败')
+    if (import.meta.env.DEV)
+      console.error('[adminUsersDetail] fetch money failed', error)
+    message.error(t('adminUsersDetail.fetchMoneyFailed'))
   }
   finally {
     moneyLoading.value = false
@@ -448,12 +453,13 @@ async function fetchScoreData() {
       scorePagination.itemCount = response.data.total || 0
     }
     else {
-      message.error(response.message || '获取积分记录失败')
+      message.error(response.message || t('adminUsersDetail.fetchScoreFailed'))
     }
   }
   catch (error) {
-    console.error('获取积分记录失败:', error)
-    message.error('获取积分记录失败')
+    if (import.meta.env.DEV)
+      console.error('[adminUsersDetail] fetch score failed', error)
+    message.error(t('adminUsersDetail.fetchScoreFailed'))
   }
   finally {
     scoreLoading.value = false
@@ -480,12 +486,13 @@ async function fetchWithdrawData() {
       adminUserMap.value = await adminUserApi.batchSimpleInfo(adminIds)
     }
     else {
-      message.error(response.message || '获取提现记录失败')
+      message.error(response.message || t('adminUsersDetail.fetchWithdrawFailed'))
     }
   }
   catch (error) {
-    console.error('获取提现记录失败:', error)
-    message.error('获取提现记录失败')
+    if (import.meta.env.DEV)
+      console.error('[adminUsersDetail] fetch withdraw failed', error)
+    message.error(t('adminUsersDetail.fetchWithdrawFailed'))
   }
   finally {
     withdrawLoading.value = false
@@ -586,21 +593,21 @@ function handleToggleStatus() {
     return
 
   const newStatus = user.value.status === 1 ? 0 : 1
-  const action = newStatus === 1 ? '启用' : '禁用'
+  const action = newStatus === 1 ? t('adminUsersDetail.enable') : t('adminUsersDetail.disable')
 
   dialog.warning({
-    title: `确认${action}`,
-    content: `确定要${action}用户 "${user.value.username}" 吗？`,
-    positiveText: '确定',
-    negativeText: '取消',
+    title: t('adminUsersDetail.confirmAction', { action }),
+    content: t('adminUsersDetail.confirmActionContent', { action, username: user.value.username }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       const res: any = await updateUserStatus(user.value!.id, { status: newStatus })
       if (res.isSuccess) {
-        message.success(`${action}成功`)
+        message.success(t('adminUsersDetail.actionSuccess', { action }))
         fetchUserData()
       }
       else {
-        message.error(res.message || `${action}失败`)
+        message.error(res.message || t('adminUsersDetail.actionFailed', { action }))
       }
     },
   })
@@ -612,18 +619,18 @@ function handleResetApikey() {
     return
 
   dialog.warning({
-    title: '确认重置',
-    content: '确定要重置用户的API密钥吗？重置后旧的密钥将失效。',
-    positiveText: '确定',
-    negativeText: '取消',
+    title: t('adminUsersDetail.confirmReset'),
+    content: t('adminUsersDetail.confirmResetContent'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       const res: any = await resetUserApikey(user.value!.id)
       if (res.isSuccess) {
-        message.success('API密钥重置成功')
+        message.success(t('adminUsersDetail.apiKeyResetSuccess'))
         fetchUserData()
       }
       else {
-        message.error(res.message || 'API密钥重置失败')
+        message.error(res.message || t('adminUsersDetail.apiKeyResetFailed'))
       }
     },
   })
@@ -640,11 +647,11 @@ function handleResetPassword() {
 
 async function confirmResetPassword() {
   if (!user.value || !newPassword.value) {
-    message.error('请输入新密码')
+    message.error(t('adminUsersDetail.enterNewPassword'))
     return
   }
-  if (newPassword.value.length < 6) {
-    message.error('密码长度不能少于6个字符')
+  if (newPassword.value.length < 8) {
+    message.error(t('adminUsersDetail.passwordMinLength'))
     return
   }
 
@@ -656,16 +663,17 @@ async function confirmResetPassword() {
     })
 
     if (response.isSuccess) {
-      message.success(`用户 ${user.value.username} 的密码已重置`)
+      message.success(t('adminUsersDetail.passwordResetSuccess', { username: user.value.username }))
       showResetPasswordModal.value = false
     }
     else {
-      message.error(response.message || '密码重置失败')
+      message.error(response.message || t('adminUsersDetail.passwordResetFailed'))
     }
   }
   catch (error) {
-    console.error('密码重置失败:', error)
-    message.error('密码重置失败')
+    if (import.meta.env.DEV)
+      console.error('[adminUsersDetail] password reset failed', error)
+    message.error(t('adminUsersDetail.passwordResetFailed'))
   }
   finally {
     resettingPassword.value = false
@@ -684,24 +692,24 @@ function handleDelete() {
     return
 
   dialog.warning({
-    title: '确认删除',
-    content: `确定要删除用户 "${user.value.username}" 吗？此操作不可恢复。`,
-    positiveText: '确定',
-    negativeText: '取消',
+    title: t('adminUsersDetail.confirmDelete'),
+    content: t('adminUsersDetail.confirmDeleteContent', { username: user.value.username }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       try {
         const response: any = await deleteUser(user.value!.id)
         if (response.isSuccess) {
-          message.success('删除成功')
+          message.success(t('adminUsersDetail.deleteSuccess'))
           const adminBasePath = import.meta.env.VITE_ADMIN_BASE_PATH || '/admin'
           router.push(`${adminBasePath}/user-management/users`)
         }
         else {
-          message.error(response.message || '删除失败')
+          message.error(response.message || t('adminUsersDetail.deleteFailed'))
         }
       }
       catch {
-        message.error('删除失败')
+        message.error(t('adminUsersDetail.deleteFailed'))
       }
     },
   })
@@ -719,20 +727,20 @@ onMounted(() => {
       <div class="header-content">
         <div class="header-title">
           <NovaIcon :size="24" class="title-icon" icon="icon-park-outline:user-info" />
-          <span>用户详情</span>
+          <span>{{ t('adminUsersDetail.userDetail') }}</span>
         </div>
         <n-space>
           <n-button @click="handleBack">
             <template #icon>
               <NovaIcon icon="icon-park-outline:back" />
             </template>
-            返回
+            {{ t('common.back') }}
           </n-button>
           <n-button @click="handleRefresh">
             <template #icon>
               <NovaIcon icon="icon-park-outline:refresh" />
             </template>
-            刷新
+            {{ t('common.refresh') }}
           </n-button>
         </n-space>
       </div>
@@ -752,13 +760,13 @@ onMounted(() => {
           </div>
           <div class="user-meta">
             <NTag :type="user.status === 1 ? 'success' : 'error'">
-              {{ user.status === 1 ? '正常' : '禁用' }}
+              {{ user.status === 1 ? t('adminUsersDetail.normal') : t('adminUsersDetail.disabled') }}
             </NTag>
             <NTag type="info">
-              {{ user.role === 'admin' ? '管理员' : '用户' }}
+              {{ user.role === 'admin' ? t('adminUsersDetail.admin') : t('adminUsersDetail.user') }}
             </NTag>
             <NTag type="warning">
-              等级 {{ user.level }}
+              {{ t('adminUsersDetail.level', { level: user.level }) }}
             </NTag>
           </div>
           <div class="user-contact">
@@ -778,7 +786,7 @@ onMounted(() => {
               ¥{{ (Number(user.money) || 0).toFixed(2) }}
             </div>
             <div class="stat-label">
-              余额
+              {{ t('adminUsersDetail.balance') }}
             </div>
           </div>
           <div class="stat-item">
@@ -786,7 +794,7 @@ onMounted(() => {
               {{ Number(user.score) || 0 }}
             </div>
             <div class="stat-label">
-              积分
+              {{ t('adminUsersDetail.score') }}
             </div>
           </div>
           <div class="stat-item">
@@ -794,67 +802,67 @@ onMounted(() => {
               {{ user.create_time ? new Date(user.create_time * 1000).toLocaleDateString() : '-' }}
             </div>
             <div class="stat-label">
-              注册时间
+              {{ t('adminUsersDetail.registerTime') }}
             </div>
           </div>
         </div>
       </div>
-      <n-empty v-else description="未找到用户信息" />
+      <n-empty v-else :description="t('adminUsersDetail.userNotFound')" />
     </n-card>
 
     <!-- 数据标签页 -->
     <n-card class="data-tabs-card" :bordered="false">
       <n-tabs type="line" animated @update:value="handleTabChange">
-        <n-tab-pane name="basic" tab="基本信息">
+        <n-tab-pane name="basic" :tab="t('adminUsersDetail.basicInfo')">
           <div class="user-info-sections">
             <!-- 基础信息 -->
-            <n-card title="基础信息" class="info-section">
+            <n-card :title="t('adminUsersDetail.basicInfo')" class="info-section">
               <n-descriptions :column="2" bordered>
-                <n-descriptions-item label="用户ID">
+                <n-descriptions-item :label="t('adminUsersDetail.userId')">
                   {{ user?.id }}
                 </n-descriptions-item>
-                <n-descriptions-item label="用户名">
+                <n-descriptions-item :label="t('adminUsersDetail.username')">
                   {{ user?.username }}
                 </n-descriptions-item>
-                <n-descriptions-item label="昵称">
+                <n-descriptions-item :label="t('adminUsersDetail.nickname')">
                   {{ user?.nickname || '-' }}
                 </n-descriptions-item>
-                <n-descriptions-item label="邮箱">
+                <n-descriptions-item :label="t('adminUsersDetail.email')">
                   {{ user?.email || '-' }}
                 </n-descriptions-item>
-                <n-descriptions-item label="手机">
+                <n-descriptions-item :label="t('adminUsersDetail.mobile')">
                   {{ user?.mobile || '-' }}
                 </n-descriptions-item>
-                <n-descriptions-item label="语言">
+                <n-descriptions-item :label="t('adminUsersDetail.language')">
                   {{ formatLanguage(user?.language) }}
                 </n-descriptions-item>
-                <n-descriptions-item label="国家">
+                <n-descriptions-item :label="t('adminUsersDetail.country')">
                   {{ user?.country || '-' }}
                 </n-descriptions-item>
-                <n-descriptions-item label="角色">
-                  {{ user?.role === 'admin' ? '管理员' : '用户' }}
+                <n-descriptions-item :label="t('adminUsersDetail.role')">
+                  {{ user?.role === 'admin' ? t('adminUsersDetail.admin') : t('adminUsersDetail.user') }}
                 </n-descriptions-item>
-                <n-descriptions-item label="等级">
+                <n-descriptions-item :label="t('adminUsersDetail.level')">
                   {{ user?.level || '-' }}
                 </n-descriptions-item>
-                <n-descriptions-item label="状态">
+                <n-descriptions-item :label="t('adminUsersDetail.status')">
                   <NTag :type="user?.status === 1 ? 'success' : 'error'">
-                    {{ user?.status === 1 ? '正常' : '禁用' }}
+                    {{ user?.status === 1 ? t('adminUsersDetail.normal') : t('adminUsersDetail.disabled') }}
                   </NTag>
                 </n-descriptions-item>
               </n-descriptions>
             </n-card>
 
             <!-- 资产信息 -->
-            <n-card title="资产信息" class="info-section">
+            <n-card :title="t('adminUsersDetail.assetInfo')" class="info-section">
               <n-descriptions :column="2" bordered>
-                <n-descriptions-item label="余额">
+                <n-descriptions-item :label="t('adminUsersDetail.balance')">
                   <span class="money-amount">¥{{ user?.money ? Number(user.money).toFixed(2) : '0.00' }}</span>
                 </n-descriptions-item>
-                <n-descriptions-item label="积分">
+                <n-descriptions-item :label="t('adminUsersDetail.score')">
                   <span class="score-amount">{{ user?.score || '0' }}</span>
                 </n-descriptions-item>
-                <n-descriptions-item label="API密钥" :span="2">
+                <n-descriptions-item :label="t('adminUsersDetail.apiKey')" :span="2">
                   <n-text code>
                     {{ user?.apikey || '-' }}
                   </n-text>
@@ -863,49 +871,49 @@ onMounted(() => {
             </n-card>
 
             <!-- 登录信息 -->
-            <n-card title="登录信息" class="info-section">
+            <n-card :title="t('adminUsersDetail.loginInfo')" class="info-section">
               <n-descriptions :column="2" bordered>
-                <n-descriptions-item label="注册时间">
+                <n-descriptions-item :label="t('adminUsersDetail.registerTime')">
                   {{ user?.create_time ? new Date(user.create_time * 1000).toLocaleString() : '-' }}
                 </n-descriptions-item>
-                <n-descriptions-item label="最后登录">
+                <n-descriptions-item :label="t('adminUsersDetail.lastLogin')">
                   {{ user?.last_login_time ? new Date(user.last_login_time * 1000).toLocaleString() : '-' }}
                 </n-descriptions-item>
-                <n-descriptions-item label="注册IP">
+                <n-descriptions-item :label="t('adminUsersDetail.registerIp')">
                   {{ user?.join_ip || '-' }}
                 </n-descriptions-item>
-                <n-descriptions-item label="最后登录IP">
+                <n-descriptions-item :label="t('adminUsersDetail.lastLoginIp')">
                   {{ user?.last_login_ip || '-' }}
                 </n-descriptions-item>
-                <n-descriptions-item label="登录失败次数">
+                <n-descriptions-item :label="t('adminUsersDetail.loginFailures')">
                   {{ user?.login_failure || '0' }}
                 </n-descriptions-item>
-                <n-descriptions-item label="座右铭" :span="1">
+                <n-descriptions-item :label="t('adminUsersDetail.motto')" :span="1">
                   {{ user?.motto || '-' }}
                 </n-descriptions-item>
               </n-descriptions>
             </n-card>
 
-            <n-card title="实名认证" class="info-section">
+            <n-card :title="t('adminUsersDetail.realnameAuth')" class="info-section">
               <n-descriptions :column="2" bordered>
-                <n-descriptions-item label="认证状态">
+                <n-descriptions-item :label="t('adminUsersDetail.authStatus')">
                   <NTag :type="getRealnameStatusType(realname?.status)">
-                    {{ realname?.has_verification ? getRealnameStatusText(realname?.status) : '未认证' }}
+                    {{ realname?.has_verification ? getRealnameStatusText(realname?.status) : t('adminUsersDetail.notVerified') }}
                   </NTag>
                 </n-descriptions-item>
-                <n-descriptions-item label="真实姓名">
+                <n-descriptions-item :label="t('adminUsersDetail.realName')">
                   {{ realname?.real_name || '-' }}
                 </n-descriptions-item>
-                <n-descriptions-item label="证件号码">
+                <n-descriptions-item :label="t('adminUsersDetail.certificateNo')">
                   {{ maskCertificateNo(realname?.certificate_no) }}
                 </n-descriptions-item>
-                <n-descriptions-item label="提交时间">
+                <n-descriptions-item :label="t('adminUsersDetail.submitTime')">
                   {{ realname?.submitted_at ? new Date(realname.submitted_at * 1000).toLocaleString() : '-' }}
                 </n-descriptions-item>
-                <n-descriptions-item label="审核时间">
+                <n-descriptions-item :label="t('adminUsersDetail.reviewTime')">
                   {{ realname?.reviewed_at ? new Date(realname.reviewed_at * 1000).toLocaleString() : '-' }}
                 </n-descriptions-item>
-                <n-descriptions-item label="拒绝原因">
+                <n-descriptions-item :label="t('adminUsersDetail.rejectReason')">
                   {{ realname?.reject_reason || '-' }}
                 </n-descriptions-item>
               </n-descriptions>
@@ -914,24 +922,24 @@ onMounted(() => {
 
           <div class="action-buttons">
             <n-button type="primary" @click="handleEdit">
-              编辑用户
+              {{ t('adminUsersDetail.editUser') }}
             </n-button>
             <n-button type="warning" @click="handleToggleStatus">
-              {{ user?.status === 1 ? '禁用用户' : '启用用户' }}
+              {{ user?.status === 1 ? t('adminUsersDetail.disableUser') : t('adminUsersDetail.enableUser') }}
             </n-button>
             <n-button type="info" @click="handleResetApikey">
-              重置API密钥
+              {{ t('adminUsersDetail.resetApiKey') }}
             </n-button>
             <n-button type="info" @click="handleResetPassword">
-              重置密码
+              {{ t('adminUsersDetail.resetPassword') }}
             </n-button>
             <n-button type="error" @click="handleDelete">
-              删除用户
+              {{ t('adminUsersDetail.deleteUser') }}
             </n-button>
           </div>
         </n-tab-pane>
 
-        <n-tab-pane name="orders" tab="订单记录">
+        <n-tab-pane name="orders" :tab="t('adminUsersDetail.orderRecords')">
           <n-data-table
             :columns="orderColumns"
             :data="orderData"
@@ -942,7 +950,7 @@ onMounted(() => {
           />
         </n-tab-pane>
 
-        <n-tab-pane name="money" tab="余额记录">
+        <n-tab-pane name="money" :tab="t('adminUsersDetail.moneyRecords')">
           <n-data-table
             :columns="moneyColumns"
             :data="moneyData"
@@ -953,7 +961,7 @@ onMounted(() => {
           />
         </n-tab-pane>
 
-        <n-tab-pane name="score" tab="积分记录">
+        <n-tab-pane name="score" :tab="t('adminUsersDetail.scoreRecords')">
           <n-data-table
             :columns="scoreColumns"
             :data="scoreData"
@@ -964,7 +972,7 @@ onMounted(() => {
           />
         </n-tab-pane>
 
-        <n-tab-pane name="withdraw" tab="提现记录">
+        <n-tab-pane name="withdraw" :tab="t('adminUsersDetail.withdrawRecords')">
           <n-data-table
             :columns="withdrawColumns"
             :data="withdrawData"
@@ -980,73 +988,73 @@ onMounted(() => {
     <n-modal
       v-model:show="showResetPasswordModal"
       preset="dialog"
-      title="重置密码"
-      positive-text="确认"
-      negative-text="取消"
+      :title="t('adminUsersDetail.resetPasswordTitle')"
+      :positive-text="t('common.confirm')"
+      :negative-text="t('common.cancel')"
       @positive-click="confirmResetPassword"
       @negative-click="cancelResetPassword"
     >
       <template #default>
         <div style="margin-bottom: 16px;">
-          <p>您正在重置用户 <strong>{{ user?.username }}</strong> (ID: {{ user?.id }}) 的密码</p>
-          <n-form-item label="新密码" required>
-            <n-input v-model:value="newPassword" type="password" placeholder="请输入新密码" show-password-on="click" />
+          <p>{{ t('adminUsersDetail.resetPasswordDesc', { username: user?.username, id: user?.id }) }}</p>
+          <n-form-item :label="t('adminUsersDetail.newPassword')" required>
+            <n-input v-model:value="newPassword" type="password" :placeholder="t('adminUsersDetail.newPasswordPlaceholder')" show-password-on="click" />
           </n-form-item>
         </div>
       </template>
     </n-modal>
 
-    <n-modal v-model:show="showWithdrawDetailModal" preset="card" title="提现记录详情" style="width: 620px;">
+    <n-modal v-model:show="showWithdrawDetailModal" preset="card" :title="t('adminUsersDetail.withdrawDetailTitle')" style="width: 620px;">
       <template v-if="withdrawDetail">
         <n-descriptions :column="1" bordered label-placement="left">
-          <n-descriptions-item label="申请ID">
+          <n-descriptions-item :label="t('adminUsersDetail.applyId')">
             {{ withdrawDetail.id }}
           </n-descriptions-item>
-          <n-descriptions-item label="用户ID">
+          <n-descriptions-item :label="t('adminUsersDetail.userId')">
             {{ withdrawDetail.user_id }}
           </n-descriptions-item>
-          <n-descriptions-item label="提现金额">
+          <n-descriptions-item :label="t('adminUsersDetail.withdrawAmount')">
             ¥{{ Number(withdrawDetail.amount).toFixed(2) }}
           </n-descriptions-item>
-          <n-descriptions-item label="状态">
+          <n-descriptions-item :label="t('adminUsersDetail.status')">
             <NTag :type="getWithdrawStatusMeta(withdrawDetail.status).type">
               {{ getWithdrawStatusMeta(withdrawDetail.status).label }}
             </NTag>
           </n-descriptions-item>
-          <n-descriptions-item label="收款方式">
+          <n-descriptions-item :label="t('adminUsersDetail.withdrawMethod')">
             {{ withdrawDetail.account_type }}
           </n-descriptions-item>
-          <n-descriptions-item label="账户名称">
+          <n-descriptions-item :label="t('adminUsersDetail.accountName')">
             {{ withdrawDetail.account_name }}
           </n-descriptions-item>
-          <n-descriptions-item label="收款账号">
+          <n-descriptions-item :label="t('adminUsersDetail.accountNo')">
             {{ withdrawDetail.account_no }}
           </n-descriptions-item>
-          <n-descriptions-item label="收款人">
+          <n-descriptions-item :label="t('adminUsersDetail.payee')">
             {{ withdrawDetail.real_name }}
           </n-descriptions-item>
-          <n-descriptions-item label="用户备注">
+          <n-descriptions-item :label="t('adminUsersDetail.userRemark')">
             {{ withdrawDetail.remark || '-' }}
           </n-descriptions-item>
-          <n-descriptions-item label="审核备注">
+          <n-descriptions-item :label="t('adminUsersDetail.reviewRemark')">
             {{ withdrawDetail.review_remark || '-' }}
           </n-descriptions-item>
-          <n-descriptions-item label="打款备注">
+          <n-descriptions-item :label="t('adminUsersDetail.transferRemark')">
             {{ withdrawDetail.transfer_remark || '-' }}
           </n-descriptions-item>
-          <n-descriptions-item label="申请时间">
+          <n-descriptions-item :label="t('adminUsersDetail.applyTime')">
             {{ formatTime(withdrawDetail.create_time) }}
           </n-descriptions-item>
-          <n-descriptions-item label="审核时间">
+          <n-descriptions-item :label="t('adminUsersDetail.reviewTime')">
             {{ formatTime(withdrawDetail.reviewed_at) }}
           </n-descriptions-item>
-          <n-descriptions-item label="审核人">
+          <n-descriptions-item :label="t('adminUsersDetail.reviewer')">
             {{ getAdminDisplayName(withdrawDetail.reviewed_by) }}
           </n-descriptions-item>
-          <n-descriptions-item label="打款时间">
+          <n-descriptions-item :label="t('adminUsersDetail.transferTime')">
             {{ formatTime(withdrawDetail.paid_at) }}
           </n-descriptions-item>
-          <n-descriptions-item label="打款人">
+          <n-descriptions-item :label="t('adminUsersDetail.payer')">
             {{ getAdminDisplayName(withdrawDetail.paid_by) }}
           </n-descriptions-item>
         </n-descriptions>

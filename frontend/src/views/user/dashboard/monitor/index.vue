@@ -1,35 +1,37 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/store'
 import Chart from './components/chart.vue'
 import Chart2 from './components/chart2.vue'
 import Chart3 from './components/chart3.vue'
 
 const appStore = useAppStore()
+const { t } = useI18n()
 
 const tableData = [
   {
     id: 0,
-    name: '商品名称1',
+    name: t('monitor.productName1'),
     start: '2022-02-02',
     end: '2022-02-02',
     prograss: '100',
-    status: '已完成',
+    status: t('monitor.completed'),
   },
   {
     id: 0,
-    name: '商品名称2',
+    name: t('monitor.productName2'),
     start: '2022-02-02',
     end: '2022-02-02',
     prograss: '50',
-    status: '交易中',
+    status: t('monitor.inProgress'),
   },
   {
     id: 0,
-    name: '商品名称3',
+    name: t('monitor.productName3'),
     start: '2022-02-02',
     end: '2022-02-02',
     prograss: '100',
-    status: '已完成',
+    status: t('monitor.completed'),
   },
 ]
 </script>
@@ -49,7 +51,7 @@ const tableData = [
           justify="space-between"
           align="center"
         >
-          <n-statistic label="访问量">
+          <n-statistic :label="t('monitor.visits')">
             <n-number-animation
               :from="0"
               :to="12039"
@@ -65,7 +67,7 @@ const tableData = [
         </n-space>
         <template #footer>
           <n-space justify="space-between">
-            <span>累计访问数</span>
+            <span>{{ t('monitor.totalVisits') }}</span>
             <span><n-number-animation
               :from="0"
               :to="322039"
@@ -81,7 +83,7 @@ const tableData = [
           justify="space-between"
           align="center"
         >
-          <n-statistic label="下载量">
+          <n-statistic :label="t('monitor.downloads')">
             <n-number-animation
               :from="0"
               :to="12039"
@@ -97,7 +99,7 @@ const tableData = [
         </n-space>
         <template #footer>
           <n-space justify="space-between">
-            <span>累计下载量</span>
+            <span>{{ t('monitor.totalDownloads') }}</span>
             <span><n-number-animation
               :from="0"
               :to="322039"
@@ -113,7 +115,7 @@ const tableData = [
           justify="space-between"
           align="center"
         >
-          <n-statistic label="浏览量">
+          <n-statistic :label="t('monitor.pageViews')">
             <n-number-animation
               :from="0"
               :to="12039"
@@ -129,7 +131,7 @@ const tableData = [
         </n-space>
         <template #footer>
           <n-space justify="space-between">
-            <span>累计浏览量</span>
+            <span>{{ t('monitor.totalPageViews') }}</span>
             <span><n-number-animation
               :from="0"
               :to="322039"
@@ -145,7 +147,7 @@ const tableData = [
           justify="space-between"
           align="center"
         >
-          <n-statistic label="注册量">
+          <n-statistic :label="t('monitor.registrations')">
             <n-number-animation
               :from="0"
               :to="12039"
@@ -161,7 +163,7 @@ const tableData = [
         </n-space>
         <template #footer>
           <n-space justify="space-between">
-            <span>累计注册量</span>
+            <span>{{ t('monitor.totalRegistrations') }}</span>
             <span><n-number-animation
               :from="0"
               :to="322039"
@@ -180,10 +182,10 @@ const tableData = [
           :tabs-padding="20"
           pane-style="padding: 20px;"
         >
-          <n-tab-pane name="流量趋势">
+          <n-tab-pane :name="t('monitor.trafficTrend')">
             <Chart />
           </n-tab-pane>
-          <n-tab-pane name="访问量趋势">
+          <n-tab-pane :name="t('monitor.visitTrend')">
             <Chart2 />
           </n-tab-pane>
         </n-tabs>
@@ -193,7 +195,7 @@ const tableData = [
     <!-- 访问来源 - 移动端全宽，桌面端1/3宽 -->
     <n-gi span="12 m:4">
       <n-card
-        title="访问来源"
+        :title="t('monitor.visitSource')"
         :segmented="{
           content: true,
         }"
@@ -205,7 +207,7 @@ const tableData = [
     <!-- 成交记录 - 移动端全宽，桌面端2/3宽 -->
     <n-gi span="12 m:8">
       <n-card
-        title="成交记录"
+        :title="t('monitor.transactionRecords')"
         :segmented="{
           content: true,
         }"
@@ -215,7 +217,7 @@ const tableData = [
             type="primary"
             quaternary
           >
-            更多
+            {{ t('monitor.more') }}
           </n-button>
         </template>
         <n-table
@@ -225,11 +227,11 @@ const tableData = [
         >
           <thead>
             <tr>
-              <th>交易名称</th>
-              <th>开始时间</th>
-              <th>结束时间</th>
-              <th>进度</th>
-              <th>状态</th>
+              <th>{{ t('monitor.transactionName') }}</th>
+              <th>{{ t('monitor.startTime') }}</th>
+              <th>{{ t('monitor.endTime') }}</th>
+              <th>{{ t('monitor.progress') }}</th>
+              <th>{{ t('monitor.status') }}</th>
             </tr>
           </thead>
           <tbody>

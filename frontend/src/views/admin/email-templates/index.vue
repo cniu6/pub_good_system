@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, h, nextTick, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   NAlert,
   NButton,
@@ -25,63 +26,71 @@ import {
   type EmailTemplate,
 } from '@/service/api/admin/email-template'
 
-const text = {
-  pageTitle: '\u90AE\u4EF6\u6A21\u677F\u7BA1\u7406',
-  refresh: '\u5237\u65B0',
-  infoTip: '\u90AE\u4EF6\u6A21\u677F\u652F\u6301\u53D8\u91CF\u66FF\u6362\uFF0C\u4F7F\u7528 {变量名} \u683C\u5F0F\uFF0C\u4F8B\u5982 {code} \u4F1A\u88AB\u66FF\u6362\u4E3A\u9A8C\u8BC1\u7801\u3002',
-  lang: '\u8BED\u8A00',
-  subject: '\u4E3B\u9898',
-  description: '\u63CF\u8FF0',
-  status: '\u72B6\u6001',
-  action: '\u64CD\u4F5C',
-  enabled: '\u542F\u7528',
-  disabled: '\u7981\u7528',
-  unknown: '\u672A\u77E5',
-  edit: '\u4FEE\u6539',
-  reset: '\u91CD\u7F6E\u4E3A\u9ED8\u8BA4',
-  resetConfirmFirst: '\u786E\u8BA4\u8981\u91CD\u7F6E\u6B64\u6A21\u677F\u4E3A\u9ED8\u8BA4\u5185\u5BB9\u5417\uFF1F',
-  resetConfirmSecond: '\u6B64\u64CD\u4F5C\u4E0D\u53EF\u64A4\u9500\uFF0C\u786E\u8BA4\u91CD\u7F6E\uFF1F',
-  loadFailed: '\u52A0\u8F7D\u90AE\u4EF6\u6A21\u677F\u5931\u8D25',
-  resetSuccess: '\u91CD\u7F6E\u6210\u529F',
-  resetFailed: '\u91CD\u7F6E\u5931\u8D25',
-  saveSuccess: '\u4FDD\u5B58\u6210\u529F',
-  saveFailed: '\u4FDD\u5B58\u5931\u8D25',
-  previewFailed: '\u9884\u89C8\u5931\u8D25',
-  editModalTitle: '\u7F16\u8F91\u90AE\u4EF6\u6A21\u677F',
-  subjectRequired: '\u4E3B\u9898\u4E0D\u80FD\u4E3A\u7A7A',
-  contentRequired: '\u5185\u5BB9\u4E0D\u80FD\u4E3A\u7A7A',
-  subjectPlaceholder: '\u8BF7\u8F93\u5165\u90AE\u4EF6\u4E3B\u9898',
-  contentPlaceholder: '\u8BF7\u8F93\u5165\u90AE\u4EF6\u5185\u5BB9\uFF08\u652F\u6301 HTML\uFF09',
-  descriptionPlaceholder: '\u8BF7\u8F93\u5165\u6A21\u677F\u63CF\u8FF0',
-  cancel: '\u53D6\u6D88',
-  save: '\u4FDD\u5B58',
-  registerCode: '\u6CE8\u518C\u9A8C\u8BC1\u7801',
-  resetPassword: '\u91CD\u7F6E\u5BC6\u7801',
-  sendTest: '\u53D1\u4EF6\u6D4B\u8BD5',
-  sendTestDesc: '\u9A8C\u8BC1 SMTP \u914D\u7F6E\u662F\u5426\u6B63\u5E38\uFF0C\u53D1\u9001\u4E00\u5C01\u6D4B\u8BD5\u90AE\u4EF6\u5230\u6307\u5B9A\u90AE\u7BB1\u3002',
-  testTo: '\u6536\u4EF6\u90AE\u7BB1',
-  testToPlaceholder: '\u8BF7\u8F93\u5165\u6D4B\u8BD5\u6536\u4EF6\u90AE\u7BB1',
-  testSubject: '\u90AE\u4EF6\u4E3B\u9898',
-  testSubjectPlaceholder: '\u7559\u7A7A\u5219\u4F7F\u7528\u9ED8\u8BA4\u4E3B\u9898',
-  sending: '\u53D1\u9001\u4E2D...',
-  send: '\u53D1\u9001\u6D4B\u8BD5',
-  sendSuccess: '\u6D4B\u8BD5\u90AE\u4EF6\u5DF2\u53D1\u9001',
-  sendFailed: '\u53D1\u9001\u5931\u8D25',
-  fullscreen: '\u5168\u5C4F',
-  exitFullscreen: '\u9000\u51FA\u5168\u5C4F',
-  previewTab: '\u9884\u89C8',
-  variables: '\u53D8\u91CF',
-  varPlaceholder: '\u8BF7\u8F93\u5165\u53D8\u91CF\u503C',
-  contentLabel: '\u5185\u5BB9 (HTML)',
-  confirmBtn: '\u786E\u8BA4',
-  cancelBtn: '\u53D6\u6D88',
-  finalConfirmBtn: '\u786E\u5B9A\u91CD\u7F6E',
-  noVarsMsg: '\u5F53\u524D\u6A21\u677F\u672A\u5B9A\u4E49\u53D8\u91CF',
-  loadingMsg: '\u52A0\u8F7D\u4E2D...',
-  inputEmail: '\u8BF7\u8F93\u5165\u6536\u4EF6\u90AE\u7BB1',
-  selectTemplate: '\u9009\u62E9\u6A21\u677F',
-  noTemplate: '\u4E0D\u4F7F\u7528\u6A21\u677F',
-} as const
+const { t } = useI18n()
+
+// 开发环境日志辅助函数
+function reportEmailTemplateError(message: string, error?: unknown) {
+  if (import.meta.env.DEV)
+    console.error(message, error)
+}
+
+const text = computed(() => ({
+  pageTitle: t('emailTemplates.pageTitle'),
+  refresh: t('emailTemplates.refresh'),
+  infoTip: t('emailTemplates.infoTip'),
+  lang: t('emailTemplates.lang'),
+  subject: t('emailTemplates.subject'),
+  description: t('emailTemplates.description'),
+  status: t('emailTemplates.status'),
+  action: t('emailTemplates.action'),
+  enabled: t('emailTemplates.enabled'),
+  disabled: t('emailTemplates.disabled'),
+  unknown: t('emailTemplates.unknown'),
+  edit: t('emailTemplates.edit'),
+  reset: t('emailTemplates.reset'),
+  resetConfirmFirst: t('emailTemplates.resetConfirmFirst'),
+  resetConfirmSecond: t('emailTemplates.resetConfirmSecond'),
+  loadFailed: t('emailTemplates.loadFailed'),
+  resetSuccess: t('emailTemplates.resetSuccess'),
+  resetFailed: t('emailTemplates.resetFailed'),
+  saveSuccess: t('emailTemplates.saveSuccess'),
+  saveFailed: t('emailTemplates.saveFailed'),
+  previewFailed: t('emailTemplates.previewFailed'),
+  editModalTitle: t('emailTemplates.editModalTitle'),
+  subjectRequired: t('emailTemplates.subjectRequired'),
+  contentRequired: t('emailTemplates.contentRequired'),
+  subjectPlaceholder: t('emailTemplates.subjectPlaceholder'),
+  contentPlaceholder: t('emailTemplates.contentPlaceholder'),
+  descriptionPlaceholder: t('emailTemplates.descriptionPlaceholder'),
+  cancel: t('emailTemplates.cancel'),
+  save: t('emailTemplates.save'),
+  registerCode: t('emailTemplates.registerCode'),
+  resetPassword: t('emailTemplates.resetPassword'),
+  sendTest: t('emailTemplates.sendTest'),
+  sendTestDesc: t('emailTemplates.sendTestDesc'),
+  testTo: t('emailTemplates.testTo'),
+  testToPlaceholder: t('emailTemplates.testToPlaceholder'),
+  testSubject: t('emailTemplates.testSubject'),
+  testSubjectPlaceholder: t('emailTemplates.testSubjectPlaceholder'),
+  sending: t('emailTemplates.sending'),
+  send: t('emailTemplates.send'),
+  sendSuccess: t('emailTemplates.sendSuccess'),
+  sendFailed: t('emailTemplates.sendFailed'),
+  fullscreen: t('emailTemplates.fullscreen'),
+  exitFullscreen: t('emailTemplates.exitFullscreen'),
+  previewTab: t('emailTemplates.previewTab'),
+  variables: t('emailTemplates.variables'),
+  varPlaceholder: t('emailTemplates.varPlaceholder'),
+  contentLabel: t('emailTemplates.contentLabel'),
+  confirmBtn: t('emailTemplates.confirmBtn'),
+  cancelBtn: t('emailTemplates.cancelBtn'),
+  finalConfirmBtn: t('emailTemplates.finalConfirmBtn'),
+  noVarsMsg: t('emailTemplates.noVarsMsg'),
+  loadingMsg: t('emailTemplates.loadingMsg'),
+  inputEmail: t('emailTemplates.inputEmail'),
+  selectTemplate: t('emailTemplates.selectTemplate'),
+  noTemplate: t('emailTemplates.noTemplate'),
+}))
 
 const loading = ref(false)
 const templates = ref<EmailTemplate[]>([])
@@ -95,8 +104,8 @@ const testSending = ref(false)
 const templateOptions = computed(() => {
   const opts: { label: string; value: number }[] = []
   templates.value.forEach((tpl) => {
-    const name = templateNameMap[tpl.name] || tpl.name
-    const lang = langMap[tpl.lang] || tpl.lang
+    const name = templateNameMap.value[tpl.name] || tpl.name
+    const lang = langMap.value[tpl.lang] || tpl.lang
     opts.push({ label: `${name} (${lang})`, value: tpl.id })
   })
   return opts
@@ -117,15 +126,15 @@ const previewVars = ref<Record<string, string>>({})
 const previewLoading = ref(false)
 const resetStep = ref(0) // 0=idle, 1=first confirm, 2=second confirm
 
-const langMap: Record<string, string> = {
-  'zh-CN': '\u4E2D\u6587',
-  'en-US': 'English',
-}
+const langMap = computed<Record<string, string>>(() => ({
+  'zh-CN': t('adminUsersDetail.chinese'),
+  'en-US': t('adminUsersDetail.english'),
+}))
 
-const statusMap: Record<number, { label: string; type: 'success' | 'error' }> = {
-  0: { label: text.disabled, type: 'error' },
-  1: { label: text.enabled, type: 'success' },
-}
+const statusMap = computed(() => ({
+  0: { label: text.value.disabled, type: 'error' as const },
+  1: { label: text.value.enabled, type: 'success' as const },
+}))
 
 const groupedTemplates = computed(() => {
   const groups: Record<string, EmailTemplate[]> = {}
@@ -137,46 +146,46 @@ const groupedTemplates = computed(() => {
   return groups
 })
 
-const templateNameMap: Record<string, string> = {
-  register_code: text.registerCode,
-  reset_password: text.resetPassword,
-}
+const templateNameMap = computed<Record<string, string>>(() => ({
+  register_code: text.value.registerCode,
+  reset_password: text.value.resetPassword,
+}))
 
-const columns = [
+const columns = computed(() => [
   {
-    title: text.lang,
+    title: text.value.lang,
     key: 'lang',
     width: 100,
-    render: (row: EmailTemplate) => h(NTag, { type: 'info' }, () => langMap[row.lang] || row.lang),
+    render: (row: EmailTemplate) => h(NTag, { type: 'info' }, () => langMap.value[row.lang] || row.lang),
   },
   {
-    title: text.subject,
+    title: text.value.subject,
     key: 'subject',
     ellipsis: { tooltip: true },
   },
   {
-    title: text.description,
+    title: text.value.description,
     key: 'description',
     ellipsis: { tooltip: true },
   },
   {
-    title: text.status,
+    title: text.value.status,
     key: 'status',
     width: 80,
     render: (row: EmailTemplate) => {
-      const status = statusMap[row.status]
-      return h(NTag, { type: status?.type || 'default' }, () => status?.label || text.unknown)
+      const status = statusMap.value[row.status as 0 | 1]
+      return h(NTag, { type: status?.type || 'default' }, () => status?.label || text.value.unknown)
     },
   },
   {
-    title: text.action,
+    title: text.value.action,
     key: 'actions',
     width: 100,
     render: (row: EmailTemplate) => {
-      return h(NButton, { size: 'small', type: 'primary', onClick: () => handleEdit(row) }, () => text.edit)
+      return h(NButton, { size: 'small', type: 'primary', onClick: () => handleEdit(row) }, () => text.value.edit)
     },
   },
-]
+])
 
 // ---- Data ----
 async function loadData() {
@@ -187,8 +196,8 @@ async function loadData() {
       templates.value = result.data
   }
   catch (error) {
-    console.error(text.loadFailed, error)
-    window.$message?.error(text.loadFailed)
+    reportEmailTemplateError('[emailTemplates] load failed', error)
+    window.$message?.error(text.value.loadFailed)
   }
   finally {
     loading.value = false
@@ -198,7 +207,7 @@ async function loadData() {
 // ---- Send Test ----
 async function handleSendTest() {
   if (!testTo.value.trim()) {
-    window.$message?.warning(text.inputEmail)
+    window.$message?.warning(text.value.inputEmail)
     return
   }
   testSending.value = true
@@ -209,11 +218,11 @@ async function handleSendTest() {
       template_id: testTemplateId.value || undefined,
     })
     if (result.data)
-      window.$message?.success(text.sendSuccess)
+      window.$message?.success(text.value.sendSuccess)
   }
   catch (error: any) {
-    console.error(text.sendFailed, error)
-    window.$message?.error(error?.message || text.sendFailed)
+    reportEmailTemplateError('[emailTemplates] send test failed', error)
+    window.$message?.error(text.value.sendFailed)
   }
   finally {
     testSending.value = false
@@ -257,7 +266,7 @@ async function refreshPreview() {
       previewHtml.value = result.data.wrapped || result.data.content
   }
   catch (error) {
-    console.error(text.previewFailed, error)
+    reportEmailTemplateError('[emailTemplates] preview failed', error)
   }
   finally {
     previewLoading.value = false
@@ -279,11 +288,11 @@ async function handleSave() {
   if (!currentTemplate.value)
     return
   if (!formValue.value.subject.trim()) {
-    window.$message?.warning(text.subjectRequired)
+    window.$message?.warning(text.value.subjectRequired)
     return
   }
   if (!formValue.value.content.trim()) {
-    window.$message?.warning(text.contentRequired)
+    window.$message?.warning(text.value.contentRequired)
     return
   }
   try {
@@ -294,14 +303,14 @@ async function handleSave() {
       status: formValue.value.status,
     })
     if (result.data) {
-      window.$message?.success(text.saveSuccess)
+      window.$message?.success(text.value.saveSuccess)
       showModal.value = false
       await loadData()
     }
   }
   catch (error) {
-    console.error(text.saveFailed, error)
-    window.$message?.error(text.saveFailed)
+    reportEmailTemplateError('[emailTemplates] save failed', error)
+    window.$message?.error(text.value.saveFailed)
   }
 }
 
@@ -320,7 +329,7 @@ async function handleResetFinalConfirm() {
   try {
     const result = await fetchResetEmailTemplate(currentTemplate.value.id)
     if (result.data) {
-      window.$message?.success(text.resetSuccess)
+      window.$message?.success(text.value.resetSuccess)
       resetStep.value = 0
       await loadData()
       const updated = templates.value.find(t => t.id === currentTemplate.value!.id)
@@ -336,8 +345,8 @@ async function handleResetFinalConfirm() {
     }
   }
   catch (error) {
-    console.error(text.resetFailed, error)
-    window.$message?.error(text.resetFailed)
+    reportEmailTemplateError('[emailTemplates] reset failed', error)
+    window.$message?.error(text.value.resetFailed)
   }
 }
 

@@ -1,7 +1,6 @@
 package services
 
 import (
-	"errors"
 	"fst/backend/app/models"
 	"fst/backend/internal/db"
 	"time"
@@ -148,13 +147,13 @@ func (s *UserService) Create(req *UserCreateRequest) (*models.User, error) {
 	// 检查用户名是否已存在
 	existing, _ := models.GetUserByUsername(req.Username)
 	if existing != nil {
-		return nil, errors.New("用户名已存在")
+		return nil, NewClientError("用户名已存在")
 	}
 
 	// 检查邮箱是否已存在
 	existing, _ = models.GetUserByEmail(req.Email)
 	if existing != nil {
-		return nil, errors.New("邮箱已存在")
+		return nil, NewClientError("邮箱已存在")
 	}
 
 	user := &models.User{
@@ -209,21 +208,21 @@ type UserUpdateRequest struct {
 func (s *UserService) Update(req *UserUpdateRequest) error {
 	user, err := models.GetUserByID(req.ID)
 	if err != nil {
-		return errors.New("用户不存在")
+		return NewClientError("用户不存在")
 	}
 
 	// 检查邮箱是否被其他用户使用
 	if req.Email != nil && *req.Email != user.Email {
 		existing, _ := models.GetUserByEmail(*req.Email)
 		if existing != nil && existing.ID != user.ID {
-			return errors.New("邮箱已被使用")
+			return NewClientError("邮箱已被使用")
 		}
 		user.Email = *req.Email
 	}
 	if req.Mobile != nil && *req.Mobile != user.Mobile {
 		existing, _ := models.GetUserByMobile(*req.Mobile)
 		if existing != nil && existing.ID != user.ID {
-			return errors.New("手机号已被使用")
+			return NewClientError("手机号已被使用")
 		}
 		user.Mobile = *req.Mobile
 	}

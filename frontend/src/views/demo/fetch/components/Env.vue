@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
 const emit = defineEmits<{
-  update: [data: any] // 具名元组语法
+  update: [data: any]
 }>()
 
 async function get() {
@@ -10,9 +14,9 @@ async function get() {
 </script>
 
 <template>
-  <n-card title="检查环境变量" size="small">
+  <n-card :title="t('demo.fetch.checkEnv')" size="small">
     <n-button @click="get">
-      click
+      {{ t('demo.fetch.click') }}
     </n-button>
   </n-card>
 </template>

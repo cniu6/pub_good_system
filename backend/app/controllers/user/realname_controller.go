@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fst/backend/app/services"
 	"fst/backend/utils"
+	"log"
 	"github.com/gin-gonic/gin"
 )
 
@@ -98,7 +99,12 @@ func (c *RealnameController) SubmitRealname(ctx *gin.Context) {
 	}
 
 	if err := c.realnameService.Submit(user_id.(uint64), svc_req); err != nil {
-		utils.Fail(ctx, 400, err.Error())
+		if services.IsClientError(err) {
+			utils.Fail(ctx, 400, err.Error())
+			return
+		}
+		log.Printf("[REALNAME] submit failed for user_id=%d: %v", user_id.(uint64), err)
+		utils.Fail(ctx, 500, "实名认证提交失败，请稍后重试")
 		return
 	}
 
@@ -130,7 +136,8 @@ func (c *RealnameController) GetMyRealnameStatus(ctx *gin.Context) {
 			})
 			return
 		}
-		utils.Fail(ctx, 500, "查询失败: "+err.Error())
+		log.Printf("[REALNAME] load status failed for user_id=%d: %v", user_id.(uint64), err)
+		utils.Fail(ctx, 500, "查询实名状态失败")
 		return
 	}
 

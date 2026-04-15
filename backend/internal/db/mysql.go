@@ -14,7 +14,7 @@ func InitDB() {
 	var err error
 	DB, err = sqlx.Connect(config.GlobalConfig.DBDriver, config.GlobalConfig.DBDSN)
 	if err != nil {
-		log.Fatalf("Error connecting to database: %v", err)
+		log.Fatalf("[数据库连接错误] 无法连接数据库，请检查数据库服务和配置: %v", err)
 	}
 
 	// Set connection pool settings

@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/store'
 import { fetchResetApiKey, fetchUserApiKey } from '@/service'
 import NovaIcon from '@/components/common/NovaIcon.vue'
 
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 const userInfo = computed(() => authStore.userInfo)
 
@@ -20,7 +22,8 @@ async function loadApiKey() {
     }
   }
   catch (error) {
-    console.error('获取 API Key 失败', error)
+    if (import.meta.env.DEV)
+      console.error('[apiTab] fetch api key failed', error)
   }
   finally {
     apiKeyLoading.value = false
@@ -30,10 +33,10 @@ async function loadApiKey() {
 function copyApiKey() {
   if (userInfo.value?.apikey) {
     navigator.clipboard.writeText(userInfo.value.apikey)
-    window.$message.success('API Key 已复制到剪贴板')
+    window.$message.success(t('apiTab.apiKeyCopied'))
   }
   else {
-    window.$message.warning('API Key 为空')
+    window.$message.warning(t('apiTab.apiKeyEmpty'))
   }
 }
 
@@ -41,16 +44,18 @@ async function confirmResetApiKey() {
   try {
     const response = await fetchResetApiKey()
     if (response.isSuccess) {
-      window.$message.success('API Key 重置成功')
+      window.$message.success(t('apiTab.apiKeyResetSuccess'))
       authStore.updateUserInfo({ apikey: response.data.apikey })
       showResetConfirm.value = false
     }
     else {
-      window.$message.error(response.message || '重置 API Key 失败')
+      window.$message.error(response.message || t('apiTab.apiKeyResetFailed'))
     }
   }
   catch (error) {
-    window.$message.error(`重置 API Key 失败: ${error}`)
+    if (import.meta.env.DEV)
+      console.error('[apiTab] reset api key failed', error)
+    window.$message.error(t('apiTab.apiKeyResetFailed'))
   }
 }
 
@@ -61,21 +66,21 @@ onMounted(() => {
 
 <template>
   <div class="p-4">
-    <n-h4>API 管理</n-h4>
+    <n-h4>{{ t('apiTab.title') }}</n-h4>
     <n-divider />
 
     <div class="api-section">
       <n-text depth="3" class="api-desc">
-        API 密钥用于调用系统接口，请妥善保管，不要泄露给他人
+        {{ t('apiTab.description') }}
       </n-text>
 
       <div class="api-key-container">
         <n-input
           :loading="apiKeyLoading"
-          :value="userInfo?.apikey || '暂无 API 密钥'"
+          :value="userInfo?.apikey || t('apiTab.noApiKey')"
           :type="showApiKey ? 'text' : 'password'"
           readonly
-          placeholder="暂无 API 密钥"
+          :placeholder="t('apiTab.noApiKey')"
           class="api-key-input"
         >
           <template #suffix>
@@ -100,7 +105,7 @@ onMounted(() => {
                 <template #icon>
                   <NovaIcon icon="icon-park-outline:copy" :size="16" />
                 </template>
-                复制
+                {{ t('apiTab.copy') }}
               </n-button>
             </n-space>
           </template>
@@ -111,17 +116,17 @@ onMounted(() => {
           class="reset-btn"
           @click="showResetConfirm = true"
         >
-          重置密钥
+          {{ t('apiTab.resetKey') }}
         </n-button>
       </div>
 
       <n-alert type="warning" class="mt-4">
         <template #header>
-          注意事项
+          {{ t('apiTab.notes') }}
         </template>
         <ul class="alert-list">
-          <li>重置 API 密钥后，原密钥将立即失效</li>
-          <li>请及时更新使用该密钥的应用程序</li>
+          <li>{{ t('apiTab.note1') }}</li>
+          <li>{{ t('apiTab.note2') }}</li>
         </ul>
       </n-alert>
     </div>
@@ -130,7 +135,7 @@ onMounted(() => {
     <n-modal v-model:show="showResetConfirm">
       <n-card
         style="width: 400px"
-        title="确认重置 API 密钥"
+        :title="t('apiTab.confirmResetTitle')"
         :bordered="false"
         size="huge"
         role="dialog"
@@ -138,16 +143,16 @@ onMounted(() => {
       >
         <div class="confirm-content">
           <n-alert type="warning" :show-icon="false">
-            重置后原 API 密钥将失效，请确认是否继续？
+            {{ t('apiTab.confirmResetContent') }}
           </n-alert>
         </div>
         <template #footer>
           <div class="dialog-footer">
             <n-button @click="showResetConfirm = false">
-              取消
+              {{ t('common.cancel') }}
             </n-button>
             <n-button type="warning" @click="confirmResetApiKey">
-              确认重置
+              {{ t('apiTab.confirmReset') }}
             </n-button>
           </div>
         </template>

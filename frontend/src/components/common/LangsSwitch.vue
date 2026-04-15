@@ -2,16 +2,18 @@
 import { useAppStore, useAuthStore } from '@/store'
 import { updateUserSettings } from '@/service'
 import { langToBackendFormat } from '@/utils'
+import { useI18n } from 'vue-i18n'
 
+const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const options = [
   {
-    label: 'English',
+    label: t('langs.english'),
     value: 'enUS',
   },
   {
-    label: '中文',
+    label: t('langs.chinese'),
     value: 'zhCN',
   },
 ]

@@ -42,36 +42,36 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 	}
 	paymentEnabled := settingsMap["payment_enabled"] == "true" || settingsMap["payment_enabled"] == "1"
 	if !paymentEnabled {
-		return nil, errors.New("支付功能未启用")
+		return nil, NewClientError("支付功能未启用")
 	}
 	if req.Amount <= 0 {
-		return nil, errors.New("充值金额必须大于 0")
+		return nil, NewClientError("充值金额必须大于 0")
 	}
 
 	// 2. 获取支付通道
 	gateway, err := models.GetPayGatewayByID(req.GatewayID)
 	if err != nil {
-		return nil, errors.New("支付通道不存在")
+		return nil, NewClientError("支付通道不存在")
 	}
 	if gateway.Status != models.PayGatewayStatusEnabled {
-		return nil, errors.New("该支付通道已禁用")
+		return nil, NewClientError("该支付通道已禁用")
 	}
 
 	// 3. 检查用户是否存在 + 等级校验
 	user, err := models.GetUserByID(userID)
 	if err != nil || user == nil {
-		return nil, errors.New("用户不存在")
+		return nil, NewClientError("用户不存在")
 	}
 	if gateway.MinLevel > 0 && int(user.Level) < gateway.MinLevel {
-		return nil, fmt.Errorf("该通道要求最低等级 Lv.%d，您当前等级 Lv.%d", gateway.MinLevel, user.Level)
+		return nil, NewClientError(fmt.Sprintf("该通道要求最低等级 Lv.%d，您当前等级 Lv.%d", gateway.MinLevel, user.Level))
 	}
 
 	// 4. 验证金额范围（通道级别）
 	if gateway.MinAmount > 0 && req.Amount < gateway.MinAmount {
-		return nil, fmt.Errorf("该通道最低充值金额为 ¥%.2f", gateway.MinAmount)
+		return nil, NewClientError(fmt.Sprintf("该通道最低充值金额为 ¥%.2f", gateway.MinAmount))
 	}
 	if gateway.MaxAmount > 0 && req.Amount > gateway.MaxAmount {
-		return nil, fmt.Errorf("该通道最高充值金额为 ¥%.2f", gateway.MaxAmount)
+		return nil, NewClientError(fmt.Sprintf("该通道最高充值金额为 ¥%.2f", gateway.MaxAmount))
 	}
 
 	// 5. 检查用户是否有过多未支付订单（防刷）
@@ -80,7 +80,7 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 		return nil, errors.New("检查待支付订单失败，请稍后重试")
 	}
 	if len(pendingOrders) >= 10 {
-		return nil, errors.New("您有过多未支付订单，请先支付或等待过期后重试")
+		return nil, NewClientError("您有过多未支付订单，请先支付或等待过期后重试")
 	}
 
 	// 6. 计算手续费
@@ -132,7 +132,7 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 		// 防御性校验：确保支付方式在通道允许范围内
 		if !ValidatePaymentType(epayConfig, order.PaymentType) {
 			models.UpdatePaymentOrderStatus(order.OrderNo, models.PaymentStatusFailed, "")
-			return nil, errors.New("支付方式不受该通道支持")
+			return nil, NewClientError("支付方式不受该通道支持")
 		}
 
 		// 使用回调地址：优先通道自定义，否则用全局
@@ -142,7 +142,7 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 		}
 
 		// 先尝试 API 支付（mapi）
-		apiPayURL, apiErr := EpayAPIPay(epayConfig, order, gwNotifyURL, returnURL)
+		apiPayURL, tradeNo, apiErr := EpayAPIPay(epayConfig, order, gwNotifyURL, returnURL)
 		if apiErr != nil {
 			log.Printf("[Payment] API支付失败，回退到跳转支付: %v", apiErr)
 			// 回退到跳转模式
@@ -154,15 +154,19 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 			}
 		} else {
 			payURL = apiPayURL
+			order.TradeNo = models.NormalizeTradeNo(tradeNo)
 		}
 	} else {
 		models.UpdatePaymentOrderStatus(order.OrderNo, models.PaymentStatusFailed, "")
-		return nil, fmt.Errorf("不支持的支付通道类型: %s", gateway.Type)
+		return nil, NewClientError("不支持的支付通道类型")
 	}
 
 	// 11. 保存支付链接到订单
 	order.PayURL = payURL
-	db.DB.Exec("UPDATE payment_orders SET pay_url = ? WHERE id = ?", payURL, order.ID)
+	if err := models.UpdatePaymentOrderPaymentInfo(order.OrderNo, order.TradeNo, payURL); err != nil {
+		log.Printf("[Payment] 保存支付链接失败: order_no=%s, err=%v", order.OrderNo, err)
+		return nil, errors.New("支付订单保存失败，请稍后重试")
+	}
 
 	log.Printf("[Payment] 订单创建成功: order_no=%s, user_id=%d, amount=%.2f, fee=%.2f, pay_amount=%.2f, gateway=%s",
 		order.OrderNo, userID, order.Amount, fee, payAmount, gateway.Name)

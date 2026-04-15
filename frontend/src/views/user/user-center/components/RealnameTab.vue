@@ -238,7 +238,8 @@ async function loadRealnameStatus() {
       realnameInfo.value = res.data
     }
   } catch (e) {
-    console.error('加载实名状态失败', e)
+    if (import.meta.env.DEV)
+      console.error('[realnameTab] load status failed', e)
     message.error(t('realname.loadFailed'))
   } finally {
     loading.value = false
@@ -278,7 +279,9 @@ async function handleSubmit() {
       certificate_back: '',
     }
   } catch (e: unknown) {
-    message.error(e instanceof Error ? e.message : t('realname.submitFailed'))
+    if (import.meta.env.DEV)
+      console.error('[realnameTab] submit failed', e)
+    message.error(t('realname.submitFailed'))
   } finally {
     submitting.value = false
   }

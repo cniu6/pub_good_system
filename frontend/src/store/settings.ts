@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { fetchAppConfig, type AppConfig } from '@/service/api/app-config'
 import { geetestManager } from '@/utils/geetest'
+import { i18n } from '@/modules/i18n'
 
 /**
  * 运行时配置 Store
@@ -34,7 +35,7 @@ export const useSettingsStore = defineStore('settings-store', () => {
   const siteName = computed(() => config.value?.site_name ?? import.meta.env.VITE_APP_NAME ?? 'F.st')
 
   // 站点描述
-  const siteDesc = computed(() => config.value?.site_desc ?? '基于 Go + Vue 3 的全栈管理系统模板')
+  const siteDesc = computed(() => config.value?.site_desc ?? i18n.global.t('settings.defaultSiteDesc'))
 
   // 站点Logo
   const siteLogo = computed(() => config.value?.site_logo ?? '')
@@ -111,16 +112,10 @@ export const useSettingsStore = defineStore('settings-store', () => {
 
         // 注册极验启用检查函数
         geetestManager.setEnabledChecker(() => geetestEnabled.value)
-
-        // 输出调试信息
-        if (import.meta.env.DEV) {
-          console.log('[Settings] App config loaded:', config.value)
-        }
       }
     }
-    catch (error: any) {
-      console.warn('[Settings] Failed to load app config:', error)
-      loadError.value = error.message || 'Failed to load app config'
+    catch (error: unknown) {
+      loadError.value = error instanceof Error ? error.message : 'Failed to load app config'
 
       // 加载失败时使用默认值，不影响应用启动
       isLoaded.value = true

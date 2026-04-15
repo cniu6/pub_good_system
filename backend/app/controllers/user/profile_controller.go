@@ -10,7 +10,7 @@ import (
 	"fst/backend/internal/config"
 	"fst/backend/internal/middleware"
 	"fst/backend/utils"
-	"math/rand"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -50,7 +50,7 @@ type UpdateProfileRequest struct {
 
 type ChangePasswordRequest struct {
 	OldPassword string `json:"old_password" binding:"required"`
-	NewPassword string `json:"new_password" binding:"required,min=6"`
+	NewPassword string `json:"new_password" binding:"required,min=8"`
 }
 
 type ProfileRealnameSummary struct {
@@ -115,8 +115,13 @@ func (ctrl *ProfileController) GetProfile(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
-	user, err := ctrl.user_svc.GetByID(user_id.(uint64))
+	user, err := ctrl.user_svc.GetByID(uid)
 	if err != nil {
 		utils.Fail(c, 404, "User not found")
 		return
@@ -128,7 +133,7 @@ func (ctrl *ProfileController) GetProfile(c *gin.Context) {
 	realnameSummary := ProfileRealnameSummary{
 		HasVerification: false,
 	}
-	if verification, err := models.GetRealnameVerificationByUserID(user_id.(uint64)); err == nil && verification != nil {
+	if verification, err := models.GetRealnameVerificationByUserID(uid); err == nil && verification != nil {
 		realnameSummary = ProfileRealnameSummary{
 			HasVerification: true,
 			ID:              verification.ID,
@@ -181,8 +186,13 @@ func (ctrl *ProfileController) GetApiKey(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
-	user, err := ctrl.user_svc.GetByID(user_id.(uint64))
+	user, err := ctrl.user_svc.GetByID(uid)
 	if err != nil {
 		utils.Fail(c, 404, "User not found")
 		return
@@ -205,6 +215,11 @@ func (ctrl *ProfileController) UpdateProfile(c *gin.Context) {
 	user_id, exists := c.Get("userID")
 	if !exists {
 		utils.Fail(c, 401, "User not logged in")
+		return
+	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
 		return
 	}
 
@@ -253,7 +268,7 @@ func (ctrl *ProfileController) UpdateProfile(c *gin.Context) {
 
 	// 构建更新请求
 	update_req := &services.UserUpdateRequest{
-		ID:       user_id.(uint64),
+		ID:       uid,
 		Gender:   req.Gender,
 		Birthday: req.Birthday,
 	}
@@ -266,7 +281,12 @@ func (ctrl *ProfileController) UpdateProfile(c *gin.Context) {
 	update_req.Country = &req.Country
 
 	if err := ctrl.user_svc.Update(update_req); err != nil {
-		utils.Fail(c, 500, err.Error())
+		if services.IsClientError(err) {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
+		log.Printf("[PROFILE] update profile failed for user_id=%d: %v", uid, err)
+		utils.Fail(c, 500, "Failed to update profile")
 		return
 	}
 
@@ -289,6 +309,11 @@ func (ctrl *ProfileController) ChangePassword(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
 	var req ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -296,8 +321,13 @@ func (ctrl *ProfileController) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if err := ctrl.auth_svc.ChangePassword(user_id.(uint64), req.OldPassword, req.NewPassword); err != nil {
-		utils.Fail(c, 400, err.Error())
+	if err := ctrl.auth_svc.ChangePassword(uid, req.OldPassword, req.NewPassword); err != nil {
+		if utils.IsPasswordValidationError(err) || services.IsClientError(err) {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
+		log.Printf("[PROFILE] change password failed for user_id=%d: %v", uid, err)
+		utils.Fail(c, 500, "Failed to change password")
 		return
 	}
 
@@ -357,8 +387,13 @@ func (ctrl *ProfileController) GetSettings(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
-	user, err := ctrl.user_svc.GetByID(user_id.(uint64))
+	user, err := ctrl.user_svc.GetByID(uid)
 	if err != nil {
 		utils.Fail(c, 404, "User not found")
 		return
@@ -407,14 +442,17 @@ func (ctrl *ProfileController) UpdateSettings(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
 	var req UpdateSettingsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.Fail(c, 400, err.Error())
 		return
 	}
-
-	uid := user_id.(uint64)
 
 	// 更新 users 表中的 language 字段
 	if req.Language != "" {
@@ -474,6 +512,11 @@ func (ctrl *ProfileController) UpdateAvatar(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
 	var req struct {
 		Avatar string `json:"avatar" binding:"required"`
@@ -497,7 +540,7 @@ func (ctrl *ProfileController) UpdateAvatar(c *gin.Context) {
 	}
 
 	update_req := &services.UserUpdateRequest{
-		ID: user_id.(uint64),
+		ID: uid,
 	}
 	update_req.Avatar = &req.Avatar
 
@@ -528,8 +571,13 @@ func (ctrl *ProfileController) GetUserStats(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
-	user, err := ctrl.user_svc.GetByID(user_id.(uint64))
+	user, err := ctrl.user_svc.GetByID(uid)
 	if err != nil {
 		utils.Fail(c, 404, "User not found")
 		return
@@ -576,6 +624,11 @@ func (ctrl *ProfileController) SendEmailChangeCode(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
 	var req SendEmailCodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -584,7 +637,6 @@ func (ctrl *ProfileController) SendEmailChangeCode(c *gin.Context) {
 	}
 
 	req.NewEmail = utils.Clean_XSS(req.NewEmail)
-	uid := user_id.(uint64)
 
 	// 检查邮箱是否已被使用
 	existing, _ := models.GetUserByEmail(req.NewEmail)
@@ -609,10 +661,17 @@ func (ctrl *ProfileController) SendEmailChangeCode(c *gin.Context) {
 		update_req := &services.UserUpdateRequest{ID: uid}
 		update_req.Email = &req.NewEmail
 		if err := ctrl.user_svc.Update(update_req); err != nil {
-			utils.Fail(c, 500, err.Error())
+			if services.IsClientError(err) {
+				utils.Fail(c, 400, err.Error())
+				return
+			}
+			log.Printf("[PROFILE] direct email change failed for user_id=%d: %v", uid, err)
+			utils.Fail(c, 500, "Failed to change email")
 			return
 		}
-		fmt.Printf("[DEV] Email verify disabled, directly changed email for user %d to %s\n", uid, req.NewEmail)
+		if !config.IsProductionMode() {
+			log.Printf("[PROFILE] email verification disabled; direct email change applied for user_id=%d", uid)
+		}
 		utils.Success(c, gin.H{"message": "Email changed successfully (verification disabled)", "verified": true, "email": req.NewEmail})
 		return
 	}
@@ -666,6 +725,11 @@ func (ctrl *ProfileController) VerifyEmailChange(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
 	var req VerifyEmailChangeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -685,11 +749,16 @@ func (ctrl *ProfileController) VerifyEmailChange(c *gin.Context) {
 
 	// 更新邮箱
 	update_req := &services.UserUpdateRequest{
-		ID: user_id.(uint64),
+		ID: uid,
 	}
 	update_req.Email = &req.NewEmail
 	if err := ctrl.user_svc.Update(update_req); err != nil {
-		utils.Fail(c, 500, err.Error())
+		if services.IsClientError(err) {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
+		log.Printf("[PROFILE] verify email change failed for user_id=%d: %v", uid, err)
+		utils.Fail(c, 500, "Failed to change email")
 		return
 	}
 
@@ -722,6 +791,11 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
 	var req SendPhoneCodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -730,7 +804,6 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 	}
 
 	req.NewMobile = utils.Clean_XSS(req.NewMobile)
-	uid := user_id.(uint64)
 	user, err := ctrl.user_svc.GetByID(uid)
 	if err != nil {
 		utils.Fail(c, 404, "User not found")
@@ -762,10 +835,17 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 		update_req := &services.UserUpdateRequest{ID: uid}
 		update_req.Mobile = &req.NewMobile
 		if err := ctrl.user_svc.Update(update_req); err != nil {
-			utils.Fail(c, 500, err.Error())
+			if services.IsClientError(err) {
+				utils.Fail(c, 400, err.Error())
+				return
+			}
+			log.Printf("[PROFILE] direct phone change failed for user_id=%d: %v", uid, err)
+			utils.Fail(c, 500, "Failed to change phone")
 			return
 		}
-		fmt.Printf("[DEV] SMS verify disabled, directly changed phone for user %d to %s\n", uid, req.NewMobile)
+		if !config.IsProductionMode() {
+			log.Printf("[PROFILE] sms verification disabled; direct phone change applied for user_id=%d", uid)
+		}
 		utils.Success(c, gin.H{"message": "Phone changed successfully (verification disabled)", "verified": true, "mobile": req.NewMobile})
 		return
 	}
@@ -799,11 +879,11 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 		smsLang = "zh-CN"
 	}
 	smsTemplateParams := map[string]string{
-		"__template_name": "bind_phone",
+		"__template_name":  "bind_phone",
 		"__template_order": "code,expire",
 	}
 	if err := services.GlobalSMSService.SendCode(req.NewMobile, code, 10, smsTemplateParams, smsLang); err != nil {
-		fmt.Printf("[SMS] Failed to send code to %s via %s: %v\n", req.NewMobile, providerName, err)
+		log.Printf("[SMS] failed to send code to %s via %s: %v", models.MaskPhone(req.NewMobile), providerName, err)
 		_ = models.DeleteVerificationCodesByContact(req.NewMobile, "change_phone")
 		utils.Fail(c, 500, "Failed to send verification code")
 		return
@@ -828,6 +908,11 @@ func (ctrl *ProfileController) VerifyPhoneChange(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
 	var req VerifyPhoneChangeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -847,11 +932,16 @@ func (ctrl *ProfileController) VerifyPhoneChange(c *gin.Context) {
 
 	// 更新手机号
 	update_req := &services.UserUpdateRequest{
-		ID: user_id.(uint64),
+		ID: uid,
 	}
 	update_req.Mobile = &req.NewMobile
 	if err := ctrl.user_svc.Update(update_req); err != nil {
-		utils.Fail(c, 500, err.Error())
+		if services.IsClientError(err) {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
+		log.Printf("[PROFILE] verify phone change failed for user_id=%d: %v", uid, err)
+		utils.Fail(c, 500, "Failed to change phone")
 		return
 	}
 
@@ -897,14 +987,17 @@ func (ctrl *ProfileController) DeactivateAccount(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
 	var req DeactivateAccountRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.Fail(c, 400, err.Error())
 		return
 	}
-
-	uid := user_id.(uint64)
 
 	// 验证密码
 	user, err := ctrl.user_svc.GetByID(uid)
@@ -946,6 +1039,11 @@ func (ctrl *ProfileController) GetSessions(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
 	// 根据当前 token 的 authGuard 查询对应会话
 	guard, _ := c.Get("authGuard")
@@ -953,7 +1051,7 @@ func (ctrl *ProfileController) GetSessions(c *gin.Context) {
 	if guardStr == "" {
 		guardStr = "user"
 	}
-	sessions, err := models.GetUserSessionsWithGuard(user_id.(uint64), guardStr)
+	sessions, err := models.GetUserSessionsWithGuard(uid, guardStr)
 	if err != nil {
 		utils.Fail(c, 500, "Failed to load sessions")
 		return
@@ -978,6 +1076,11 @@ func (ctrl *ProfileController) RevokeSession(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
 	session_id := c.Param("id")
 	if session_id == "" {
@@ -991,7 +1094,7 @@ func (ctrl *ProfileController) RevokeSession(c *gin.Context) {
 	if guardStr == "" {
 		guardStr = "user"
 	}
-	if err := models.RevokeUserSessionWithGuard(user_id.(uint64), guardStr, session_id); err != nil {
+	if err := models.RevokeUserSessionWithGuard(uid, guardStr, session_id); err != nil {
 		utils.Fail(c, 500, "Failed to revoke session")
 		return
 	}
@@ -1014,6 +1117,11 @@ func (ctrl *ProfileController) RevokeAllSessions(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
 	current_token := c.GetHeader("Authorization")
 	// 去除 Bearer 前缀，只保留 token 部分
@@ -1029,7 +1137,7 @@ func (ctrl *ProfileController) RevokeAllSessions(c *gin.Context) {
 	if guardStr == "" {
 		guardStr = "user"
 	}
-	if err := models.RevokeAllUserSessionsWithGuard(user_id.(uint64), guardStr, currentTokenHash); err != nil {
+	if err := models.RevokeAllUserSessionsWithGuard(uid, guardStr, currentTokenHash); err != nil {
 		utils.Fail(c, 500, "Failed to revoke sessions")
 		return
 	}
@@ -1056,8 +1164,13 @@ func (ctrl *ProfileController) ResetApiKey(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
-	new_key, err := models.ResetUserApiKey(user_id.(uint64))
+	new_key, err := models.ResetUserApiKey(uid)
 	if err != nil {
 		utils.Fail(c, 500, "Failed to reset API key")
 		return
@@ -1085,12 +1198,7 @@ func generateCode() string {
 	const digits = "0123456789"
 	b := make([]byte, 6)
 	if _, err := crypto_rand.Read(b); err != nil {
-		// fallback to math/rand
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		for i := range b {
-			b[i] = digits[r.Intn(10)]
-		}
-		return string(b)
+		return fmt.Sprintf("%06d", time.Now().UnixNano()%1000000)
 	}
 	for i := range b {
 		b[i] = digits[b[i]%10]
@@ -1156,7 +1264,11 @@ func (ctrl *ProfileController) GetMoneyLogs(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
-	uid := user_id.(uint64)
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
@@ -1170,7 +1282,8 @@ func (ctrl *ProfileController) GetMoneyLogs(c *gin.Context) {
 
 	logs, total, err := services.GetUserMoneyLogList(uid, page, pageSize, keyword)
 	if err != nil {
-		utils.Fail(c, 500, "获取余额日志失败: "+err.Error())
+		log.Printf("[PROFILE] load money logs failed for user_id=%d: %v", uid, err)
+		utils.Fail(c, 500, "获取余额日志失败")
 		return
 	}
 
@@ -1193,7 +1306,11 @@ func (ctrl *ProfileController) GetScoreLogs(c *gin.Context) {
 		utils.Fail(c, 401, "User not logged in")
 		return
 	}
-	uid := user_id.(uint64)
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
@@ -1207,7 +1324,8 @@ func (ctrl *ProfileController) GetScoreLogs(c *gin.Context) {
 
 	logs, total, err := services.GetUserScoreLogList(uid, page, pageSize, keyword)
 	if err != nil {
-		utils.Fail(c, 500, "获取积分日志失败: "+err.Error())
+		log.Printf("[PROFILE] load score logs failed for user_id=%d: %v", uid, err)
+		utils.Fail(c, 500, "获取积分日志失败")
 		return
 	}
 
@@ -1234,7 +1352,11 @@ func (ctrl *ProfileController) GetDashboard(c *gin.Context) {
 		return
 	}
 
-	uid := user_id.(uint64)
+	uid, ok := user_id.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "Invalid user session")
+		return
+	}
 	user, err := ctrl.user_svc.GetByID(uid)
 	if err != nil {
 		utils.Fail(c, 404, "User not found")

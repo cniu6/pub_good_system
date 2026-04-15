@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/store'
 import { fetchChangePassword, fetchUpdateProfile } from '@/service'
 import { sendEmailChangeCode, verifyEmailChange, sendPhoneChangeCode, verifyPhoneChange } from '@/service'
@@ -6,6 +7,7 @@ import GeetestCaptcha from '@/components/common/GeetestCaptcha.vue'
 import { geetestManager } from '@/utils/geetest'
 
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 const userInfo = computed(() => authStore.userInfo)
 
@@ -70,11 +72,11 @@ const passwordChangeCountdown = ref(0)
 
 async function handlePasswordSubmit() {
   if (passwordForm.value.new_password !== passwordForm.value.confirm_password) {
-    window.$message.error('两次输入的密码不一致')
+    window.$message.error(t('profile.passwordMismatch'))
     return
   }
-  if (!passwordForm.value.new_password || passwordForm.value.new_password.length < 6) {
-    window.$message.error('新密码长度不能少于6位')
+  if (!passwordForm.value.new_password || passwordForm.value.new_password.length < 8) {
+    window.$message.error(t('profile.passwordTooShort'))
     return
   }
   try {
@@ -95,11 +97,11 @@ async function handlePasswordSubmit() {
       }, 1000)
     }
     else {
-      window.$message.error(response.message || '密码修改失败')
+      window.$message.error(response.message || t('profile.changePasswordFailed'))
     }
   }
   catch (error) {
-    window.$message.error(`密码修改失败: ${error}`)
+    window.$message.error(`${t('profile.changePasswordFailed')}: ${error}`)
   }
 }
 
@@ -114,7 +116,7 @@ function openEmailModal() {
 
 function triggerSendEmailCode() {
   if (!emailForm.value.email) {
-    window.$message.error('请输入新邮箱地址')
+    window.$message.error(t('profile.enterNewEmail'))
     return
   }
   if (isGeetestEnabled.value) {
@@ -140,12 +142,12 @@ async function doSendEmailCode() {
     if (response.isSuccess) {
       // 验证关闭时后端直接修改完成
       if (response.data?.verified) {
-        window.$message.success('邮箱修改成功')
+        window.$message.success(t('profile.emailUpdated'))
         showEmailModal.value = false
         authStore.updateUserInfo({ email: emailForm.value.email })
         return
       }
-      window.$message.success('验证码已发送到新邮箱')
+      window.$message.success(t('profile.emailCodeSent'))
       emailStep.value = 'verify'
       emailCodeCountdown.value = 60
       emailCodeTimer = setInterval(() => {
@@ -157,17 +159,17 @@ async function doSendEmailCode() {
       }, 1000)
     }
     else {
-      window.$message.error(response.message || '发送验证码失败')
+      window.$message.error(response.message || t('profile.sendCodeFailed'))
     }
   }
   catch (error) {
-    window.$message.error(`发送验证码失败: ${error}`)
+    window.$message.error(`${t('profile.sendCodeFailed')}: ${error}`)
   }
 }
 
 async function handleVerifyEmailChange() {
   if (!emailForm.value.code) {
-    window.$message.error('请输入验证码')
+    window.$message.error(t('profile.enterVerificationCode'))
     return
   }
   try {
@@ -176,17 +178,17 @@ async function handleVerifyEmailChange() {
       code: emailForm.value.code,
     })
     if (response.isSuccess) {
-      window.$message.success('邮箱修改成功')
+      window.$message.success(t('profile.emailUpdated'))
       showEmailModal.value = false
       authStore.updateUserInfo({ email: emailForm.value.email })
       if (emailCodeTimer) clearInterval(emailCodeTimer)
     }
     else {
-      window.$message.error(response.message || '验证码错误或已过期')
+      window.$message.error(response.message || t('profile.invalidOrExpiredCode'))
     }
   }
   catch (error) {
-    window.$message.error(`邮箱验证失败: ${error}`)
+    window.$message.error(`${t('profile.emailVerifyFailed')}: ${error}`)
   }
 }
 
@@ -201,7 +203,7 @@ function openPhoneModal() {
 
 function triggerSendPhoneCode() {
   if (!phoneForm.value.mobile) {
-    window.$message.error('请输入新手机号')
+    window.$message.error(t('profile.enterNewPhone'))
     return
   }
   if (isGeetestEnabled.value) {
@@ -227,12 +229,12 @@ async function doSendPhoneCode() {
     if (response.isSuccess) {
       // 验证关闭时后端直接修改完成
       if (response.data?.verified) {
-        window.$message.success('手机号修改成功')
+        window.$message.success(t('profile.phoneUpdated'))
         showPhoneModal.value = false
         authStore.updateUserInfo({ mobile: phoneForm.value.mobile })
         return
       }
-      window.$message.success('验证码已发送')
+      window.$message.success(t('profile.codeSent'))
       phoneStep.value = 'verify'
       phoneCodeCountdown.value = 60
       phoneCodeTimer = setInterval(() => {
@@ -244,17 +246,17 @@ async function doSendPhoneCode() {
       }, 1000)
     }
     else {
-      window.$message.error(response.message || '发送验证码失败')
+      window.$message.error(response.message || t('profile.sendCodeFailed'))
     }
   }
   catch (error) {
-    window.$message.error(`发送验证码失败: ${error}`)
+    window.$message.error(`${t('profile.sendCodeFailed')}: ${error}`)
   }
 }
 
 async function handleVerifyPhoneChange() {
   if (!phoneForm.value.code) {
-    window.$message.error('请输入验证码')
+    window.$message.error(t('profile.enterVerificationCode'))
     return
   }
   try {
@@ -263,17 +265,17 @@ async function handleVerifyPhoneChange() {
       code: phoneForm.value.code,
     })
     if (response.isSuccess) {
-      window.$message.success('手机号修改成功')
+      window.$message.success(t('profile.phoneUpdated'))
       showPhoneModal.value = false
       authStore.updateUserInfo({ mobile: phoneForm.value.mobile })
       if (phoneCodeTimer) clearInterval(phoneCodeTimer)
     }
     else {
-      window.$message.error(response.message || '验证码错误或已过期')
+      window.$message.error(response.message || t('profile.invalidOrExpiredCode'))
     }
   }
   catch (error) {
-    window.$message.error(`手机验证失败: ${error}`)
+    window.$message.error(`${t('profile.phoneVerifyFailed')}: ${error}`)
   }
 }
 
@@ -291,7 +293,7 @@ async function handleProfileSubmit() {
     }
     const response = await fetchUpdateProfile(submitData)
     if (response.isSuccess) {
-      window.$message.success('个人资料保存成功')
+      window.$message.success(t('profile.profileSaved'))
       authStore.updateUserInfo({
         nickname: submitData.nickname,
         avatar: submitData.avatar,
@@ -302,11 +304,11 @@ async function handleProfileSubmit() {
       })
     }
     else {
-      window.$message.error(response.message || '个人资料保存失败')
+      window.$message.error(response.message || t('profile.profileSaveFailed'))
     }
   }
   catch (error) {
-    window.$message.error(`个人资料保存失败: ${error}`)
+    window.$message.error(`${t('profile.profileSaveFailed')}: ${error}`)
   }
 }
 </script>
@@ -316,48 +318,48 @@ async function handleProfileSubmit() {
     <n-space vertical size="large">
       <!-- 基本信息 -->
       <div>
-        <n-h4>基本信息</n-h4>
+        <n-h4>{{ t('profile.basicInfo') }}</n-h4>
         <n-divider />
         <n-grid cols="1 s:2 m:3" :x-gap="32" :y-gap="0" responsive="screen">
           <n-grid-item>
-            <n-form-item label="用户ID" label-placement="top">
+            <n-form-item :label="t('profile.userId')" label-placement="top">
               <n-input :value="userInfo?.id?.toString()" readonly disabled />
             </n-form-item>
           </n-grid-item>
           <n-grid-item>
-            <n-form-item label="用户名" label-placement="top">
+            <n-form-item :label="t('profile.username')" label-placement="top">
               <n-input :value="userInfo?.userName" readonly disabled />
             </n-form-item>
           </n-grid-item>
           <n-grid-item>
-            <n-form-item label="昵称" label-placement="top">
-              <n-input v-model:value="profileForm.nickname" placeholder="请输入昵称" />
+            <n-form-item :label="t('profile.nickname')" label-placement="top">
+              <n-input v-model:value="profileForm.nickname" :placeholder="t('profile.enterNickname')" />
             </n-form-item>
           </n-grid-item>
           <n-grid-item>
-            <n-form-item label="性别" label-placement="top">
+            <n-form-item :label="t('profile.gender')" label-placement="top">
               <n-radio-group v-model:value="profileForm.gender">
                 <n-radio :value="0">
-                  保密
+                  {{ t('profile.genderSecret') }}
                 </n-radio>
                 <n-radio :value="1">
-                  男
+                  {{ t('profile.genderMale') }}
                 </n-radio>
                 <n-radio :value="2">
-                  女
+                  {{ t('profile.genderFemale') }}
                 </n-radio>
               </n-radio-group>
             </n-form-item>
           </n-grid-item>
           <n-grid-item>
-            <n-form-item label="生日" label-placement="top">
-              <n-date-picker v-model:value="profileForm.birthday" type="date" placeholder="请选择生日" class="w-full" />
+            <n-form-item :label="t('profile.birthday')" label-placement="top">
+              <n-date-picker v-model:value="profileForm.birthday" type="date" :placeholder="t('profile.selectBirthday')" class="w-full" />
             </n-form-item>
           </n-grid-item>
         </n-grid>
         <n-space>
           <n-button type="primary" @click="handleProfileSubmit">
-            保存修改
+            {{ t('profile.saveChanges') }}
           </n-button>
         </n-space>
       </div>
@@ -365,35 +367,35 @@ async function handleProfileSubmit() {
 
       <!-- 安全设置 -->
       <div>
-        <n-h4>安全设置</n-h4>
+        <n-h4>{{ t('profile.securitySettings') }}</n-h4>
         <n-space vertical>
           <div class="security-item">
             <div class="security-info">
-              <span class="security-label">登录密码</span>
-              <span class="security-desc">用于登录账户的密码</span>
+              <span class="security-label">{{ t('profile.loginPassword') }}</span>
+              <span class="security-desc">{{ t('profile.loginPasswordDesc') }}</span>
             </div>
             <n-button type="warning" @click="showPasswordModal = true">
-              修改密码
+              {{ t('profile.changePassword') }}
             </n-button>
           </div>
 
           <div class="security-item">
             <div class="security-info">
-              <span class="security-label">邮箱地址</span>
-              <span class="security-desc">{{ userInfo?.email || '未绑定邮箱' }}</span>
+              <span class="security-label">{{ t('profile.emailAddress') }}</span>
+              <span class="security-desc">{{ userInfo?.email || t('profile.emailUnbound') }}</span>
             </div>
             <n-button @click="openEmailModal">
-              {{ userInfo?.email ? '修改邮箱' : '绑定邮箱' }}
+              {{ userInfo?.email ? t('profile.changeEmail') : t('profile.bindEmail') }}
             </n-button>
           </div>
 
           <div class="security-item">
             <div class="security-info">
-              <span class="security-label">手机号码</span>
-              <span class="security-desc">{{ userInfo?.mobile || '未绑定手机号' }}</span>
+              <span class="security-label">{{ t('profile.phoneNumber') }}</span>
+              <span class="security-desc">{{ userInfo?.mobile || t('profile.phoneUnbound') }}</span>
             </div>
             <n-button @click="openPhoneModal">
-              {{ userInfo?.mobile ? '修改手机号' : '绑定手机号' }}
+              {{ userInfo?.mobile ? t('profile.changePhone') : t('profile.bindPhone') }}
             </n-button>
           </div>
         </n-space>
@@ -402,22 +404,22 @@ async function handleProfileSubmit() {
       <!-- 登录信息 -->
       <n-divider />
       <div>
-        <n-h4>登录信息</n-h4>
+        <n-h4>{{ t('profile.loginInfo') }}</n-h4>
         <n-descriptions :column="1" bordered label-placement="left" class="login-info-desc">
-          <n-descriptions-item label="注册时间">
-            {{ userInfo?.createTime ? new Date(userInfo.createTime * 1000).toLocaleString() : 'N/A' }}
+          <n-descriptions-item :label="t('profile.registerTime')">
+            {{ userInfo?.createTime ? new Date(userInfo.createTime * 1000).toLocaleString() : t('profile.na') }}
           </n-descriptions-item>
-          <n-descriptions-item label="最后登录">
-            {{ userInfo?.lastLoginTime ? new Date(userInfo.lastLoginTime * 1000).toLocaleString() : '从未登录' }}
+          <n-descriptions-item :label="t('profile.lastLogin')">
+            {{ userInfo?.lastLoginTime ? new Date(userInfo.lastLoginTime * 1000).toLocaleString() : t('profile.neverLoggedIn') }}
           </n-descriptions-item>
-          <n-descriptions-item label="注册IP">
-            {{ userInfo?.joinIp || 'N/A' }}
+          <n-descriptions-item :label="t('profile.registerIp')">
+            {{ userInfo?.joinIp || t('profile.na') }}
           </n-descriptions-item>
-          <n-descriptions-item label="最后登录IP">
-            {{ userInfo?.lastLoginIp || 'N/A' }}
+          <n-descriptions-item :label="t('profile.lastLoginIp')">
+            {{ userInfo?.lastLoginIp || t('profile.na') }}
           </n-descriptions-item>
-          <n-descriptions-item label="更新时间">
-            {{ userInfo?.updateTime ? new Date(userInfo.updateTime * 1000).toLocaleString() : 'N/A' }}
+          <n-descriptions-item :label="t('profile.updateTime')">
+            {{ userInfo?.updateTime ? new Date(userInfo.updateTime * 1000).toLocaleString() : t('profile.na') }}
           </n-descriptions-item>
         </n-descriptions>
       </div>
@@ -427,41 +429,41 @@ async function handleProfileSubmit() {
     <n-modal
       v-model:show="showPasswordModal"
       preset="dialog"
-      title="修改密码"
+      :title="t('profile.changePassword')"
       :mask-closable="passwordChangeCountdown === 0"
       :closable="passwordChangeCountdown === 0"
     >
       <div v-if="passwordChangeCountdown > 0" class="text-center py-6">
-        <n-result status="success" title="密码修改成功">
+        <n-result status="success" :title="t('profile.passwordChanged')">
           <template #footer>
             <n-text type="warning">
-              {{ passwordChangeCountdown }} 秒后自动退出登录，请使用新密码重新登录
+              {{ t('profile.autoLogoutCountdown', { seconds: passwordChangeCountdown }) }}
             </n-text>
           </template>
         </n-result>
       </div>
       <n-form v-else :model="passwordForm" label-placement="left" label-width="100px">
-        <n-form-item label="当前密码" required>
+        <n-form-item :label="t('profile.currentPassword')" required>
           <n-input
             v-model:value="passwordForm.old_password"
             type="password"
-            placeholder="请输入当前密码"
+            :placeholder="t('profile.enterCurrentPassword')"
             show-password-on="click"
           />
         </n-form-item>
-        <n-form-item label="新密码" required>
+        <n-form-item :label="t('profile.newPassword')" required>
           <n-input
             v-model:value="passwordForm.new_password"
             type="password"
-            placeholder="请输入新密码（至少6位）"
+            :placeholder="t('profile.enterNewPassword')"
             show-password-on="click"
           />
         </n-form-item>
-        <n-form-item label="确认密码" required>
+        <n-form-item :label="t('profile.confirmPassword')" required>
           <n-input
             v-model:value="passwordForm.confirm_password"
             type="password"
-            placeholder="请再次输入新密码"
+            :placeholder="t('profile.enterConfirmPassword')"
             show-password-on="click"
           />
         </n-form-item>
@@ -469,37 +471,37 @@ async function handleProfileSubmit() {
       <template v-if="passwordChangeCountdown === 0" #action>
         <n-space>
           <n-button @click="showPasswordModal = false">
-            取消
+            {{ t('common.cancel') }}
           </n-button>
           <n-button type="primary" @click="handlePasswordSubmit">
-            确认修改
+            {{ t('profile.confirmChange') }}
           </n-button>
         </n-space>
       </template>
     </n-modal>
 
     <!-- 修改邮箱弹窗（验证码流程） -->
-    <n-modal v-model:show="showEmailModal" preset="dialog" title="修改邮箱">
+    <n-modal v-model:show="showEmailModal" preset="dialog" :title="t('profile.changeEmail')">
       <n-form :model="emailForm" label-placement="left" label-width="100px">
-        <n-form-item label="新邮箱" required>
+        <n-form-item :label="t('profile.newEmail')" required>
           <n-input
             v-model:value="emailForm.email"
-            placeholder="请输入新邮箱地址"
+            :placeholder="t('profile.enterNewEmail')"
             :disabled="emailStep === 'verify'"
           />
         </n-form-item>
-        <n-form-item v-if="emailStep === 'verify'" label="验证码" required>
+        <n-form-item v-if="emailStep === 'verify'" :label="t('profile.verificationCode')" required>
           <n-input-group>
             <n-input
               v-model:value="emailForm.code"
-              placeholder="请输入6位验证码"
+              :placeholder="t('profile.enterSixDigitCode')"
               :maxlength="6"
             />
             <n-button
               :disabled="emailCodeCountdown > 0"
               @click="triggerSendEmailCode"
             >
-              {{ emailCodeCountdown > 0 ? `${emailCodeCountdown}s` : '重新发送' }}
+              {{ emailCodeCountdown > 0 ? `${emailCodeCountdown}s` : t('profile.resend') }}
             </n-button>
           </n-input-group>
         </n-form-item>
@@ -515,40 +517,40 @@ async function handleProfileSubmit() {
       <template #action>
         <n-space>
           <n-button @click="showEmailModal = false">
-            取消
+            {{ t('common.cancel') }}
           </n-button>
           <n-button v-if="emailStep === 'input'" type="primary" @click="triggerSendEmailCode">
-            发送验证码
+            {{ t('profile.sendCode') }}
           </n-button>
           <n-button v-else type="primary" @click="handleVerifyEmailChange">
-            确认修改
+            {{ t('profile.confirmChange') }}
           </n-button>
         </n-space>
       </template>
     </n-modal>
 
     <!-- 修改手机号弹窗（验证码流程） -->
-    <n-modal v-model:show="showPhoneModal" preset="dialog" title="修改手机号">
+    <n-modal v-model:show="showPhoneModal" preset="dialog" :title="t('profile.changePhone')">
       <n-form :model="phoneForm" label-placement="left" label-width="100px">
-        <n-form-item label="新手机号" required>
+        <n-form-item :label="t('profile.newPhone')" required>
           <n-input
             v-model:value="phoneForm.mobile"
-            placeholder="请输入新手机号"
+            :placeholder="t('profile.enterNewPhone')"
             :disabled="phoneStep === 'verify'"
           />
         </n-form-item>
-        <n-form-item v-if="phoneStep === 'verify'" label="验证码" required>
+        <n-form-item v-if="phoneStep === 'verify'" :label="t('profile.verificationCode')" required>
           <n-input-group>
             <n-input
               v-model:value="phoneForm.code"
-              placeholder="请输入6位验证码"
+              :placeholder="t('profile.enterSixDigitCode')"
               :maxlength="6"
             />
             <n-button
               :disabled="phoneCodeCountdown > 0"
               @click="triggerSendPhoneCode"
             >
-              {{ phoneCodeCountdown > 0 ? `${phoneCodeCountdown}s` : '重新发送' }}
+              {{ phoneCodeCountdown > 0 ? `${phoneCodeCountdown}s` : t('profile.resend') }}
             </n-button>
           </n-input-group>
         </n-form-item>
@@ -564,13 +566,13 @@ async function handleProfileSubmit() {
       <template #action>
         <n-space>
           <n-button @click="showPhoneModal = false">
-            取消
+            {{ t('common.cancel') }}
           </n-button>
           <n-button v-if="phoneStep === 'input'" type="primary" @click="triggerSendPhoneCode">
-            发送验证码
+            {{ t('profile.sendCode') }}
           </n-button>
           <n-button v-else type="primary" @click="handleVerifyPhoneChange">
-            确认修改
+            {{ t('profile.confirmChange') }}
           </n-button>
         </n-space>
       </template>

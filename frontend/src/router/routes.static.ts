@@ -46,7 +46,7 @@ export const staticRoutes: AppRoute.RowRoute[] = [
   {
     name: 'account',
     path: '/user/account',
-    title: '我的账户',
+    title: 'route.myAccount',
     requiresAuth: true,
     icon: 'icon-park-outline:peoples',
     menuType: 'dir',
@@ -57,7 +57,7 @@ export const staticRoutes: AppRoute.RowRoute[] = [
   {
     name: 'recharge',
     path: '/user/account/recharge',
-    title: '充值中心',
+    title: 'route.rechargeCenter',
     requiresAuth: true,
     icon: 'icon-park-outline:add-one',
     menuType: 'page',

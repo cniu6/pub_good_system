@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, markRaw, h } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
   NGrid,
@@ -38,6 +39,7 @@ import { adminApi } from '@/service/api/admin'
 
 const router = useRouter()
 const message = useMessage()
+const { t } = useI18n()
 const mode = import.meta.env.MODE
 const loading = ref(false)
 
@@ -59,37 +61,37 @@ const recentUsers = ref<any[]>([])
 // 用户表格列
 const userColumns: DataTableColumns<any> = [
   { title: 'ID', key: 'id', width: 60 },
-  { title: '用户名', key: 'username', width: 120 },
-  { title: '邮箱', key: 'email', width: 180, ellipsis: { tooltip: true } },
+  { title: t('adminDashboard.username'), key: 'username', width: 120 },
+  { title: t('adminDashboard.email'), key: 'email', width: 180, ellipsis: { tooltip: true } },
   {
-    title: '角色', key: 'role', width: 80,
-    render: (row) => h(NTag, { type: row.role === 'admin' ? 'error' : 'info', size: 'small' }, () => row.role === 'admin' ? '管理员' : '用户'),
+    title: t('adminDashboard.role'), key: 'role', width: 80,
+    render: (row) => h(NTag, { type: row.role === 'admin' ? 'error' : 'info', size: 'small' }, () => row.role === 'admin' ? t('adminDashboard.admin') : t('adminDashboard.user')),
   },
   {
-    title: '状态', key: 'status', width: 80,
-    render: (row) => h(NTag, { type: row.status === 1 ? 'success' : 'error', size: 'small' }, () => row.status === 1 ? '正常' : '禁用'),
+    title: t('adminDashboard.status'), key: 'status', width: 80,
+    render: (row) => h(NTag, { type: row.status === 1 ? 'success' : 'error', size: 'small' }, () => row.status === 1 ? t('adminDashboard.normal') : t('adminDashboard.disabled')),
   },
   {
-    title: '注册时间', key: 'create_time', width: 160,
+    title: t('adminDashboard.registerTime'), key: 'create_time', width: 160,
     render: (row) => row.create_time ? new Date(row.create_time * 1000).toLocaleString() : '-',
   },
 ]
 
 // 统计卡片（动态值）
 const stat_cards = [
-  { label: '用户总数', key: 'total_users', icon: markRaw(UserOutlined), color: 'var(--info-color)' },
-  { label: '今日新增', key: 'today_new_users', icon: markRaw(TeamOutlined), color: 'var(--success-color)' },
-  { label: '7日活跃', key: 'active_users_7d', icon: markRaw(FieldTimeOutlined), color: 'var(--warning-color)' },
-  { label: '活跃会话', key: 'active_sessions', icon: markRaw(CheckCircleOutlined), color: 'var(--error-color)' },
+  { label: t('adminDashboard.totalUsers'), key: 'total_users', icon: markRaw(UserOutlined), color: 'var(--info-color)' },
+  { label: t('adminDashboard.todayNewUsers'), key: 'today_new_users', icon: markRaw(TeamOutlined), color: 'var(--success-color)' },
+  { label: t('adminDashboard.activeUsers7d'), key: 'active_users_7d', icon: markRaw(FieldTimeOutlined), color: 'var(--warning-color)' },
+  { label: t('adminDashboard.activeSessions'), key: 'active_sessions', icon: markRaw(CheckCircleOutlined), color: 'var(--error-color)' },
 ]
 
 // 快速操作
 const quick_actions = [
-  { label: '用户管理', icon: markRaw(UserOutlined), type: 'primary' as const, path: 'users' },
-  { label: '余额日志', icon: markRaw(DollarOutlined), type: 'success' as const, path: 'finance/money-logs' },
-  { label: '积分日志', icon: markRaw(StarOutlined), type: 'info' as const, path: 'finance/score-logs' },
-  { label: '操作日志', icon: markRaw(FileTextOutlined), type: 'warning' as const, path: 'logs' },
-  { label: '系统设置', icon: markRaw(SettingOutlined), type: 'default' as const, path: 'settings' },
+  { label: t('adminDashboard.userManagement'), icon: markRaw(UserOutlined), type: 'primary' as const, path: 'users' },
+  { label: t('adminDashboard.moneyLogs'), icon: markRaw(DollarOutlined), type: 'success' as const, path: 'finance/money-logs' },
+  { label: t('adminDashboard.scoreLogs'), icon: markRaw(StarOutlined), type: 'info' as const, path: 'finance/score-logs' },
+  { label: t('adminDashboard.operationLogs'), icon: markRaw(FileTextOutlined), type: 'warning' as const, path: 'logs' },
+  { label: t('adminDashboard.systemSettings'), icon: markRaw(SettingOutlined), type: 'default' as const, path: 'settings' },
 ]
 
 // 获取仪表盘数据
@@ -107,7 +109,8 @@ async function fetchDashboard() {
       }
     }
   } catch (error) {
-    console.error('获取仪表盘数据失败:', error)
+    if (import.meta.env.DEV)
+      console.error('[adminDashboard] fetch failed', error)
   } finally {
     loading.value = false
   }
@@ -119,7 +122,7 @@ function go_to(sub_path: string) {
 
 function handleRefresh() {
   fetchDashboard()
-  message.success('数据已刷新')
+  message.success(t('adminDashboard.dataRefreshed'))
 }
 
 onMounted(() => {
@@ -139,14 +142,14 @@ onMounted(() => {
             </n-icon>
           </n-icon-wrapper>
           <n-flex vertical>
-            <n-text strong>欢迎回来，管理员</n-text>
-            <n-text depth="3">这里是系统运行概览，一切正常运行中。</n-text>
+            <n-text strong>{{ t('adminDashboard.welcomeBack') }}</n-text>
+            <n-text depth="3">{{ t('adminDashboard.systemOverview') }}</n-text>
           </n-flex>
         </n-flex>
         <n-flex :size="8">
-          <n-button :loading="loading" @click="handleRefresh">刷新数据</n-button>
-          <n-button type="primary" @click="go_to('users')">用户管理</n-button>
-          <n-button @click="go_to('settings')">系统设置</n-button>
+          <n-button :loading="loading" @click="handleRefresh">{{ t('adminDashboard.refreshData') }}</n-button>
+          <n-button type="primary" @click="go_to('users')">{{ t('adminDashboard.userManagement') }}</n-button>
+          <n-button @click="go_to('settings')">{{ t('adminDashboard.systemSettings') }}</n-button>
         </n-flex>
       </n-flex>
     </n-card>
@@ -179,7 +182,7 @@ onMounted(() => {
     <n-grid :x-gap="16" :y-gap="16" :cols="12" item-responsive responsive="screen">
       <!-- 快速操作 + 日志统计 -->
       <n-gi span="12 m:6">
-        <n-card title="快速操作" hoverable>
+        <n-card :title="t('adminDashboard.quickActions')" hoverable>
           <n-grid :x-gap="12" :y-gap="12" :cols="3" item-responsive>
             <n-gi v-for="action in quick_actions" :key="action.label" span="3 s:1">
               <n-button block :type="action.type" ghost size="large" @click="go_to(action.path)">
@@ -195,21 +198,21 @@ onMounted(() => {
 
       <!-- 系统信息 -->
       <n-gi span="12 m:6">
-        <n-card title="系统信息" hoverable>
+        <n-card :title="t('adminDashboard.systemInfo')" hoverable>
           <n-descriptions :column="1" label-placement="left" bordered size="small">
-            <n-descriptions-item label="系统版本">
+            <n-descriptions-item :label="t('adminDashboard.systemVersion')">
               <n-tag size="small" type="info">v1.0.0</n-tag>
             </n-descriptions-item>
-            <n-descriptions-item label="后端框架">Go 1.24 + Gin</n-descriptions-item>
-            <n-descriptions-item label="前端框架">Vue 3 + Naive UI</n-descriptions-item>
-            <n-descriptions-item label="运行环境">
+            <n-descriptions-item :label="t('adminDashboard.backendFramework')">Go 1.24 + Gin</n-descriptions-item>
+            <n-descriptions-item :label="t('adminDashboard.frontendFramework')">Vue 3 + Naive UI</n-descriptions-item>
+            <n-descriptions-item :label="t('adminDashboard.environment')">
               <n-tag size="small" :type="mode === 'production' ? 'success' : 'warning'">{{ mode }}</n-tag>
             </n-descriptions-item>
-            <n-descriptions-item label="操作日志">
-              总 {{ statistics.total_operation_logs }} 条，今日 {{ statistics.today_operation_logs }} 条
+            <n-descriptions-item :label="t('adminDashboard.operationLogs')">
+              {{ t('adminDashboard.operationLogsSummary', { total: statistics.total_operation_logs, today: statistics.today_operation_logs }) }}
             </n-descriptions-item>
-            <n-descriptions-item label="余额/积分日志">
-              余额 {{ statistics.total_money_logs }} 条 / 积分 {{ statistics.total_score_logs }} 条
+            <n-descriptions-item :label="t('adminDashboard.moneyScoreLogs')">
+              {{ t('adminDashboard.moneyScoreLogsSummary', { money: statistics.total_money_logs, score: statistics.total_score_logs }) }}
             </n-descriptions-item>
           </n-descriptions>
         </n-card>
@@ -217,9 +220,9 @@ onMounted(() => {
 
       <!-- 最近注册用户 -->
       <n-gi :span="12">
-        <n-card title="最近注册用户" hoverable>
+        <n-card :title="t('adminDashboard.recentUsers')" hoverable>
           <template #header-extra>
-            <n-button type="primary" quaternary @click="go_to('users')">查看全部</n-button>
+            <n-button type="primary" quaternary @click="go_to('users')">{{ t('adminDashboard.viewAll') }}</n-button>
           </template>
           <n-spin :show="loading">
             <n-data-table
@@ -230,7 +233,7 @@ onMounted(() => {
               size="small"
               :pagination="false"
             />
-            <n-empty v-if="!loading && recentUsers.length === 0" description="暂无用户数据" />
+            <n-empty v-if="!loading && recentUsers.length === 0" :description="t('adminDashboard.noUserData')" />
           </n-spin>
         </n-card>
       </n-gi>

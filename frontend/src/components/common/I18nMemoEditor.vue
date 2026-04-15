@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NTabs, NTabPane, NInput } from 'naive-ui'
+
+const { t } = useI18n()
 
 interface Props {
   modelValue: string | Record<string, string>
@@ -11,8 +14,8 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   langs: () => [
-    { key: 'zhCN', label: '中文' },
-    { key: 'enUS', label: 'English' },
+    { key: 'zhCN', label: t('common.chinese') },
+    { key: 'enUS', label: t('common.english') },
   ],
   rows: 3,
   placeholder: '',
@@ -51,8 +54,9 @@ function handleInput(lang: string, text: string) {
 }
 
 const placeholderFor = computed(() => (lang: string) => {
+  if (props.placeholder) return props.placeholder
   const langObj = props.langs.find(l => l.key === lang)
-  return props.placeholder || `输入${langObj?.label || lang}备注`
+  return t('common.enterRemarkFor', { lang: langObj?.label || lang })
 })
 </script>
 

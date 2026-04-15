@@ -276,6 +276,28 @@ func UpdatePaymentOrderStatusTx(tx *sql.Tx, orderNo string, status int, tradeNo 
 	return err
 }
 
+func UpdatePaymentOrderPaymentInfo(orderNo, tradeNo, payURL string) error {
+	tradeNo = NormalizeTradeNo(tradeNo)
+	now := time.Now().Unix()
+	if tradeNo != "" {
+		_, err := db.DB.Exec(
+			"UPDATE payment_orders SET trade_no = ?, pay_url = ?, update_time = ? WHERE order_no = ?",
+			tradeNo,
+			payURL,
+			now,
+			orderNo,
+		)
+		return err
+	}
+	_, err := db.DB.Exec(
+		"UPDATE payment_orders SET pay_url = ?, update_time = ? WHERE order_no = ?",
+		payURL,
+		now,
+		orderNo,
+	)
+	return err
+}
+
 // UpdatePaymentOrderStatus 更新订单状态（非事务）
 // 仅当 tradeNo 非空时才更新 trade_no 字段，避免覆盖已保存的第三方交易号
 func UpdatePaymentOrderStatus(orderNo string, status int, tradeNo string) error {

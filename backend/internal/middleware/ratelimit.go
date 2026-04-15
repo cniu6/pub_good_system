@@ -47,6 +47,8 @@ type RateLimiter struct {
 	mu       sync.RWMutex
 	config   RateLimitConfig
 	stop_ch  chan struct{}
+	done_ch  chan struct{}
+	stopOnce sync.Once
 }
 
 // NewRateLimiter 创建限流器
@@ -55,6 +57,7 @@ func NewRateLimiter(config RateLimitConfig) *RateLimiter {
 		visitors: make(map[string]*visitor),
 		config:   config,
 		stop_ch:  make(chan struct{}),
+		done_ch:  make(chan struct{}),
 	}
 
 	// 启动清理协程
@@ -65,6 +68,7 @@ func NewRateLimiter(config RateLimitConfig) *RateLimiter {
 
 // cleanupRoutine 定期清理过期的访问者记录
 func (rl *RateLimiter) cleanupRoutine() {
+	defer close(rl.done_ch)
 	ticker := time.NewTicker(rl.config.CleanupInterval)
 	defer ticker.Stop()
 
@@ -96,7 +100,10 @@ func (rl *RateLimiter) cleanup() {
 
 // Stop 停止限流器
 func (rl *RateLimiter) Stop() {
-	close(rl.stop_ch)
+	rl.stopOnce.Do(func() {
+		close(rl.stop_ch)
+	})
+	<-rl.done_ch
 }
 
 // Allow 检查是否允许请求

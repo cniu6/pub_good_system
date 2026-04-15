@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
 const text = ref('')
-// 模拟 ajax 异步获取内容
+// Simulate ajax async content loading
 onMounted(() => {
   setTimeout(() => {
-    text.value = '<p>模拟 Ajax 异步设置内容</p>'
+    text.value = '<p>' + t('demo.editor.simulateAjax') + '</p>'
   }, 1500)
 })
 
@@ -11,15 +15,15 @@ const active = ref(false)
 </script>
 
 <template>
-  <n-card title="富文本编辑器">
+  <n-card :title="t('demo.editor.richTitle')">
     <n-space vertical :size="12">
-      <n-alert title="基于 Quill 封装" type="success" />
+      <n-alert :title="t('demo.editor.quillAlert')" type="success" />
       <n-switch v-model:value="active">
         <template #checked>
-          禁用
+          {{ t('demo.editor.disable') }}
         </template>
         <template #unchecked>
-          启用
+          {{ t('demo.editor.enable') }}
         </template>
       </n-switch>
       <n-space :size="12">
@@ -27,7 +31,7 @@ const active = ref(false)
           <RichTextEditor v-model="text" :disabled="active" />
         </div>
         <div>
-          <n-h2>v-html 预览</n-h2>
+          <n-h2>{{ t('demo.editor.vHtmlPreview') }}</n-h2>
           <div v-html="text" />
         </div>
       </n-space>

@@ -1,134 +1,134 @@
 <template>
-  <n-card title="系统设置" :bordered="false">
+  <n-card :title="t('adminSettings.title')" :bordered="false">
     <n-spin :show="loading">
       <n-tabs v-model:value="topTab" type="line" animated>
-        <n-tab-pane name="system-config" tab="系统配置">
+        <n-tab-pane name="system-config" :tab="t('adminSettings.systemConfig')">
           <n-tabs v-model:value="systemSubTab" type="line" placement="left" animated>
-            <n-tab-pane name="basic" tab="基本设置">
+            <n-tab-pane name="basic" :tab="t('adminSettings.basicSettings')">
               <n-space vertical>
                 <n-form :model="basicForm" label-placement="left" label-width="120px" style="max-width: 640px;">
-                  <n-form-item label="系统名称">
-                    <n-input v-model:value="basicForm.site_name" placeholder="请输入系统名称" />
+                  <n-form-item :label="t('adminSettings.siteName')">
+                    <n-input v-model:value="basicForm.site_name" :placeholder="t('adminSettings.siteNamePlaceholder')" />
                   </n-form-item>
-                  <n-form-item label="系统描述">
-                    <n-input v-model:value="basicForm.site_desc" type="textarea" placeholder="请输入系统描述" :rows="3" />
+                  <n-form-item :label="t('adminSettings.siteDesc')">
+                    <n-input v-model:value="basicForm.site_desc" type="textarea" :placeholder="t('adminSettings.siteDescPlaceholder')" :rows="3" />
                   </n-form-item>
-                  <n-form-item label="站点Logo">
-                    <n-input v-model:value="basicForm.site_logo" placeholder="Logo图片URL" />
+                  <n-form-item :label="t('adminSettings.siteLogo')">
+                    <n-input v-model:value="basicForm.site_logo" :placeholder="t('adminSettings.siteLogoPlaceholder')" />
                   </n-form-item>
-                  <n-form-item label="版权信息">
-                    <n-input v-model:value="basicForm.copyright" placeholder="如: (c) 2024 F.st" />
+                  <n-form-item :label="t('adminSettings.copyright')">
+                    <n-input v-model:value="basicForm.copyright" :placeholder="t('adminSettings.copyrightPlaceholder')" />
                   </n-form-item>
-                  <n-form-item label="ICP 备案号">
-                    <n-input v-model:value="basicForm.icp" placeholder="如: 京ICP备xxxxx号" />
+                  <n-form-item :label="t('adminSettings.icp')">
+                    <n-input v-model:value="basicForm.icp" :placeholder="t('adminSettings.icpPlaceholder')" />
                   </n-form-item>
-                  <n-form-item label="系统版本">
-                    <n-input v-model:value="basicForm.version" placeholder="如: 1.0.0" />
+                  <n-form-item :label="t('adminSettings.version')">
+                    <n-input v-model:value="basicForm.version" :placeholder="t('adminSettings.versionPlaceholder')" />
                   </n-form-item>
-                  <n-form-item label="默认语言">
-                    <n-select v-model:value="basicForm.default_lang" :options="langOptions" placeholder="选择默认语言" />
+                  <n-form-item :label="t('adminSettings.defaultLang')">
+                    <n-select v-model:value="basicForm.default_lang" :options="langOptions" :placeholder="t('adminSettings.defaultLangPlaceholder')" />
                   </n-form-item>
-                  <n-form-item label="前端地址">
-                    <n-input v-model:value="basicForm.frontend_url" placeholder="如: http://example.com（结尾不要加 /）" />
+                  <n-form-item :label="t('adminSettings.frontendUrl')">
+                    <n-input v-model:value="basicForm.frontend_url" :placeholder="t('adminSettings.frontendUrlPlaceholder')" />
                   </n-form-item>
-                  <n-form-item label="后端API地址">
-                    <n-input v-model:value="basicForm.backend_api_url" placeholder="如: http://api.example.com（结尾不要加 /）" />
+                  <n-form-item :label="t('adminSettings.backendApiUrl')">
+                    <n-input v-model:value="basicForm.backend_api_url" :placeholder="t('adminSettings.backendApiUrlPlaceholder')" />
                   </n-form-item>
-                  <n-form-item label="用户注册">
+                  <n-form-item :label="t('adminSettings.userRegistration')">
                     <n-space align="center">
                       <n-switch
                         :value="basicForm.allow_register"
                         :loading="switchLoading.allow_register"
                         @update:value="handleUpdateAllowRegister"
                       />
-                      <n-text depth="3">{{ basicForm.allow_register ? '允许新用户注册' : '禁止新用户注册' }}</n-text>
+                      <n-text depth="3">{{ basicForm.allow_register ? t('adminSettings.allowRegister') : t('adminSettings.disallowRegister') }}</n-text>
                     </n-space>
                   </n-form-item>
                   <n-form-item>
-                    <n-button type="primary" :loading="savingBasic" @click="handleSaveBasic">保存设置</n-button>
+                    <n-button type="primary" :loading="savingBasic" @click="handleSaveBasic">{{ t('adminSettings.saveSettings') }}</n-button>
                   </n-form-item>
                 </n-form>
               </n-space>
             </n-tab-pane>
 
-            <n-tab-pane name="email" tab="邮件设置">
+            <n-tab-pane name="email" :tab="t('adminSettings.emailSettings')">
               <n-space vertical>
                 <n-form :model="emailForm" label-placement="left" label-width="120px" style="max-width: 640px;">
-                  <n-form-item label="邮箱验证码">
+                  <n-form-item :label="t('adminSettings.emailVerification')">
                     <n-space align="center">
                       <n-switch
                         :value="emailForm.email_verify_enabled"
                         :loading="switchLoading.email_verify_enabled"
                         @update:value="handleUpdateEmailVerifyEnabled"
                       />
-                      <n-text depth="3">{{ emailForm.email_verify_enabled ? '已启用（修改邮箱需验证码）' : '已禁用（修改邮箱直接生效）' }}</n-text>
+                      <n-text depth="3">{{ emailForm.email_verify_enabled ? t('adminSettings.emailVerifyEnabled') : t('adminSettings.emailVerifyDisabled') }}</n-text>
                     </n-space>
                   </n-form-item>
                   <n-divider />
-                  <n-form-item label="SMTP 服务器">
-                    <n-input v-model:value="emailForm.smtp_host" placeholder="如: smtp.gmail.com" />
+                  <n-form-item :label="t('adminSettings.smtpHost')">
+                    <n-input v-model:value="emailForm.smtp_host" :placeholder="t('adminSettings.smtpHostPlaceholder')" />
                   </n-form-item>
-                  <n-form-item label="SMTP 端口">
+                  <n-form-item :label="t('adminSettings.smtpPort')">
                     <n-input-number v-model:value="emailForm.smtp_port" :min="1" :max="65535" style="width: 100%;" />
                   </n-form-item>
-                  <n-form-item label="发件人邮箱">
-                    <n-input v-model:value="emailForm.smtp_username" placeholder="发件人邮箱地址" />
+                  <n-form-item :label="t('adminSettings.smtpUsername')">
+                    <n-input v-model:value="emailForm.smtp_username" :placeholder="t('adminSettings.smtpUsernamePlaceholder')" />
                   </n-form-item>
-                  <n-form-item label="邮箱密码">
+                  <n-form-item :label="t('adminSettings.smtpPassword')">
                     <n-input
                       v-model:value="emailForm.smtp_password"
                       type="password"
                       show-password-on="click"
-                      placeholder="邮箱密码或应用密钥"
+                      :placeholder="t('adminSettings.smtpPasswordPlaceholder')"
                     />
                   </n-form-item>
-                  <n-form-item label="发件人名称">
-                    <n-input v-model:value="emailForm.system_email_name" placeholder="如: F.st" />
+                  <n-form-item :label="t('adminSettings.systemEmailName')">
+                    <n-input v-model:value="emailForm.system_email_name" :placeholder="t('adminSettings.systemEmailNamePlaceholder')" />
                   </n-form-item>
-                  <n-form-item label="SSL 加密">
+                  <n-form-item :label="t('adminSettings.smtpSSL')">
                     <n-space align="center">
                       <n-switch :value="emailForm.smtp_ssl" :loading="switchLoading.smtp_ssl" @update:value="handleUpdateSmtpSSL" />
-                      <n-text depth="3">{{ emailForm.smtp_ssl ? '已启用 SSL' : '未启用 SSL' }}</n-text>
+                      <n-text depth="3">{{ emailForm.smtp_ssl ? t('adminSettings.sslEnabled') : t('adminSettings.sslDisabled') }}</n-text>
                     </n-space>
                   </n-form-item>
                   <n-form-item>
                     <n-space>
-                      <n-button type="primary" :loading="savingEmail" @click="handleSaveEmail">保存</n-button>
-                      <n-button :loading="testingEmail" @click="handleTestEmail">发送测试邮件</n-button>
+                      <n-button type="primary" :loading="savingEmail" @click="handleSaveEmail">{{ t('adminSettings.save') }}</n-button>
+                      <n-button :loading="testingEmail" @click="handleTestEmail">{{ t('adminSettings.sendTestEmail') }}</n-button>
                     </n-space>
                   </n-form-item>
                 </n-form>
               </n-space>
             </n-tab-pane>
 
-            <n-tab-pane name="sms" tab="短信设置">
+            <n-tab-pane name="sms" :tab="t('adminSettings.smsSettings')">
               <n-space vertical>
                 <n-form :model="smsForm" label-placement="left" label-width="120px" style="max-width: 640px;">
-                  <n-form-item label="短信验证码">
+                  <n-form-item :label="t('adminSettings.smsVerification')">
                     <n-space align="center">
                       <n-switch
                         :value="smsForm.sms_verify_enabled"
                         :loading="switchLoading.sms_verify_enabled"
                         @update:value="handleUpdateSmsVerifyEnabled"
                       />
-                      <n-text depth="3">{{ smsForm.sms_verify_enabled ? '已启用（修改手机号需验证码）' : '已禁用（修改手机号直接生效）' }}</n-text>
+                      <n-text depth="3">{{ smsForm.sms_verify_enabled ? t('adminSettings.smsVerifyEnabled') : t('adminSettings.smsVerifyDisabled') }}</n-text>
                     </n-space>
                   </n-form-item>
                   <n-divider />
-                  <n-form-item label="短信服务商">
+                  <n-form-item :label="t('adminSettings.smsProvider')">
                     <n-select
                       v-model:value="smsForm.sms_provider"
                       :options="smsProviderOptions"
-                      placeholder="选择短信服务商"
+                      :placeholder="t('adminSettings.smsProviderPlaceholder')"
                     />
                   </n-form-item>
-                  <n-form-item label="AccessKey">
+                  <n-form-item :label="t('adminSettings.smsAccessKey')">
                     <n-input
                       v-model:value="smsForm.sms_access_key"
                       :placeholder="smsAccessKeyPlaceholder"
                     />
                   </n-form-item>
-                  <n-form-item label="SecretKey">
+                  <n-form-item :label="t('adminSettings.smsSecretKey')">
                     <n-input
                       v-model:value="smsForm.sms_secret_key"
                       type="password"
@@ -136,8 +136,8 @@
                       :placeholder="smsSecretKeyPlaceholder"
                     />
                   </n-form-item>
-                  <n-form-item v-if="smsProviderNeedsSignName" label="短信签名">
-                    <n-input v-model:value="smsForm.sms_sign_name" placeholder="如: F.st" />
+                  <n-form-item v-if="smsProviderNeedsSignName" :label="t('adminSettings.smsSignName')">
+                    <n-input v-model:value="smsForm.sms_sign_name" :placeholder="t('adminSettings.smsSignNamePlaceholder')" />
                   </n-form-item>
                   <n-form-item v-if="smsProviderNeedsTemplateCode" :label="smsTemplateLabel">
                     <n-input v-model:value="smsForm.sms_template_code" :placeholder="smsTemplatePlaceholder" />
@@ -145,179 +145,231 @@
                   <n-form-item v-if="smsProviderNeedsTemplateCode" :label="smsTemplateEnLabel">
                     <n-input v-model:value="smsForm.sms_template_code_en" :placeholder="smsTemplateEnPlaceholder" />
                   </n-form-item>
-                  <n-form-item v-if="smsProviderNeedsRegion" label="服务区域">
-                    <n-input v-model:value="smsForm.sms_region" placeholder="部分服务商需要，如: cn-hangzhou" />
+                  <n-form-item v-if="smsForm.sms_provider === 'aliyun'" :label="t('adminSettings.smsRegion')">
+                    <n-input v-model:value="smsForm.sms_region" :placeholder="t('adminSettings.smsRegionPlaceholder')" />
                   </n-form-item>
-                  <n-form-item v-if="smsForm.sms_provider === 'tencent'" label="腾讯云 AppID">
-                    <n-input v-model:value="smsForm.sms_sdk_app_id" placeholder="请输入 SmsSdkAppId" />
+                  <n-form-item v-if="smsForm.sms_provider === 'tencent'" :label="t('adminSettings.smsSdkAppId')">
+                    <n-input v-model:value="smsForm.sms_sdk_app_id" :placeholder="t('adminSettings.smsSdkAppIdPlaceholder')" />
                   </n-form-item>
-                  <n-form-item v-if="smsForm.sms_provider === 'custom'" label="HTTP Endpoint">
-                    <n-input v-model:value="smsForm.sms_endpoint" placeholder="如: https://your-gateway.com/api/send" />
+                  <n-form-item v-if="smsForm.sms_provider === 'custom'" :label="t('adminSettings.smsEndpoint')">
+                    <n-input v-model:value="smsForm.sms_endpoint" :placeholder="t('adminSettings.smsEndpointPlaceholder')" />
                   </n-form-item>
-                  <n-form-item v-if="smsForm.sms_provider === 'custom'" label="请求体格式">
+                  <n-form-item v-if="smsForm.sms_provider === 'custom'" :label="t('adminSettings.smsBodyFormat')">
                     <n-select
                       v-model:value="smsForm.sms_body_format"
                       :options="smsBodyFormatOptions"
-                      placeholder="选择请求体格式"
+                      :placeholder="t('adminSettings.smsBodyFormatPlaceholder')"
                     />
                   </n-form-item>
                   <n-form-item>
-                    <n-button type="primary" :loading="savingSms" @click="handleSaveSms">保存设置</n-button>
+                    <n-button type="primary" :loading="savingSms" @click="handleSaveSms">{{ t('adminSettings.saveSettings') }}</n-button>
                   </n-form-item>
                 </n-form>
-                <n-alert type="info" title="提示" :bordered="false">
-                  支持阿里云、腾讯云和自定义 HTTP 网关。<n-text strong>console</n-text> 模式下验证码仅打印到后端控制台日志；自定义网关可显式选择 `json` 或 `form` 请求格式。阿里云 / 腾讯云可同时配置默认模板和英文模板，英文模板留空时自动回退默认模板。
+                <n-alert type="info" :title="t('adminSettings.tip')" :bordered="false">
+                  {{ t('adminSettings.smsAlert') }}
                 </n-alert>
               </n-space>
             </n-tab-pane>
 
-            <n-tab-pane name="security" tab="安全设置">
+            <n-tab-pane name="security" :tab="t('adminSettings.securitySettings')">
               <n-space vertical>
                 <n-form :model="securityForm" label-placement="left" label-width="180px" style="max-width: 640px;">
-                  <n-form-item label="极验验证码">
+                  <n-form-item :label="t('adminSettings.geetestEnabled')">
                     <n-space align="center">
                       <n-switch
                         :value="securityForm.geetest_enabled"
                         :loading="switchLoading.geetest_enabled"
                         @update:value="handleUpdateGeetestEnabled"
                       />
-                      <n-text depth="3">{{ securityForm.geetest_enabled ? '已启用' : '已禁用' }}</n-text>
+                      <n-text depth="3">{{ securityForm.geetest_enabled ? t('adminSettings.enabled') : t('adminSettings.disabled') }}</n-text>
                     </n-space>
                   </n-form-item>
-                  <n-form-item label="账号注销">
+                  <n-form-item :label="t('adminSettings.allowDeleteAccount')">
                     <n-space align="center">
                       <n-switch
                         :value="securityForm.allow_delete_account"
                         :loading="switchLoading.allow_delete_account"
                         @update:value="handleUpdateAllowDeleteAccount"
                       />
-                      <n-text depth="3">{{ securityForm.allow_delete_account ? '允许用户主动注销账号' : '禁止用户主动注销账号' }}</n-text>
+                      <n-text depth="3">{{ securityForm.allow_delete_account ? t('adminSettings.allowDeleteAccountEnabled') : t('adminSettings.allowDeleteAccountDisabled') }}</n-text>
                     </n-space>
                   </n-form-item>
-                  <n-form-item label="极验 Captcha ID">
-                    <n-input v-model:value="securityForm.geetest_captcha_id" placeholder="请输入极验验证码 ID" />
+                  <n-form-item :label="t('adminSettings.geetestCaptchaId')">
+                    <n-input v-model:value="securityForm.geetest_captcha_id" :placeholder="t('adminSettings.geetestCaptchaIdPlaceholder')" />
                   </n-form-item>
-                  <n-form-item label="极验 Captcha Key">
+                  <n-form-item :label="t('adminSettings.geetestCaptchaKey')">
                     <n-input
                       v-model:value="securityForm.geetest_captcha_key"
                       type="password"
                       show-password-on="click"
-                      placeholder="请输入极验验证码 Key"
+                      :placeholder="t('adminSettings.geetestCaptchaKeyPlaceholder')"
                     />
                   </n-form-item>
                   <n-divider />
-                  <n-form-item label="JWT Token 有效期 (秒)">
+                  <n-form-item :label="t('adminSettings.jwtAccessExpire')">
                     <n-input-number v-model:value="securityForm.jwt_access_expire" :min="300" :step="300" style="width: 100%;" />
                   </n-form-item>
-                  <n-form-item label="Refresh Token 有效期 (秒)">
+                  <n-form-item :label="t('adminSettings.jwtRefreshExpire')">
                     <n-input-number v-model:value="securityForm.jwt_refresh_expire" :min="3600" :step="3600" style="width: 100%;" />
                   </n-form-item>
-                  <n-form-item label="登录失败锁定次数">
+                  <n-form-item :label="t('adminSettings.loginMaxFailure')">
                     <n-input-number v-model:value="securityForm.login_max_failure" :min="3" :max="20" style="width: 100%;" />
                   </n-form-item>
-                  <n-form-item label="账户锁定时长 (分钟)">
+                  <n-form-item :label="t('adminSettings.loginLockDuration')">
                     <n-input-number v-model:value="securityForm.login_lock_duration" :min="1" :max="1440" style="width: 100%;" />
                   </n-form-item>
                   <n-divider />
-                  <n-form-item label="实名认证功能">
+                  <n-form-item :label="t('adminSettings.realnameEnabled')">
                     <n-space align="center">
                       <n-switch
                         :value="securityForm.realname_enabled"
                         :loading="switchLoading.realname_enabled"
                         @update:value="handleUpdateRealnameEnabled"
                       />
-                      <n-text depth="3">{{ securityForm.realname_enabled ? '已启用实名认证入口' : '已禁用实名认证入口' }}</n-text>
+                      <n-text depth="3">{{ securityForm.realname_enabled ? t('adminSettings.realnameEnabledText') : t('adminSettings.realnameDisabledText') }}</n-text>
                     </n-space>
                   </n-form-item>
-                  <n-form-item label="实名认证审核">
+                  <n-form-item :label="t('adminSettings.realnameReview')">
                     <n-space align="center">
                       <n-switch
                         :value="securityForm.realname_review_required"
                         :loading="switchLoading.realname_review_required"
                         @update:value="handleUpdateRealnameReviewRequired"
                       />
-                      <n-text depth="3">{{ securityForm.realname_review_required ? '需要管理员审核' : '提交后直接视为通过' }}</n-text>
+                      <n-text depth="3">{{ securityForm.realname_review_required ? t('adminSettings.realnameReviewRequired') : t('adminSettings.realnameReviewNotRequired') }}</n-text>
                     </n-space>
                   </n-form-item>
-                  <n-form-item label="实名认证提示语">
+                  <n-form-item :label="t('adminSettings.realnameNotifyText')">
                     <n-input
                       v-model:value="securityForm.realname_notify_text"
                       type="textarea"
-                      placeholder="显示在用户实名认证页面的提示文案"
+                      :placeholder="t('adminSettings.realnameNotifyTextPlaceholder')"
                       :rows="3"
                     />
                   </n-form-item>
                   <n-form-item>
                     <n-space>
-                      <n-button type="primary" :loading="savingSecurity" @click="handleSaveSecurity">保存设置</n-button>
-                      <n-button type="warning" :loading="restartingBackend" @click="handleRestartBackend">重启后端</n-button>
+                      <n-button type="primary" :loading="savingSecurity" @click="handleSaveSecurity">{{ t('adminSettings.saveSettings') }}</n-button>
+                      <n-button type="warning" :loading="restartingBackend" @click="handleRestartBackend">{{ t('adminSettings.restartBackend') }}</n-button>
                     </n-space>
                   </n-form-item>
                 </n-form>
               </n-space>
             </n-tab-pane>
 
-            <n-tab-pane name="payment" tab="支付设置">
+            <n-tab-pane name="realname-api" :tab="t('adminSettings.realnameApiSettings')">
+              <n-space vertical>
+                <n-form :model="realnameApiForm" label-placement="left" label-width="180px" style="max-width: 640px;">
+                  <n-form-item :label="t('adminSettings.realnameApiEnabled')">
+                    <n-space align="center">
+                      <n-switch
+                        :value="realnameApiForm.realname_api_enabled"
+                        :loading="switchLoading.realname_api_enabled"
+                        @update:value="handleUpdateRealnameApiEnabled"
+                      />
+                      <n-text depth="3">{{ realnameApiForm.realname_api_enabled ? t('adminSettings.realnameApiEnabledText') : t('adminSettings.realnameApiDisabledText') }}</n-text>
+                    </n-space>
+                  </n-form-item>
+                  <n-divider />
+                  <n-form-item :label="t('adminSettings.realnameApiProvider')">
+                    <n-select
+                      v-model:value="realnameApiForm.realname_api_provider"
+                      :options="realnameApiProviderOptions"
+                      :placeholder="t('adminSettings.realnameApiProviderPlaceholder')"
+                    />
+                  </n-form-item>
+                  <n-form-item :label="t('adminSettings.realnameApiAppKey')">
+                    <n-input
+                      v-model:value="realnameApiForm.realname_api_app_key"
+                      :placeholder="t('adminSettings.realnameApiAppKeyPlaceholder')"
+                    />
+                  </n-form-item>
+                  <n-form-item :label="t('adminSettings.realnameApiAppSecret')">
+                    <n-input
+                      v-model:value="realnameApiForm.realname_api_app_secret"
+                      type="password"
+                      show-password-on="click"
+                      :placeholder="t('adminSettings.realnameApiAppSecretPlaceholder')"
+                    />
+                  </n-form-item>
+                  <n-form-item :label="t('adminSettings.realnameApiEndpoint')">
+                    <n-input
+                      v-model:value="realnameApiForm.realname_api_endpoint"
+                      :placeholder="t('adminSettings.realnameApiEndpointPlaceholder')"
+                    />
+                  </n-form-item>
+                  <n-form-item>
+                    <n-button type="primary" :loading="savingRealnameApi" @click="handleSaveRealnameApi">{{ t('adminSettings.saveSettings') }}</n-button>
+                  </n-form-item>
+                </n-form>
+                <n-alert type="info" :title="t('adminSettings.tip')" :bordered="false">
+                  <p>{{ t('adminSettings.realnameApiAlert1') }}</p>
+                  <p>{{ t('adminSettings.realnameApiAlert2') }}</p>
+                </n-alert>
+              </n-space>
+            </n-tab-pane>
+
+            <n-tab-pane name="payment" :tab="t('adminSettings.paymentSettings')">
               <n-space vertical>
                 <n-form :model="paymentForm" label-placement="left" label-width="140px" style="max-width: 640px;">
-                  <n-form-item label="支付功能">
+                  <n-form-item :label="t('adminSettings.paymentEnabled')">
                     <n-space align="center">
                       <n-switch
                         :value="paymentForm.payment_enabled"
                         :loading="switchLoading.payment_enabled"
                         @update:value="handleUpdatePaymentEnabled"
                       />
-                      <n-text depth="3">{{ paymentForm.payment_enabled ? '已启用' : '已禁用' }}</n-text>
+                      <n-text depth="3">{{ paymentForm.payment_enabled ? t('adminSettings.enabled') : t('adminSettings.disabled') }}</n-text>
                     </n-space>
                   </n-form-item>
                   <n-divider />
-                  <n-form-item label="订单有效期（分钟）">
+                  <n-form-item :label="t('adminSettings.orderExpireMinutes')">
                     <n-input-number v-model:value="paymentForm.payment_order_expire_minutes" :min="1" :max="1440" style="width: 100%;" />
                   </n-form-item>
                   <n-divider />
-                  <n-form-item label="提现功能">
+                  <n-form-item :label="t('adminSettings.withdrawEnabled')">
                     <n-space align="center">
                       <n-switch
                         :value="paymentForm.withdraw_enabled"
                         :loading="switchLoading.withdraw_enabled"
                         @update:value="handleUpdateWithdrawEnabled"
                       />
-                      <n-text depth="3">{{ paymentForm.withdraw_enabled ? '已启用用户提现入口' : '已关闭用户提现入口' }}</n-text>
+                      <n-text depth="3">{{ paymentForm.withdraw_enabled ? t('adminSettings.withdrawEnabledText') : t('adminSettings.withdrawDisabledText') }}</n-text>
                     </n-space>
                   </n-form-item>
-                  <n-form-item label="最低提现金额">
+                  <n-form-item :label="t('adminSettings.withdrawMinAmount')">
                     <n-input-number v-model:value="paymentForm.withdraw_min_amount" :min="0.01" :precision="2" :step="1" style="width: 100%;" />
                   </n-form-item>
-                  <n-form-item label="提现提示语">
+                  <n-form-item :label="t('adminSettings.withdrawNotifyText')">
                     <n-input
                       v-model:value="paymentForm.withdraw_notify_text"
                       type="textarea"
-                      placeholder="显示在用户提现页面的说明文案"
+                      :placeholder="t('adminSettings.withdrawNotifyTextPlaceholder')"
                       :rows="3"
                     />
                   </n-form-item>
-                  <n-form-item label="支持收款方式">
+                  <n-form-item :label="t('adminSettings.withdrawAccountTypes')">
                     <n-input
                       v-model:value="paymentForm.withdraw_account_types_text"
                       type="textarea"
-                      placeholder='请输入 JSON 数组，如 ["bank","alipay","wechat","usdt"]'
+                      :placeholder="t('adminSettings.withdrawAccountTypesPlaceholder')"
                       :rows="3"
                     />
                   </n-form-item>
                   <n-form-item>
-                    <n-button type="primary" :loading="savingPayment" @click="handleSavePayment">保存设置</n-button>
+                    <n-button type="primary" :loading="savingPayment" @click="handleSavePayment">{{ t('adminSettings.saveSettings') }}</n-button>
                   </n-form-item>
                 </n-form>
-                <n-alert type="info" title="配置说明" :bordered="false">
+                <n-alert type="info" :title="t('adminSettings.configDesc')" :bordered="false">
                   <ul style="margin: 0; padding-left: 18px;">
-                    <li>启用「支付功能」后，用户端会展示所有已启用的支付通道</li>
-                    <li>每个通道的网关地址、商户ID、密钥等信息在「支付渠道」页面配置</li>
+                    <li>{{ t('adminSettings.paymentAlert1') }}</li>
+                    <li>{{ t('adminSettings.paymentAlert2') }}</li>
                   </ul>
                 </n-alert>
               </n-space>
             </n-tab-pane>
 
-            <n-tab-pane name="custom" tab="自定义配置">
+            <n-tab-pane name="custom" :tab="t('adminSettings.customConfig')">
               <n-space vertical :size="16">
                 <n-space justify="end">
                   <n-button type="primary" @click="showAddModal = true">
@@ -326,7 +378,7 @@
                         <path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2z" />
                       </svg>
                     </template>
-                    添加配置项
+                    {{ t('adminSettings.addConfigItem') }}
                   </n-button>
                 </n-space>
 
@@ -336,32 +388,32 @@
           </n-tabs>
         </n-tab-pane>
 
-        <n-tab-pane name="email-templates" tab="邮件模板">
+        <n-tab-pane name="email-templates" :tab="t('adminSettings.emailTemplates')">
           <EmailTemplates />
         </n-tab-pane>
 
-        <n-tab-pane name="sms-logs" tab="短信日志">
+        <n-tab-pane name="sms-logs" :tab="t('adminSettings.smsLogs')">
           <SMSLogs />
         </n-tab-pane>
 
-        <n-tab-pane name="operation-logs" tab="操作日志">
+        <n-tab-pane name="operation-logs" :tab="t('adminSettings.operationLogs')">
           <OperationLogs />
         </n-tab-pane>
 
-        <n-tab-pane name="info" tab="系统信息">
+        <n-tab-pane name="info" :tab="t('adminSettings.systemInfo')">
           <n-space vertical>
             <n-descriptions bordered :column="2" label-placement="left">
-              <n-descriptions-item label="系统版本">{{ settingsStore.version }}</n-descriptions-item>
-              <n-descriptions-item label="Go 版本">1.24+</n-descriptions-item>
-              <n-descriptions-item label="前端框架">Vue 3 + Vite</n-descriptions-item>
-              <n-descriptions-item label="UI 组件库">Naive UI</n-descriptions-item>
-              <n-descriptions-item label="数据库">MySQL 8.0+</n-descriptions-item>
-              <n-descriptions-item label="运行环境">{{ mode }}</n-descriptions-item>
-              <n-descriptions-item label="Node.js">18+</n-descriptions-item>
-              <n-descriptions-item label="构建时间">{{ buildTime }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminSettings.systemVersion')">{{ settingsStore.version }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminSettings.goVersion')">{{ t('adminSettings.goVersionValue') }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminSettings.frontendFramework')">{{ t('adminSettings.frontendFrameworkValue') }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminSettings.uiLibrary')">{{ t('adminSettings.uiLibraryValue') }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminSettings.database')">{{ t('adminSettings.databaseValue') }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminSettings.runtimeEnv')">{{ mode }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminSettings.nodeVersion')">{{ t('adminSettings.nodeVersionValue') }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminSettings.buildTime')">{{ buildTime }}</n-descriptions-item>
             </n-descriptions>
 
-            <n-card title="已加载插件" size="small">
+            <n-card :title="t('adminSettings.loadedPlugins')" size="small">
               <n-space vertical>
                 <n-tag v-for="p in plugins" :key="p.name" :type="p.active ? 'success' : 'default'" size="medium">
                   {{ p.name }} ({{ p.version }})
@@ -371,30 +423,30 @@
           </n-space>
         </n-tab-pane>
 
-        <n-tab-pane name="server-management" tab="服务器管理">
+        <n-tab-pane name="server-management" :tab="t('adminSettings.serverManagement')">
           <n-tabs type="line" animated>
-            <n-tab-pane name="monitor" tab="📊 系统监控">
+            <n-tab-pane name="monitor" :tab="t('adminSettings.systemMonitor')">
               <n-space vertical :size="16">
                 <n-space justify="space-between" align="center">
-                  <n-text depth="3">实时监控数据</n-text>
-                  <n-button :loading="loadingServerMonitoring" @click="loadServerMonitoringStatus">刷新</n-button>
+                  <n-text depth="3">{{ t('adminSettings.realtimeMonitor') }}</n-text>
+                  <n-button :loading="loadingServerMonitoring" @click="loadServerMonitoringStatus">{{ t('adminSettings.refresh') }}</n-button>
                 </n-space>
 
                 <n-grid :x-gap="10" :y-gap="10" cols="2 s:4 m:4 l:8" responsive="screen">
                   <n-gi>
                     <n-card size="small">
-                      <n-statistic label="CPU">
+                      <n-statistic :label="t('adminSettings.cpu')">
                         <template #default>
                           <n-text :type="cpuPercent > 80 ? 'error' : 'success'">{{ formatPercent(cpuPercent) }}</n-text>
                         </template>
-                        <template #suffix><n-text depth="3" style="font-size: 10px">{{ serverMonitoringData?.metrics.cpu.core_count || 0 }}核</n-text></template>
+                        <template #suffix><n-text depth="3" style="font-size: 10px">{{ t('adminSettings.cpuCores', { count: serverMonitoringData?.metrics.cpu.core_count || 0 }) }}</n-text></template>
                       </n-statistic>
                       <n-progress type="line" :percentage="cpuPercent" :status="cpuPercent > 80 ? 'error' : 'success'" :show-indicator="false" style="margin-top: 8px" />
                     </n-card>
                   </n-gi>
                   <n-gi>
                     <n-card size="small">
-                      <n-statistic label="系统内存">
+                      <n-statistic :label="t('adminSettings.systemMemory')">
                         <template #default>
                           <n-text :type="memoryPercent > 80 ? 'error' : 'success'">{{ formatPercent(memoryPercent) }}</n-text>
                         </template>
@@ -404,7 +456,7 @@
                   </n-gi>
                   <n-gi>
                     <n-card size="small">
-                      <n-statistic label="Swap">
+                      <n-statistic :label="t('adminSettings.swap')">
                         <template #default>
                           <n-text :type="swapPercent > 80 ? 'error' : 'success'">{{ formatPercent(swapPercent) }}</n-text>
                         </template>
@@ -414,7 +466,7 @@
                   </n-gi>
                   <n-gi>
                     <n-card size="small">
-                      <n-statistic label="进程内存">
+                      <n-statistic :label="t('adminSettings.processMemory')">
                         <template #default>{{ formatStorageFromMB(serverMonitoringData?.process.process_rss_mb || 0) }}</template>
                         <template #suffix><n-text depth="3" style="font-size: 10px">CPU {{ Number((serverMonitoringData?.process.process_cpu || 0).toFixed(2)) }}%</n-text></template>
                       </n-statistic>
@@ -422,7 +474,7 @@
                   </n-gi>
                   <n-gi>
                     <n-card size="small">
-                      <n-statistic label="Go 堆内存">
+                      <n-statistic :label="t('adminSettings.goHeap')">
                         <template #default>{{ formatStorageFromMB(serverMonitoringData?.process.heap_alloc_mb || 0) }}</template>
                         <template #suffix><n-text depth="3" style="font-size: 10px">sys {{ formatStorageFromMB(serverMonitoringData?.process.memory_sys_mb || 0) }}</n-text></template>
                       </n-statistic>
@@ -430,7 +482,7 @@
                   </n-gi>
                   <n-gi>
                     <n-card size="small">
-                      <n-statistic label="协程/GC">
+                      <n-statistic :label="t('adminSettings.goroutineGC')">
                         <template #default>{{ serverMonitoringData?.process.goroutines || 0 }}</template>
                         <template #suffix><n-text depth="3" style="font-size: 10px">GC {{ serverMonitoringData?.process.gc_count || 0 }}</n-text></template>
                       </n-statistic>
@@ -438,7 +490,7 @@
                   </n-gi>
                   <n-gi>
                     <n-card size="small">
-                      <n-statistic label="磁盘使用率">
+                      <n-statistic :label="t('adminSettings.diskUsage')">
                         <template #default>
                           <n-text :type="diskPercent > 80 ? 'error' : 'success'">{{ formatPercent(diskPercent) }}</n-text>
                         </template>
@@ -448,66 +500,66 @@
                   </n-gi>
                   <n-gi>
                     <n-card size="small">
-                      <n-statistic label="运行时间">
+                      <n-statistic :label="t('adminSettings.uptime')">
                         <template #default>{{ uptimeTextPrecise }}</template>
-                        <template #suffix><n-text depth="3" style="font-size: 10px">启动: {{ startTimeText }} · {{ uptimeText }}</n-text></template>
+                        <template #suffix><n-text depth="3" style="font-size: 10px">{{ t('adminSettings.started') }}: {{ startTimeText }} · {{ uptimeText }}</n-text></template>
                       </n-statistic>
                     </n-card>
                   </n-gi>
                   <n-gi>
                     <n-card size="small">
                       <n-space vertical size="small">
-                        <n-statistic label="网络">
+                        <n-statistic :label="t('adminSettings.network')">
                           <template #default>{{ formatBytes((serverMonitoringData?.metrics.network.bytes_sent || 0) + (serverMonitoringData?.metrics.network.bytes_recv || 0)) }}</template>
                         </n-statistic>
-                        <n-space justify="space-between"><n-text depth="3">上传</n-text><n-text>{{ formatBytes(serverMonitoringData?.metrics.network.bytes_sent || 0) }}</n-text></n-space>
-                        <n-space justify="space-between"><n-text depth="3">下载</n-text><n-text>{{ formatBytes(serverMonitoringData?.metrics.network.bytes_recv || 0) }}</n-text></n-space>
-                        <n-space justify="space-between"><n-text depth="3">上传包</n-text><n-text>{{ formatInteger(serverMonitoringData?.metrics.network.packets_sent || 0) }}</n-text></n-space>
-                        <n-space justify="space-between"><n-text depth="3">下载包</n-text><n-text>{{ formatInteger(serverMonitoringData?.metrics.network.packets_recv || 0) }}</n-text></n-space>
+                        <n-space justify="space-between"><n-text depth="3">{{ t('adminSettings.upload') }}</n-text><n-text>{{ formatBytes(serverMonitoringData?.metrics.network.bytes_sent || 0) }}</n-text></n-space>
+                        <n-space justify="space-between"><n-text depth="3">{{ t('adminSettings.download') }}</n-text><n-text>{{ formatBytes(serverMonitoringData?.metrics.network.bytes_recv || 0) }}</n-text></n-space>
+                        <n-space justify="space-between"><n-text depth="3">{{ t('adminSettings.uploadPackets') }}</n-text><n-text>{{ formatInteger(serverMonitoringData?.metrics.network.packets_sent || 0) }}</n-text></n-space>
+                        <n-space justify="space-between"><n-text depth="3">{{ t('adminSettings.downloadPackets') }}</n-text><n-text>{{ formatInteger(serverMonitoringData?.metrics.network.packets_recv || 0) }}</n-text></n-space>
                       </n-space>
                     </n-card>
                   </n-gi>
                 </n-grid>
 
-                <n-card size="small" title="💾 内存详情">
+                <n-card size="small" :title="t('adminSettings.memoryDetails')">
                   <n-grid :x-gap="10" :y-gap="10" cols="1 s:2 m:4 l:4" responsive="screen">
                     <n-gi>
-                      <n-statistic label="Go内存分配">
+                      <n-statistic :label="t('adminSettings.goMemoryAlloc')">
                         <template #default>{{ formatStorageFromMB(serverMonitoringData?.process.memory_alloc_mb || 0) }}</template>
                       </n-statistic>
                     </n-gi>
                     <n-gi>
-                      <n-statistic label="Go内存系统">
+                      <n-statistic :label="t('adminSettings.goMemorySys')">
                         <template #default>{{ formatStorageFromMB(serverMonitoringData?.process.memory_sys_mb || 0) }}</template>
                       </n-statistic>
                     </n-gi>
                     <n-gi>
-                      <n-statistic label="堆分配">
+                      <n-statistic :label="t('adminSettings.heapAlloc')">
                         <template #default>{{ formatStorageFromMB(serverMonitoringData?.process.heap_alloc_mb || 0) }}</template>
                       </n-statistic>
                     </n-gi>
                     <n-gi>
-                      <n-statistic label="堆使用中">
+                      <n-statistic :label="t('adminSettings.heapInUse')">
                         <template #default>{{ formatStorageFromMB(serverMonitoringData?.process.heap_inuse_mb || 0) }}</template>
                       </n-statistic>
                     </n-gi>
                     <n-gi>
-                      <n-statistic label="堆空闲">
+                      <n-statistic :label="t('adminSettings.heapIdle')">
                         <template #default>{{ formatStorageFromMB(serverMonitoringData?.process.heap_idle_mb || 0) }}</template>
                       </n-statistic>
                     </n-gi>
                     <n-gi>
-                      <n-statistic label="栈使用">
+                      <n-statistic :label="t('adminSettings.stackInUse')">
                         <template #default>{{ formatStorageFromMB(serverMonitoringData?.process.stack_inuse_mb || 0) }}</template>
                       </n-statistic>
                     </n-gi>
                     <n-gi>
-                      <n-statistic label="GC次数">
+                      <n-statistic :label="t('adminSettings.gcCount')">
                         <template #default>{{ serverMonitoringData?.process.gc_count || 0 }}</template>
                       </n-statistic>
                     </n-gi>
                     <n-gi>
-                      <n-statistic label="GC CPU占用">
+                      <n-statistic :label="t('adminSettings.gcCPU')">
                         <template #default>{{ Number(((serverMonitoringData?.process.gc_cpu_fraction || 0) * 100).toFixed(2)) }}%</template>
                       </n-statistic>
                     </n-gi>
@@ -515,8 +567,8 @@
                 </n-card>
 
                 <n-space justify="space-between" align="center">
-                  <n-text depth="3">服务健康快照</n-text>
-                  <n-text depth="3" style="font-size: 12px">最近刷新: {{ serverMonitoringGeneratedAt || '-' }}</n-text>
+                  <n-text depth="3">{{ t('adminSettings.serviceHealthSnapshot') }}</n-text>
+                  <n-text depth="3" style="font-size: 12px">{{ t('adminSettings.lastRefreshed') }}: {{ serverMonitoringGeneratedAt || '-' }}</n-text>
                 </n-space>
 
                 <n-data-table
@@ -528,140 +580,140 @@
               </n-space>
             </n-tab-pane>
 
-            <n-tab-pane name="debug" tab="🔬 调试工具">
+            <n-tab-pane name="debug" :tab="t('adminSettings.debugTools')">
               <n-space vertical :size="16">
-                <n-card title="📊 系统概览" size="small">
+                <n-card :title="t('adminSettings.systemOverview')" size="small">
                   <template #header-extra>
                     <n-space>
                       <n-button size="small" :type="debugAutoRefresh ? 'primary' : 'default'" @click="toggleDebugAutoRefresh(!debugAutoRefresh)">
-                        {{ debugAutoRefresh ? '停止刷新' : '自动刷新' }}
+                        {{ debugAutoRefresh ? t('adminSettings.stopRefresh') : t('adminSettings.autoRefresh') }}
                       </n-button>
-                      <n-button size="small" :loading="loadingDebugStats" @click="loadDebugStats">刷新</n-button>
-                      <n-button size="small" type="warning" @click="handleForceGC">强制GC</n-button>
+                      <n-button size="small" :loading="loadingDebugStats" @click="loadDebugStats">{{ t('adminSettings.refresh') }}</n-button>
+                      <n-button size="small" type="warning" @click="handleForceGC">{{ t('adminSettings.forceGC') }}</n-button>
                     </n-space>
                   </template>
 
                   <n-grid :x-gap="12" :y-gap="12" cols="1 s:2 m:2 l:2" responsive="screen">
                     <n-gi>
-                      <n-card size="small" title="进程资源">
+                      <n-card size="small" :title="t('adminSettings.processResources')">
                         <n-space vertical size="small">
                           <div>
-                            <n-space justify="space-between"><n-text>CPU</n-text><n-text>{{ Number((serverMonitoringData?.process.process_cpu || 0).toFixed(1)) }}%</n-text></n-space>
+                            <n-space justify="space-between"><n-text>{{ t('adminSettings.cpu') }}</n-text><n-text>{{ Number((serverMonitoringData?.process.process_cpu || 0).toFixed(1)) }}%</n-text></n-space>
                             <n-progress type="line" :percentage="Number((serverMonitoringData?.process.process_cpu || 0).toFixed(1))" :status="(serverMonitoringData?.process.process_cpu ?? 0) > 80 ? 'error' : 'success'" :show-indicator="false" style="margin-top: 4px" />
                           </div>
-                          <n-space justify="space-between"><n-text>内存</n-text><n-text>{{ formatStorageFromMB(serverMonitoringData?.process.process_rss_mb || 0) }}</n-text></n-space>
-                          <n-space justify="space-between"><n-text>协程</n-text><n-text>{{ serverMonitoringData?.process.goroutines || 0 }}</n-text></n-space>
+                          <n-space justify="space-between"><n-text>{{ t('adminSettings.memory') }}</n-text><n-text>{{ formatStorageFromMB(serverMonitoringData?.process.process_rss_mb || 0) }}</n-text></n-space>
+                          <n-space justify="space-between"><n-text>{{ t('adminSettings.goroutines') }}</n-text><n-text>{{ serverMonitoringData?.process.goroutines || 0 }}</n-text></n-space>
                         </n-space>
                       </n-card>
                     </n-gi>
                     <n-gi>
-                      <n-card size="small" title="协程统计">
+                      <n-card size="small" :title="t('adminSettings.goroutineStats')">
                         <n-space vertical size="small">
-                          <n-space justify="space-between"><n-text>运行时总数</n-text><n-text>{{ debugStats?.total_count || 0 }}</n-text></n-space>
-                          <n-space justify="space-between"><n-text>已跟踪</n-text><n-text>{{ debugStats?.tracked_count || 0 }}</n-text></n-space>
-                          <n-space justify="space-between"><n-text>潜在泄漏</n-text><n-text type="error">{{ debugStats?.potential_leaks || 0 }}</n-text></n-space>
+                          <n-space justify="space-between"><n-text>{{ t('adminSettings.runtimeTotal') }}</n-text><n-text>{{ debugStats?.total_count || 0 }}</n-text></n-space>
+                          <n-space justify="space-between"><n-text>{{ t('adminSettings.tracked') }}</n-text><n-text>{{ debugStats?.tracked_count || 0 }}</n-text></n-space>
+                          <n-space justify="space-between"><n-text>{{ t('adminSettings.potentialLeaks') }}</n-text><n-text type="error">{{ debugStats?.potential_leaks || 0 }}</n-text></n-space>
                         </n-space>
                       </n-card>
                     </n-gi>
                   </n-grid>
                 </n-card>
 
-                <n-card title="🔬 性能分析 (pprof)" size="small">
+                <n-card :title="t('adminSettings.pprofTitle')" size="small">
                   <template #header-extra>
-                    <n-button size="small" @click="clearAllPprofResults">清空结果</n-button>
+                    <n-button size="small" @click="clearAllPprofResults">{{ t('adminSettings.clearResults') }}</n-button>
                   </template>
 
                   <n-grid :x-gap="12" :y-gap="12" cols="1 s:2 m:3 l:3" responsive="screen">
                     <n-gi>
-                      <n-card size="small" title="CPU Profile">
+                      <n-card size="small" :title="t('adminSettings.cpuProfile')">
                         <n-space vertical size="small">
-                          <n-text depth="3">采集 CPU 热点</n-text>
+                          <n-text depth="3">{{ t('adminSettings.cpuProfileDesc') }}</n-text>
                           <n-space>
                             <n-input-number v-model:value="pprofConfig.cpuSeconds" :min="5" :max="120" size="small" style="width: 90px" />
-                            <n-button size="small" type="primary" :loading="pprofLoading.cpu" @click="captureCPUProfile">采集</n-button>
+                            <n-button size="small" type="primary" :loading="pprofLoading.cpu" @click="captureCPUProfile">{{ t('adminSettings.capture') }}</n-button>
                           </n-space>
                         </n-space>
                       </n-card>
                     </n-gi>
                     <n-gi>
-                      <n-card size="small" title="Heap (内存)">
+                      <n-card size="small" :title="t('adminSettings.heapProfile')">
                         <n-space vertical size="small">
-                          <n-text depth="3">采集堆内存分配</n-text>
-                          <n-button size="small" type="primary" :loading="pprofLoading.heap" @click="captureHeapProfile">采集</n-button>
+                          <n-text depth="3">{{ t('adminSettings.heapProfileDesc') }}</n-text>
+                          <n-button size="small" type="primary" :loading="pprofLoading.heap" @click="captureHeapProfile">{{ t('adminSettings.capture') }}</n-button>
                         </n-space>
                       </n-card>
                     </n-gi>
                     <n-gi>
-                      <n-card size="small" title="Goroutine">
+                      <n-card size="small" :title="t('adminSettings.goroutineProfile')">
                         <n-space vertical size="small">
-                          <n-text depth="3">采集协程堆栈</n-text>
-                          <n-button size="small" type="primary" :loading="pprofLoading.goroutine" @click="captureGoroutineProfile">采集</n-button>
+                          <n-text depth="3">{{ t('adminSettings.goroutineProfileDesc') }}</n-text>
+                          <n-button size="small" type="primary" :loading="pprofLoading.goroutine" @click="captureGoroutineProfile">{{ t('adminSettings.capture') }}</n-button>
                         </n-space>
                       </n-card>
                     </n-gi>
                     <n-gi>
-                      <n-card size="small" title="Allocs (分配)">
+                      <n-card size="small" :title="t('adminSettings.allocsProfile')">
                         <n-space vertical size="small">
-                          <n-text depth="3">采集内存分配采样</n-text>
-                          <n-button size="small" type="primary" :loading="pprofLoading.allocs" @click="captureAllocsProfile">采集</n-button>
+                          <n-text depth="3">{{ t('adminSettings.allocsProfileDesc') }}</n-text>
+                          <n-button size="small" type="primary" :loading="pprofLoading.allocs" @click="captureAllocsProfile">{{ t('adminSettings.capture') }}</n-button>
                         </n-space>
                       </n-card>
                     </n-gi>
                     <n-gi>
-                      <n-card size="small" title="Block (阻塞)">
+                      <n-card size="small" :title="t('adminSettings.blockProfile')">
                         <n-space vertical size="small">
-                          <n-text depth="3">采集阻塞事件</n-text>
-                          <n-button size="small" type="primary" :loading="pprofLoading.block" @click="captureBlockProfile">采集</n-button>
+                          <n-text depth="3">{{ t('adminSettings.blockProfileDesc') }}</n-text>
+                          <n-button size="small" type="primary" :loading="pprofLoading.block" @click="captureBlockProfile">{{ t('adminSettings.capture') }}</n-button>
                         </n-space>
                       </n-card>
                     </n-gi>
                     <n-gi>
-                      <n-card size="small" title="Mutex (互斥锁)">
+                      <n-card size="small" :title="t('adminSettings.mutexProfile')">
                         <n-space vertical size="small">
-                          <n-text depth="3">采集互斥锁竞争</n-text>
-                          <n-button size="small" type="primary" :loading="pprofLoading.mutex" @click="captureMutexProfile">采集</n-button>
+                          <n-text depth="3">{{ t('adminSettings.mutexProfileDesc') }}</n-text>
+                          <n-button size="small" type="primary" :loading="pprofLoading.mutex" @click="captureMutexProfile">{{ t('adminSettings.capture') }}</n-button>
                         </n-space>
                       </n-card>
                     </n-gi>
                   </n-grid>
 
-                  <n-empty v-if="!hasAnyPprofResult" description="点击上方按钮采集性能数据" style="margin-top: 16px" />
+                  <n-empty v-if="!hasAnyPprofResult" :description="t('adminSettings.clickToCapture')" style="margin-top: 16px" />
                   <n-space v-else vertical :size="12" style="margin-top: 16px">
-                    <n-card v-if="pprofResults.cpu" size="small" title="CPU Profile 结果">
+                    <n-card v-if="pprofResults.cpu" size="small" :title="t('adminSettings.cpuProfileResult')">
                       <n-code :code="pprofResults.cpuText || ''" language="text" word-wrap />
                     </n-card>
-                    <n-card v-if="pprofResults.heap" size="small" title="Heap Profile 结果">
+                    <n-card v-if="pprofResults.heap" size="small" :title="t('adminSettings.heapProfileResult')">
                       <n-code :code="pprofResults.heapText || ''" language="text" word-wrap />
                     </n-card>
-                    <n-card v-if="pprofResults.goroutine" size="small" title="Goroutine Profile 结果">
+                    <n-card v-if="pprofResults.goroutine" size="small" :title="t('adminSettings.goroutineProfileResult')">
                       <n-code :code="pprofResults.goroutine || ''" language="text" word-wrap />
                     </n-card>
-                    <n-card v-if="pprofResults.allocs" size="small" title="Allocs Profile 结果">
+                    <n-card v-if="pprofResults.allocs" size="small" :title="t('adminSettings.allocsProfileResult')">
                       <n-code :code="pprofResults.allocsText || ''" language="text" word-wrap />
                     </n-card>
-                    <n-card v-if="pprofResults.block" size="small" title="Block Profile 结果">
+                    <n-card v-if="pprofResults.block" size="small" :title="t('adminSettings.blockProfileResult')">
                       <n-code :code="pprofResults.blockText || ''" language="text" word-wrap />
                     </n-card>
-                    <n-card v-if="pprofResults.mutex" size="small" title="Mutex Profile 结果">
+                    <n-card v-if="pprofResults.mutex" size="small" :title="t('adminSettings.mutexProfileResult')">
                       <n-code :code="pprofResults.mutexText || ''" language="text" word-wrap />
                     </n-card>
                   </n-space>
                 </n-card>
 
-                <n-card title="📚 运行时协程堆栈" size="small">
+                <n-card :title="t('adminSettings.runtimeStacks')" size="small">
                   <template #header-extra>
                     <n-space>
                       <n-tooltip trigger="hover">
                         <template #trigger>
-                          <n-input-number v-model:value="stackFilterMinWaitMinutes" :min="0" size="small" style="width: 140px" placeholder="最小等待分钟" />
+                          <n-input-number v-model:value="stackFilterMinWaitMinutes" :min="0" size="small" style="width: 140px" :placeholder="t('adminSettings.minWaitMinutes')" />
                         </template>
-                        过滤显示等待时间超过指定分钟数的协程，0表示显示全部
+                        {{ t('adminSettings.filterTooltip') }}
                       </n-tooltip>
-                      <n-button size="small" :loading="loadingRuntimeStacks" @click="loadRuntimeStacks">加载堆栈</n-button>
-                      <n-button size="small" @click="clearRuntimeStacks">清空堆栈</n-button>
+                      <n-button size="small" :loading="loadingRuntimeStacks" @click="loadRuntimeStacks">{{ t('adminSettings.loadStacks') }}</n-button>
+                      <n-button size="small" @click="clearRuntimeStacks">{{ t('adminSettings.clearStacks') }}</n-button>
                     </n-space>
                   </template>
-                  <n-empty v-if="runtimeStackText === ''" description="点击加载堆栈查看运行时协程信息" />
+                  <n-empty v-if="runtimeStackText === ''" :description="t('adminSettings.clickToLoadStacks')" />
                   <n-code v-else :code="runtimeStackText" language="text" word-wrap />
                 </n-card>
               </n-space>
@@ -671,62 +723,62 @@
       </n-tabs>
     </n-spin>
 
-    <n-modal v-model:show="showAddModal" preset="card" title="添加配置项" style="width: 500px;" :mask-closable="false">
+    <n-modal v-model:show="showAddModal" preset="card" :title="t('adminSettings.addConfigTitle')" style="width: 500px;" :mask-closable="false">
       <n-form ref="addFormRef" :model="addForm" :rules="addFormRules" label-placement="left" label-width="100px">
-        <n-form-item label="配置键名" path="key">
-          <n-input v-model:value="addForm.key" placeholder="如: custom_field" />
+        <n-form-item :label="t('adminSettings.configKey')" path="key">
+          <n-input v-model:value="addForm.key" :placeholder="t('adminSettings.configKeyPlaceholder')" />
         </n-form-item>
-        <n-form-item label="配置值" path="value">
-          <n-input v-model:value="addForm.value" placeholder="配置值" />
+        <n-form-item :label="t('adminSettings.configValue')" path="value">
+          <n-input v-model:value="addForm.value" :placeholder="t('adminSettings.configValuePlaceholder')" />
         </n-form-item>
-        <n-form-item label="显示名称" path="label">
-          <n-input v-model:value="addForm.label" placeholder="如: 自定义字段" />
+        <n-form-item :label="t('adminSettings.configLabel')" path="label">
+          <n-input v-model:value="addForm.label" :placeholder="t('adminSettings.configLabelPlaceholder')" />
         </n-form-item>
-        <n-form-item label="值类型" path="type">
+        <n-form-item :label="t('adminSettings.configType')" path="type">
           <n-select v-model:value="addForm.type" :options="typeOptions" />
         </n-form-item>
-        <n-form-item label="描述说明" path="description">
-          <n-input v-model:value="addForm.description" placeholder="配置项说明" />
+        <n-form-item :label="t('adminSettings.configDescription')" path="description">
+          <n-input v-model:value="addForm.description" :placeholder="t('adminSettings.configDescriptionPlaceholder')" />
         </n-form-item>
-        <n-form-item label="是否公开">
+        <n-form-item :label="t('adminSettings.isPublic')">
           <n-switch v-model:value="addForm.is_public" />
-          <n-text depth="3" style="margin-left: 8px;">公开配置可被前端获取</n-text>
+          <n-text depth="3" style="margin-left: 8px;">{{ t('adminSettings.publicConfigHint') }}</n-text>
         </n-form-item>
       </n-form>
       <template #footer>
         <n-space justify="end">
-          <n-button @click="showAddModal = false">取消</n-button>
-          <n-button type="primary" :loading="adding" @click="handleAddSetting">添加</n-button>
+          <n-button @click="showAddModal = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" :loading="adding" @click="handleAddSetting">{{ t('adminSettings.add') }}</n-button>
         </n-space>
       </template>
     </n-modal>
 
-    <n-modal v-model:show="showEditModal" preset="card" title="修改配置项" style="width: 520px;" :mask-closable="false">
+    <n-modal v-model:show="showEditModal" preset="card" :title="t('adminSettings.editConfigTitle')" style="width: 520px;" :mask-closable="false">
       <n-form label-placement="left" label-width="100px">
-        <n-form-item label="配置键名">
+        <n-form-item :label="t('adminSettings.configKey')">
           <n-input v-model:value="editForm.key" disabled />
         </n-form-item>
-        <n-form-item label="配置值">
-          <n-input v-model:value="editForm.value" placeholder="配置值" />
+        <n-form-item :label="t('adminSettings.configValue')">
+          <n-input v-model:value="editForm.value" :placeholder="t('adminSettings.configValuePlaceholder')" />
         </n-form-item>
-        <n-form-item label="显示名称">
-          <n-input v-model:value="editForm.label" placeholder="显示名称" />
+        <n-form-item :label="t('adminSettings.configLabel')">
+          <n-input v-model:value="editForm.label" :placeholder="t('adminSettings.configLabelPlaceholder')" />
         </n-form-item>
-        <n-form-item label="值类型">
+        <n-form-item :label="t('adminSettings.configType')">
           <n-select v-model:value="editForm.type" :options="typeOptions" />
         </n-form-item>
-        <n-form-item label="描述说明">
-          <n-input v-model:value="editForm.description" placeholder="配置项说明" />
+        <n-form-item :label="t('adminSettings.configDescription')">
+          <n-input v-model:value="editForm.description" :placeholder="t('adminSettings.configDescriptionPlaceholder')" />
         </n-form-item>
-        <n-form-item label="是否公开">
+        <n-form-item :label="t('adminSettings.isPublic')">
           <n-switch v-model:value="editForm.is_public" />
-          <n-text depth="3" style="margin-left: 8px;">公开配置可被前端获取</n-text>
+          <n-text depth="3" style="margin-left: 8px;">{{ t('adminSettings.publicConfigHint') }}</n-text>
         </n-form-item>
       </n-form>
       <template #footer>
         <n-space justify="end">
-          <n-button @click="showEditModal = false">取消</n-button>
-          <n-button type="primary" :loading="savingEdit" @click="handleSaveSettingEdit">保存</n-button>
+          <n-button @click="showEditModal = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" :loading="savingEdit" @click="handleSaveSettingEdit">{{ t('common.save') }}</n-button>
         </n-space>
       </template>
     </n-modal>
@@ -735,6 +787,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import {
   NAlert,
@@ -776,6 +829,7 @@ import { local } from '@/utils'
 
 const message = useMessage()
 const settingsStore = useSettingsStore()
+const { t } = useI18n()
 
 const loading = ref(true)
 const adding = ref(false)
@@ -785,6 +839,7 @@ const showEditModal = ref(false)
 const savingBasic = ref(false)
 const savingEmail = ref(false)
 const savingSecurity = ref(false)
+const savingRealnameApi = ref(false)
 const savingPayment = ref(false)
 const testingEmail = ref(false)
 const restartingBackend = ref(false)
@@ -792,7 +847,7 @@ const loadingServerMonitoring = ref(false)
 const topTab = ref('system-config')
 const systemSubTab = ref('basic')
 const mode = import.meta.env.MODE
-const buildTime = typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '开发模式'
+const buildTime = typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : t('adminSettings.developmentMode')
 const serverMonitoringGeneratedAt = ref('')
 const serverMonitoringData = ref<ServerMonitoringStatusResponse | null>(null)
 
@@ -845,6 +900,7 @@ const switchLoading = reactive({
   geetest_enabled: false,
   realname_enabled: false,
   realname_review_required: false,
+  realname_api_enabled: false,
   email_verify_enabled: false,
   sms_verify_enabled: false,
   payment_enabled: false,
@@ -852,27 +908,34 @@ const switchLoading = reactive({
 })
 
 const langOptions = [
-  { label: '中文简体', value: 'zhCN' },
-  { label: 'English', value: 'enUS' },
+  { label: t('adminSettings.langZhCN'), value: 'zhCN' },
+  { label: t('adminSettings.langEnUS'), value: 'enUS' },
 ]
 
 const smsProviderOptions = [
-  { label: '控制台日志 (开发)', value: 'console' },
-  { label: '阿里云短信', value: 'aliyun' },
-  { label: '腾讯云短信', value: 'tencent' },
-  { label: '自定义 HTTP', value: 'custom' },
+  { label: t('adminSettings.smsProviderConsole'), value: 'console' },
+  { label: t('adminSettings.smsProviderAliyun'), value: 'aliyun' },
+  { label: t('adminSettings.smsProviderTencent'), value: 'tencent' },
+  { label: t('adminSettings.smsProviderCustom'), value: 'custom' },
 ]
 
 const smsBodyFormatOptions = [
-  { label: 'JSON', value: 'json' },
-  { label: 'Form', value: 'form' },
+  { label: t('adminSettings.formatJSON'), value: 'json' },
+  { label: t('adminSettings.formatForm'), value: 'form' },
+]
+
+const realnameApiProviderOptions = [
+  { label: t('adminSettings.providerAliyun'), value: 'aliyun' },
+  { label: t('adminSettings.providerTencent'), value: 'tencent' },
+  { label: t('adminSettings.providerBaidu'), value: 'baidu' },
+  { label: t('adminSettings.providerCustom'), value: 'custom' },
 ]
 
 const typeOptions = [
-  { label: '字符串', value: 'string' },
-  { label: '数字', value: 'number' },
-  { label: '布尔值', value: 'boolean' },
-  { label: 'JSON', value: 'json' },
+  { label: t('adminSettings.typeString'), value: 'string' },
+  { label: t('adminSettings.typeNumber'), value: 'number' },
+  { label: t('adminSettings.typeBoolean'), value: 'boolean' },
+  { label: t('adminSettings.typeJSON'), value: 'json' },
 ]
 
 const basicForm = reactive({
@@ -917,21 +980,20 @@ const savingSms = ref(false)
 
 const smsProviderNeedsSignName = computed(() => smsForm.sms_provider !== 'console')
 const smsProviderNeedsTemplateCode = computed(() => ['aliyun', 'tencent'].includes(smsForm.sms_provider))
-const smsProviderNeedsRegion = computed(() => ['aliyun', 'tencent'].includes(smsForm.sms_provider))
 const smsAccessKeyPlaceholder = computed(() => {
-  if (smsForm.sms_provider === 'tencent') return '腾讯云 SecretId'
-  if (smsForm.sms_provider === 'custom') return '自定义网关 API Key（可选）'
-  return '短信服务商 AccessKey'
+  if (smsForm.sms_provider === 'tencent') return t('adminSettings.smsTencentSecretId')
+  if (smsForm.sms_provider === 'custom') return t('adminSettings.smsCustomApiKeyOptional')
+  return t('adminSettings.smsProviderAccessKey')
 })
 const smsSecretKeyPlaceholder = computed(() => {
-  if (smsForm.sms_provider === 'tencent') return '腾讯云 SecretKey'
-  if (smsForm.sms_provider === 'custom') return '自定义网关 API Secret（可选）'
-  return '短信服务商 SecretKey'
+  if (smsForm.sms_provider === 'tencent') return t('adminSettings.smsTencentSecretKey')
+  if (smsForm.sms_provider === 'custom') return t('adminSettings.smsCustomApiSecretOptional')
+  return t('adminSettings.smsProviderSecretKey')
 })
-const smsTemplateLabel = computed(() => smsForm.sms_provider === 'aliyun' ? '验证码模板Code' : '验证码模板ID')
-const smsTemplatePlaceholder = computed(() => smsForm.sms_provider === 'aliyun' ? '如: SMS_123456789' : '请输入短信验证码模板ID')
-const smsTemplateEnLabel = computed(() => smsForm.sms_provider === 'aliyun' ? '英文模板Code' : '英文模板ID')
-const smsTemplateEnPlaceholder = computed(() => smsForm.sms_provider === 'aliyun' ? '可选，如: SMS_987654321' : '可选，不填则回退默认模板')
+const smsTemplateLabel = computed(() => smsForm.sms_provider === 'aliyun' ? t('adminSettings.smsTemplateCode') : t('adminSettings.smsTemplateId'))
+const smsTemplatePlaceholder = computed(() => smsForm.sms_provider === 'aliyun' ? t('adminSettings.smsTemplateCodeExample') : t('adminSettings.smsTemplateIdPlaceholder'))
+const smsTemplateEnLabel = computed(() => smsForm.sms_provider === 'aliyun' ? t('adminSettings.smsTemplateCodeEnglish') : t('adminSettings.smsTemplateIdEnglish'))
+const smsTemplateEnPlaceholder = computed(() => smsForm.sms_provider === 'aliyun' ? t('adminSettings.smsTemplateCodeEnglishOptional') : t('adminSettings.smsTemplateIdEnglishOptional'))
 
 const securityForm = reactive({
   geetest_enabled: false,
@@ -944,7 +1006,15 @@ const securityForm = reactive({
   allow_delete_account: false,
   realname_enabled: true,
   realname_review_required: true,
-  realname_notify_text: '完成实名认证后可享受更多服务',
+  realname_notify_text: t('adminSettings.realnameNotifyTextDefault'),
+})
+
+const realnameApiForm = reactive({
+  realname_api_enabled: false,
+  realname_api_provider: 'aliyun',
+  realname_api_app_key: '',
+  realname_api_app_secret: '',
+  realname_api_endpoint: '',
 })
 
 const paymentForm = reactive({
@@ -952,7 +1022,7 @@ const paymentForm = reactive({
   payment_order_expire_minutes: 30,
   withdraw_enabled: true,
   withdraw_min_amount: 10,
-  withdraw_notify_text: '提现申请提交后需管理员审核，通过后人工打款。',
+  withdraw_notify_text: t('adminSettings.withdrawNotifyTextDefault'),
   withdraw_account_types_text: '["bank","alipay","wechat","usdt"]',
 })
 
@@ -970,10 +1040,10 @@ const addForm = reactive({
 
 const addFormRules = {
   key: [
-    { required: true, message: '请输入配置键名', trigger: 'blur' },
-    { pattern: /^[a-z][a-z0-9_]*$/, message: '键名必须以小写字母开头，只能包含小写字母、数字和下划线', trigger: 'blur' },
+    { required: true, message: () => t('adminSettings.keyRequired'), trigger: 'blur' },
+    { pattern: /^[a-z][a-z0-9_]*$/, message: () => t('adminSettings.keyPattern'), trigger: 'blur' },
   ],
-  label: [{ required: true, message: '请输入显示名称', trigger: 'blur' }],
+  label: [{ required: true, message: () => t('adminSettings.labelRequired'), trigger: 'blur' }],
 }
 
 const editForm = reactive({
@@ -991,18 +1061,18 @@ const plugins = ref([
 ])
 
 const customColumns: DataTableColumns<SettingDTO> = [
-  { title: '键名', key: 'key' },
-  { title: '显示名称', key: 'label' },
-  { title: '值', key: 'value', ellipsis: { tooltip: true } },
-  { title: '类型', key: 'type', width: 80 },
+  { title: t('adminSettings.columnKey'), key: 'key' },
+  { title: t('adminSettings.columnLabel'), key: 'label' },
+  { title: t('adminSettings.columnValue'), key: 'value', ellipsis: { tooltip: true } },
+  { title: t('adminSettings.columnType'), key: 'type', width: 80 },
   {
-    title: '公开',
+    title: t('adminSettings.columnPublic'),
     key: 'is_public',
     width: 80,
-    render: row => row.is_public ? '是' : '否',
+    render: row => row.is_public ? t('adminSettings.yes') : t('adminSettings.no'),
   },
   {
-    title: '操作',
+    title: t('adminSettings.columnActions'),
     key: 'actions',
     width: 180,
     render: (row) => {
@@ -1013,13 +1083,13 @@ const customColumns: DataTableColumns<SettingDTO> = [
             type: 'primary',
             text: true,
             onClick: () => handleEditSetting(row),
-          }, () => '修改'),
+          }, () => t('adminSettings.edit')),
           h(NButton, {
             size: 'small',
             type: 'error',
             text: true,
             onClick: () => handleDeleteSetting(row.key),
-          }, () => '删除'),
+          }, () => t('adminSettings.delete')),
         ],
       })
     },
@@ -1040,13 +1110,13 @@ const serviceStatusRows = computed<ServiceStatusRow[]>(() => {
   return serverMonitoringData.value.services.map(service => {
     const detailParts: string[] = []
     if (typeof service.open_connections === 'number') {
-      detailParts.push(`连接:${service.open_connections}`)
+      detailParts.push(t('adminSettings.serviceConnections', { count: service.open_connections }))
     }
     if (typeof service.in_use === 'number') {
-      detailParts.push(`使用中:${service.in_use}`)
+      detailParts.push(t('adminSettings.serviceInUse', { count: service.in_use }))
     }
     if (typeof service.idle === 'number') {
-      detailParts.push(`空闲:${service.idle}`)
+      detailParts.push(t('adminSettings.serviceIdle', { count: service.idle }))
     }
     if (service.host && service.port) {
       detailParts.push(`${service.host}:${service.port}`)
@@ -1061,19 +1131,19 @@ const serviceStatusRows = computed<ServiceStatusRow[]>(() => {
 })
 
 const serviceStatusColumns: DataTableColumns<ServiceStatusRow> = [
-  { title: '服务', key: 'name' },
+  { title: t('adminSettings.columnService'), key: 'name' },
   {
-    title: '状态',
+    title: t('adminSettings.columnStatus'),
     key: 'status',
     width: 100,
     render: row => {
       const type = row.status === 'up' ? 'success' : row.status === 'warning' ? 'warning' : 'error'
-      const text = row.status === 'up' ? '正常' : row.status === 'warning' ? '未就绪' : '异常'
+      const text = row.status === 'up' ? t('adminSettings.statusNormal') : row.status === 'warning' ? t('adminSettings.statusWarning') : t('adminSettings.statusError')
       return h(NTag, { type, size: 'small' }, () => text)
     },
   },
-  { title: '说明', key: 'message' },
-  { title: '详情', key: 'detail' },
+  { title: t('adminSettings.columnMessage'), key: 'message' },
+  { title: t('adminSettings.columnDetail'), key: 'detail' },
 ]
 
 const cpuPercent = computed(() => normalizePercent(serverMonitoringData.value?.metrics.cpu.usage_percent ?? 0))
@@ -1161,7 +1231,7 @@ function formatUptime(seconds: number): string {
   const day = Math.floor(seconds / 86400)
   const hour = Math.floor((seconds % 86400) / 3600)
   const minute = Math.floor((seconds % 3600) / 60)
-  return `${day}天 ${hour}小时 ${minute}分钟`
+  return t('adminSettings.uptimeFormat', { day, hour, minute })
 }
 
 function formatUptimePrecise(seconds: number): string {
@@ -1172,7 +1242,7 @@ function formatUptimePrecise(seconds: number): string {
   const hour = Math.floor((seconds % 86400) / 3600)
   const minute = Math.floor((seconds % 3600) / 60)
   const second = Math.floor(seconds % 60)
-  return `${day}天${hour}时${minute}分${second}秒`
+  return t('adminSettings.uptimePreciseFormat', { day, hour, minute, second })
 }
 
 function formatStartTimeFromUptime(generatedAt?: string, uptimeSeconds?: number): string {
@@ -1205,7 +1275,7 @@ async function loadServerMonitoringStatus() {
   catch (error: any) {
     serverMonitoringData.value = null
     serverMonitoringGeneratedAt.value = ''
-    message.error('加载服务器监控失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.loadMonitoringFailed') + (error.message || ''))
   }
   finally {
     loadingServerMonitoring.value = false
@@ -1265,13 +1335,19 @@ async function loadSettings() {
           if (item.key === 'login_lock_duration') securityForm.login_lock_duration = Number(item.value) || 10
           if (item.key === 'realname_enabled') securityForm.realname_enabled = parseBooleanSetting(item.value)
           if (item.key === 'realname_review_required') securityForm.realname_review_required = parseBooleanSetting(item.value)
-          if (item.key === 'realname_notify_text') securityForm.realname_notify_text = String(item.value || '完成实名认证后可享受更多服务')
+          if (item.key === 'realname_notify_text') securityForm.realname_notify_text = String(item.value || t('adminSettings.realnameNotifyTextDefault'))
+
+          if (item.key === 'realname_api_enabled') realnameApiForm.realname_api_enabled = parseBooleanSetting(item.value)
+          if (item.key === 'realname_api_provider') realnameApiForm.realname_api_provider = String(item.value || 'aliyun')
+          if (item.key === 'realname_api_app_key') realnameApiForm.realname_api_app_key = String(item.value || '')
+          if (item.key === 'realname_api_app_secret') realnameApiForm.realname_api_app_secret = String(item.value || '')
+          if (item.key === 'realname_api_endpoint') realnameApiForm.realname_api_endpoint = String(item.value || '')
 
           if (item.key === 'payment_enabled') paymentForm.payment_enabled = parseBooleanSetting(item.value)
           if (item.key === 'payment_order_expire_minutes') paymentForm.payment_order_expire_minutes = Number(item.value) || 30
           if (item.key === 'withdraw_enabled') paymentForm.withdraw_enabled = parseBooleanSetting(item.value)
           if (item.key === 'withdraw_min_amount') paymentForm.withdraw_min_amount = Number(item.value) || 10
-          if (item.key === 'withdraw_notify_text') paymentForm.withdraw_notify_text = String(item.value || '提现申请提交后需管理员审核，通过后人工打款。')
+          if (item.key === 'withdraw_notify_text') paymentForm.withdraw_notify_text = String(item.value || t('adminSettings.withdrawNotifyTextDefault'))
           if (item.key === 'withdraw_account_types') paymentForm.withdraw_account_types_text = typeof item.value === 'string' ? item.value : JSON.stringify(item.value || ['bank', 'alipay', 'wechat', 'usdt'])
         }
 
@@ -1282,7 +1358,7 @@ async function loadSettings() {
     }
   }
   catch (error: any) {
-    message.error('加载配置失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.loadSettingsFailed'))
   }
   finally {
     loading.value = false
@@ -1297,16 +1373,16 @@ async function handleUpdateAllowRegister(nextValue: boolean) {
     const res = await adminApi.settings.update('allow_register', String(nextValue))
     if (res.isSuccess) {
       settingsStore.updateConfig({ allow_register: nextValue })
-      message.success(res.message || '注册开关已更新')
+      message.success(res.message || t('adminSettings.registerSwitchUpdated'))
     }
     else {
       basicForm.allow_register = prev
-      message.error(res.message || '注册开关更新失败')
+      message.error(res.message || t('adminSettings.registerSwitchUpdateFailed'))
     }
   }
   catch (error: any) {
     basicForm.allow_register = prev
-    message.error('更新失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.updateFailed'))
   }
   finally {
     switchLoading.allow_register = false
@@ -1321,16 +1397,16 @@ async function handleUpdateAllowDeleteAccount(nextValue: boolean) {
     const res = await adminApi.settings.update('allow_delete_account', String(nextValue))
     if (res.isSuccess) {
       settingsStore.updateConfig({ allow_delete_account: nextValue })
-      message.success(res.message || '账号注销开关已更新')
+      message.success(res.message || t('adminSettings.deleteAccountSwitchUpdated'))
     }
     else {
       securityForm.allow_delete_account = prev
-      message.error(res.message || '账号注销开关更新失败')
+      message.error(res.message || t('adminSettings.deleteAccountSwitchUpdateFailed'))
     }
   }
   catch (error: any) {
     securityForm.allow_delete_account = prev
-    message.error('更新失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.updateFailed'))
   }
   finally {
     switchLoading.allow_delete_account = false
@@ -1344,16 +1420,16 @@ async function handleUpdateSmtpSSL(nextValue: boolean) {
   try {
     const res = await adminApi.settings.update('smtp_ssl', String(nextValue))
     if (res.isSuccess) {
-      message.success(res.message || 'SMTP SSL 开关已更新')
+      message.success(res.message || t('adminSettings.smtpSslUpdated'))
     }
     else {
       emailForm.smtp_ssl = prev
-      message.error(res.message || 'SMTP SSL 开关更新失败')
+      message.error(res.message || t('adminSettings.smtpSslUpdateFailed'))
     }
   }
   catch (error: any) {
     emailForm.smtp_ssl = prev
-    message.error('更新失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.updateFailed'))
   }
   finally {
     switchLoading.smtp_ssl = false
@@ -1368,16 +1444,16 @@ async function handleUpdateEmailVerifyEnabled(nextValue: boolean) {
     const res = await adminApi.settings.update('email_verify_enabled', String(nextValue))
     if (res.isSuccess) {
       settingsStore.updateConfig({ email_verify_enabled: nextValue })
-      message.success(res.message || '邮箱验证码开关已更新')
+      message.success(res.message || t('adminSettings.emailVerifySwitchUpdated'))
     }
     else {
       emailForm.email_verify_enabled = prev
-      message.error(res.message || '邮箱验证码开关更新失败')
+      message.error(res.message || t('adminSettings.emailVerifySwitchUpdateFailed'))
     }
   }
   catch (error: any) {
     emailForm.email_verify_enabled = prev
-    message.error('更新失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.updateFailed'))
   }
   finally {
     switchLoading.email_verify_enabled = false
@@ -1392,16 +1468,16 @@ async function handleUpdateSmsVerifyEnabled(nextValue: boolean) {
     const res = await adminApi.settings.update('sms_verify_enabled', String(nextValue))
     if (res.isSuccess) {
       settingsStore.updateConfig({ sms_verify_enabled: nextValue })
-      message.success(res.message || '短信验证码开关已更新')
+      message.success(res.message || t('adminSettings.smsVerifySwitchUpdated'))
     }
     else {
       smsForm.sms_verify_enabled = prev
-      message.error(res.message || '短信验证码开关更新失败')
+      message.error(res.message || t('adminSettings.smsVerifySwitchUpdateFailed'))
     }
   }
   catch (error: any) {
     smsForm.sms_verify_enabled = prev
-    message.error('更新失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.updateFailed'))
   }
   finally {
     switchLoading.sms_verify_enabled = false
@@ -1424,14 +1500,14 @@ async function handleSaveSms() {
       sms_body_format: smsForm.sms_body_format,
     })
     if (res.isSuccess) {
-      message.success(res.message || '短信设置保存成功')
+      message.success(res.message || t('adminSettings.smsSettingsSaved'))
     }
     else {
-      message.error(res.message || '短信设置保存失败')
+      message.error(res.message || t('adminSettings.smsSettingsSaveFailed'))
     }
   }
   catch (error: any) {
-    message.error('保存失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.saveFailed'))
   }
   finally {
     savingSms.value = false
@@ -1446,16 +1522,16 @@ async function handleUpdateGeetestEnabled(nextValue: boolean) {
     const res = await adminApi.settings.update('geetest_enabled', String(nextValue))
     if (res.isSuccess) {
       settingsStore.updateConfig({ geetest_enabled: nextValue })
-      message.success(res.message || '极验开关已更新')
+      message.success(res.message || t('adminSettings.geetestSwitchUpdated'))
     }
     else {
       securityForm.geetest_enabled = prev
-      message.error(res.message || '极验开关更新失败')
+      message.error(res.message || t('adminSettings.geetestSwitchUpdateFailed'))
     }
   }
   catch (error: any) {
     securityForm.geetest_enabled = prev
-    message.error('更新失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.updateFailed'))
   }
   finally {
     switchLoading.geetest_enabled = false
@@ -1469,16 +1545,16 @@ async function handleUpdateRealnameEnabled(nextValue: boolean) {
   try {
     const res = await adminApi.settings.update('realname_enabled', String(nextValue))
     if (res.isSuccess) {
-      message.success(res.message || '实名认证功能开关已更新')
+      message.success(res.message || t('adminSettings.realnameSwitchUpdated'))
     }
     else {
       securityForm.realname_enabled = prev
-      message.error(res.message || '实名认证功能开关更新失败')
+      message.error(res.message || t('adminSettings.realnameSwitchUpdateFailed'))
     }
   }
   catch (error: any) {
     securityForm.realname_enabled = prev
-    message.error('更新失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.updateFailed'))
   }
   finally {
     switchLoading.realname_enabled = false
@@ -1492,19 +1568,66 @@ async function handleUpdateRealnameReviewRequired(nextValue: boolean) {
   try {
     const res = await adminApi.settings.update('realname_review_required', String(nextValue))
     if (res.isSuccess) {
-      message.success(res.message || '实名认证审核开关已更新')
+      message.success(res.message || t('adminSettings.realnameReviewSwitchUpdated'))
     }
     else {
       securityForm.realname_review_required = prev
-      message.error(res.message || '实名认证审核开关更新失败')
+      message.error(res.message || t('adminSettings.realnameReviewSwitchUpdateFailed'))
     }
   }
   catch (error: any) {
     securityForm.realname_review_required = prev
-    message.error('更新失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.updateFailed'))
   }
   finally {
     switchLoading.realname_review_required = false
+  }
+}
+
+async function handleUpdateRealnameApiEnabled(nextValue: boolean) {
+  const prev = realnameApiForm.realname_api_enabled
+  realnameApiForm.realname_api_enabled = nextValue
+  switchLoading.realname_api_enabled = true
+  try {
+    const res = await adminApi.settings.update('realname_api_enabled', String(nextValue))
+    if (res.isSuccess) {
+      message.success(res.message || t('adminSettings.realnameApiSwitchUpdated'))
+    }
+    else {
+      realnameApiForm.realname_api_enabled = prev
+      message.error(res.message || t('adminSettings.realnameApiSwitchUpdateFailed'))
+    }
+  }
+  catch (error: any) {
+    realnameApiForm.realname_api_enabled = prev
+    message.error(t('adminSettings.updateFailed'))
+  }
+  finally {
+    switchLoading.realname_api_enabled = false
+  }
+}
+
+async function handleSaveRealnameApi() {
+  savingRealnameApi.value = true
+  try {
+    const res = await adminApi.settings.batchUpdate({
+      realname_api_provider: realnameApiForm.realname_api_provider,
+      realname_api_app_key: realnameApiForm.realname_api_app_key,
+      realname_api_app_secret: realnameApiForm.realname_api_app_secret,
+      realname_api_endpoint: realnameApiForm.realname_api_endpoint,
+    })
+    if (res.isSuccess) {
+      message.success(res.message || t('adminSettings.realnameApiSaveSuccess'))
+    }
+    else {
+      message.error(res.message || t('adminSettings.realnameApiSaveFailed'))
+    }
+  }
+  catch (error: any) {
+    message.error(t('adminSettings.saveFailed'))
+  }
+  finally {
+    savingRealnameApi.value = false
   }
 }
 
@@ -1515,16 +1638,16 @@ async function handleUpdatePaymentEnabled(nextValue: boolean) {
   try {
     const res = await adminApi.settings.update('payment_enabled', String(nextValue))
     if (res.isSuccess) {
-      message.success(res.message || '支付功能开关已更新')
+      message.success(res.message || t('adminSettings.paymentSwitchUpdated'))
     }
     else {
       paymentForm.payment_enabled = prev
-      message.error(res.message || '支付功能开关更新失败')
+      message.error(res.message || t('adminSettings.paymentSwitchUpdateFailed'))
     }
   }
   catch (error: any) {
     paymentForm.payment_enabled = prev
-    message.error('更新失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.updateFailed'))
   }
   finally {
     switchLoading.payment_enabled = false
@@ -1539,16 +1662,16 @@ async function handleUpdateWithdrawEnabled(nextValue: boolean) {
     const res = await adminApi.settings.update('withdraw_enabled', String(nextValue))
     if (res.isSuccess) {
       settingsStore.updateConfig({ withdraw_enabled: nextValue })
-      message.success(res.message || '提现功能开关已更新')
+      message.success(res.message || t('adminSettings.withdrawSwitchUpdated'))
     }
     else {
       paymentForm.withdraw_enabled = prev
-      message.error(res.message || '提现功能开关更新失败')
+      message.error(res.message || t('adminSettings.withdrawSwitchUpdateFailed'))
     }
   }
   catch (error: any) {
     paymentForm.withdraw_enabled = prev
-    message.error('更新失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.updateFailed'))
   }
   finally {
     switchLoading.withdraw_enabled = false
@@ -1560,7 +1683,7 @@ async function handleSavePayment() {
   try {
     const parsedAccountTypes = JSON.parse(paymentForm.withdraw_account_types_text || '[]')
     if (!Array.isArray(parsedAccountTypes) || parsedAccountTypes.length === 0 || parsedAccountTypes.some(item => typeof item !== 'string' || !item.trim())) {
-      throw new Error('支持收款方式必须是非空字符串数组')
+      throw new Error(t('adminSettings.invalidAccountTypes'))
     }
     const res = await adminApi.settings.batchUpdate({
       payment_order_expire_minutes: String(paymentForm.payment_order_expire_minutes),
@@ -1574,14 +1697,14 @@ async function handleSavePayment() {
         withdraw_notify_text: paymentForm.withdraw_notify_text,
         withdraw_account_types: parsedAccountTypes,
       })
-      message.success(res.message || '支付设置保存成功')
+      message.success(res.message || t('adminSettings.paymentSettingsSaved'))
     }
     else {
-      message.error(res.message || '支付设置保存失败')
+      message.error(res.message || t('adminSettings.paymentSettingsSaveFailed'))
     }
   }
   catch (error: any) {
-    message.error('保存失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.saveFailed'))
   }
   finally {
     savingPayment.value = false
@@ -1616,14 +1739,14 @@ async function handleSaveBasic() {
         version: basicForm.version,
         default_lang: basicForm.default_lang,
       })
-      message.success(res.message || '基本设置保存成功')
+      message.success(res.message || t('adminSettings.basicSettingsSaved'))
     }
     else {
-      message.error(res.message || '基本设置保存失败')
+      message.error(res.message || t('adminSettings.basicSettingsSaveFailed'))
     }
   }
   catch (error: any) {
-    message.error('保存失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.saveFailed'))
   }
   finally {
     savingBasic.value = false
@@ -1641,14 +1764,14 @@ async function handleSaveEmail() {
       system_email_name: emailForm.system_email_name,
     })
     if (res.isSuccess) {
-      message.success(res.message || '邮件设置保存成功')
+      message.success(res.message || t('adminSettings.emailSettingsSaved'))
     }
     else {
-      message.error(res.message || '邮件设置保存失败')
+      message.error(res.message || t('adminSettings.emailSettingsSaveFailed'))
     }
   }
   catch (error: any) {
-    message.error('保存失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.saveFailed'))
   }
   finally {
     savingEmail.value = false
@@ -1662,14 +1785,14 @@ async function handleTestEmail() {
       to: emailForm.smtp_username,
     })
     if (res.isSuccess) {
-      message.success(res.data?.message || '测试邮件已发送')
+      message.success(res.data?.message || t('adminSettings.testEmailSent'))
     }
     else {
-      message.error(res.message || '测试邮件发送失败')
+      message.error(res.message || t('adminSettings.testEmailFailed'))
     }
   }
   catch (error: any) {
-    message.error(error?.message || '测试邮件发送失败')
+    message.error(error?.message || t('adminSettings.testEmailFailed'))
   }
   finally {
     testingEmail.value = false
@@ -1692,14 +1815,14 @@ async function handleSaveSecurity() {
       settingsStore.updateConfig({
         geetest_captcha_id: securityForm.geetest_captcha_id,
       })
-      message.success(res.message || '安全设置保存成功')
+      message.success(res.message || t('adminSettings.securitySettingsSaved'))
     }
     else {
-      message.error(res.message || '安全设置保存失败')
+      message.error(res.message || t('adminSettings.securitySettingsSaveFailed'))
     }
   }
   catch (error: any) {
-    message.error('保存失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.saveFailed'))
   }
   finally {
     savingSecurity.value = false
@@ -1711,14 +1834,14 @@ async function handleRestartBackend() {
   try {
     const res = await adminApi.settings.restartBackend()
     if (res.isSuccess) {
-      message.success(res.message || '后端重启请求已发送')
+      message.success(res.message || t('adminSettings.restartBackendRequested'))
     }
     else {
-      message.error(res.message || '后端重启请求发送失败')
+      message.error(res.message || t('adminSettings.restartBackendFailed'))
     }
   }
   catch (error: any) {
-    message.error('重启失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.restartFailed'))
   }
   finally {
     restartingBackend.value = false
@@ -1746,7 +1869,7 @@ async function handleAddSetting() {
       is_editable: true,
     })
     if (res.isSuccess) {
-      message.success(res.message || '配置项添加成功')
+      message.success(res.message || t('adminSettings.configItemAdded'))
       showAddModal.value = false
       addForm.key = ''
       addForm.value = ''
@@ -1757,11 +1880,11 @@ async function handleAddSetting() {
       await loadSettings()
     }
     else {
-      message.error(res.message || '配置项添加失败')
+      message.error(res.message || t('adminSettings.configItemAddFailed'))
     }
   }
   catch (error: any) {
-    message.error('添加失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.addFailed'))
   }
   finally {
     adding.value = false
@@ -1772,15 +1895,15 @@ async function handleDeleteSetting(key: string) {
   try {
     const res = await adminApi.settings.delete(key)
     if (res.isSuccess) {
-      message.success(res.message || '配置项已删除')
+      message.success(res.message || t('adminSettings.configItemDeleted'))
       await loadSettings()
     }
     else {
-      message.error(res.message || '配置项删除失败')
+      message.error(res.message || t('adminSettings.configItemDeleteFailed'))
     }
   }
   catch (error: any) {
-    message.error('删除失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.deleteFailed') + (error.message || ''))
   }
 }
 
@@ -1810,16 +1933,16 @@ async function handleSaveSettingEdit() {
       is_editable: true,
     })
     if (res.isSuccess) {
-      message.success(res.message || '配置项修改成功')
+      message.success(res.message || t('adminSettings.configItemUpdated'))
       showEditModal.value = false
       await loadSettings()
     }
     else {
-      message.error(res.message || '配置项修改失败')
+      message.error(res.message || t('adminSettings.configItemUpdateFailed'))
     }
   }
   catch (error: any) {
-    message.error('修改失败: ' + (error.message || '未知错误'))
+    message.error(t('adminSettings.editFailed'))
   }
   finally {
     savingEdit.value = false
@@ -1835,7 +1958,7 @@ async function loadDebugStats() {
     }
   }
   catch (e: any) {
-    message.error('加载调试统计失败: ' + e.message)
+    message.error(t('adminSettings.loadDebugStatsFailed') + e.message)
   }
   finally {
     loadingDebugStats.value = false
@@ -1859,12 +1982,12 @@ async function handleForceGC() {
   try {
     const res = await adminDebugApi.forceGC()
     if (res.data) {
-      message.success(`GC完成: ${res.data.goroutines_before} -> ${res.data.goroutines_after} 协程`)
+      message.success(t('adminSettings.gcCompleted', { before: res.data.goroutines_before, after: res.data.goroutines_after }))
       loadDebugStats()
     }
   }
   catch (e: any) {
-    message.error('操作失败: ' + e.message)
+    message.error(t('adminSettings.operationFailed') + e.message)
   }
 }
 
@@ -1884,14 +2007,14 @@ function clearAllPprofResults() {
     mutex: false,
     mutexText: '',
   }
-  message.success('已清空所有结果')
+  message.success(t('adminSettings.resultsCleared'))
 }
 
 async function captureCPUProfile() {
   pprofLoading.cpu = true
   pprofResults.value.cpu = false
   pprofResults.value.cpuText = ''
-  message.info(`开始采集 CPU Profile (${pprofConfig.value.cpuSeconds}秒)...`)
+  message.info(t('adminSettings.cpuProfileStarting', { seconds: pprofConfig.value.cpuSeconds }))
   try {
     const url = adminDebugApi.cpuProfile(pprofConfig.value.cpuSeconds)
     const token = local.get('accessToken')
@@ -1902,14 +2025,14 @@ async function captureCPUProfile() {
       const text = await res.text()
       pprofResults.value.cpu = true
       pprofResults.value.cpuText = text
-      message.success('CPU Profile 采集完成')
+      message.success(t('adminSettings.cpuProfileCompleted'))
     }
     else {
-      message.error('采集失败')
+      message.error(t('adminSettings.captureFailed'))
     }
   }
   catch (e: any) {
-    message.error('采集失败: ' + e.message)
+    message.error(t('adminSettings.captureFailed') + e.message)
   }
   finally {
     pprofLoading.cpu = false
@@ -1939,14 +2062,14 @@ async function captureHeapProfile() {
           objects: objectsMatch ? Number(objectsMatch[1]) : 0,
         }
       }
-      message.success('Heap Profile 采集完成')
+      message.success(t('adminSettings.heapProfileCompleted'))
     }
     else {
-      message.error('采集失败')
+      message.error(t('adminSettings.captureFailed'))
     }
   }
   catch (e: any) {
-    message.error('采集失败: ' + e.message)
+    message.error(t('adminSettings.captureFailed') + e.message)
   }
   finally {
     pprofLoading.heap = false
@@ -1968,14 +2091,14 @@ async function captureGoroutineProfile() {
       pprofResults.value.goroutine = text
       const matches = text.match(/goroutine \d+/g)
       pprofResults.value.goroutineCount = matches ? matches.length : 0
-      message.success('Goroutine Profile 采集完成')
+      message.success(t('adminSettings.goroutineProfileCompleted'))
     }
     else {
-      message.error('采集失败')
+      message.error(t('adminSettings.captureFailed'))
     }
   }
   catch (e: any) {
-    message.error('采集失败: ' + e.message)
+    message.error(t('adminSettings.captureFailed') + e.message)
   }
   finally {
     pprofLoading.goroutine = false
@@ -1996,14 +2119,14 @@ async function captureAllocsProfile() {
       const text = await res.text()
       pprofResults.value.allocs = true
       pprofResults.value.allocsText = text
-      message.success('Allocs Profile 采集完成')
+      message.success(t('adminSettings.allocsProfileCompleted'))
     }
     else {
-      message.error('采集失败')
+      message.error(t('adminSettings.captureFailed'))
     }
   }
   catch (e: any) {
-    message.error('采集失败: ' + e.message)
+    message.error(t('adminSettings.captureFailed') + e.message)
   }
   finally {
     pprofLoading.allocs = false
@@ -2024,14 +2147,14 @@ async function captureBlockProfile() {
       const text = await res.text()
       pprofResults.value.block = true
       pprofResults.value.blockText = text
-      message.success('Block Profile 采集完成')
+      message.success(t('adminSettings.blockProfileCompleted'))
     }
     else {
-      message.error('采集失败')
+      message.error(t('adminSettings.captureFailed'))
     }
   }
   catch (e: any) {
-    message.error('采集失败: ' + e.message)
+    message.error(t('adminSettings.captureFailed') + e.message)
   }
   finally {
     pprofLoading.block = false
@@ -2052,14 +2175,14 @@ async function captureMutexProfile() {
       const text = await res.text()
       pprofResults.value.mutex = true
       pprofResults.value.mutexText = text
-      message.success('Mutex Profile 采集完成')
+      message.success(t('adminSettings.mutexProfileCompleted'))
     }
     else {
-      message.error('采集失败')
+      message.error(t('adminSettings.captureFailed'))
     }
   }
   catch (e: any) {
-    message.error('采集失败: ' + e.message)
+    message.error(t('adminSettings.captureFailed') + e.message)
   }
   finally {
     pprofLoading.mutex = false
@@ -2080,15 +2203,15 @@ async function loadRuntimeStacks() {
     if (res.ok) {
       const text = await res.text()
       runtimeStackText.value = text
-      const filterMsg = stackFilterMinWaitMinutes.value > 0 ? `（已过滤 >${stackFilterMinWaitMinutes.value}分钟）` : ''
-      message.success(`堆栈加载完成${filterMsg}`)
+      const filterMsg = stackFilterMinWaitMinutes.value > 0 ? t('adminSettings.filtered', { minutes: stackFilterMinWaitMinutes.value }) : ''
+      message.success(t('adminSettings.stacksLoaded') + filterMsg)
     }
     else {
-      message.error('加载失败')
+      message.error(t('adminSettings.loadFailed'))
     }
   }
   catch (e: any) {
-    message.error('加载失败: ' + e.message)
+    message.error(t('adminSettings.loadFailed') + e.message)
   }
   finally {
     loadingRuntimeStacks.value = false
@@ -2097,7 +2220,7 @@ async function loadRuntimeStacks() {
 
 function clearRuntimeStacks() {
   runtimeStackText.value = ''
-  message.success('已清空堆栈')
+  message.success(t('adminSettings.stacksCleared'))
 }
 
 onMounted(() => {

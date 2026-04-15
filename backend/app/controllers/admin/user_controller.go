@@ -5,6 +5,7 @@ import (
 	"fst/backend/app/services"
 	"fst/backend/internal/config"
 	"fst/backend/utils"
+	"log"
 	"strconv"
 	"time"
 
@@ -63,7 +64,8 @@ func (c *UserController) List(ctx *gin.Context) {
 
 	result, err := c.userService.GetList(&query)
 	if err != nil {
-		utils.Fail(ctx, 500, "查询失败: "+err.Error())
+		log.Printf("[ADMIN USER] list users failed: %v", err)
+		utils.Fail(ctx, 500, "查询失败")
 		return
 	}
 
@@ -136,14 +138,24 @@ func (c *UserController) Create(ctx *gin.Context) {
 	// 加密密码
 	hashed, err := utils.HashPassword(req.Password)
 	if err != nil {
-		utils.Fail(ctx, 500, "密码加密失败")
+		if utils.IsPasswordValidationError(err) {
+			utils.Fail(ctx, 400, err.Error())
+			return
+		}
+		log.Printf("[ADMIN USER] hash password failed on create: %v", err)
+		utils.Fail(ctx, 500, "创建用户失败")
 		return
 	}
 	req.Password = hashed
 
 	user, err := c.userService.Create(&req)
 	if err != nil {
-		utils.Fail(ctx, 400, err.Error())
+		if services.IsClientError(err) {
+			utils.Fail(ctx, 400, err.Error())
+			return
+		}
+		log.Printf("[ADMIN USER] create user failed: %v", err)
+		utils.Fail(ctx, 500, "创建用户失败")
 		return
 	}
 
@@ -176,7 +188,12 @@ func (c *UserController) Update(ctx *gin.Context) {
 	req.ID = id
 
 	if err := c.userService.Update(&req); err != nil {
-		utils.Fail(ctx, 400, err.Error())
+		if services.IsClientError(err) {
+			utils.Fail(ctx, 400, err.Error())
+			return
+		}
+		log.Printf("[ADMIN USER] update user failed for user_id=%d: %v", id, err)
+		utils.Fail(ctx, 500, "更新用户失败")
 		return
 	}
 
@@ -201,7 +218,8 @@ func (c *UserController) Delete(ctx *gin.Context) {
 	}
 
 	if err := c.userService.Delete(id); err != nil {
-		utils.Fail(ctx, 400, err.Error())
+		log.Printf("[ADMIN USER] delete user failed for user_id=%d: %v", id, err)
+		utils.Fail(ctx, 500, "删除用户失败")
 		return
 	}
 
@@ -235,7 +253,8 @@ func (c *UserController) UpdateStatus(ctx *gin.Context) {
 	}
 
 	if err := c.userService.UpdateStatus(id, req.Status); err != nil {
-		utils.Fail(ctx, 400, err.Error())
+		log.Printf("[ADMIN USER] update status failed for user_id=%d: %v", id, err)
+		utils.Fail(ctx, 500, "更新用户状态失败")
 		return
 	}
 
@@ -261,21 +280,27 @@ func (c *UserController) ResetPassword(ctx *gin.Context) {
 	}
 
 	var req struct {
-		Password string `json:"password" binding:"required,min=6"`
+		Password string `json:"password" binding:"required,min=8"`
 	}
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		utils.Fail(ctx, 400, "参数错误: 密码至少6位")
+		utils.Fail(ctx, 400, "参数错误: 密码至少8位")
 		return
 	}
 
 	hashed, err := utils.HashPassword(req.Password)
 	if err != nil {
-		utils.Fail(ctx, 500, "密码加密失败")
+		if utils.IsPasswordValidationError(err) {
+			utils.Fail(ctx, 400, err.Error())
+			return
+		}
+		log.Printf("[ADMIN USER] hash password failed on reset for user_id=%d: %v", id, err)
+		utils.Fail(ctx, 500, "重置密码失败")
 		return
 	}
 
 	if err := c.userService.UpdatePassword(id, hashed); err != nil {
-		utils.Fail(ctx, 400, err.Error())
+		log.Printf("[ADMIN USER] reset password failed for user_id=%d: %v", id, err)
+		utils.Fail(ctx, 500, "重置密码失败")
 		return
 	}
 
@@ -432,7 +457,8 @@ func (c *UserController) ResetApiKey(ctx *gin.Context) {
 
 	newKey, err := models.ResetUserApiKey(id)
 	if err != nil {
-		utils.Fail(ctx, 500, "重置 API Key 失败: "+err.Error())
+		log.Printf("[ADMIN USER] reset api key failed for user_id=%d: %v", id, err)
+		utils.Fail(ctx, 500, "重置 API Key 失败")
 		return
 	}
 

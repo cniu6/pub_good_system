@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { h, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NButton, NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { fetchWithdrawDetail, fetchWithdrawRecords, fetchWithdrawStats, payWithdraw, reviewWithdraw } from '@/service/api/admin/finance'
@@ -8,6 +9,7 @@ import { adminUserApi } from '@/service/api/admin/user'
 import type { UserSimpleInfo } from '@/service/api/admin/user'
 
 const message = useMessage()
+const { t } = useI18n()
 const loading = ref(false)
 const submitting = ref(false)
 
@@ -43,10 +45,10 @@ const pagination = reactive({
 })
 
 const statusOptions = [
-  { label: '待审核', value: 0 },
-  { label: '待打款', value: 1 },
-  { label: '已拒绝', value: 2 },
-  { label: '已打款', value: 3 },
+  { label: t('adminWithdraw.statusPending'), value: 0 },
+  { label: t('adminWithdraw.statusApproved'), value: 1 },
+  { label: t('adminWithdraw.statusRejected'), value: 2 },
+  { label: t('adminWithdraw.statusPaid'), value: 3 },
 ]
 
 const stats = ref<WithdrawStats>({
@@ -59,12 +61,12 @@ const stats = ref<WithdrawStats>({
 
 function getStatusMeta(status: number) {
   const map: Record<number, { label: string, type: 'warning' | 'info' | 'error' | 'success' }> = {
-    0: { label: '待审核', type: 'warning' },
-    1: { label: '待打款', type: 'info' },
-    2: { label: '已拒绝', type: 'error' },
-    3: { label: '已打款', type: 'success' },
+    0: { label: t('adminWithdraw.statusPending'), type: 'warning' },
+    1: { label: t('adminWithdraw.statusApproved'), type: 'info' },
+    2: { label: t('adminWithdraw.statusRejected'), type: 'error' },
+    3: { label: t('adminWithdraw.statusPaid'), type: 'success' },
   }
-  return map[status] || { label: '未知', type: 'info' }
+  return map[status] || { label: t('adminWithdraw.unknown'), type: 'info' }
 }
 
 function formatTime(ts?: number | null) {
@@ -83,20 +85,20 @@ function getAdminDisplayName(adminId?: number | null) {
     return '-'
   }
   const admin = adminUserMap.value[adminId]
-  return admin?.nickname || admin?.username || `管理员#${adminId}`
+  return admin?.nickname || admin?.username || t('adminWithdraw.adminPrefix', { id: adminId })
 }
 
 const columns: DataTableColumns<WithdrawRecord> = [
   { title: 'ID', key: 'id', width: 70 },
-  { title: '用户ID', key: 'user_id', width: 80 },
+  { title: t('adminWithdraw.userId'), key: 'user_id', width: 80 },
   {
-    title: '提现金额',
+    title: t('adminWithdraw.withdrawAmount'),
     key: 'amount',
     width: 120,
     render: row => `¥${(Number(row.amount) || 0).toFixed(2)}`,
   },
   {
-    title: '状态',
+    title: t('adminWithdraw.status'),
     key: 'status',
     width: 100,
     render: (row) => {
@@ -104,36 +106,36 @@ const columns: DataTableColumns<WithdrawRecord> = [
       return h(NTag, { type: meta.type, bordered: false }, () => meta.label)
     },
   },
-  { title: '收款方式', key: 'account_type', width: 100 },
-  { title: '账户名称', key: 'account_name', width: 140, ellipsis: { tooltip: true } },
+  { title: t('adminWithdraw.accountType'), key: 'account_type', width: 100 },
+  { title: t('adminWithdraw.accountName'), key: 'account_name', width: 140, ellipsis: { tooltip: true } },
   {
-    title: '收款账号',
+    title: t('adminWithdraw.accountNo'),
     key: 'account_no',
     width: 180,
     ellipsis: { tooltip: true },
     render: row => maskAccountNo(row.account_no),
   },
-  { title: '收款人', key: 'real_name', width: 100 },
+  { title: t('adminWithdraw.realName'), key: 'real_name', width: 100 },
   {
-    title: '审核时间',
+    title: t('adminWithdraw.reviewedAt'),
     key: 'reviewed_at',
     width: 170,
     render: row => formatTime(row.reviewed_at),
   },
   {
-    title: '打款时间',
+    title: t('adminWithdraw.paidAt'),
     key: 'paid_at',
     width: 170,
     render: row => formatTime(row.paid_at),
   },
   {
-    title: '申请时间',
+    title: t('adminWithdraw.createdAt'),
     key: 'create_time',
     width: 170,
     render: row => formatTime(row.create_time),
   },
   {
-    title: '操作',
+    title: t('adminWithdraw.actions'),
     key: 'actions',
     width: 220,
     render: (row) => {
@@ -152,17 +154,17 @@ const columns: DataTableColumns<WithdrawRecord> = [
                 currentRow.value = res.data
               }
               else {
-                message.error(res.message || '获取提现详情失败')
+                message.error(res.message || t('adminWithdraw.fetchDetailFailed'))
               }
             }
             catch {
-              message.error('获取提现详情失败')
+              message.error(t('adminWithdraw.fetchDetailFailed'))
             }
             finally {
               detailLoading.value = false
             }
           },
-        }, { default: () => '详情' }),
+        }, { default: () => t('adminWithdraw.detail') }),
       ]
 
       if (row.status === 0) {
@@ -171,7 +173,7 @@ const columns: DataTableColumns<WithdrawRecord> = [
           text: true,
           type: 'primary',
           onClick: () => openReview(row),
-        }, { default: () => '审核' }))
+        }, { default: () => t('adminWithdraw.review') }))
       }
 
       if (row.status === 1) {
@@ -180,7 +182,7 @@ const columns: DataTableColumns<WithdrawRecord> = [
           text: true,
           type: 'warning',
           onClick: () => openPay(row),
-        }, { default: () => '标记打款' }))
+        }, { default: () => t('adminWithdraw.markPaid') }))
       }
 
       return h('div', { style: 'display:flex;gap:8px;' }, buttons)
@@ -213,14 +215,14 @@ async function fetchData() {
       adminUserMap.value = await adminUserApi.batchSimpleInfo(adminIds)
     }
     else {
-      message.error(res.message || '获取提现列表失败')
+      message.error(res.message || t('adminWithdraw.fetchListFailed'))
     }
     if (statsRes.isSuccess && statsRes.data) {
       stats.value = statsRes.data
     }
   }
   catch {
-    message.error('获取提现列表失败')
+    message.error(t('adminWithdraw.fetchListFailed'))
   }
   finally {
     loading.value = false
@@ -268,23 +270,23 @@ async function handleSubmitReview() {
   if (!currentRow.value)
     return
   if (reviewForm.review_remark.trim().length > 255) {
-    message.error('审核备注不能超过255个字符')
+    message.error(t('adminWithdraw.reviewRemarkTooLong'))
     return
   }
   submitting.value = true
   try {
     const res = await reviewWithdraw(currentRow.value.id, reviewForm)
     if (res.isSuccess) {
-      message.success(res.message || '审核成功')
+      message.success(res.message || t('adminWithdraw.reviewSuccess'))
       showReviewModal.value = false
       fetchData()
     }
     else {
-      message.error(res.message || '审核失败')
+      message.error(res.message || t('adminWithdraw.reviewFailed'))
     }
   }
   catch {
-    message.error('审核失败')
+    message.error(t('adminWithdraw.reviewFailed'))
   }
   finally {
     submitting.value = false
@@ -295,23 +297,23 @@ async function handleSubmitPay() {
   if (!currentRow.value)
     return
   if (payForm.transfer_remark.trim().length > 255) {
-    message.error('打款备注不能超过255个字符')
+    message.error(t('adminWithdraw.transferRemarkTooLong'))
     return
   }
   submitting.value = true
   try {
     const res = await payWithdraw(currentRow.value.id, payForm)
     if (res.isSuccess) {
-      message.success(res.message || '已标记为打款完成')
+      message.success(res.message || t('adminWithdraw.markPaidSuccess'))
       showPayModal.value = false
       fetchData()
     }
     else {
-      message.error(res.message || '操作失败')
+      message.error(res.message || t('adminWithdraw.operationFailed'))
     }
   }
   catch {
-    message.error('操作失败')
+    message.error(t('adminWithdraw.operationFailed'))
   }
   finally {
     submitting.value = false
@@ -322,32 +324,32 @@ onMounted(fetchData)
 </script>
 
 <template>
-  <n-card title="提现管理">
+  <n-card :title="t('adminWithdraw.title')">
     <n-space vertical>
       <n-grid :cols="5" :x-gap="12">
         <n-gi>
           <n-card size="small">
-            <n-statistic label="待审核" :value="stats.pending_count" />
+            <n-statistic :label="t('adminWithdraw.statPending')" :value="stats.pending_count" />
           </n-card>
         </n-gi>
         <n-gi>
           <n-card size="small">
-            <n-statistic label="待打款" :value="stats.approved_count" />
+            <n-statistic :label="t('adminWithdraw.statApproved')" :value="stats.approved_count" />
           </n-card>
         </n-gi>
         <n-gi>
           <n-card size="small">
-            <n-statistic label="已拒绝" :value="stats.rejected_count" />
+            <n-statistic :label="t('adminWithdraw.statRejected')" :value="stats.rejected_count" />
           </n-card>
         </n-gi>
         <n-gi>
           <n-card size="small">
-            <n-statistic label="已打款笔数" :value="stats.paid_count" />
+            <n-statistic :label="t('adminWithdraw.statPaidCount')" :value="stats.paid_count" />
           </n-card>
         </n-gi>
         <n-gi>
           <n-card size="small">
-            <n-statistic label="已打款金额" :value="stats.paid_amount" :precision="2">
+            <n-statistic :label="t('adminWithdraw.statPaidAmount')" :value="stats.paid_amount" :precision="2">
               <template #prefix>
                 ¥
               </template>
@@ -356,14 +358,14 @@ onMounted(fetchData)
         </n-gi>
       </n-grid>
       <n-space>
-        <n-input v-model:value="searchForm.keyword" placeholder="搜索收款账户/姓名/备注" clearable style="width: 240px" @keyup.enter="fetchData" />
-        <n-input-number v-model:value="searchForm.user_id" placeholder="用户ID" style="width: 140px" :show-button="false" />
-        <n-select v-model:value="searchForm.status" :options="statusOptions" clearable placeholder="提现状态" style="width: 140px" />
+        <n-input v-model:value="searchForm.keyword" :placeholder="t('adminWithdraw.searchPlaceholder')" clearable style="width: 240px" @keyup.enter="fetchData" />
+        <n-input-number v-model:value="searchForm.user_id" :placeholder="t('adminWithdraw.userIdPlaceholder')" style="width: 140px" :show-button="false" />
+        <n-select v-model:value="searchForm.status" :options="statusOptions" clearable :placeholder="t('adminWithdraw.statusPlaceholder')" style="width: 140px" />
         <NButton type="primary" @click="handleSearch">
-          搜索
+          {{ t('adminWithdraw.search') }}
         </NButton>
         <NButton @click="handleReset">
-          重置
+          {{ t('adminWithdraw.reset') }}
         </NButton>
       </n-space>
 
@@ -381,58 +383,58 @@ onMounted(fetchData)
     </n-space>
   </n-card>
 
-  <n-modal v-model:show="showDetailModal" preset="card" title="提现申请详情" style="width: 620px">
+  <n-modal v-model:show="showDetailModal" preset="card" :title="t('adminWithdraw.detailTitle')" style="width: 620px">
     <template v-if="currentRow">
       <n-spin :show="detailLoading">
         <n-descriptions :column="1" bordered label-placement="left">
-          <n-descriptions-item label="申请ID">
+          <n-descriptions-item :label="t('adminWithdraw.applicationId')">
             {{ currentRow.id }}
           </n-descriptions-item>
-          <n-descriptions-item label="用户ID">
+          <n-descriptions-item :label="t('adminWithdraw.userId')">
             {{ currentRow.user_id }}
           </n-descriptions-item>
-          <n-descriptions-item label="提现金额">
+          <n-descriptions-item :label="t('adminWithdraw.withdrawAmount')">
             ¥{{ Number(currentRow.amount).toFixed(2) }}
           </n-descriptions-item>
-          <n-descriptions-item label="状态">
+          <n-descriptions-item :label="t('adminWithdraw.status')">
             <NTag :type="getStatusMeta(currentRow.status).type">
               {{ getStatusMeta(currentRow.status).label }}
             </NTag>
           </n-descriptions-item>
-          <n-descriptions-item label="收款方式">
+          <n-descriptions-item :label="t('adminWithdraw.accountType')">
             {{ currentRow.account_type }}
           </n-descriptions-item>
-          <n-descriptions-item label="账户名称">
+          <n-descriptions-item :label="t('adminWithdraw.accountName')">
             {{ currentRow.account_name }}
           </n-descriptions-item>
-          <n-descriptions-item label="收款账号">
+          <n-descriptions-item :label="t('adminWithdraw.accountNo')">
             {{ currentRow.account_no }}
           </n-descriptions-item>
-          <n-descriptions-item label="收款人">
+          <n-descriptions-item :label="t('adminWithdraw.realName')">
             {{ currentRow.real_name }}
           </n-descriptions-item>
-          <n-descriptions-item label="用户备注">
+          <n-descriptions-item :label="t('adminWithdraw.userRemark')">
             {{ currentRow.remark || '-' }}
           </n-descriptions-item>
-          <n-descriptions-item label="审核备注">
+          <n-descriptions-item :label="t('adminWithdraw.reviewRemark')">
             {{ currentRow.review_remark || '-' }}
           </n-descriptions-item>
-          <n-descriptions-item label="打款备注">
+          <n-descriptions-item :label="t('adminWithdraw.transferRemark')">
             {{ currentRow.transfer_remark || '-' }}
           </n-descriptions-item>
-          <n-descriptions-item label="申请时间">
+          <n-descriptions-item :label="t('adminWithdraw.createdAt')">
             {{ formatTime(currentRow.create_time) }}
           </n-descriptions-item>
-          <n-descriptions-item label="审核时间">
+          <n-descriptions-item :label="t('adminWithdraw.reviewedAt')">
             {{ formatTime(currentRow.reviewed_at) }}
           </n-descriptions-item>
-          <n-descriptions-item label="审核人">
+          <n-descriptions-item :label="t('adminWithdraw.reviewer')">
             {{ getAdminDisplayName(currentRow.reviewed_by) }}
           </n-descriptions-item>
-          <n-descriptions-item label="打款时间">
+          <n-descriptions-item :label="t('adminWithdraw.paidAt')">
             {{ formatTime(currentRow.paid_at) }}
           </n-descriptions-item>
-          <n-descriptions-item label="打款人">
+          <n-descriptions-item :label="t('adminWithdraw.payer')">
             {{ getAdminDisplayName(currentRow.paid_by) }}
           </n-descriptions-item>
         </n-descriptions>
@@ -440,94 +442,94 @@ onMounted(fetchData)
     </template>
   </n-modal>
 
-  <n-modal v-model:show="showReviewModal" preset="card" title="审核提现申请" style="width: 520px" :mask-closable="!submitting">
+  <n-modal v-model:show="showReviewModal" preset="card" :title="t('adminWithdraw.reviewModalTitle')" style="width: 520px" :mask-closable="!submitting">
     <template v-if="currentRow">
       <n-descriptions :column="1" bordered label-placement="left" style="margin-bottom: 16px">
-        <n-descriptions-item label="申请ID">
+        <n-descriptions-item :label="t('adminWithdraw.applicationId')">
           {{ currentRow.id }}
         </n-descriptions-item>
-        <n-descriptions-item label="用户ID">
+        <n-descriptions-item :label="t('adminWithdraw.userId')">
           {{ currentRow.user_id }}
         </n-descriptions-item>
-        <n-descriptions-item label="提现金额">
+        <n-descriptions-item :label="t('adminWithdraw.withdrawAmount')">
           ¥{{ Number(currentRow.amount).toFixed(2) }}
         </n-descriptions-item>
-        <n-descriptions-item label="收款方式">
+        <n-descriptions-item :label="t('adminWithdraw.accountType')">
           {{ currentRow.account_type }}
         </n-descriptions-item>
-        <n-descriptions-item label="账户名称">
+        <n-descriptions-item :label="t('adminWithdraw.accountName')">
           {{ currentRow.account_name }}
         </n-descriptions-item>
-        <n-descriptions-item label="收款账号">
+        <n-descriptions-item :label="t('adminWithdraw.accountNo')">
           {{ currentRow.account_no }}
         </n-descriptions-item>
-        <n-descriptions-item label="收款人">
+        <n-descriptions-item :label="t('adminWithdraw.realName')">
           {{ currentRow.real_name }}
         </n-descriptions-item>
       </n-descriptions>
       <n-form label-placement="left" label-width="80">
-        <n-form-item label="审核结果">
+        <n-form-item :label="t('adminWithdraw.reviewResult')">
           <n-radio-group v-model:value="reviewForm.status">
             <n-space>
               <n-radio :value="1">
-                通过
+                {{ t('adminWithdraw.approve') }}
               </n-radio>
               <n-radio :value="2">
-                拒绝
+                {{ t('adminWithdraw.reject') }}
               </n-radio>
             </n-space>
           </n-radio-group>
         </n-form-item>
-        <n-form-item label="审核备注">
-          <n-input v-model:value="reviewForm.review_remark" type="textarea" :rows="3" maxlength="255" show-count placeholder="可填写审核说明" />
+        <n-form-item :label="t('adminWithdraw.reviewRemark')">
+          <n-input v-model:value="reviewForm.review_remark" type="textarea" :rows="3" maxlength="255" show-count :placeholder="t('adminWithdraw.reviewRemarkPlaceholder')" />
         </n-form-item>
       </n-form>
     </template>
     <template #footer>
       <n-space justify="end">
         <NButton :disabled="submitting" @click="showReviewModal = false">
-          取消
+          {{ t('common.cancel') }}
         </NButton>
         <NButton type="primary" :loading="submitting" @click="handleSubmitReview">
-          提交审核
+          {{ t('adminWithdraw.submitReview') }}
         </NButton>
       </n-space>
     </template>
   </n-modal>
 
-  <n-modal v-model:show="showPayModal" preset="card" title="确认人工打款" style="width: 520px" :mask-closable="!submitting">
+  <n-modal v-model:show="showPayModal" preset="card" :title="t('adminWithdraw.payModalTitle')" style="width: 520px" :mask-closable="!submitting">
     <template v-if="currentRow">
       <n-alert type="warning" style="margin-bottom: 16px">
-        点击确认后会将该提现申请标记为“已打款”，并从用户余额中正式扣除对应金额。
+        {{ t('adminWithdraw.payWarning') }}
       </n-alert>
       <n-descriptions :column="1" bordered label-placement="left" style="margin-bottom: 16px">
-        <n-descriptions-item label="申请ID">
+        <n-descriptions-item :label="t('adminWithdraw.applicationId')">
           {{ currentRow.id }}
         </n-descriptions-item>
-        <n-descriptions-item label="用户ID">
+        <n-descriptions-item :label="t('adminWithdraw.userId')">
           {{ currentRow.user_id }}
         </n-descriptions-item>
-        <n-descriptions-item label="提现金额">
+        <n-descriptions-item :label="t('adminWithdraw.withdrawAmount')">
           ¥{{ Number(currentRow.amount).toFixed(2) }}
         </n-descriptions-item>
-        <n-descriptions-item label="收款方式">
+        <n-descriptions-item :label="t('adminWithdraw.accountType')">
           {{ currentRow.account_type }}
         </n-descriptions-item>
-        <n-descriptions-item label="收款账号">
+        <n-descriptions-item :label="t('adminWithdraw.accountNo')">
           {{ currentRow.account_no }}
         </n-descriptions-item>
       </n-descriptions>
-      <n-form-item label="打款备注">
-        <n-input v-model:value="payForm.transfer_remark" type="textarea" :rows="3" maxlength="255" show-count placeholder="例如：已通过银行卡人工转账" />
+      <n-form-item :label="t('adminWithdraw.transferRemark')">
+        <n-input v-model:value="payForm.transfer_remark" type="textarea" :rows="3" maxlength="255" show-count :placeholder="t('adminWithdraw.transferRemarkPlaceholder')" />
       </n-form-item>
     </template>
     <template #footer>
       <n-space justify="end">
         <NButton :disabled="submitting" @click="showPayModal = false">
-          取消
+          {{ t('common.cancel') }}
         </NButton>
         <NButton type="warning" :loading="submitting" @click="handleSubmitPay">
-          确认已打款
+          {{ t('adminWithdraw.confirmPaid') }}
         </NButton>
       </n-space>
     </template>

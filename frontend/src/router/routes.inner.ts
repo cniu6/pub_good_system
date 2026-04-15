@@ -69,7 +69,7 @@ export const routes: RouteRecordRaw[] = [
     name: 'loading',
     component: () => import('@/components/common/AppLoading.vue'),
     meta: {
-      title: '加载中',
+      title: 'route.loading',
       withoutTab: true,
     },
   },
@@ -78,7 +78,7 @@ export const routes: RouteRecordRaw[] = [
     name: 'publicAccess',
     component: () => import('@/views/_builtin/public-access/index.vue'),
     meta: {
-      title: '公共访问示例',
+      title: 'route.publicAccess',
       requiresAuth: false,
       withoutTab: true,
     },
@@ -92,7 +92,7 @@ export const routes: RouteRecordRaw[] = [
     name: '403',
     component: () => import('@/views/_builtin/error/403/index.vue'),
     meta: {
-      title: '无权访问',
+      title: 'route.forbidden',
       icon: 'icon-park-outline:forbidden',
       withoutTab: true,
       requiresAuth: false,
@@ -103,7 +103,7 @@ export const routes: RouteRecordRaw[] = [
     name: '500',
     component: () => import('@/views/_builtin/error/500/index.vue'),
     meta: {
-      title: '服务器错误',
+      title: 'route.serverError',
       icon: 'icon-park-outline:error',
       withoutTab: true,
       requiresAuth: false,
@@ -114,7 +114,7 @@ export const routes: RouteRecordRaw[] = [
     name: '404',
     component: () => import('@/views/_builtin/error/404/index.vue'),
     meta: {
-      title: '找不到页面',
+      title: 'route.notFound',
       icon: 'icon-park-outline:ghost',
       withoutTab: true,
       requiresAuth: false,
@@ -125,7 +125,7 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('@/views/_builtin/error/404/index.vue'),
     name: 'notFoundCatchAll',
     meta: {
-      title: '找不到页面',
+      title: 'route.notFound',
       icon: 'icon-park-outline:ghost',
       withoutTab: true,
       requiresAuth: false,

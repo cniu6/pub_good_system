@@ -68,20 +68,14 @@ export async function bootstrap(mode: AppRouteMode) {
       copyright: settingsStore.copyright,
       version: settingsStore.version,
       allowRegister: settingsStore.allowRegister,
-      geetestEnabled: geetestEnabled,
+      geetestEnabled,
     }
 
     app.mount('#app')
-    console.log('[Vue 3] 应用已成功启动')
-    console.log('[Vue 3] 运行时配置已加载:', {
-      siteName: settingsStore.siteName,
-      version: settingsStore.version,
-      allowRegister: settingsStore.allowRegister,
-      geetestEnabled: geetestEnabled,
-    })
   }
   catch (error) {
-    console.error('[Vue 3] 应用启动失败:', error)
+    if (import.meta.env.DEV)
+      console.error('[Vue 3] 应用启动失败:', error)
     throw error
   }
 }

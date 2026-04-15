@@ -4,47 +4,47 @@
     <n-grid :cols="4" :x-gap="12">
       <n-gi>
         <n-card size="small">
-          <n-statistic label="今日收入" :value="stats.today_amount" :precision="2">
+          <n-statistic :label="t('adminPaymentOrders.todayRevenue')" :value="stats.today_amount" :precision="2">
             <template #prefix>¥</template>
           </n-statistic>
-          <n-text depth="3" style="font-size: 12px">{{ stats.today_orders }} 笔</n-text>
+          <n-text depth="3" style="font-size: 12px">{{ t('adminPaymentOrders.orderCount', { count: stats.today_orders }) }}</n-text>
         </n-card>
       </n-gi>
       <n-gi>
         <n-card size="small">
-          <n-statistic label="总收入" :value="stats.total_amount" :precision="2">
+          <n-statistic :label="t('adminPaymentOrders.totalRevenue')" :value="stats.total_amount" :precision="2">
             <template #prefix>¥</template>
           </n-statistic>
-          <n-text depth="3" style="font-size: 12px">{{ stats.paid_orders }} 笔</n-text>
+          <n-text depth="3" style="font-size: 12px">{{ t('adminPaymentOrders.orderCount', { count: stats.paid_orders }) }}</n-text>
         </n-card>
       </n-gi>
       <n-gi>
         <n-card size="small">
-          <n-statistic label="总订单" :value="stats.total_orders" />
+          <n-statistic :label="t('adminPaymentOrders.totalOrders')" :value="stats.total_orders" />
         </n-card>
       </n-gi>
       <n-gi>
         <n-card size="small">
-          <n-statistic label="待支付" :value="stats.pending_orders" />
+          <n-statistic :label="t('recharge.pending')" :value="stats.pending_orders" />
         </n-card>
       </n-gi>
     </n-grid>
 
     <!-- 订单列表 -->
-    <n-card title="支付订单管理">
+    <n-card :title="t('adminPaymentOrders.title')">
       <n-space vertical>
         <n-space>
-          <n-input v-model:value="searchForm.keyword" placeholder="搜索订单号/交易号/标题" clearable style="width: 240px" @keyup.enter="handleSearch" />
-          <n-input-number v-model:value="searchForm.user_id" placeholder="用户ID" style="width: 140px" :show-button="false" />
+          <n-input v-model:value="searchForm.keyword" :placeholder="t('adminPaymentOrders.searchPlaceholder')" clearable style="width: 240px" @keyup.enter="handleSearch" />
+          <n-input-number v-model:value="searchForm.user_id" :placeholder="t('adminRealname.userId')" style="width: 140px" :show-button="false" />
           <n-select
             v-model:value="searchForm.status"
             :options="statusOptions"
-            placeholder="订单状态"
+            :placeholder="t('recharge.orderStatus')"
             style="width: 130px"
             clearable
           />
-          <n-button type="primary" @click="handleSearch">搜索</n-button>
-          <n-button @click="handleReset">重置</n-button>
+          <n-button type="primary" @click="handleSearch">{{ t('moneyScore.search') }}</n-button>
+          <n-button @click="handleReset">{{ t('common.reset') }}</n-button>
         </n-space>
 
         <n-data-table
@@ -61,51 +61,51 @@
       </n-space>
 
       <!-- 详情弹窗 -->
-      <n-modal v-model:show="showDetail" title="订单详情" preset="card" style="width: 600px">
+      <n-modal v-model:show="showDetail" :title="t('recharge.orderDetail')" preset="card" style="width: 600px">
         <template v-if="detailOrder">
           <n-spin :show="detailLoading">
             <n-descriptions :column="2" bordered label-placement="left">
-              <n-descriptions-item label="订单号">{{ detailOrder.order_no }}</n-descriptions-item>
-              <n-descriptions-item label="用户ID">{{ detailOrder.user_id }}</n-descriptions-item>
-              <n-descriptions-item label="第三方交易号">{{ detailOrder.trade_no || '-' }}</n-descriptions-item>
-              <n-descriptions-item label="支付通道">{{ detailOrder.payment_channel }}</n-descriptions-item>
-              <n-descriptions-item label="支付方式">{{ paymentTypeMap[detailOrder.payment_type] || detailOrder.payment_type }}</n-descriptions-item>
-              <n-descriptions-item label="金额">¥{{ Number(detailOrder.amount).toFixed(2) }}</n-descriptions-item>
-              <n-descriptions-item label="订单标题">{{ detailOrder.subject || '-' }}</n-descriptions-item>
-              <n-descriptions-item label="状态">
+              <n-descriptions-item :label="t('recharge.orderNo')">{{ detailOrder.order_no }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminRealname.userId')">{{ detailOrder.user_id }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminPaymentOrders.tradeNoThirdParty')">{{ detailOrder.trade_no || '-' }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminPaymentOrders.paymentChannel')">{{ detailOrder.payment_channel }}</n-descriptions-item>
+              <n-descriptions-item :label="t('recharge.paymentMethod')">{{ paymentTypeMap[detailOrder.payment_type] || detailOrder.payment_type }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminUsers.amount')">¥{{ Number(detailOrder.amount).toFixed(2) }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminPaymentOrders.orderTitle')">{{ detailOrder.subject || '-' }}</n-descriptions-item>
+              <n-descriptions-item :label="t('recharge.status')">
                 <n-tag :type="(statusMap[detailOrder.status] || {}).type || 'default'" size="small">
-                  {{ (statusMap[detailOrder.status] || {}).label || '未知' }}
+                  {{ (statusMap[detailOrder.status] || {}).label || t('recharge.unknown') }}
                 </n-tag>
               </n-descriptions-item>
-              <n-descriptions-item label="通知次数">{{ detailOrder.notify_count }}</n-descriptions-item>
-              <n-descriptions-item label="客户端IP">{{ detailOrder.client_ip || '-' }}</n-descriptions-item>
-              <n-descriptions-item label="创建时间">{{ formatTime(detailOrder.create_time) }}</n-descriptions-item>
-              <n-descriptions-item label="支付时间">{{ detailOrder.paid_at ? formatTime(detailOrder.paid_at) : '-' }}</n-descriptions-item>
-              <n-descriptions-item label="过期时间">{{ formatTime(detailOrder.expire_at) }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminPaymentOrders.notifyCount')">{{ detailOrder.notify_count }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminPaymentOrders.clientIp')">{{ detailOrder.client_ip || '-' }}</n-descriptions-item>
+              <n-descriptions-item :label="t('recharge.createdAt')">{{ formatTime(detailOrder.create_time) }}</n-descriptions-item>
+              <n-descriptions-item :label="t('recharge.paymentTime')">{{ detailOrder.paid_at ? formatTime(detailOrder.paid_at) : '-' }}</n-descriptions-item>
+              <n-descriptions-item :label="t('adminPaymentOrders.expireAt')">{{ formatTime(detailOrder.expire_at) }}</n-descriptions-item>
             </n-descriptions>
           </n-spin>
         </template>
       </n-modal>
 
       <!-- 补单弹窗 -->
-      <n-modal v-model:show="showComplete" title="手动补单" preset="card" style="width: 450px">
+      <n-modal v-model:show="showComplete" :title="t('adminPaymentOrders.manualComplete')" preset="card" style="width: 450px">
         <n-alert type="warning" style="margin-bottom: 16px">
-          手动补单将直接为用户充值对应金额，请确认订单信息无误。
+          {{ t('adminPaymentOrders.manualCompleteWarning') }}
         </n-alert>
         <template v-if="completeOrder">
           <n-descriptions :column="1" bordered label-placement="left" style="margin-bottom: 16px">
-            <n-descriptions-item label="订单号">{{ completeOrder.order_no }}</n-descriptions-item>
-            <n-descriptions-item label="用户ID">{{ completeOrder.user_id }}</n-descriptions-item>
-            <n-descriptions-item label="金额">¥{{ Number(completeOrder.amount).toFixed(2) }}</n-descriptions-item>
+            <n-descriptions-item :label="t('recharge.orderNo')">{{ completeOrder.order_no }}</n-descriptions-item>
+            <n-descriptions-item :label="t('adminRealname.userId')">{{ completeOrder.user_id }}</n-descriptions-item>
+            <n-descriptions-item :label="t('adminUsers.amount')">¥{{ Number(completeOrder.amount).toFixed(2) }}</n-descriptions-item>
           </n-descriptions>
-          <n-form-item label="补单备注">
-            <n-input v-model:value="completeMemo" type="textarea" placeholder="输入补单原因（可选）" :rows="2" />
+          <n-form-item :label="t('adminPaymentOrders.completeRemark')">
+            <n-input v-model:value="completeMemo" type="textarea" :placeholder="t('adminPaymentOrders.completeRemarkPlaceholder')" :rows="2" />
           </n-form-item>
         </template>
         <template #footer>
           <n-space justify="end">
-            <n-button @click="showComplete = false">取消</n-button>
-            <n-button type="warning" :loading="submitting" @click="handleCompleteSubmit">确认补单</n-button>
+            <n-button @click="showComplete = false">{{ t('common.cancel') }}</n-button>
+            <n-button type="warning" :loading="submitting" @click="handleCompleteSubmit">{{ t('adminPaymentOrders.confirmComplete') }}</n-button>
           </n-space>
         </template>
       </n-modal>
@@ -115,6 +115,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, h, type VNodeChild } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NButton, NTag, NSpace as NSpaceComp, useMessage, useDialog } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { adminPaymentApi } from '@/service/api/admin/payment'
@@ -122,6 +123,7 @@ import type { PaymentOrder, PaymentStats } from '@/service/api/admin/payment'
 
 const message = useMessage()
 const dialog = useDialog()
+const { t } = useI18n()
 const loading = ref(false)
 const submitting = ref(false)
 
@@ -133,12 +135,12 @@ const searchForm = reactive({
 })
 
 const statusOptions = [
-  { label: '全部', value: -1 },
-  { label: '待支付', value: 0 },
-  { label: '已支付', value: 1 },
-  { label: '已取消', value: 2 },
-  { label: '已退款', value: 3 },
-  { label: '支付失败', value: 4 },
+  { label: t('recharge.allStatus'), value: -1 },
+  { label: t('recharge.pending'), value: 0 },
+  { label: t('recharge.paid'), value: 1 },
+  { label: t('recharge.cancelled'), value: 2 },
+  { label: t('recharge.refunded'), value: 3 },
+  { label: t('recharge.failed'), value: 4 },
 ]
 
 // 分页
@@ -173,17 +175,17 @@ const completeMemo = ref('')
 
 // 映射
 const statusMap: Record<number, { label: string, type: 'default' | 'success' | 'warning' | 'error' | 'info' }> = {
-  0: { label: '待支付', type: 'warning' },
-  1: { label: '已支付', type: 'success' },
-  2: { label: '已取消', type: 'default' },
-  3: { label: '已退款', type: 'info' },
-  4: { label: '支付失败', type: 'error' },
+  0: { label: t('recharge.pending'), type: 'warning' },
+  1: { label: t('recharge.paid'), type: 'success' },
+  2: { label: t('recharge.cancelled'), type: 'default' },
+  3: { label: t('recharge.refunded'), type: 'info' },
+  4: { label: t('recharge.failed'), type: 'error' },
 }
 
 const paymentTypeMap: Record<string, string> = {
-  alipay: '支付宝',
-  wxpay: '微信支付',
-  qqpay: 'QQ钱包',
+  alipay: t('recharge.alipay'),
+  wxpay: t('recharge.wechatPay'),
+  qqpay: t('recharge.qqWallet'),
 }
 
 function formatTime(ts: number) {
@@ -194,48 +196,48 @@ function formatTime(ts: number) {
 const columns: DataTableColumns<PaymentOrder> = [
   { title: 'ID', key: 'id', width: 60 },
   {
-    title: '订单号',
+    title: t('recharge.orderNo'),
     key: 'order_no',
     width: 200,
     ellipsis: { tooltip: true },
   },
-  { title: '用户ID', key: 'user_id', width: 80 },
+  { title: t('adminRealname.userId'), key: 'user_id', width: 80 },
   {
-    title: '金额',
+    title: t('adminUsers.amount'),
     key: 'amount',
     width: 100,
     render: row => h('span', { style: { color: '#18a058', fontWeight: '500' } }, `¥${Number(row.amount).toFixed(2)}`),
   },
   {
-    title: '支付方式',
+    title: t('recharge.paymentMethod'),
     key: 'payment_type',
     width: 90,
     render: row => paymentTypeMap[row.payment_type] || row.payment_type,
   },
   {
-    title: '状态',
+    title: t('recharge.status'),
     key: 'status',
     width: 90,
     render: row => {
-      const s = statusMap[row.status] || { label: '未知', type: 'default' as const }
+      const s = statusMap[row.status] || { label: t('recharge.unknown'), type: 'default' as const }
       return h(NTag, { type: s.type, size: 'small', bordered: false }, () => s.label)
     },
   },
   {
-    title: '第三方交易号',
+    title: t('adminPaymentOrders.tradeNoThirdParty'),
     key: 'trade_no',
     width: 150,
     ellipsis: { tooltip: true },
     render: row => row.trade_no || '-',
   },
   {
-    title: '创建时间',
+    title: t('recharge.createdAt'),
     key: 'create_time',
     width: 170,
     render: row => formatTime(row.create_time),
   },
   {
-    title: '操作',
+    title: t('moneyScore.actions'),
     key: 'actions',
     width: 200,
     fixed: 'right',
@@ -247,7 +249,7 @@ const columns: DataTableColumns<PaymentOrder> = [
         type: 'info',
         text: true,
         onClick: () => handleViewDetail(row),
-      }, { default: () => '详情' }))
+      }, { default: () => t('moneyScore.detail') }))
 
       if (row.status === 0) {
         buttons.push(h(NButton, {
@@ -255,14 +257,14 @@ const columns: DataTableColumns<PaymentOrder> = [
           type: 'warning',
           text: true,
           onClick: () => handleComplete(row),
-        }, { default: () => '补单' }))
+        }, { default: () => t('adminPaymentOrders.completeOrder') }))
 
         buttons.push(h(NButton, {
           size: 'small',
           type: 'default',
           text: true,
           onClick: () => handleCancel(row),
-        }, { default: () => '取消' }))
+        }, { default: () => t('recharge.cancelled') }))
       }
 
       buttons.push(h(NButton, {
@@ -270,7 +272,7 @@ const columns: DataTableColumns<PaymentOrder> = [
         type: 'error',
         text: true,
         onClick: () => handleDelete(row),
-      }, { default: () => '删除' }))
+      }, { default: () => t('adminUsers.delete') }))
 
       return h(NSpaceComp, { size: 4 }, () => buttons)
     },
@@ -292,10 +294,10 @@ async function fetchData() {
       orderList.value = res.data?.list || []
       pagination.itemCount = res.data?.total || 0
     } else {
-      message.error(res.message || '获取订单列表失败')
+      message.error(res.message || t('adminPaymentOrders.fetchListFailed'))
     }
   } catch {
-    message.error('获取订单列表失败')
+    message.error(t('adminPaymentOrders.fetchListFailed'))
   } finally {
     loading.value = false
   }
@@ -345,10 +347,10 @@ async function handleViewDetail(row: PaymentOrder) {
       detailOrder.value = res.data
     }
     else {
-      message.error(res.message || '获取订单详情失败')
+      message.error(res.message || t('recharge.fetchOrderDetailFailed'))
     }
   } catch {
-    message.error('获取订单详情失败')
+    message.error(t('recharge.fetchOrderDetailFailed'))
   } finally {
     detailLoading.value = false
   }
@@ -367,15 +369,15 @@ async function handleCompleteSubmit() {
   try {
     const res = await adminPaymentApi.completeOrder(completeOrder.value.id, { memo: completeMemo.value })
     if (res.isSuccess) {
-      message.success('补单成功')
+      message.success(t('adminPaymentOrders.completeSuccess'))
       showComplete.value = false
       fetchData()
       fetchStats()
     } else {
-      message.error(res.message || '补单失败')
+      message.error(res.message || t('adminPaymentOrders.completeFailed'))
     }
   } catch {
-    message.error('补单失败')
+    message.error(t('adminPaymentOrders.completeFailed'))
   } finally {
     submitting.value = false
   }
@@ -384,22 +386,22 @@ async function handleCompleteSubmit() {
 // 取消
 function handleCancel(row: PaymentOrder) {
   dialog.warning({
-    title: '确认取消',
-    content: `确定取消订单 ${row.order_no}？`,
-    positiveText: '确定',
-    negativeText: '取消',
+    title: t('adminPaymentOrders.confirmCancelTitle'),
+    content: t('adminPaymentOrders.confirmCancelContent', { orderNo: row.order_no }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       try {
         const res = await adminPaymentApi.cancelOrder(row.id)
         if (res.isSuccess) {
-          message.success('订单已取消')
+          message.success(t('adminPaymentOrders.cancelSuccess'))
           fetchData()
           fetchStats()
         } else {
-          message.error(res.message || '取消失败')
+          message.error(res.message || t('adminPaymentOrders.cancelFailed'))
         }
       } catch {
-        message.error('取消失败')
+        message.error(t('adminPaymentOrders.cancelFailed'))
       }
     },
   })
@@ -408,22 +410,22 @@ function handleCancel(row: PaymentOrder) {
 // 删除
 function handleDelete(row: PaymentOrder) {
   dialog.error({
-    title: '确认删除',
-    content: `确定删除订单 ${row.order_no}？此操作不可恢复。`,
-    positiveText: '确定删除',
-    negativeText: '取消',
+    title: t('adminUsers.delete'),
+    content: t('adminPaymentOrders.confirmDeleteContent', { orderNo: row.order_no }),
+    positiveText: t('adminPaymentOrders.confirmDelete'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       try {
         const res = await adminPaymentApi.deleteOrder(row.id)
         if (res.isSuccess) {
-          message.success('删除成功')
+          message.success(t('adminUsers.deleteSuccess'))
           fetchData()
           fetchStats()
         } else {
-          message.error(res.message || '删除失败')
+          message.error(res.message || t('adminUsers.deleteFailed'))
         }
       } catch {
-        message.error('删除失败')
+        message.error(t('adminUsers.deleteFailed'))
       }
     },
   })

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import Delete from './components/Delete.vue'
 import DownLoad from './components/DownLoad.vue'
 import DownLoadWithProgress from './components/DownLoadWithProgress.vue'
@@ -16,6 +17,8 @@ import TokenExpiration from './components/TokenExpiration.vue'
 import Transform from './components/Transform.vue'
 import UseRequest from './components/UseRequest.vue'
 
+const { t } = useI18n()
+
 const msg = ref()
 function handleUpdate(data: any) {
   msg.value = data
@@ -23,7 +26,7 @@ function handleUpdate(data: any) {
 </script>
 
 <template>
-  <n-card title="网络请求示例">
+  <n-card :title="t('demo.fetch.title')">
     <n-split direction="horizontal" :max="0.75" :min="0.25">
       <template #1>
         <div class="grid grid-cols-3 gap-2 p-2">

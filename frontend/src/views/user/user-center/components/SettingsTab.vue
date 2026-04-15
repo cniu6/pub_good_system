@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { useAppStore } from '@/store'
+import { useI18n } from 'vue-i18n'
 import { fetchUserSettings, updateUserSettings } from '@/service'
 import { langToBackendFormat, langToFrontendFormat } from '@/utils'
 
 const appStore = useAppStore()
+const { t } = useI18n()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -15,14 +17,14 @@ const settingsForm = ref({
 })
 
 const languageOptions = [
-  { label: '简体中文', value: 'zhCN' as App.lang },
-  { label: 'English', value: 'enUS' as App.lang },
+  { label: t('settingsTab.simplifiedChinese'), value: 'zhCN' as App.lang },
+  { label: t('settingsTab.english'), value: 'enUS' as App.lang },
 ]
 
 const themeOptions = [
-  { label: '浅色模式', value: 'light' },
-  { label: '深色模式', value: 'dark' },
-  { label: '跟随系统', value: 'auto' },
+  { label: t('settingsTab.lightMode'), value: 'light' },
+  { label: t('settingsTab.darkMode'), value: 'dark' },
+  { label: t('settingsTab.followSystem'), value: 'auto' },
 ]
 
 async function loadSettings() {
@@ -38,7 +40,8 @@ async function loadSettings() {
     }
   }
   catch (error) {
-    console.error('获取设置失败', error)
+    if (import.meta.env.DEV)
+      console.error('[settingsTab] fetch failed', error)
   }
   finally {
     loading.value = false
@@ -55,14 +58,16 @@ async function handleSaveSettings() {
     })
     if (response.isSuccess) {
       appStore.setAppLang(settingsForm.value.language)
-      window.$message.success('设置保存成功')
+      window.$message.success(t('settingsTab.saveSuccess'))
     }
     else {
-      window.$message.error(response.message || '设置保存失败')
+      window.$message.error(response.message || t('settingsTab.saveFailed'))
     }
   }
   catch (error) {
-    window.$message.error(`设置保存失败: ${error}`)
+    if (import.meta.env.DEV)
+      console.error('[settingsTab] save failed', error)
+    window.$message.error(t('settingsTab.saveFailed'))
   }
   finally {
     saving.value = false
@@ -80,24 +85,24 @@ onMounted(() => {
       <n-space vertical size="large">
         <!-- 显示偏好 -->
         <div>
-          <n-h4>显示偏好</n-h4>
+          <n-h4>{{ t('settingsTab.displayPreference') }}</n-h4>
           <n-divider />
           <n-grid cols="1 s:2" :x-gap="32" :y-gap="0" responsive="screen">
             <n-grid-item>
-              <n-form-item label="界面语言" label-placement="top">
+              <n-form-item :label="t('settingsTab.interfaceLanguage')" label-placement="top">
                 <n-select
                   v-model:value="settingsForm.language"
                   :options="languageOptions"
-                  placeholder="选择语言"
+                  :placeholder="t('settingsTab.selectLanguage')"
                 />
               </n-form-item>
             </n-grid-item>
             <n-grid-item>
-              <n-form-item label="主题模式" label-placement="top">
+              <n-form-item :label="t('settingsTab.themeMode')" label-placement="top">
                 <n-select
                   v-model:value="settingsForm.theme"
                   :options="themeOptions"
-                  placeholder="选择主题"
+                  :placeholder="t('settingsTab.selectTheme')"
                 />
               </n-form-item>
             </n-grid-item>
@@ -108,13 +113,13 @@ onMounted(() => {
 
         <!-- 通知偏好 -->
         <div>
-          <n-h4>通知偏好</n-h4>
+          <n-h4>{{ t('settingsTab.notificationPreference') }}</n-h4>
           <n-divider />
           <n-space vertical>
             <div class="setting-item">
               <div class="setting-info">
-                <span class="setting-label">邮件通知</span>
-                <span class="setting-desc">接收系统通知和安全提醒邮件</span>
+                <span class="setting-label">{{ t('settingsTab.emailNotification') }}</span>
+                <span class="setting-desc">{{ t('settingsTab.emailNotificationDesc') }}</span>
               </div>
               <n-switch v-model:value="settingsForm.notify_email" />
             </div>
@@ -125,10 +130,10 @@ onMounted(() => {
 
         <n-space>
           <n-button type="primary" :loading="saving" @click="handleSaveSettings">
-            保存设置
+            {{ t('settingsTab.saveSettings') }}
           </n-button>
           <n-button @click="loadSettings">
-            重置
+            {{ t('settingsTab.reset') }}
           </n-button>
         </n-space>
       </n-space>

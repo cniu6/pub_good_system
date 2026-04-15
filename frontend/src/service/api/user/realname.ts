@@ -1,9 +1,28 @@
 /**
  * 用户端 API 服务 - 实名认证
  */
+import { i18n } from '@/modules/i18n'
 import { request } from '../../http'
 
 const BASE_URL = '/api/v1/user/realname'
+
+// 获取证件类型选项（支持 i18n）
+export function getCertificateTypeOptions() {
+  return [
+    { label: i18n.global.t('realname.idCard'), value: 1 },
+    { label: i18n.global.t('realname.passport'), value: 2 },
+    { label: i18n.global.t('realname.officer'), value: 3 },
+  ]
+}
+
+// 获取实名认证状态选项（支持 i18n）
+export function getRealnameStatusOptions() {
+  return [
+    { label: i18n.global.t('realname.pending'), value: 0 },
+    { label: i18n.global.t('realname.approved'), value: 1 },
+    { label: i18n.global.t('realname.rejected'), value: 2 },
+  ]
+}
 
 // 实名认证状态
 export type RealnameStatus = 0 | 1 | 2
@@ -33,19 +52,11 @@ export interface SubmitRealnameRequest {
   certificate_back: string
 }
 
-// 证件类型选项
-export const certificateTypeOptions = [
-  { label: '身份证', value: 1 },
-  { label: '护照', value: 2 },
-  { label: '军官证', value: 3 },
-]
+// 证件类型选项（向后兼容，推荐使用 getCertificateTypeOptions 函数）
+export const certificateTypeOptions = getCertificateTypeOptions()
 
-// 实名认证状态选项
-export const realnameStatusOptions = [
-  { label: '待审核', value: 0 },
-  { label: '已通过', value: 1 },
-  { label: '已拒绝', value: 2 },
-]
+// 实名认证状态选项（向后兼容，推荐使用 getRealnameStatusOptions 函数）
+export const realnameStatusOptions = getRealnameStatusOptions()
 
 /**
  * 获取我的实名认证状态

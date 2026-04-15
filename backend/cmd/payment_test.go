@@ -15,17 +15,33 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
 )
 
 var testRouter *gin.Engine
 var testToken string // 测试用 JWT token
 
+func databaseAvailable() bool {
+	probeDB, err := sqlx.Connect(config.GlobalConfig.DBDriver, config.GlobalConfig.DBDSN)
+	if err != nil {
+		return false
+	}
+	probeDB.SetConnMaxLifetime(5 * time.Second)
+	defer probeDB.Close()
+	return probeDB.Ping() == nil
+}
+
 // TestMain 集成测试入口：初始化数据库和路由
 func TestMain(m *testing.M) {
 	// 初始化配置（需要 .env 文件或环境变量）
 	config.InitConfig()
+	if !databaseAvailable() {
+		log.Printf("[Test] 数据库不可用，跳过 cmd 集成测试")
+		os.Exit(0)
+	}
 
 	// 初始化数据库
 	db.InitDB()
@@ -46,7 +62,11 @@ func TestMain(m *testing.M) {
 	// 获取测试用 token（需要有效用户）
 	testToken = getTestToken()
 
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	if db.DB != nil {
+		_ = db.DB.Close()
+	}
+	os.Exit(exitCode)
 }
 
 // getTestToken 登录获取测试token（需要数据库中有测试用户）

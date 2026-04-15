@@ -2,8 +2,11 @@
 </script>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import AMap from './components/AMap.vue'
 import BMap from './components/BMap.vue'
+
+const { t } = useI18n()
 
 defineOptions({
   name: 'map',
@@ -12,19 +15,19 @@ defineOptions({
 const maps = [
   {
     id: 'BMap',
-    label: '百度地图',
+    label: t('demo.map.bmap'),
     component: BMap,
   },
   {
     id: 'AMap',
-    label: '高德地图',
+    label: t('demo.map.amap'),
     component: AMap,
   },
 ]
 </script>
 
 <template>
-  <n-card title="地图示例(keepalive缓存)">
+  <n-card :title="t('demo.map.title')">
     <n-tabs
       type="line"
       animated

@@ -23,17 +23,17 @@ const options = computed(() => {
       key: 'd1',
     },
     {
-      label: 'Github',
-      key: 'guthub',
+      label: t('app.github'),
+      key: 'github',
       icon: () => h(IconGithub),
     },
     {
-      label: 'Gitee',
+      label: t('app.gitee'),
       key: 'gitee',
       icon: renderIcon('simple-icons:gitee'),
     },
     {
-      label: 'Docs',
+      label: t('app.docs'),
       key: 'docs',
       icon: () => h(IconBookOpen),
     },
@@ -63,7 +63,7 @@ function handleSelect(key: string | number) {
   if (key === 'userCenter')
     router.push('/user/account/user-center')
 
-  if (key === 'guthub')
+  if (key === 'github')
     window.open('https://github.com/chansee97/nova-admin')
 
   if (key === 'gitee')

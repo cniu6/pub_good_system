@@ -1,17 +1,20 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 const text = ref('Hello nova-admin')
 </script>
 
 <template>
-  <n-card title="剪切板示例">
-    <n-h3>v-copy 指令</n-h3>
+  <n-card :title="t('demo.clipboard.title')">
+    <n-h3>{{ t('demo.clipboard.vCopyDirective') }}</n-h3>
     <n-input-group>
-      <n-input v-model:value="text" placeholder="请输入要复制的内容" />
+      <n-input v-model:value="text" :placeholder="t('demo.clipboard.placeholder')" />
       <n-button v-copy="text" type="primary">
-        v-copy复制
+        {{ t('demo.clipboard.vCopyBtn') }}
       </n-button>
     </n-input-group>
-    <n-h3>copy-text 组件</n-h3>
+    <n-h3>{{ t('demo.clipboard.copyTextComponent') }}</n-h3>
     <copy-text v-model:value="text" />
   </n-card>
 </template>

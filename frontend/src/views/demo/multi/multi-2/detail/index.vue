@@ -1,26 +1,28 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { useTabStore } from '@/store'
 
+const { t } = useI18n()
 const { modifyTab } = useTabStore()
 
 const { fullPath, query } = useRoute()
 
 modifyTab(fullPath, (target) => {
-  target.meta.title = `详情页${query.id}`
+  target.meta.title = t('demo.multi.detailTitle', { id: query.id })
 })
 </script>
 
 <template>
   <n-space vertical>
-    <n-alert title="目前可公开的情报" type="warning">
-      这是详情子页，他不会出现在侧边栏,他其实是上个页面的同级，并不是下级，这个要注意
+    <n-alert :title="t('demo.multi.publicInfo')" type="warning">
+      {{ t('demo.multi.detailDesc') }}
     </n-alert>
-    <n-alert title="目前可公开的情报" type="info">
-      这个页面不需要登陆也可以访问，复制地址到其他浏览器打开查看
+    <n-alert :title="t('demo.multi.publicInfo')" type="info">
+      {{ t('demo.multi.publicAccessDesc') }}
     </n-alert>
 
     <n-h2>
-      详情页id:{{ query.id }}
+      {{ t('demo.multi.detailPageId', { id: query.id }) }}
     </n-h2>
   </n-space>
 </template>

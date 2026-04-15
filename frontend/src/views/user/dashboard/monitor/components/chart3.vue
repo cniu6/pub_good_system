@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { useEcharts } from '@/hooks'
 import type { ECOption } from '@/hooks'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const option = ref<ECOption>({
   tooltip: {
@@ -33,7 +36,7 @@ const option = ref<ECOption>({
     data: [
       {
         value: 335,
-        name: '直接访问',
+        name: t('monitor.directAccess'),
       },
       {
         value: 77,
@@ -41,11 +44,11 @@ const option = ref<ECOption>({
       },
       {
         value: 82,
-        name: '知乎',
+        name: t('monitor.zhihu'),
       },
       {
         value: 421,
-        name: '小红书',
+        name: t('monitor.xiaohongshu'),
       },
     ],
   }],

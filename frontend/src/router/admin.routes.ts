@@ -29,7 +29,7 @@ export function getAdminRoutes(): RouteRecordRaw[] {
       redirect: '/dashboard',
       component: () => import('@/layouts/index.vue'),
       meta: {
-        title: '管理后台',
+        title: 'route.adminDashboard',
         requiresAuth: true,
         requiresAdmin: true,
       },
@@ -40,7 +40,7 @@ export function getAdminRoutes(): RouteRecordRaw[] {
           name: 'admin-dashboard',
           component: () => import('@/views/admin/dashboard/index.vue'),
           meta: {
-            title: '仪表盘',
+            title: 'route.dashboard',
             icon: 'icon-park-outline:dashboard',
           },
         },
@@ -50,7 +50,7 @@ export function getAdminRoutes(): RouteRecordRaw[] {
           name: 'admin-users',
           component: () => import('@/views/admin/users/index.vue'),
           meta: {
-            title: '用户管理',
+            title: 'route.userManagement',
             icon: 'icon-park-outline:user',
           },
         },
@@ -59,7 +59,7 @@ export function getAdminRoutes(): RouteRecordRaw[] {
           name: 'admin-user-detail',
           component: () => import('@/views/admin/users/detail.vue'),
           meta: {
-            title: '用户详情',
+            title: 'route.userDetail',
             hide: true,
             activeMenu: '/users',
           },
@@ -70,7 +70,7 @@ export function getAdminRoutes(): RouteRecordRaw[] {
           name: 'admin-realname',
           component: () => import('@/views/admin/realname/index.vue'),
           meta: {
-            title: '实名认证',
+            title: 'route.realnameVerify',
             icon: 'icon-park-outline:id-card',
           },
         },
@@ -81,7 +81,7 @@ export function getAdminRoutes(): RouteRecordRaw[] {
           component: PassThrough,
           redirect: { name: 'admin-money-logs' },
           meta: {
-            title: '财务中心',
+            title: 'route.financeCenter',
             icon: 'icon-park-outline:finance',
             menuType: 'dir',
           },
@@ -91,7 +91,7 @@ export function getAdminRoutes(): RouteRecordRaw[] {
               name: 'admin-money-logs',
               component: () => import('@/views/admin/money-logs/index.vue'),
               meta: {
-                title: '余额日志',
+                title: 'route.moneyLogs',
                 icon: 'icon-park-outline:wallet',
               },
             },
@@ -100,7 +100,7 @@ export function getAdminRoutes(): RouteRecordRaw[] {
               name: 'admin-score-logs',
               component: () => import('@/views/admin/score-logs/index.vue'),
               meta: {
-                title: '积分日志',
+                title: 'route.scoreLogs',
                 icon: 'icon-park-outline:diamond',
               },
             },
@@ -109,7 +109,7 @@ export function getAdminRoutes(): RouteRecordRaw[] {
               name: 'admin-pay-gateways',
               component: () => import('@/views/admin/pay-gateways/index.vue'),
               meta: {
-                title: '支付通道',
+                title: 'route.payGateways',
                 icon: 'icon-park-outline:pay-code-one',
               },
             },
@@ -118,7 +118,7 @@ export function getAdminRoutes(): RouteRecordRaw[] {
               name: 'admin-payment-orders',
               component: () => import('@/views/admin/payment-orders/index.vue'),
               meta: {
-                title: '支付订单',
+                title: 'route.paymentOrders',
                 icon: 'icon-park-outline:transaction-order',
               },
             },
@@ -127,7 +127,7 @@ export function getAdminRoutes(): RouteRecordRaw[] {
               name: 'admin-withdraw',
               component: () => import('@/views/admin/withdraw/index.vue'),
               meta: {
-                title: '提现管理',
+                title: 'route.withdrawManagement',
                 icon: 'icon-park-outline:wallet-two',
               },
             },
@@ -139,7 +139,7 @@ export function getAdminRoutes(): RouteRecordRaw[] {
           name: 'admin-settings',
           component: () => import('@/views/admin/settings/index.vue'),
           meta: {
-            title: '系统设置',
+            title: 'route.systemSettings',
             icon: 'icon-park-outline:setting-two',
           },
         },

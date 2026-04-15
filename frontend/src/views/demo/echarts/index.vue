@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { useEcharts } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { graphic } from 'echarts'
 
-// 饼状图
+const { t } = useI18n()
+
+// Pie chart
 const pieOptions = ref<ECOption>({
   title: {
-    text: '饼图',
+    text: t('demo.echarts.pieTitle'),
   },
   color: [
     '#37a2da',
@@ -39,7 +42,7 @@ const pieOptions = ref<ECOption>({
   series: [
     {
       type: 'pie',
-      name: '增值电信业务统计表',
+      name: t('demo.echarts.pieName'),
       radius: [40, 150],
       roseType: 'area',
       data: [
@@ -77,10 +80,10 @@ function updatePieChart() {
   update(pieOptions.value)
 }
 
-// 折线图
+// Line chart
 const lineOptions = ref<ECOption>({
   title: {
-    text: '折线图',
+    text: t('demo.echarts.lineTitle'),
   },
   tooltip: {
     trigger: 'axis',
@@ -268,10 +271,10 @@ const lineOptions = ref<ECOption>({
 })
 useEcharts('lineRef', lineOptions)
 
-// 柱状图
+// Bar chart
 const barOptions = ref<ECOption>({
   title: {
-    text: '柱状图',
+    text: t('demo.echarts.barTitle'),
   },
   tooltip: {},
   grid: {
@@ -283,28 +286,28 @@ const barOptions = ref<ECOption>({
   },
   legend: {
     itemGap: 50,
-    data: ['注册总量', '最新注册量'],
+    data: [t('demo.echarts.totalReg'), t('demo.echarts.latestReg')],
   },
   xAxis: [
     {
       type: 'category',
       boundaryGap: true,
       axisLine: {
-        // 坐标轴轴线相关设置。数学上的x轴
+        // Axis line settings. Mathematical x-axis
         show: true,
         lineStyle: {
           color: '#f9f9f9',
         },
       },
       axisLabel: {
-        // 坐标轴刻度标签的相关设置
+        // Axis tick label settings
         color: '#d1e6eb',
         margin: 15,
       },
       axisTick: {
         show: false,
       },
-      data: ['1月', '2月', '3月', '4月', '5月', '6月', '7月'],
+      data: [t('demo.echarts.jan'), t('demo.echarts.feb'), t('demo.echarts.mar'), t('demo.echarts.apr'), t('demo.echarts.may'), t('demo.echarts.jun'), t('demo.echarts.jul')],
     },
   ],
   yAxis: [
@@ -333,13 +336,13 @@ const barOptions = ref<ECOption>({
   ],
   series: [
     {
-      name: '注册总量',
+      name: t('demo.echarts.totalReg'),
       type: 'line',
       showAllSymbol: true,
       symbol: 'emptyCircle',
       symbolSize: 6,
       itemStyle: {
-        color: '#28ffb3', // 线条颜色
+        color: '#28ffb3', // line color
         borderColor: '#f0f',
       },
       label: {
@@ -352,8 +355,8 @@ const barOptions = ref<ECOption>({
         show: false,
       },
       areaStyle: {
-        // 区域填充样式
-        // 线性渐变，前4个参数分别是x0,y0,x2,y2(范围0~1);相当于图形包围盒中的百分比。如果最后一个参数是‘true’，则该四个值是绝对像素位置。
+        // Area fill style
+        // Linear gradient, first 4 params are x0,y0,x2,y2 (range 0~1); relative to bounding box. If last param is 'true', they're absolute pixel positions.
         color: new graphic.LinearGradient(
           0,
           0,
@@ -371,13 +374,13 @@ const barOptions = ref<ECOption>({
           ],
           false,
         ),
-        shadowColor: 'rgba(53,142,215, 0.9)', // 阴影颜色
-        shadowBlur: 20, // shadowBlur设图形阴影的模糊大小。配合shadowColor,shadowOffsetX/Y, 设置图形的阴影效果。
+        shadowColor: 'rgba(53,142,215, 0.9)', // shadow color
+        shadowBlur: 20, // shadowBlur sets the blur size of shape shadow. Use with shadowColor, shadowOffsetX/Y.
       },
       data: [393, 438, 485, 631, 689, 824, 987],
     },
     {
-      name: '最新注册量',
+      name: t('demo.echarts.latestReg'),
       type: 'bar',
       barWidth: 20,
       tooltip: {
@@ -408,7 +411,7 @@ const barOptions = ref<ECOption>({
 })
 useEcharts('barRef', barOptions)
 
-// 雷达图
+// Radar chart
 const radarOptions = ref<ECOption>({
   title: {
     text: 'Multiple Radar',
@@ -420,12 +423,12 @@ const radarOptions = ref<ECOption>({
   radar: [
     {
       indicator: [
-        { name: '萧塘', max: 100 },
-        { name: '环城东路', max: 100 },
-        { name: '望园路', max: 100 },
-        { name: '奉贤新城', max: 100 },
-        { name: '奉浦大道', max: 100 },
-        { name: '金海湖', max: 100 },
+        { name: t('demo.echarts.station1'), max: 100 },
+        { name: t('demo.echarts.station2'), max: 100 },
+        { name: t('demo.echarts.station3'), max: 100 },
+        { name: t('demo.echarts.station4'), max: 100 },
+        { name: t('demo.echarts.station5'), max: 100 },
+        { name: t('demo.echarts.station6'), max: 100 },
       ],
     },
   ],
@@ -434,7 +437,7 @@ const radarOptions = ref<ECOption>({
       type: 'radar',
       data: [
         {
-          name: '进站',
+          name: t('demo.echarts.entry'),
           value: [43, 90, 80, 53, 78, 89, 77, 50],
           areaStyle: {
             color: {
@@ -445,19 +448,19 @@ const radarOptions = ref<ECOption>({
               colorStops: [
                 {
                   offset: 0,
-                  color: 'rgba(46,203,255, 0.14)', // 0% 处的颜色
+                  color: 'rgba(46,203,255, 0.14)', // color at 0%
                 },
                 {
                   offset: 0.15,
-                  color: 'rgba(46,203,255, 0.14)', // 100% 处的颜色
+                  color: 'rgba(46,203,255, 0.14)', // color at 100%
                 },
                 {
                   offset: 0.75,
-                  color: '#057FB3', // 100% 处的颜色
+                  color: '#057FB3', // color at 100%
                 },
                 {
                   offset: 1,
-                  color: '#078DC6', // 100% 处的颜色
+                  color: '#078DC6', // color at 100%
                 },
               ],
               global: false, // 缺省为 false
@@ -465,7 +468,7 @@ const radarOptions = ref<ECOption>({
           },
         },
         {
-          name: '出站',
+          name: t('demo.echarts.exit'),
           value: [50, 44, 56, 69, 43, 77, 90, 20],
           areaStyle: {
             color: {
@@ -476,19 +479,19 @@ const radarOptions = ref<ECOption>({
               colorStops: [
                 {
                   offset: 0,
-                  color: 'rgba(255, 127,0, 0.14)', // 0% 处的颜色
+                  color: 'rgba(255, 127,0, 0.14)', // color at 0%
                 },
                 {
                   offset: 0.15,
-                  color: 'rgba(255, 127,0, 0.14)', // 100% 处的颜色
+                  color: 'rgba(255, 127,0, 0.14)', // color at 100%
                 },
                 {
                   offset: 0.75,
-                  color: 'rgba(2255, 127,0, 0.4)', // 100% 处的颜色
+                  color: 'rgba(2255, 127,0, 0.4)', // color at 100%
                 },
                 {
                   offset: 1,
-                  color: 'rgba(255, 127,0, 0.5)', // 100% 处的颜色
+                  color: 'rgba(255, 127,0, 0.5)', // color at 100%
                 },
               ],
               global: false, // 缺省为 false
@@ -509,7 +512,7 @@ useEcharts('radarRef', radarOptions)
   >
     <n-card>
       <n-button @click="updatePieChart">
-        手动更新图表
+        {{ t('demo.echarts.updateChart') }}
       </n-button>
       <div
         ref="pieRef"

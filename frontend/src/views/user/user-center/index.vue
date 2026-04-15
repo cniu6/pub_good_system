@@ -7,9 +7,11 @@ import SettingsTab from './components/SettingsTab.vue'
 import SecurityTab from './components/SecurityTab.vue'
 import MoneyScoreTab from './components/MoneyScoreTab.vue'
 import RealnameTab from './components/RealnameTab.vue'
+import { useI18n } from 'vue-i18n'
 import NovaIcon from '@/components/common/NovaIcon.vue'
 
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 const userInfo = computed(() => authStore.userInfo)
 
@@ -51,22 +53,23 @@ async function handleAvatarSubmit() {
   try {
     const nextAvatar = avatarForm.value.newAvatar.trim()
     if (nextAvatar && !/^https?:\/\//i.test(nextAvatar)) {
-      window.$message.error('头像 URL 仅支持 http/https 协议')
+      window.$message.error(t('userCenter.avatarUrlProtocolError'))
       return
     }
     const response = await fetchUpdateProfile({ avatar: nextAvatar })
     if (response.isSuccess) {
       authStore.updateUserInfo({ avatar: nextAvatar })
       showAvatarModal.value = false
-      window.$message.success('头像更新成功')
+      window.$message.success(t('userCenter.avatarUpdateSuccess'))
     }
     else {
-      window.$message.error(response.message || '头像更新失败')
+      window.$message.error(response.message || t('userCenter.avatarUpdateFailed'))
     }
   }
   catch (error) {
-    console.error('更新头像失败', error)
-    window.$message.error('更新头像失败')
+    if (import.meta.env.DEV)
+      console.error('[userCenter] avatar update failed', error)
+    window.$message.error(t('userCenter.avatarUpdateFailed'))
   }
 }
 
@@ -79,22 +82,23 @@ async function handleMottoSubmit() {
   try {
     const nextMotto = mottoForm.value.trim()
     if (nextMotto.length > 200) {
-      window.$message.error('个性签名不能超过200个字符')
+      window.$message.error(t('userCenter.mottoTooLong'))
       return
     }
     const response = await fetchUpdateProfile({ motto: nextMotto })
     if (response.isSuccess) {
       authStore.updateUserInfo({ motto: nextMotto })
       showMottoModal.value = false
-      window.$message.success('签名更新成功')
+      window.$message.success(t('userCenter.mottoUpdateSuccess'))
     }
     else {
-      window.$message.error(response.message || '签名更新失败')
+      window.$message.error(response.message || t('userCenter.mottoUpdateFailed'))
     }
   }
   catch (error) {
-    console.error('更新签名失败', error)
-    window.$message.error('更新签名失败')
+    if (import.meta.env.DEV)
+      console.error('[userCenter] motto update failed', error)
+    window.$message.error(t('userCenter.mottoUpdateFailed'))
   }
 }
 
@@ -108,22 +112,23 @@ async function handleBgSubmit() {
   try {
     const nextBg = bgForm.value.newBg.trim()
     if (nextBg && !/^https?:\/\//i.test(nextBg)) {
-      window.$message.error('背景图 URL 仅支持 http/https 协议')
+      window.$message.error(t('userCenter.bgUrlProtocolError'))
       return
     }
     const response = await fetchUpdateProfile({ back_ground: nextBg })
     if (response.isSuccess) {
       authStore.updateUserInfo({ backGround: nextBg })
       showBgModal.value = false
-      window.$message.success('背景图更新成功')
+      window.$message.success(t('userCenter.bgUpdateSuccess'))
     }
     else {
-      window.$message.error(response.message || '背景图更新失败')
+      window.$message.error(response.message || t('userCenter.bgUpdateFailed'))
     }
   }
   catch (error) {
-    console.error('更新背景图失败', error)
-    window.$message.error('更新背景图失败')
+    if (import.meta.env.DEV)
+      console.error('[userCenter] bg update failed', error)
+    window.$message.error(t('userCenter.bgUpdateFailed'))
   }
 }
 
@@ -135,7 +140,8 @@ async function refreshUserInfo() {
     }
   }
   catch (error) {
-    console.error('获取用户信息失败', error)
+    if (import.meta.env.DEV)
+      console.error('[userCenter] fetch user info failed', error)
   }
 }
 
@@ -171,23 +177,23 @@ onActivated(() => {
 
         <div class="user-details-section">
           <n-h3 class="user-name">
-            <span class="user-name-text">{{ userInfo?.nickname || userInfo?.userName || '用户' }}</span>
+            <span class="user-name-text">{{ userInfo?.nickname || userInfo?.userName || t('userCenter.user') }}</span>
             <n-text v-if="userInfo?.userName" depth="3" class="user-name-account">
-              (@{{ userInfo.userName }})
-            </n-text>
+            ({{ t('userCenter.usernamePrefix') }}{{ userInfo.userName }})
+          </n-text>
           </n-h3>
           <n-text depth="3" class="user-email ml-2">
-            {{ userInfo?.email || '暂无邮箱' }}
+            {{ userInfo?.email || t('userCenter.noEmail') }}
           </n-text>
           <n-space class="ml-3" size="small">
             <n-tag type="info" size="small">
               ID: {{ userInfo?.id || 'N/A' }}
             </n-tag>
             <n-tag type="warning" size="small">
-              余额: ¥{{ userInfo?.money ? Number(userInfo.money).toFixed(2) : '0.00' }}
+              {{ t('userCenter.balance') }}: ¥{{ userInfo?.money ? Number(userInfo.money).toFixed(2) : '0.00' }}
             </n-tag>
             <n-tag type="primary" size="small">
-              积分: {{ userInfo?.score || '0' }}
+              {{ t('userCenter.score') }}: {{ userInfo?.score || '0' }}
             </n-tag>
           </n-space>
 
@@ -195,25 +201,25 @@ onActivated(() => {
             <n-grid-item>
               <n-text depth="3" class="info-item">
                 <NovaIcon class="info-icon" icon="icon-park-outline:level" :size="16" />
-                等级: {{ userInfo?.level || '0' }}
+                {{ t('userCenter.level') }}: {{ userInfo?.level || '0' }}
               </n-text>
             </n-grid-item>
             <n-grid-item>
               <n-text depth="3" class="info-item">
                 <NovaIcon class="info-icon" icon="icon-park-outline:crown" :size="16" />
-                角色: {{ userInfo?.role?.includes('admin') ? '管理员' : '普通用户' }}
+                {{ t('userCenter.role') }}: {{ userInfo?.role?.includes('admin') ? t('userCenter.admin') : t('userCenter.normalUser') }}
               </n-text>
             </n-grid-item>
             <n-grid-item>
               <n-text depth="3" class="info-item">
                 <NovaIcon class="info-icon" icon="icon-park-outline:check-one" :size="16" />
-                状态: {{ userInfo?.status === 1 ? '正常' : '禁用' }}
+                {{ t('userCenter.status') }}: {{ userInfo?.status === 1 ? t('userCenter.normal') : t('userCenter.disabled') }}
               </n-text>
             </n-grid-item>
             <n-grid-item>
               <n-text depth="3" class="info-item clickable-item" @click="openMottoModal">
                 <NovaIcon class="info-icon" icon="icon-park-outline:quote" :size="16" />
-                {{ userInfo?.motto || '暂无签名' }}
+                {{ userInfo?.motto || t('userCenter.noMotto') }}
                 <NovaIcon class="edit-icon" icon="icon-park-outline:edit" :size="12" />
               </n-text>
             </n-grid-item>
@@ -223,10 +229,10 @@ onActivated(() => {
         <div class="user-actions-section">
           <n-space vertical class="w-full">
             <n-button type="primary" block @click="activeTab = 'profile'">
-              编辑资料
+              {{ t('userCenter.editProfile') }}
             </n-button>
             <n-button block @click="openBgModal">
-              设置背景图
+              {{ t('userCenter.setBackground') }}
             </n-button>
           </n-space>
         </div>
@@ -240,33 +246,33 @@ onActivated(() => {
         type="line"
         animated
       >
-        <n-tab-pane name="profile" tab="个人资料">
+        <n-tab-pane name="profile" :tab="t('userCenter.profileTab')">
           <ProfileTab />
         </n-tab-pane>
-        <n-tab-pane name="settings" tab="偏好设置">
+        <n-tab-pane name="settings" :tab="t('userCenter.settingsTab')">
           <SettingsTab />
         </n-tab-pane>
-        <n-tab-pane name="security" tab="安全管理">
+        <n-tab-pane name="security" :tab="t('userCenter.securityTab')">
           <SecurityTab />
         </n-tab-pane>
-        <n-tab-pane name="api" tab="API 管理">
+        <n-tab-pane name="api" :tab="t('userCenter.apiTab')">
           <ApiTab />
         </n-tab-pane>
-        <n-tab-pane name="moneyScore" tab="余额与积分">
+        <n-tab-pane name="moneyScore" :tab="t('userCenter.moneyScoreTab')">
           <MoneyScoreTab />
         </n-tab-pane>
-        <n-tab-pane name="realname" tab="实名认证">
+        <n-tab-pane name="realname" :tab="t('userCenter.realnameTab')">
           <RealnameTab />
         </n-tab-pane>
       </n-tabs>
     </n-card>
 
     <!-- 头像修改对话框 -->
-    <n-modal v-model:show="showAvatarModal" preset="dialog" title="修改头像">
+    <n-modal v-model:show="showAvatarModal" preset="dialog" :title="t('userCenter.changeAvatar')">
       <n-space vertical size="large">
         <div>
           <n-text depth="3">
-            当前头像
+            {{ t('userCenter.currentAvatar') }}
           </n-text>
           <div class="avatar-preview mt-2">
             <n-avatar :size="80" :src="avatarForm.currentAvatar" :img-props="{ referrerpolicy: 'no-referrer' }">
@@ -275,7 +281,7 @@ onActivated(() => {
             <n-input
               :value="avatarForm.currentAvatar"
               readonly
-              placeholder="当前头像 URL"
+              :placeholder="t('userCenter.currentAvatarUrl')"
               class="mt-2"
               disabled
             />
@@ -286,7 +292,7 @@ onActivated(() => {
 
         <div>
           <n-text depth="3">
-            新头像
+            {{ t('userCenter.newAvatar') }}
           </n-text>
           <div class="avatar-preview mt-2">
             <n-avatar :size="80" :src="avatarForm.newAvatar" :img-props="{ referrerpolicy: 'no-referrer' }">
@@ -295,7 +301,7 @@ onActivated(() => {
             <n-input
               v-model:value="avatarForm.newAvatar"
               type="textarea"
-              placeholder="请输入新的头像 URL（最多250字符）"
+              :placeholder="t('userCenter.newAvatarPlaceholder')"
               :maxlength="250"
               :rows="3"
               class="mt-2"
@@ -307,21 +313,21 @@ onActivated(() => {
       <template #action>
         <n-space>
           <n-button @click="showAvatarModal = false">
-            取消
+            {{ t('common.cancel') }}
           </n-button>
           <n-button type="primary" @click="handleAvatarSubmit">
-            保存
+            {{ t('common.confirm') }}
           </n-button>
         </n-space>
       </template>
     </n-modal>
 
     <!-- 个性签名修改弹窗 -->
-    <n-modal v-model:show="showMottoModal" preset="dialog" title="修改个性签名">
+    <n-modal v-model:show="showMottoModal" preset="dialog" :title="t('userCenter.changeMotto')">
       <n-input
         v-model:value="mottoForm"
         type="textarea"
-        placeholder="请输入个性签名（最多200字符）"
+        :placeholder="t('userCenter.mottoPlaceholder')"
         :maxlength="200"
         show-count
         :rows="3"
@@ -329,36 +335,36 @@ onActivated(() => {
       <template #action>
         <n-space>
           <n-button @click="showMottoModal = false">
-            取消
+            {{ t('common.cancel') }}
           </n-button>
           <n-button type="primary" @click="handleMottoSubmit">
-            保存
+            {{ t('common.confirm') }}
           </n-button>
         </n-space>
       </template>
     </n-modal>
 
     <!-- 背景图修改弹窗 -->
-    <n-modal v-model:show="showBgModal" preset="dialog" title="设置背景图">
+    <n-modal v-model:show="showBgModal" preset="dialog" :title="t('userCenter.setBackground')">
       <n-space vertical size="large">
         <div v-if="bgForm.currentBg">
-          <n-text depth="3">当前背景</n-text>
+          <n-text depth="3">{{ t('userCenter.currentBg') }}</n-text>
           <div class="bg-preview mt-2">
             <img :src="bgForm.currentBg" referrerpolicy="no-referrer" class="bg-preview-img" />
           </div>
         </div>
         <div>
-          <n-text depth="3">新背景图 URL</n-text>
+          <n-text depth="3">{{ t('userCenter.newBgUrl') }}</n-text>
           <n-input
             v-model:value="bgForm.newBg"
             type="textarea"
-            placeholder="请输入背景图 URL（http/https，最多500字符，留空则清除）"
+            :placeholder="t('userCenter.newBgPlaceholder')"
             :maxlength="500"
             :rows="3"
             class="mt-2"
           />
           <div v-if="bgForm.newBg" class="bg-preview mt-2">
-            <n-text depth="3" class="mb-1">预览</n-text>
+            <n-text depth="3" class="mb-1">{{ t('userCenter.preview') }}</n-text>
             <img :src="bgForm.newBg" referrerpolicy="no-referrer" class="bg-preview-img" />
           </div>
         </div>
@@ -366,10 +372,10 @@ onActivated(() => {
       <template #action>
         <n-space>
           <n-button @click="showBgModal = false">
-            取消
+            {{ t('common.cancel') }}
           </n-button>
           <n-button type="primary" @click="handleBgSubmit">
-            保存
+            {{ t('common.confirm') }}
           </n-button>
         </n-space>
       </template>

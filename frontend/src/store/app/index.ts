@@ -161,7 +161,8 @@ export const useAppStore = defineStore('app-store', {
         // 我们可以派发一个事件 'app:locale-changed'
         window.dispatchEvent(new Event('app:locale-changed'))
       } catch (e) {
-        console.error(e)
+        if (import.meta.env.DEV)
+          console.error('[appStore] locale change event dispatch failed', e)
       }
     },
     /* 设置主题色 */

@@ -1,19 +1,22 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
 const emit = defineEmits<{
-  update: [data: any] // 具名元组语法
+  update: [data: any]
 }>()
 
 async function getDictData() {
-  // 移除字典相关功能，改为示例数据
-  const res = { data: '示例数据' }
+  const res = { data: t('demo.fetch.sampleData') }
   emit('update', res)
 }
 </script>
 
 <template>
-  <n-card title="Transform Data" size="small">
+  <n-card :title="t('demo.fetch.transformData')" size="small">
     <n-button @click="getDictData">
-      click
+      {{ t('demo.fetch.click') }}
     </n-button>
   </n-card>
 </template>

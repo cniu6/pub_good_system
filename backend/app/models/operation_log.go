@@ -1,7 +1,6 @@
 package models
 
 import (
-	"fmt"
 	"fst/backend/internal/db"
 	"log"
 	"time"
@@ -253,10 +252,24 @@ func CleanExcessOperationLogs(maxCount int) (int64, error) {
 	if total <= int64(maxCount) {
 		return 0, nil
 	}
-	// 删除最旧的记录，只保留最新 maxCount 条
-	// 注意：MySQL 子查询中 LIMIT 不支持参数化占位符，必须直接拼接
-	query := fmt.Sprintf("DELETE FROM operation_logs WHERE id NOT IN (SELECT id FROM (SELECT id FROM operation_logs ORDER BY create_time DESC, id DESC LIMIT %d) AS t)", maxCount)
-	result, err := db.DB.Exec(query)
+
+	var cutoff struct {
+		ID         uint64 `db:"id"`
+		CreateTime int64  `db:"create_time"`
+	}
+	if err := db.DB.Get(&cutoff,
+		"SELECT id, create_time FROM operation_logs ORDER BY create_time DESC, id DESC LIMIT 1 OFFSET ?",
+		maxCount-1,
+	); err != nil {
+		return 0, err
+	}
+
+	result, err := db.DB.Exec(
+		"DELETE FROM operation_logs WHERE create_time < ? OR (create_time = ? AND id < ?)",
+		cutoff.CreateTime,
+		cutoff.CreateTime,
+		cutoff.ID,
+	)
 	if err != nil {
 		return 0, err
 	}

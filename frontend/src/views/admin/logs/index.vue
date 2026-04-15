@@ -1,10 +1,10 @@
 <template>
-  <n-card title="操作日志">
+  <n-card :title="t('adminLogs.title')">
     <n-space vertical>
       <n-space align="center">
-        <n-text depth="3">共 {{ total }} 条日志</n-text>
+        <n-text depth="3">{{ t('adminLogs.totalLogs', { total }) }}</n-text>
         <n-divider vertical />
-        <n-text depth="3">查询天数</n-text>
+        <n-text depth="3">{{ t('adminLogs.queryDays') }}</n-text>
         <n-input-number
           v-model:value="queryDays"
           :min="1"
@@ -12,9 +12,9 @@
           size="small"
           style="width: 120px"
         >
-          <template #suffix>天</template>
+          <template #suffix>{{ t('adminLogs.days') }}</template>
         </n-input-number>
-        <n-text depth="3">日志保留上限</n-text>
+        <n-text depth="3">{{ t('adminLogs.logRetentionLimit') }}</n-text>
         <n-input-number
           v-model:value="maxCount"
           :min="20"
@@ -22,9 +22,9 @@
           size="small"
           style="width: 120px"
         />
-        <n-text depth="3" style="font-size:12px;color:#999;">超出自动清理旧日志</n-text>
+        <n-text depth="3" style="font-size:12px;color:#999;">{{ t('adminLogs.autoCleanupHint') }}</n-text>
         <n-button size="small" type="primary" :loading="savingQuerySettings" @click="handleApplyQuerySettings">
-          应用
+          {{ t('adminLogs.apply') }}
         </n-button>
       </n-space>
 
@@ -42,6 +42,7 @@
 
 <script setup lang="ts">
 import { h, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NTag, NButton, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { useRouter } from 'vue-router'
@@ -50,6 +51,7 @@ import type { UserSimpleInfo } from '@/service/api/admin/user'
 
 const router = useRouter()
 const message = useMessage()
+const { t } = useI18n()
 const loading = ref(false)
 const logList = ref<any[]>([])
 const userMap = ref<Record<number, UserSimpleInfo>>({})
@@ -91,14 +93,14 @@ function goToUserDetail(userId: number) {
 // 获取用户显示名称
 function getUserDisplayName(userId: number): string {
   const user = userMap.value[userId]
-  if (!user) return `用户#${userId}`
-  return user.nickname || user.username || `用户#${userId}`
+  if (!user) return t('adminLogs.userPrefix', { id: userId })
+  return user.nickname || user.username || t('adminLogs.userPrefix', { id: userId })
 }
 
 const columns: DataTableColumns<any> = [
   { title: 'ID', key: 'id', width: 80 },
   {
-    title: '用户',
+    title: t('adminLogs.user'),
     key: 'user_id',
     width: 120,
     render(row) {
@@ -116,21 +118,21 @@ const columns: DataTableColumns<any> = [
       )
     },
   },
-  { title: '模块', key: 'module', width: 100 },
-  { title: '操作', key: 'action', width: 80 },
+  { title: t('adminLogs.module'), key: 'module', width: 100 },
+  { title: t('adminLogs.action'), key: 'action', width: 80 },
   {
-    title: '方法',
+    title: t('adminLogs.method'),
     key: 'method',
     width: 80,
     render(row) {
       return h(NTag, { type: methodColors[row.method] ?? 'info', size: 'small' }, () => row.method)
     },
   },
-  { title: '路径', key: 'path', ellipsis: { tooltip: true } },
-  { title: 'IP', key: 'ip', width: 120 },
-  { title: '耗时(ms)', key: 'duration', width: 90 },
+  { title: t('adminLogs.path'), key: 'path', ellipsis: { tooltip: true } },
+  { title: t('adminLogs.ip'), key: 'ip', width: 120 },
+  { title: t('adminLogs.duration'), key: 'duration', width: 90 },
   {
-    title: '时间',
+    title: t('adminLogs.time'),
     key: 'create_time',
     width: 160,
     render(row) {
@@ -149,8 +151,9 @@ async function fetchUserInfos(logs: any[]) {
   try {
     userMap.value = await adminApi.user.batchSimpleInfo(userIds)
   }
-  catch {
-    console.error('获取用户信息失败')
+  catch (error) {
+    if (import.meta.env.DEV)
+      console.error('[adminLogs] fetch user info failed', error)
   }
 }
 
@@ -165,7 +168,7 @@ async function fetchLogs() {
     await fetchUserInfos(logList.value)
   }
   catch {
-    message.error('获取日志列表失败')
+    message.error(t('adminLogs.fetchLogsFailed'))
   }
   finally {
     loading.value = false
@@ -204,8 +207,8 @@ async function loadQuerySettings() {
         value: String(queryDays.value),
         type: 'number',
         category: 'custom',
-        label: '操作日志查询天数',
-        description: '操作日志页面默认查询时间范围（天）',
+        label: t('adminLogs.queryDaysLabel'),
+        description: t('adminLogs.queryDaysDesc'),
         is_public: false,
         is_editable: true,
       })
@@ -217,8 +220,8 @@ async function loadQuerySettings() {
         value: String(maxCount.value),
         type: 'number',
         category: 'custom',
-        label: '操作日志保留上限',
-        description: '操作日志最大保留条数，超出自动清理旧日志',
+        label: t('adminLogs.maxCountLabel'),
+        description: t('adminLogs.maxCountDesc'),
         is_public: false,
         is_editable: true,
       })
@@ -245,14 +248,14 @@ async function handleApplyQuerySettings() {
       pagination.page = 1
       applyDateRange()
       await fetchLogs()
-      message.success(res.message || '查询设置已更新')
+      message.success(res.message || t('adminLogs.querySettingsUpdated'))
     }
     else {
-      message.error(res.message || '更新查询设置失败')
+      message.error(res.message || t('adminLogs.updateQuerySettingsFailed'))
     }
   }
   catch {
-    message.error('更新查询设置失败')
+    message.error(t('adminLogs.updateQuerySettingsFailed'))
   }
   finally {
     savingQuerySettings.value = false

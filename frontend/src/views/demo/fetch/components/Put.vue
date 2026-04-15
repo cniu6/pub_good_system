@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import {
   fetchPut,
 } from '@/service'
+
+const { t } = useI18n()
 
 const emit = defineEmits<{
   update: [data: any] // 具名元组语法
@@ -14,9 +17,9 @@ async function put() {
 </script>
 
 <template>
-  <n-card title="Put" size="small">
+  <n-card :title="t('demo.fetch.putMethod')" size="small">
     <n-button @click="put">
-      click
+      {{ t('demo.fetch.click') }}
     </n-button>
   </n-card>
 </template>

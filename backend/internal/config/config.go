@@ -1,7 +1,9 @@
 package config
 
 import (
+	crypto_rand "crypto/rand"
 	"encoding/json"
+	"encoding/hex"
 	"log"
 	"os"
 	"path/filepath"
@@ -15,6 +17,7 @@ type Config struct {
 	AppName                   string
 	AppTitle                  string
 	AppMode                   string
+	Environment               string
 	Port                      string
 	DBDriver                  string
 	DBDSN                     string
@@ -60,7 +63,35 @@ const defaultJWTSecret = "secret"
 
 func isProductionEnvMode(mode string) bool {
 	mode = strings.ToLower(strings.TrimSpace(mode))
-	return mode == "prod" || mode == "production"
+	return mode == "prod" || mode == "production" || mode == "release"
+}
+
+func resolveRuntimeEnv(candidates ...string) string {
+	for _, candidate := range candidates {
+		trimmed := strings.TrimSpace(candidate)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return "development"
+}
+
+func generateDevelopmentSecret() string {
+	buf := make([]byte, 32)
+	if _, err := crypto_rand.Read(buf); err == nil {
+		return hex.EncodeToString(buf)
+	}
+	return "dev-fallback-secret-please-configure-jwt-secret"
+}
+
+func resolveJWTSecret(secret string) string {
+	secret = strings.TrimSpace(secret)
+	if secret != "" {
+		return secret
+	}
+	generated := generateDevelopmentSecret()
+	log.Println("[Security Warning] JWT_SECRET 未配置，已生成临时开发密钥")
+	return generated
 }
 
 func validateCriticalSecurityConfig(cfg *Config) {
@@ -69,7 +100,7 @@ func validateCriticalSecurityConfig(cfg *Config) {
 	}
 
 	secret := strings.TrimSpace(cfg.JWTSecret)
-	if isProductionEnvMode(cfg.AppMode) {
+	if isProductionEnvMode(cfg.Environment) || isProductionEnvMode(cfg.AppMode) {
 		if secret == "" || secret == defaultJWTSecret {
 			log.Fatal("[Security] Refusing to start with an empty or default JWT_SECRET in production mode")
 		}
@@ -85,7 +116,7 @@ func IsProductionMode() bool {
 	if GlobalConfig == nil {
 		return false
 	}
-	return isProductionEnvMode(GlobalConfig.AppMode)
+	return isProductionEnvMode(GlobalConfig.Environment) || isProductionEnvMode(GlobalConfig.AppMode)
 }
 
 func findDotEnvPath() (string, bool) {
@@ -145,19 +176,26 @@ func InitConfig() {
 	if geetestKey == "" {
 		geetestKey = getEnv("GEETEST_CAPTCHA_KEY", "")
 	}
+	runtimeEnv := resolveRuntimeEnv(getEnv("GO_ENV", ""), getEnv("APP_ENV", ""), getEnv("GIN_MODE", ""))
+	jwtSecret := resolveJWTSecret(getEnv("JWT_SECRET", ""))
+	adminJWTSecret := strings.TrimSpace(getEnv("JWT_ADMIN_SECRET", ""))
+	if adminJWTSecret == "" {
+		adminJWTSecret = jwtSecret
+	}
 
 	GlobalConfig = &Config{
 		AppName:         getEnv("APP_NAME", "F.st"),
 		AppTitle:        getEnv("APP_TITLE", "F.st - Think Fast,Run F.st"),
 		AppMode:         getEnv("APP_MODE", "separate"),
+		Environment:     runtimeEnv,
 		Port:            getEnv("PORT", "8080"),
 		DBDriver:        getEnv("DB_DRIVER", "mysql"),
 		DBDSN:           buildDSN(),
 		GeetestEnabled:  geetestEnabled && geetestID != "" && geetestKey != "",
 		GeetestID:       geetestID,
 		GeetestKey:      geetestKey,
-		JWTSecret:       getEnv("JWT_SECRET", "secret"),
-		AdminJWTSecret:  getEnv("JWT_ADMIN_SECRET", getEnv("JWT_SECRET", "secret")),
+		JWTSecret:       jwtSecret,
+		AdminJWTSecret:  adminJWTSecret,
 		AdminPath:       "/admin",
 		CorsOrigins:     getEnv("CORS_ORIGINS", ""),
 		EnableSwagger:   enableSwagger,
@@ -315,10 +353,15 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 		port = "8080"
 	}
 
-	jwtSecret := raw.JWTSecret
-	if jwtSecret == "" {
-		jwtSecret = "secret"
-	}
+	runtimeEnv := resolveRuntimeEnv(func() string {
+		debug := strings.TrimSpace(raw.Debug)
+		if strings.EqualFold(debug, "false") || debug == "0" {
+			return "production"
+		}
+		return "development"
+	}())
+
+	jwtSecret := resolveJWTSecret(raw.JWTSecret)
 
 	jwtAdminSecret := raw.JWTAdminSecret
 	if jwtAdminSecret == "" {
@@ -351,6 +394,7 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 		AppName:         "F.st",
 		AppTitle:        "F.st - Think Fast,Run F.st",
 		AppMode:         "separate",
+		Environment:     runtimeEnv,
 		Port:            port,
 		DBDriver:        "mysql",
 		DBDSN:           dsn,
@@ -451,10 +495,11 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 		SMSTemplateCode:   raw.SMSTemplateCode,
 		SMSTemplateCodeEN: raw.SMSTemplateCodeEN,
 		SMSRegion:         raw.SMSRegion,
-		SMSEndpoint:     raw.SMSEndpoint,
-		SMSSdkAppID:     raw.SMSSdkAppID,
-		SMSBodyFormat:   raw.SMSBodyFormat,
+		SMSEndpoint:       raw.SMSEndpoint,
+		SMSSdkAppID:       raw.SMSSdkAppID,
+		SMSBodyFormat:     raw.SMSBodyFormat,
 	}
+
 	log.Printf("[Config] RegisterCodeExpireMinutes: %d\n", cfg.RegisterCodeExpireMinutes)
 	log.Printf("[Config] LoginMaxFailureCount: %d\n", cfg.LoginMaxFailureCount)
 	log.Printf("[Config] LoginLockDurationMinutes: %d\n", cfg.LoginLockDurationMinutes)

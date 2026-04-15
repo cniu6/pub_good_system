@@ -132,12 +132,18 @@ func sendEmailSSL(host, port, from, to, message string, auth smtp.Auth) error {
 	if err != nil {
 		return fmt.Errorf("TLS连接失败: %w", err)
 	}
+	closeConn := true
+	defer func() {
+		if closeConn {
+			_ = conn.Close()
+		}
+	}()
 
 	client, err := smtp.NewClient(conn, host)
 	if err != nil {
-		conn.Close()
 		return fmt.Errorf("SMTP客户端创建失败: %w", err)
 	}
+	closeConn = false
 	defer client.Close()
 
 	log.Printf("[Email] EHLO 成功，开始认证...")

@@ -1,10 +1,13 @@
 <script setup lang="tsx">
 import type { DataTableColumns, FormInst } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import { Gender } from '@/constants'
 import { useBoolean } from '@/hooks'
 import { fetchUserPage } from '@/service'
 import { NButton, NPopconfirm, NSpace, NSwitch, NTag } from 'naive-ui'
 import TableModal from './components/TableModal.vue'
+
+const { t } = useI18n()
 
 const { bool: loading, setTrue: startLoading, setFalse: endLoading } = useBoolean(false)
 const { bool: visible, setTrue: openModal } = useBoolean(false)
@@ -20,21 +23,21 @@ const model = ref({ ...initialModel })
 const formRef = ref<FormInst | null>()
 void formRef.value
 function sendMail(id?: number) {
-  window.$message.success(`删除用户id:${id}`)
+  window.$message.success(`${t('demo.list.deleteUserId')}${id}`)
 }
 const columns: DataTableColumns<Entity.User> = [
   {
-    title: '姓名',
+    title: t('demo.list.name'),
     align: 'center',
     key: 'userName',
   },
   {
-    title: '年龄',
+    title: t('demo.list.age'),
     align: 'center',
     key: 'age',
   },
   {
-    title: '性别',
+    title: t('demo.list.gender'),
     align: 'center',
     key: 'gender',
     render: (row) => {
@@ -53,12 +56,12 @@ const columns: DataTableColumns<Entity.User> = [
     },
   },
   {
-    title: '邮箱',
+    title: t('demo.list.email'),
     align: 'center',
     key: 'email',
   },
   {
-    title: '状态',
+    title: t('demo.list.status'),
     align: 'center',
     key: 'status',
     render: (row) => {
@@ -70,13 +73,13 @@ const columns: DataTableColumns<Entity.User> = [
           onUpdateValue={(value: 0 | 1) =>
             handleUpdateDisabled(value, row.id!)}
         >
-          {{ checked: () => '启用', unchecked: () => '禁用' }}
+          {{ checked: () => t('common.enable'), unchecked: () => t('common.disable') }}
         </NSwitch>
       )
     },
   },
   {
-    title: '操作',
+    title: t('demo.list.action'),
     align: 'center',
     key: 'actions',
     render: (row) => {
@@ -86,12 +89,12 @@ const columns: DataTableColumns<Entity.User> = [
             size="small"
             onClick={() => handleEditTable(row)}
           >
-            编辑
+            {t('common.edit')}
           </NButton>
           <NPopconfirm onPositiveClick={() => sendMail(row.id)}>
             {{
-              default: () => '确认删除',
-              trigger: () => <NButton size="small">删除</NButton>,
+              default: () => t('common.confirmDelete'),
+              trigger: () => <NButton size="small">{t('common.delete')}</NButton>,
             }}
           </NPopconfirm>
         </NSpace>
@@ -118,7 +121,7 @@ async function getUserList() {
   })
 }
 function changePage(page: number, size: number) {
-  window.$message.success(`分页器:${page},${size}`)
+  window.$message.success(`${t('demo.list.pagination')}:${page},${size}`)
 }
 function handleResetSearch() {
   model.value = { ...initialModel }
@@ -151,30 +154,30 @@ function handleAddTable() {
     <n-card>
       <n-form ref="formRef" :model="model" label-placement="left" inline :show-feedback="false">
         <n-flex>
-          <n-form-item label="姓名" path="condition_1">
-            <n-input v-model:value="model.condition_1" placeholder="请输入" />
+          <n-form-item :label="t('demo.list.name')" path="condition_1">
+            <n-input v-model:value="model.condition_1" :placeholder="t('common.inputPlaceholder')" />
           </n-form-item>
-          <n-form-item label="年龄" path="condition_2">
-            <n-input v-model:value="model.condition_2" placeholder="请输入" />
+          <n-form-item :label="t('demo.list.age')" path="condition_2">
+            <n-input v-model:value="model.condition_2" :placeholder="t('common.inputPlaceholder')" />
           </n-form-item>
-          <n-form-item label="性别" path="condition_3">
-            <n-input v-model:value="model.condition_3" placeholder="请输入" />
+          <n-form-item :label="t('demo.list.gender')" path="condition_3">
+            <n-input v-model:value="model.condition_3" :placeholder="t('common.inputPlaceholder')" />
           </n-form-item>
-          <n-form-item label="地址" path="condition_4">
-            <n-input v-model:value="model.condition_4" placeholder="请输入" />
+          <n-form-item :label="t('demo.list.address')" path="condition_4">
+            <n-input v-model:value="model.condition_4" :placeholder="t('common.inputPlaceholder')" />
           </n-form-item>
           <n-flex class="ml-auto">
             <NButton type="primary" @click="getUserList">
               <template #icon>
                 <icon-park-outline-search />
               </template>
-              搜索
+              {{ t('moneyScore.search') }}
             </NButton>
             <NButton strong secondary @click="handleResetSearch">
               <template #icon>
                 <icon-park-outline-redo />
               </template>
-              重置
+              {{ t('common.reset') }}
             </NButton>
           </n-flex>
         </n-flex>
@@ -187,19 +190,19 @@ function handleAddTable() {
             <template #icon>
               <icon-park-outline-add-one />
             </template>
-            新建
+            {{ t('common.add') }}
           </NButton>
           <NButton strong secondary>
             <template #icon>
               <icon-park-outline-afferent />
             </template>
-            批量导入
+            {{ t('demo.list.batchImport') }}
           </NButton>
           <NButton strong secondary class="ml-a">
             <template #icon>
               <icon-park-outline-download />
             </template>
-            下载
+            {{ t('demo.list.download') }}
           </NButton>
         </div>
         <n-data-table :columns="columns" :data="listData" :loading="loading" />

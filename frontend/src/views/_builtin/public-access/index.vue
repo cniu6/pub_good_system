@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 defineOptions({
   name: 'PublicAccess',
@@ -16,11 +19,11 @@ const animatedStats = ref({
 
 // 主题数据
 const themes = [
-  { name: '绿色', primary: '#56CB46', secondary: '#4CAF50' },
-  { name: '蓝色', primary: '#3b82f6', secondary: '#1d4ed8' },
-  { name: '紫色', primary: '#8b5cf6', secondary: '#7c3aed' },
-  { name: '橙色', primary: '#f59e0b', secondary: '#d97706' },
-  { name: '粉色', primary: '#ec4899', secondary: '#db2777' },
+  { name: t('landing.themeGreen'), primary: '#56CB46', secondary: '#4CAF50' },
+  { name: t('landing.themeBlue'), primary: '#3b82f6', secondary: '#1d4ed8' },
+  { name: t('landing.themePurple'), primary: '#8b5cf6', secondary: '#7c3aed' },
+  { name: t('landing.themeOrange'), primary: '#f59e0b', secondary: '#d97706' },
+  { name: t('landing.themePink'), primary: '#ec4899', secondary: '#db2777' },
 ]
 
 const currentTheme = ref(themes[0])
@@ -34,7 +37,7 @@ function animateNumber(target: number, key: keyof typeof animatedStats.value, du
     const elapsed = currentTime - startTime
     const progress = Math.min(elapsed / duration, 1)
 
-    // 使用 easeOutQuart 缓动函数
+    // easeOutQuart easing function
     const easeProgress = 1 - (1 - progress) ** 4
     const currentValue = Math.floor(start + (target - start) * easeProgress)
 
@@ -80,7 +83,7 @@ onMounted(() => {
 
 <template>
   <div class="min-h-screen bg-white">
-    <!-- 导航栏 -->
+    <!-- Navigation -->
     <nav class="relative z-50 bg-white shadow-sm">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center py-4">
@@ -88,17 +91,17 @@ onMounted(() => {
             <div class="w-10 h-10 flex items-center justify-center">
               <img src="/favicon.svg" alt="Nova Admin Logo" class="w-10 h-10">
             </div>
-            <span class="text-2xl font-bold text-gray-900">Nova Admin</span>
+            <span class="text-2xl font-bold text-gray-900">{{ t('landing.brandName') }}</span>
           </div>
           <div class="hidden md:flex items-center space-x-8">
-            <a href="#features" class="text-gray-600 hover:text-gray-900 transition-colors">功能特性</a>
-            <a href="#demo" class="text-gray-600 hover:text-gray-900 transition-colors">在线演示</a>
+            <a href="#features" class="text-gray-600 hover:text-gray-900 transition-colors">{{ t('landing.navFeatures') }}</a>
+            <a href="#demo" class="text-gray-600 hover:text-gray-900 transition-colors">{{ t('landing.navDemo') }}</a>
             <router-link
               to="/login"
               class="text-white px-6 py-2 rounded-full hover:shadow-lg transition-all transform hover:scale-105"
               style="background: linear-gradient(to right, #56CB46, #4CAF50);"
             >
-              登录系统
+              {{ t('landing.navLogin') }}
             </router-link>
           </div>
         </div>
@@ -111,33 +114,32 @@ onMounted(() => {
       <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
         <div class="text-center">
           <h1 class="text-5xl md:text-7xl font-extrabold text-gray-900 mb-8 leading-tight">
-            现代化的
+            {{ t('landing.heroTitle1') }}
             <span class="bg-clip-text text-transparent" style="background: linear-gradient(to right, #56CB46, #4CAF50); -webkit-background-clip: text; background-clip: text;">
-              后台管理系统
+              {{ t('landing.heroTitle2') }}
             </span>
           </h1>
           <p class="text-xl md:text-2xl text-gray-600 mb-12 max-w-3xl mx-auto leading-relaxed">
-            基于 Vue 3 + TypeScript 构建，提供开箱即用的企业级管理后台解决方案。
-            优雅设计，强大功能，助力您的业务快速发展。
+            {{ t('landing.heroDesc') }}
           </p>
           <div class="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-6">
             <button class="text-white px-8 py-4 rounded-full text-lg font-semibold hover:shadow-xl transition-all transform hover:scale-105" style="background: linear-gradient(to right, #56CB46, #4CAF50);">
-              免费体验
+              {{ t('landing.ctaTryFree') }}
             </button>
             <button class="border-2 border-gray-300 text-gray-700 px-8 py-4 rounded-full text-lg font-semibold hover:border-gray-400 transition-colors">
-              查看演示
+              {{ t('landing.ctaViewDemo') }}
             </button>
           </div>
         </div>
 
-        <!-- 统计数据 -->
+        <!-- Stats -->
         <div class="mt-20 grid grid-cols-2 md:grid-cols-4 gap-8">
           <div class="text-center">
             <div class="text-4xl font-bold text-gray-900 mb-2">
               {{ animatedStats.users }}+
             </div>
             <div class="text-gray-600">
-              活跃用户
+              {{ t('landing.statActiveUsers') }}
             </div>
           </div>
           <div class="text-center">
@@ -145,7 +147,7 @@ onMounted(() => {
               {{ animatedStats.projects }}+
             </div>
             <div class="text-gray-600">
-              项目部署
+              {{ t('landing.statDeployments') }}
             </div>
           </div>
           <div class="text-center">
@@ -153,7 +155,7 @@ onMounted(() => {
               {{ animatedStats.components }}+
             </div>
             <div class="text-gray-600">
-              组件库
+              {{ t('landing.statComponents') }}
             </div>
           </div>
           <div class="text-center">
@@ -161,22 +163,22 @@ onMounted(() => {
               99.9%
             </div>
             <div class="text-gray-600">
-              稳定性
+              {{ t('landing.statUptime') }}
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- 功能特性 -->
+    <!-- Features -->
     <section id="features" class="py-24 bg-gray-50">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-16">
           <h2 class="text-4xl font-bold text-gray-900 mb-4">
-            强大功能特性
+            {{ t('landing.featuresTitle') }}
           </h2>
           <p class="text-xl text-gray-600 max-w-3xl mx-auto">
-            为现代企业打造的全方位管理后台，集成最佳实践，开箱即用
+            {{ t('landing.featuresSubtitle') }}
           </p>
         </div>
 
@@ -188,10 +190,10 @@ onMounted(() => {
               </svg>
             </div>
             <h3 class="text-xl font-semibold text-gray-900 mb-3">
-              极速性能
+              {{ t('landing.feature1Title') }}
             </h3>
             <p class="text-gray-600">
-              基于 Vite 构建，热重载迅速，生产环境优化，让开发体验更流畅
+              {{ t('landing.feature1Desc') }}
             </p>
           </div>
 
@@ -202,10 +204,10 @@ onMounted(() => {
               </svg>
             </div>
             <h3 class="text-xl font-semibold text-gray-900 mb-3">
-              安全可靠
+              {{ t('landing.feature2Title') }}
             </h3>
             <p class="text-gray-600">
-              完善的权限管理体系，数据加密传输，让您的业务数据更安全
+              {{ t('landing.feature2Desc') }}
             </p>
           </div>
 
@@ -216,10 +218,10 @@ onMounted(() => {
               </svg>
             </div>
             <h3 class="text-xl font-semibold text-gray-900 mb-3">
-              智能分析
+              {{ t('landing.feature3Title') }}
             </h3>
             <p class="text-gray-600">
-              内置数据可视化组件，多维度业务分析，助力数据驱动决策
+              {{ t('landing.feature3Desc') }}
             </p>
           </div>
 
@@ -230,10 +232,10 @@ onMounted(() => {
               </svg>
             </div>
             <h3 class="text-xl font-semibold text-gray-900 mb-3">
-              用户友好
+              {{ t('landing.feature4Title') }}
             </h3>
             <p class="text-gray-600">
-              直观的界面设计，丰富的交互体验，降低学习成本，提升工作效率
+              {{ t('landing.feature4Desc') }}
             </p>
           </div>
 
@@ -245,10 +247,10 @@ onMounted(() => {
               </svg>
             </div>
             <h3 class="text-xl font-semibold text-gray-900 mb-3">
-              高度定制
+              {{ t('landing.feature5Title') }}
             </h3>
             <p class="text-gray-600">
-              模块化架构设计，支持主题定制，灵活配置，满足不同业务需求
+              {{ t('landing.feature5Desc') }}
             </p>
           </div>
 
@@ -259,34 +261,34 @@ onMounted(() => {
               </svg>
             </div>
             <h3 class="text-xl font-semibold text-gray-900 mb-3">
-              响应式设计
+              {{ t('landing.feature6Title') }}
             </h3>
             <p class="text-gray-600">
-              完美适配桌面端、平板和移动端，随时随地管理您的业务
+              {{ t('landing.feature6Desc') }}
             </p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- 在线演示 -->
+    <!-- Demo Section -->
     <section id="demo" class="py-24 bg-white">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-16">
           <h2 class="text-4xl font-bold text-gray-900 mb-4">
-            在线演示
+            {{ t('landing.demoTitle') }}
           </h2>
           <p class="text-xl text-gray-600">
-            无需登录，立即体验我们的核心功能
+            {{ t('landing.demoSubtitle') }}
           </p>
         </div>
 
         <div class="grid md:grid-cols-2 gap-12 items-center">
-          <!-- 演示区域 -->
+          <!-- Demo Area -->
           <div class="space-y-8">
             <div class="bg-gray-50 rounded-2xl p-8">
               <h3 class="text-xl font-semibold text-gray-900 mb-4">
-                实时数据面板
+                {{ t('landing.demoPanelTitle') }}
               </h3>
               <div class="grid grid-cols-2 gap-4 mb-6">
                 <div class="bg-white rounded-lg p-4 text-center">
@@ -294,7 +296,7 @@ onMounted(() => {
                     {{ animatedStats.sales }}
                   </div>
                   <div class="text-sm text-gray-600">
-                    今日销售
+                    {{ t('landing.demoSales') }}
                   </div>
                 </div>
                 <div class="bg-white rounded-lg p-4 text-center">
@@ -302,7 +304,7 @@ onMounted(() => {
                     {{ animatedStats.orders }}
                   </div>
                   <div class="text-sm text-gray-600">
-                    订单数量
+                    {{ t('landing.demoOrders') }}
                   </div>
                 </div>
               </div>
@@ -313,13 +315,13 @@ onMounted(() => {
                 onmouseout="this.style.backgroundColor='#56CB46'"
                 @click="refreshData"
               >
-                刷新数据
+                {{ t('landing.demoRefresh') }}
               </button>
             </div>
 
             <div class="bg-gray-50 rounded-2xl p-8">
               <h3 class="text-xl font-semibold text-gray-900 mb-4">
-                主题切换演示
+                {{ t('landing.themeTitle') }}
               </h3>
               <div class="flex space-x-3 mb-4">
                 <button
@@ -335,12 +337,12 @@ onMounted(() => {
                 class="h-24 rounded-lg transition-all duration-500 flex items-center justify-center text-white font-semibold"
                 :style="{ background: `linear-gradient(135deg, ${currentTheme.primary}, ${currentTheme.secondary})` }"
               >
-                {{ currentTheme.name }} 主题
+                {{ currentTheme.name }} {{ t('landing.themeSuffix') }}
               </div>
             </div>
           </div>
 
-          <!-- 功能列表 -->
+          <!-- Feature List -->
           <div class="space-y-6">
             <div class="flex items-start space-x-4">
               <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
@@ -350,10 +352,10 @@ onMounted(() => {
               </div>
               <div>
                 <h4 class="text-lg font-semibold text-gray-900">
-                  多语言支持
+                  {{ t('landing.checkI18n') }}
                 </h4>
                 <p class="text-gray-600">
-                  内置中英文切换，支持更多语言扩展
+                  {{ t('landing.checkI18nDesc') }}
                 </p>
               </div>
             </div>
@@ -366,10 +368,10 @@ onMounted(() => {
               </div>
               <div>
                 <h4 class="text-lg font-semibold text-gray-900">
-                  暗色模式
+                  {{ t('landing.checkDark') }}
                 </h4>
                 <p class="text-gray-600">
-                  护眼暗色主题，适合长时间使用
+                  {{ t('landing.checkDarkDesc') }}
                 </p>
               </div>
             </div>
@@ -382,10 +384,10 @@ onMounted(() => {
               </div>
               <div>
                 <h4 class="text-lg font-semibold text-gray-900">
-                  数据可视化
+                  {{ t('landing.checkCharts') }}
                 </h4>
                 <p class="text-gray-600">
-                  丰富的图表组件，数据展示更直观
+                  {{ t('landing.checkChartsDesc') }}
                 </p>
               </div>
             </div>
@@ -398,10 +400,10 @@ onMounted(() => {
     <section class="py-24" style="background: linear-gradient(to right, #56CB46, #4CAF50);">
       <div class="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
         <h2 class="text-4xl font-bold text-white mb-6">
-          开始构建您的管理系统
+          {{ t('landing.ctaTitle') }}
         </h2>
         <p class="text-xl text-green-100 mb-10 max-w-2xl mx-auto">
-          无需复杂配置，开箱即用。让我们一起打造高效、现代的管理后台体验。
+          {{ t('landing.ctaSubtitle') }}
         </p>
         <div class="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-6">
           <router-link
@@ -409,7 +411,7 @@ onMounted(() => {
             class="bg-white px-8 py-4 rounded-full text-lg font-semibold hover:shadow-lg transition-all transform hover:scale-105"
             style="color: #56CB46;"
           >
-            立即开始
+            {{ t('landing.ctaStartNow') }}
           </router-link>
           <a
             href="https://github.com"
@@ -419,7 +421,7 @@ onMounted(() => {
             onmouseover="this.style.color='#56CB46'"
             onmouseout="this.style.color='white'"
           >
-            查看源码
+            {{ t('landing.ctaViewSource') }}
           </a>
         </div>
       </div>
@@ -432,52 +434,52 @@ onMounted(() => {
           <div>
             <div class="flex items-center space-x-2 mb-4">
               <div class="w-10 h-10 flex items-center justify-center">
-                <img src="/favicon.svg" alt="Nova Admin Logo" class="w-8 h-8">
+                <img src="/favicon.svg" :alt="t('landing.brandName') + ' Logo'" class="w-8 h-8">
               </div>
-              <span class="text-xl font-bold text-white">Nova Admin</span>
+              <span class="text-xl font-bold text-white">{{ t('landing.brandName') }}</span>
             </div>
             <p class="text-gray-400">
-              现代化的企业级管理后台解决方案
+              {{ t('landing.footerDesc') }}
             </p>
           </div>
 
           <div>
             <h3 class="text-white font-semibold mb-4">
-              产品
+              {{ t('landing.footerProduct') }}
             </h3>
             <ul class="space-y-2">
-              <li><a href="#" class="hover:text-white transition-colors">功能特性</a></li>
-              <li><a href="#" class="hover:text-white transition-colors">价格方案</a></li>
-              <li><a href="#" class="hover:text-white transition-colors">更新日志</a></li>
+              <li><a href="#" class="hover:text-white transition-colors">{{ t('landing.footerFeatures') }}</a></li>
+              <li><a href="#" class="hover:text-white transition-colors">{{ t('landing.footerPricing') }}</a></li>
+              <li><a href="#" class="hover:text-white transition-colors">{{ t('landing.footerChangelog') }}</a></li>
             </ul>
           </div>
 
           <div>
             <h3 class="text-white font-semibold mb-4">
-              支持
+              {{ t('landing.footerSupport') }}
             </h3>
             <ul class="space-y-2">
-              <li><a href="#" class="hover:text-white transition-colors">使用文档</a></li>
-              <li><a href="#" class="hover:text-white transition-colors">API 参考</a></li>
-              <li><a href="#" class="hover:text-white transition-colors">社区论坛</a></li>
+              <li><a href="#" class="hover:text-white transition-colors">{{ t('landing.footerDocs') }}</a></li>
+              <li><a href="#" class="hover:text-white transition-colors">{{ t('landing.footerApi') }}</a></li>
+              <li><a href="#" class="hover:text-white transition-colors">{{ t('landing.footerCommunity') }}</a></li>
             </ul>
           </div>
 
           <div>
             <h3 class="text-white font-semibold mb-4">
-              公司
+              {{ t('landing.footerCompany') }}
             </h3>
             <ul class="space-y-2">
-              <li><a href="#" class="hover:text-white transition-colors">关于我们</a></li>
-              <li><a href="#" class="hover:text-white transition-colors">联系方式</a></li>
-              <li><a href="#" class="hover:text-white transition-colors">隐私政策</a></li>
+              <li><a href="#" class="hover:text-white transition-colors">{{ t('landing.footerAbout') }}</a></li>
+              <li><a href="#" class="hover:text-white transition-colors">{{ t('landing.footerContact') }}</a></li>
+              <li><a href="#" class="hover:text-white transition-colors">{{ t('landing.footerPrivacy') }}</a></li>
             </ul>
           </div>
         </div>
 
         <div class="border-t border-gray-800 mt-8 pt-8 text-center">
           <p class="text-gray-400">
-            © 2024 Nova Admin. 保留所有权利。这是一个公共访问示例页面，设置了 requiresAuth: false
+            © 2024 {{ t('landing.brandName') }}. {{ t('landing.footerRights') }}
           </p>
         </div>
       </div>

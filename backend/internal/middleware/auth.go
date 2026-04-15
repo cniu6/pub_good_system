@@ -1,11 +1,10 @@
 package middleware
 
 import (
-	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/utils"
+	"log"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -92,10 +91,7 @@ func AdminOnly() gin.HandlerFunc {
 			clientIP := c.ClientIP()
 
 			// 输出安全警告日志
-			gin.DefaultWriter.Write([]byte(
-				fmt.Sprintf("[SECURITY WARNING] %s | Non-admin access attempt | UserID: %v | IP: %s | Method: %s | Path: %s\n",
-					time.Now().Format(time.RFC3339), userID, clientIP, method, path),
-			))
+			log.Printf("[SECURITY WARNING] non-admin access attempt | user_id=%v | ip=%s | method=%s | path=%s", userID, clientIP, method, path)
 
 			utils.Fail(c, 403, "Admin access only")
 			c.Abort()
