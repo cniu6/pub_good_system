@@ -376,12 +376,12 @@ func (s *UserService) ClearLockUntil(user_id uint64) error {
 
 // UserSimpleInfo 用户简要信息（用于批量查询返回）
 type UserSimpleInfo struct {
-	ID       uint64 `json:"id"`
-	Username string `json:"username"`
-	Nickname string `json:"nickname"`
-	Email    string `json:"email"`
-	Role     string `json:"role"`
-	Status   uint8  `json:"status"`
+	ID       uint64 `db:"id" json:"id"`
+	Username string `db:"username" json:"username"`
+	Nickname string `db:"nickname" json:"nickname"`
+	Email    string `db:"email" json:"email"`
+	Role     string `db:"role" json:"role"`
+	Status   uint8  `db:"status" json:"status"`
 }
 
 // BatchGetUserSimpleInfo 批量获取用户简要信息
@@ -411,3 +411,4 @@ func (s *UserService) BatchGetUserSimpleInfo(userIDs []uint64) (map[uint64]UserS
 
 	return result, nil
 }
+

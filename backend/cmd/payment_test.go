@@ -71,9 +71,18 @@ func TestMain(m *testing.M) {
 
 // getTestToken 登录获取测试token（需要数据库中有测试用户）
 func getTestToken() string {
+	username := os.Getenv("TEST_ADMIN_USERNAME")
+	if username == "" {
+		username = "admin"
+	}
+	password := os.Getenv("TEST_ADMIN_PASSWORD")
+	if password == "" {
+		password = "admin123"
+	}
+
 	body := map[string]string{
-		"username": "admin",
-		"password": "admin123",
+		"username": username,
+		"password": password,
 	}
 	jsonBody, _ := json.Marshal(body)
 
@@ -443,3 +452,4 @@ func TestNotifyXSSInjection(t *testing.T) {
 		t.Error("XSS注入的回调不应成功")
 	}
 }
+

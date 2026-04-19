@@ -52,11 +52,11 @@ type WithdrawListResult struct {
 }
 
 type WithdrawStatsResult struct {
-	PendingCount  int64   `json:"pending_count"`
-	ApprovedCount int64   `json:"approved_count"`
-	RejectedCount int64   `json:"rejected_count"`
-	PaidCount     int64   `json:"paid_count"`
-	PaidAmount    float64 `json:"paid_amount"`
+	PendingCount  int64   `db:"pending_count" json:"pending_count"`
+	ApprovedCount int64   `db:"approved_count" json:"approved_count"`
+	RejectedCount int64   `db:"rejected_count" json:"rejected_count"`
+	PaidCount     int64   `db:"paid_count" json:"paid_count"`
+	PaidAmount    float64 `db:"paid_amount" json:"paid_amount"`
 }
 
 func InitWithdrawRequestsTable() {
@@ -241,3 +241,4 @@ func MarkWithdrawPaidTx(tx *sql.Tx, id uint64, transferRemark string, adminID ui
 	)
 	return err
 }
+
