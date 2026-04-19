@@ -5,6 +5,7 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/utils"
+	"log"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -53,7 +54,8 @@ func (c *RealnameController) List(ctx *gin.Context) {
 
 	result, err := c.realnameService.GetList(&query)
 	if err != nil {
-		utils.Fail(ctx, 500, "查询失败: "+err.Error())
+		log.Printf("[ADMIN REALNAME] list failed: %v", err)
+		utils.Fail(ctx, 500, "查询失败")
 		return
 	}
 
@@ -83,7 +85,8 @@ func (c *RealnameController) Detail(ctx *gin.Context) {
 			utils.Fail(ctx, 404, "实名认证记录不存在")
 			return
 		}
-		utils.Fail(ctx, 500, "查询失败: "+err.Error())
+		log.Printf("[ADMIN REALNAME] get by id failed: id=%d err=%v", id, err)
+		utils.Fail(ctx, 500, "查询失败")
 		return
 	}
 
@@ -125,7 +128,12 @@ func (c *RealnameController) Review(ctx *gin.Context) {
 	}
 
 	if err := c.realnameService.Review(admin_id.(uint64), svc_req); err != nil {
-		utils.Fail(ctx, 400, err.Error())
+		if services.IsClientError(err) {
+			utils.Fail(ctx, 400, err.Error())
+			return
+		}
+		log.Printf("[ADMIN REALNAME] review failed: admin_id=%v id=%d err=%v", admin_id, req.ID, err)
+		utils.Fail(ctx, 500, "审核操作失败，请稍后重试")
 		return
 	}
 
@@ -138,3 +146,4 @@ func (c *RealnameController) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/realname/:id", c.Detail)
 	group.POST("/realname/review", c.Review)
 }
+

@@ -1,7 +1,7 @@
 package models
 
 import (
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"log"
 	"time"
 )
@@ -190,3 +190,4 @@ func MaskPhone(phone string) string {
 	}
 	return phone[:3] + "****" + phone[len(phone)-4:]
 }
+

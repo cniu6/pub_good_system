@@ -8,9 +8,9 @@ import (
 	"fst/backend/app/plugins"
 	"fst/backend/app/plugins/demo"
 	"fst/backend/app/services"
-	"fst/backend/internal/config"
-	"fst/backend/internal/db"
-	"fst/backend/internal/middleware"
+	"fst/backend/pkg/config"
+	"fst/backend/pkg/db"
+	"fst/backend/pkg/middleware"
 	"fst/backend/routes"
 	"fst/backend/utils"
 	"io/fs"
@@ -56,13 +56,14 @@ func main() {
 	// 初始化用户会话表
 	models.InitUserSessionsTable()
 
-	// 初始化余额/积分变动日志表
-	models.InitUserMoneyLogsTable()
-	models.InitUserScoreLogsTable()
-	models.InitOperationLogsTable()
-
-	// 初始化支付订单表
-	models.InitPaymentOrdersTable()
+ 	// 初始化余额/积分变动日志表
+ 	models.InitUserMoneyLogsTable()
+ 	models.InitUserScoreLogsTable()
+ 	models.InitOperationLogsTable()
+	models.InitAPIAccessLogsTable()
+ 
+ 	// 初始化支付订单表
+ 	models.InitPaymentOrdersTable()
 
 	// 初始化提现申请表
 	models.InitWithdrawRequestsTable()
@@ -76,19 +77,23 @@ func main() {
 	// 初始化配置服务（缓存）
 	services.InitSettingsService()
 
-	// 启动定时清理任务：间隔可通过 CLEANUP_INTERVAL_MINUTES 配置，默认10分钟
-	// 清理状态仅在内存中记录，不输出周期性日志，可通过接口查询
-	services.StartCleanupTask()
-	models.CleanupExpiredIdempotencyKeys()
-
-	// 初始化短信服务
-	services.InitSMSService()
-
-	router := gin.New()
-	router.Use(gin.Logger(), gin.Recovery())
-	router.SetTrustedProxies(nil) // 修复 "trusted all proxies" 警告
-	router.Use(middleware.CorsMiddleware())
-	routes.SetupRoutes(router)
+ 	// 启动定时清理任务：间隔可通过 CLEANUP_INTERVAL_MINUTES 配置，默认10分钟
+ 	// 清理状态仅在内存中记录，不输出周期性日志，可通过接口查询
+ 	services.StartCleanupTask()
+	_, _ = models.CleanupExpiredIdempotencyKeys()
+	services.StartExpiredOrderTask()
+ 
+ 	// 初始化短信服务
+ 	services.InitSMSService()
+ 
+ 	router := gin.New()
+ 	router.Use(gin.Logger(), gin.Recovery())
+ 	router.SetTrustedProxies(nil) // 修复 "trusted all proxies" 警告
+ 	router.Use(middleware.CorsMiddleware())
+	router.Use(middleware.LoggerMiddleware())
+	router.Use(middleware.APIAccessLogMiddleware())
+	router.Use(middleware.DynamicGlobalRateLimitMiddleware())
+ 	routes.SetupRoutes(router)
 
 	// 插件初始化
 	pluginMgr := plugins.NewManager()
@@ -142,8 +147,9 @@ func main() {
 	}
 
 	port := config.GlobalConfig.Port
+	server := utils.NewHTTPServer(":"+port, router)
 	log.Printf("Server starting on port %s [%s Mode]...", port, BuildMode)
-	if err := router.Run(":" + port); err != nil {
+	if err := utils.ServeHTTPServer(server, pluginMgr.ShutdownAll); err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
 }

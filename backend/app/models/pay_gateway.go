@@ -1,7 +1,7 @@
 package models
 
 import (
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"log"
 	"time"
 )
@@ -178,3 +178,4 @@ func GetEnabledPayGateways() ([]PayGateway, error) {
 	}
 	return gateways, nil
 }
+

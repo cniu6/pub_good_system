@@ -52,6 +52,10 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       target: 'esnext',
+      // 输出到项目根目录 dist/，供 go:embed 嵌入
+      outDir: resolve(__dirname, '../dist'),
+      // 构建前自动清空根目录 dist/ 旧产物
+      emptyOutDir: true,
       reportCompressedSize: false,
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
@@ -74,17 +78,9 @@ export default defineConfig(({ mode }) => {
            * - assets/m/admin-api-[hash].js    管理端 API 调用
            */
           manualChunks(id) {
-            // 管理端视图组件 -> admin-views chunk
-            if (id.includes('src/views/admin')) {
-              return 'admin-views'
-            }
             // 管理端路由配置 -> admin-core chunk
             if (id.includes('src/router/admin.routes')) {
               return 'admin-core'
-            }
-            // 管理端 API 服务 -> admin-api chunk
-            if (id.includes('src/service/api/admin')) {
-              return 'admin-api'
             }
             // 第三方库分包优化
             if (id.includes('node_modules')) {
@@ -93,12 +89,6 @@ export default defineConfig(({ mode }) => {
               }
               if (id.includes('echarts')) {
                 return 'vendor-echarts'
-              }
-              if (id.includes('md-editor') || id.includes('quill')) {
-                return 'vendor-editor'
-              }
-              if (id.includes('vue') || id.includes('@vue')) {
-                return 'vendor-vue'
               }
             }
           },

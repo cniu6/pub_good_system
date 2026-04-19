@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { RouteLocationNormalized } from 'vue-router'
+import type { TabRouteItem } from '@/store/tab'
 import { useAppStore, useTabStore } from '@/store'
 import { useTabScroll } from '@/hooks/useTabScroll'
 import { useDraggable } from 'vue-draggable-plus'
@@ -22,7 +22,7 @@ const { scrollbar, onWheel } = useTabScroll(computed(() => tabStore.currentTabPa
 void scrollbar
 
 const router = useRouter()
-function handleTab(route: RouteLocationNormalized) {
+function handleTab(route: TabRouteItem) {
   router.push(route.fullPath)
 }
 const { t } = useI18n()
@@ -63,10 +63,14 @@ const options = computed(() => {
 const showDropdown = ref(false)
 const x = ref(0)
 const y = ref(0)
-const currentRoute = ref()
+const currentRoute = ref<TabRouteItem | null>(null)
 
 function handleSelect(key: string) {
   showDropdown.value = false
+  const activeRoute = currentRoute.value
+  if (!activeRoute)
+    return
+
   interface HandleFn {
     [key: string]: any
   }
@@ -75,24 +79,24 @@ function handleSelect(key: string) {
       appStore.reloadPage()
     },
     closeCurrent() {
-      tabStore.closeTab(currentRoute.value.fullPath)
+      tabStore.closeTab(activeRoute.fullPath)
     },
     closeOther() {
-      tabStore.closeOtherTabs(currentRoute.value.fullPath)
+      tabStore.closeOtherTabs(activeRoute.fullPath)
     },
     closeLeft() {
-      tabStore.closeLeftTabs(currentRoute.value.fullPath)
+      tabStore.closeLeftTabs(activeRoute.fullPath)
     },
     closeRight() {
-      tabStore.closeRightTabs(currentRoute.value.fullPath)
+      tabStore.closeRightTabs(activeRoute.fullPath)
     },
     closeAll() {
       tabStore.closeAllTabs()
     },
   }
-  handleFn[key]()
+  handleFn[key]?.()
 }
-function handleContextMenu(e: MouseEvent, route: RouteLocationNormalized) {
+function handleContextMenu(e: MouseEvent, route: TabRouteItem) {
   e.preventDefault()
   currentRoute.value = route
   showDropdown.value = false

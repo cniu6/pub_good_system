@@ -157,9 +157,41 @@ func TestNormalizeTradeNo(t *testing.T) {
 	}
 }
 
+func TestCanTransitionPaymentStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		from     int
+		to       int
+		expected bool
+	}{
+		{name: "待支付可变已支付", from: PaymentStatusPending, to: PaymentStatusPaid, expected: true},
+		{name: "待支付可变已取消", from: PaymentStatusPending, to: PaymentStatusCanceled, expected: true},
+		{name: "待支付可变失败", from: PaymentStatusPending, to: PaymentStatusFailed, expected: true},
+		{name: "待支付保持待支付允许幂等", from: PaymentStatusPending, to: PaymentStatusPending, expected: true},
+		{name: "已支付可变已退款", from: PaymentStatusPaid, to: PaymentStatusRefunded, expected: true},
+		{name: "已支付不能改已取消", from: PaymentStatusPaid, to: PaymentStatusCanceled, expected: false},
+		{name: "已支付不能改失败", from: PaymentStatusPaid, to: PaymentStatusFailed, expected: false},
+		{name: "已取消不能回待支付", from: PaymentStatusCanceled, to: PaymentStatusPending, expected: false},
+		{name: "已取消不能改已支付", from: PaymentStatusCanceled, to: PaymentStatusPaid, expected: false},
+		{name: "已失败不能回待支付", from: PaymentStatusFailed, to: PaymentStatusPending, expected: false},
+		{name: "已失败不能改已支付", from: PaymentStatusFailed, to: PaymentStatusPaid, expected: false},
+		{name: "已支付不能回待支付", from: PaymentStatusPaid, to: PaymentStatusPending, expected: false},
+		{name: "已退款不能回已支付", from: PaymentStatusRefunded, to: PaymentStatusPaid, expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := canTransitionPaymentStatus(tt.from, tt.to); got != tt.expected {
+				t.Fatalf("canTransitionPaymentStatus(%d, %d) = %v, want %v", tt.from, tt.to, got, tt.expected)
+			}
+		})
+	}
+}
+
 // BenchmarkGenerateOrderNo 订单号生成性能基准
 func BenchmarkGenerateOrderNo(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		GenerateOrderNo()
 	}
 }
+

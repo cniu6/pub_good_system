@@ -194,12 +194,8 @@ func GetPayGatewayListForAdmin(page, pageSize int, keyword string) ([]models.Pay
 
 // GetPayGatewayListForUser 用户端获取支付通道列表（隐藏敏感信息）
 func GetPayGatewayListForUser() ([]models.PayGateway, error) {
-	settingsMap, err := models.GetSettingsMap([]string{"payment_enabled"})
-	if err == nil {
-		paymentEnabled := settingsMap["payment_enabled"] == "true" || settingsMap["payment_enabled"] == "1"
-		if !paymentEnabled {
-			return []models.PayGateway{}, nil
-		}
+	if !GetGlobalPaymentEnabled() {
+		return []models.PayGateway{}, nil
 	}
 
 	gateways, err := models.GetEnabledPayGateways()
@@ -241,3 +237,4 @@ func CalculateFee(amount float64, feeRate int, feeMode string) (fee float64, pay
 
 	return fee, payAmount, creditAmount
 }
+

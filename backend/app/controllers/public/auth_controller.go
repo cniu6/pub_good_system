@@ -2,13 +2,11 @@ package public
 
 import (
 	crypto_rand "crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
-	"fst/backend/internal/config"
-	"fst/backend/internal/middleware"
+	"fst/backend/pkg/config"
+	"fst/backend/pkg/middleware"
 	"fst/backend/utils"
 	"log"
 	"math/big"
@@ -78,19 +76,7 @@ type RefreshTokenRequest struct {
 
 // getLangFromRequest 从请求中获取语言参数
 func getLangFromRequest(c *gin.Context, reqLang string) string {
-	lang := reqLang
-	if lang == "" {
-		lang = c.GetHeader("Accept-Language")
-	}
-	if lang == "" {
-		lang = "en-US"
-	}
-	if strings.Contains(lang, "zh") {
-		lang = "zh-CN"
-	} else {
-		lang = "en-US"
-	}
-	return lang
+	return utils.ResolveRequestLang(c, reqLang, "en-US")
 }
 
 func isNonProductionMode() bool {
@@ -98,21 +84,7 @@ func isNonProductionMode() bool {
 }
 
 func registrationAllowed() bool {
-	if services.GlobalSettingsService != nil {
-		return services.GlobalSettingsService.GetBoolWithDefault("allow_register", true)
-	}
-
-	setting, err := models.GetSettingByKey("allow_register")
-	if err != nil {
-		return true
-	}
-
-	value := strings.TrimSpace(setting.Value)
-	if value == "" {
-		return true
-	}
-
-	return value == "1" || strings.EqualFold(value, "true")
+	return services.GetGlobalAllowRegister()
 }
 
 // ========================================
@@ -171,16 +143,7 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	}
 
 	// 获取客户端IP
-	clientIP := c.ClientIP()
-	if clientIP == "" {
-		clientIP = c.GetHeader("X-Forwarded-For")
-		if clientIP == "" {
-			clientIP = c.GetHeader("X-Real-IP")
-		}
-	}
-	if clientIP == "" {
-		clientIP = "unknown"
-	}
+	clientIP := utils.GetClientIP(c)
 
 	// 调用服务层登录
 	authGuard := req.AuthGuard
@@ -198,9 +161,9 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 
 	// 记录登录会话
 	userAgent := c.GetHeader("User-Agent")
-	device := parseDevice(userAgent)
-	accessTokenHash := hashToken(result.AccessToken)
-	refreshTokenHash := hashToken(result.RefreshToken)
+	device := utils.ParseDeviceFromUserAgent(userAgent)
+	accessTokenHash := utils.HashToken(result.AccessToken)
+	refreshTokenHash := utils.HashToken(result.RefreshToken)
 	if err := models.CreateUserSession(result.ID, authGuard, accessTokenHash, refreshTokenHash, clientIP, userAgent, device, result.ExpiresAt, result.RefreshExpiresAt); err != nil {
 		if isNonProductionMode() {
 			log.Printf("[AUTH] create login session failed: user_id=%d, err=%v", result.ID, err)
@@ -210,35 +173,6 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	}
 
 	utils.Success(c, result)
-}
-
-// hashToken 对 token 进行 SHA256 哈希
-func hashToken(token string) string {
-	h := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(h[:])
-}
-
-// parseDevice 从 User-Agent 中解析设备信息
-func parseDevice(ua string) string {
-	ua = strings.ToLower(ua)
-	switch {
-	case strings.Contains(ua, "iphone"):
-		return "iPhone"
-	case strings.Contains(ua, "ipad"):
-		return "iPad"
-	case strings.Contains(ua, "android") && strings.Contains(ua, "mobile"):
-		return "Android Phone"
-	case strings.Contains(ua, "android"):
-		return "Android Tablet"
-	case strings.Contains(ua, "macintosh"):
-		return "Mac"
-	case strings.Contains(ua, "windows"):
-		return "Windows PC"
-	case strings.Contains(ua, "linux"):
-		return "Linux PC"
-	default:
-		return "Unknown"
-	}
 }
 
 // Register 注册新用户
@@ -458,11 +392,8 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 		return
 	}
 
-	// 从系统设置读取前端地址
-	frontendURL := ""
-	if s, err := models.GetSettingByKey("frontend_url"); err == nil && s.Value != "" {
-		frontendURL = strings.TrimRight(s.Value, "/")
-	}
+	// 从运行时配置读取前端地址（SQL 优先，环境变量兜底）
+	frontendURL := strings.TrimRight(services.GetGlobalFrontendURL(), "/")
 	if frontendURL == "" {
 		if isNonProductionMode() {
 			frontendURL = "http://localhost:5173"
@@ -571,19 +502,10 @@ func (ctrl *AuthController) UpdateToken(c *gin.Context) {
 	}
 	req.AuthGuard = utils.Clean_XSS(req.AuthGuard)
 
-	clientIP := c.ClientIP()
-	if clientIP == "" {
-		clientIP = c.GetHeader("X-Forwarded-For")
-		if clientIP == "" {
-			clientIP = c.GetHeader("X-Real-IP")
-		}
-	}
-	if clientIP == "" {
-		clientIP = "unknown"
-	}
+	clientIP := utils.GetClientIP(c)
 
 	userAgent := c.GetHeader("User-Agent")
-	device := parseDevice(userAgent)
+	device := utils.ParseDeviceFromUserAgent(userAgent)
 
 	authGuard := req.AuthGuard
 	if authGuard == "" {
@@ -621,3 +543,4 @@ func generateSecureCode() string {
 	}
 	return fmt.Sprintf("%06d", n.Int64())
 }
+

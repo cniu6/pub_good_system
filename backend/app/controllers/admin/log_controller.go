@@ -101,6 +101,32 @@ func (c *LogController) List(ctx *gin.Context) {
 	})
 }
 
+// Detail 日志详情
+// @Summary 获取操作日志详情
+// @Description 获取操作日志详情
+// @Tags Admin-操作日志
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path uint64 true "日志 ID"
+// @Success 200 {object} utils.Response
+// @Router /api/v1/admin/logs/{id} [get]
+func (c *LogController) Detail(ctx *gin.Context) {
+	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(ctx, 400, "无效的 ID")
+		return
+	}
+
+	logItem, err := models.GetOperationLogByID(id)
+	if err != nil {
+		utils.Fail(ctx, 404, "记录不存在")
+		return
+	}
+
+	utils.Success(ctx, logItem)
+}
+
 // Clean 清理日志
 // @Summary 清理操作日志
 // @Description 清理指定时间之前的操作日志，用于控制日志数量
@@ -130,3 +156,4 @@ func (c *LogController) Clean(ctx *gin.Context) {
 		"affected": affected,
 	})
 }
+

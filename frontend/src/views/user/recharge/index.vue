@@ -97,6 +97,7 @@ const paymentTypeMap: Record<string, string> = {
   qqpay: t('recharge.qqWallet'),
   bank: t('recharge.bankCard'),
   jdpay: t('recharge.jdPay'),
+  manual: t('recharge.manual'),
 }
 
 function payTypeIcon(payType: string): string {

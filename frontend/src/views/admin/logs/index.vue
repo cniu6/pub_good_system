@@ -28,24 +28,65 @@
         </n-button>
       </n-space>
 
+      <n-space justify="end">
+        <TableColumnSelector
+          v-model="selectedColumnKeys"
+          :options="columnOptions"
+          :visible-count="visibleColumnCount"
+          :total-count="totalColumnCount"
+          :button-label="t('common.showFields')"
+          :title="t('common.visibleFields')"
+          :hint="t('common.columnVisibilityHint')"
+          :reset-label="t('common.restoreDefaultFields')"
+          @reset="resetSelectedColumns"
+        />
+      </n-space>
+
       <n-data-table
         remote
-        :columns="columns"
+        :columns="visibleColumns"
         :data="logList"
         :loading="loading"
         :pagination="pagination"
+        :scroll-x="tableScrollX"
         @update:page="handlePageChange"
       />
+
+      <n-modal v-model:show="showDetail" preset="card" :title="t('adminLogs.detailTitle')" style="width: 860px;" :mask-closable="true">
+        <n-text v-if="detailLoading" depth="3">{{ t('adminLogs.loading') }}</n-text>
+        <n-space v-else-if="detailData" vertical :size="16">
+          <n-descriptions bordered :column="2" label-placement="left">
+            <n-descriptions-item :label="t('adminLogs.module')">{{ detailData.module || '-' }}</n-descriptions-item>
+            <n-descriptions-item :label="t('adminLogs.action')">{{ detailData.action || '-' }}</n-descriptions-item>
+            <n-descriptions-item :label="t('adminLogs.method')">{{ detailData.method || '-' }}</n-descriptions-item>
+            <n-descriptions-item :label="t('adminLogs.path')">{{ detailData.path || '-' }}</n-descriptions-item>
+            <n-descriptions-item :label="t('adminLogs.ip')">{{ detailData.ip || '-' }}</n-descriptions-item>
+            <n-descriptions-item :label="t('adminLogs.duration')">{{ detailData.duration || 0 }}</n-descriptions-item>
+            <n-descriptions-item :label="t('adminLogs.time')" :span="2">{{ detailData.create_time ? new Date(detailData.create_time * 1000).toLocaleString() : '-' }}</n-descriptions-item>
+          </n-descriptions>
+
+          <n-card size="small" embedded :title="t('adminLogs.requestBody')">
+            <div class="payload-block">{{ formattedRequestBody || '-' }}</div>
+          </n-card>
+
+          <n-card size="small" embedded :title="t('adminLogs.responseBody')">
+            <div class="payload-block dark">{{ formattedResponseBody || '-' }}</div>
+          </n-card>
+        </n-space>
+        <n-text v-else depth="3">{{ t('adminLogs.noDetailData') }}</n-text>
+      </n-modal>
     </n-space>
   </n-card>
 </template>
 
 <script setup lang="ts">
-import { h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NTag, NButton, useMessage } from 'naive-ui'
+import { NTag, NButton, useMessage, NDescriptions, NDescriptionsItem, NCard, NText, NSpace, NModal } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { useRouter } from 'vue-router'
+import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
+import { useTableColumnVisibility } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 import type { UserSimpleInfo } from '@/service/api/admin/user'
 
@@ -59,6 +100,9 @@ const total = ref(0)
 const queryDays = ref(30)
 const maxCount = ref(500)
 const savingQuerySettings = ref(false)
+const showDetail = ref(false)
+const detailLoading = ref(false)
+const detailData = ref<any | null>(null)
 
 // 获取管理端路径前缀
 const adminPath = import.meta.env.VITE_ADMIN_BASE_PATH || '/system-mgr'
@@ -96,6 +140,20 @@ function getUserDisplayName(userId: number): string {
   if (!user) return t('adminLogs.userPrefix', { id: userId })
   return user.nickname || user.username || t('adminLogs.userPrefix', { id: userId })
 }
+
+function formatPayload(raw?: string) {
+  const value = raw?.trim()
+  if (!value) return ''
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2)
+  }
+  catch {
+    return value
+  }
+}
+
+const formattedRequestBody = computed(() => formatPayload(detailData.value?.request_body))
+const formattedResponseBody = computed(() => formatPayload(detailData.value?.response_body))
 
 const columns: DataTableColumns<any> = [
   { title: 'ID', key: 'id', width: 80 },
@@ -141,7 +199,68 @@ const columns: DataTableColumns<any> = [
       return new Date(row.create_time * 1000).toLocaleString()
     },
   },
+  {
+    title: t('adminLogs.actions'),
+    key: 'actions',
+    width: 80,
+    render(row) {
+      return h(
+        NButton,
+        {
+          text: true,
+          type: 'primary',
+          onClick: () => handleDetail(row.id),
+        },
+        { default: () => t('adminLogs.detail') },
+      )
+    },
+  },
 ]
+
+ const selectableColumnOptions = [
+   { key: 'id', label: 'ID' },
+   { key: 'user_id', label: t('adminLogs.user') },
+   { key: 'module', label: t('adminLogs.module') },
+   { key: 'action', label: t('adminLogs.action') },
+   { key: 'method', label: t('adminLogs.method') },
+   { key: 'path', label: t('adminLogs.path') },
+   { key: 'ip', label: t('adminLogs.ip') },
+   { key: 'duration', label: t('adminLogs.duration') },
+   { key: 'create_time', label: t('adminLogs.time') },
+ ]
+
+ const {
+   columnOptions,
+   selectedColumnKeys,
+   visibleColumns,
+   visibleColumnCount,
+   totalColumnCount,
+   tableScrollX,
+   resetSelectedColumns,
+ } = useTableColumnVisibility({
+   storageKey: 'admin-operation-logs-list',
+   columns,
+   options: selectableColumnOptions,
+   minVisibleCount: 1,
+   minScrollX: 960,
+ })
+
+async function handleDetail(id: number) {
+  showDetail.value = true
+  detailLoading.value = true
+  detailData.value = null
+  try {
+    const res = await adminApi.log.detail(id)
+    detailData.value = res.data || null
+  }
+  catch {
+    showDetail.value = false
+    message.error(t('adminLogs.loadDetailFailed'))
+  }
+  finally {
+    detailLoading.value = false
+  }
+}
 
 // 批量获取日志中的用户信息
 async function fetchUserInfos(logs: any[]) {
@@ -276,4 +395,22 @@ onMounted(() => {
 })
 </script>
 
-<style scoped></style>
+<style scoped>
+.payload-block {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgb(250 250 252);
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.payload-block.dark {
+  background: rgb(17 24 39);
+  color: rgb(229 231 235);
+}
+</style>

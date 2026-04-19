@@ -179,7 +179,7 @@ onActivated(() => {
           <n-h3 class="user-name">
             <span class="user-name-text">{{ userInfo?.nickname || userInfo?.userName || t('userCenter.user') }}</span>
             <n-text v-if="userInfo?.userName" depth="3" class="user-name-account">
-            ({{ t('userCenter.usernamePrefix') }}{{ userInfo.userName }})
+            (@{{ userInfo.userName }})
           </n-text>
           </n-h3>
           <n-text depth="3" class="user-email ml-2">

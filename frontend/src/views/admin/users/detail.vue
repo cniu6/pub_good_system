@@ -54,6 +54,17 @@ function formatLanguage(language?: string) {
   return language
 }
 
+function formatCurrency(value?: number | null) {
+  return Number(value || 0).toFixed(2)
+}
+
+function formatRechargeRetentionRatio(currentUser?: AdminUser | null) {
+  const totalPaid = Number(currentUser?.total_paid_amount || 0)
+  if (totalPaid <= 0)
+    return '-'
+  return `${(Number(currentUser?.balance_paid_ratio || 0) * 100).toFixed(2)}%`
+}
+
 // 重置密码相关
 const showResetPasswordModal = ref(false)
 const newPassword = ref('')
@@ -850,6 +861,9 @@ onMounted(() => {
                     {{ user?.status === 1 ? t('adminUsersDetail.normal') : t('adminUsersDetail.disabled') }}
                   </NTag>
                 </n-descriptions-item>
+                <n-descriptions-item :label="t('adminUsers.adminRemark')" :span="2">
+                  {{ user?.admin_remark || '-' }}
+                </n-descriptions-item>
               </n-descriptions>
             </n-card>
 
@@ -857,10 +871,16 @@ onMounted(() => {
             <n-card :title="t('adminUsersDetail.assetInfo')" class="info-section">
               <n-descriptions :column="2" bordered>
                 <n-descriptions-item :label="t('adminUsersDetail.balance')">
-                  <span class="money-amount">¥{{ user?.money ? Number(user.money).toFixed(2) : '0.00' }}</span>
+                  <span class="money-amount">¥{{ formatCurrency(user?.money) }}</span>
                 </n-descriptions-item>
                 <n-descriptions-item :label="t('adminUsersDetail.score')">
                   <span class="score-amount">{{ user?.score || '0' }}</span>
+                </n-descriptions-item>
+                <n-descriptions-item :label="t('adminUsers.totalPaidAmount')">
+                  {{ Number(user?.total_paid_amount || 0) > 0 ? `¥${formatCurrency(user?.total_paid_amount)}` : '-' }}
+                </n-descriptions-item>
+                <n-descriptions-item :label="t('adminUsers.rechargeRetentionRatio')">
+                  {{ formatRechargeRetentionRatio(user) }}
                 </n-descriptions-item>
                 <n-descriptions-item :label="t('adminUsersDetail.apiKey')" :span="2">
                   <n-text code>

@@ -2,12 +2,15 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"fst/backend/app/models"
 	sms_plugin "fst/backend/app/plugins/sms"
 	"fst/backend/app/services"
-	"fst/backend/internal/config"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/config"
+	"fst/backend/pkg/db"
+	"fst/backend/pkg/middleware"
 	"fst/backend/utils"
+	"log"
 	"net"
 	"os"
 	"regexp"
@@ -54,21 +57,21 @@ type CreateSettingRequest struct {
 	Category    string `json:"category"` // basic, security, email, custom
 	Label       string `json:"label" binding:"required"`
 	Description string `json:"description"`
-	IsPublic    bool   `json:"is_public"`
-	IsEditable  bool   `json:"is_editable"`
+	IsPublic    *bool  `json:"is_public"`
+	IsEditable  *bool  `json:"is_editable"`
 	SortOrder   int    `json:"sort_order"`
 }
 
 // UpdateSettingMetaRequest 更新配置元数据请求
 type UpdateSettingMetaRequest struct {
-	Value       string `json:"value"`
-	Type        string `json:"type"`
-	Category    string `json:"category"`
-	Label       string `json:"label"`
-	Description string `json:"description"`
-	IsPublic    bool   `json:"is_public"`
-	IsEditable  bool   `json:"is_editable"`
-	SortOrder   int    `json:"sort_order"`
+	Value       *string `json:"value"`
+	Type        *string `json:"type"`
+	Category    *string `json:"category"`
+	Label       *string `json:"label"`
+	Description *string `json:"description"`
+	IsPublic    *bool   `json:"is_public"`
+	IsEditable  *bool   `json:"is_editable"`
+	SortOrder   *int    `json:"sort_order"`
 }
 
 // SettingsListResponse 配置列表响应
@@ -313,30 +316,74 @@ func (ctrl *SettingsController) UpdateMeta(c *gin.Context) {
 		return
 	}
 
-	// 验证类型
-	if req.Type != "" && !ctrl.isValidType(req.Type) {
-		utils.Fail(c, 400, "Invalid type. Must be one of: string, number, boolean, json")
+	effectiveType := existingSetting.Type
+	if req.Type != nil {
+		candidateType := strings.TrimSpace(*req.Type)
+		if candidateType == "" || !ctrl.isValidType(candidateType) {
+			utils.Fail(c, 400, "Invalid type. Must be one of: string, number, boolean, json")
+			return
+		}
+		effectiveType = candidateType
+	}
+
+	effectiveCategory := existingSetting.Category
+	if req.Category != nil {
+		candidateCategory := strings.TrimSpace(*req.Category)
+		if candidateCategory == "" || !ctrl.isValidCategory(candidateCategory) {
+			utils.Fail(c, 400, "Invalid category. Must be one of: basic, security, email, payment, sms, custom")
+			return
+		}
+		effectiveCategory = candidateCategory
+	}
+
+	effectiveValue := existingSetting.Value
+	if req.Value != nil {
+		effectiveValue = ctrl.normalizeSettingValueForWrite(*existingSetting, *req.Value)
+	}
+	if !ctrl.validateSettingValue(effectiveValue, effectiveType) {
+		utils.Fail(c, 400, "Invalid value type for "+effectiveType)
 		return
 	}
 
-	// 类型校验
-	resolvedValue := ctrl.normalizeSettingValueForWrite(*existingSetting, req.Value)
-	if !ctrl.validateSettingValue(resolvedValue, req.Type) {
-		utils.Fail(c, 400, "Invalid value type for "+req.Type)
-		return
+	effectiveLabel := existingSetting.Label
+	if req.Label != nil {
+		effectiveLabel = utils.Clean_XSS(*req.Label)
+		if strings.TrimSpace(effectiveLabel) == "" {
+			utils.Fail(c, 400, "Label is required")
+			return
+		}
 	}
 
-	// 构建更新对象
+	effectiveDescription := existingSetting.Description
+	if req.Description != nil {
+		effectiveDescription = utils.Clean_XSS(*req.Description)
+	}
+
+	effectiveIsPublic := existingSetting.IsPublic
+	if req.IsPublic != nil {
+		effectiveIsPublic = *req.IsPublic
+	}
+
+	effectiveIsEditable := existingSetting.IsEditable
+	if req.IsEditable != nil {
+		effectiveIsEditable = *req.IsEditable
+	}
+
+	effectiveSortOrder := existingSetting.SortOrder
+	if req.SortOrder != nil {
+		effectiveSortOrder = *req.SortOrder
+	}
+
 	setting := &models.SystemSetting{
 		Key:         key,
-		Value:       resolvedValue,
-		Type:        req.Type,
-		Category:    req.Category,
-		Label:       req.Label,
-		Description: req.Description,
-		IsPublic:    req.IsPublic,
-		IsEditable:  req.IsEditable,
-		SortOrder:   req.SortOrder,
+		Value:       effectiveValue,
+		Type:        effectiveType,
+		Category:    effectiveCategory,
+		Label:       effectiveLabel,
+		Description: effectiveDescription,
+		IsPublic:    effectiveIsPublic,
+		IsEditable:  effectiveIsEditable,
+		SortOrder:   effectiveSortOrder,
 	}
 
 	if err := models.UpdateSettingWithMeta(setting); err != nil {
@@ -459,6 +506,16 @@ func (ctrl *SettingsController) Create(c *gin.Context) {
 		return
 	}
 
+	isPublic := false
+	if req.IsPublic != nil {
+		isPublic = *req.IsPublic
+	}
+
+	isEditable := true
+	if req.IsEditable != nil {
+		isEditable = *req.IsEditable
+	}
+
 	// 创建配置
 	setting := &models.SystemSetting{
 		Key:         req.Key,
@@ -467,8 +524,8 @@ func (ctrl *SettingsController) Create(c *gin.Context) {
 		Category:    req.Category,
 		Label:       req.Label,
 		Description: req.Description,
-		IsPublic:    req.IsPublic,
-		IsEditable:  req.IsEditable,
+		IsPublic:    isPublic,
+		IsEditable:  isEditable,
 		SortOrder:   req.SortOrder,
 	}
 
@@ -555,16 +612,20 @@ func (ctrl *SettingsController) isValidCategory(cat string) bool {
 
 // validateSettingValue 根据类型验证值
 func (ctrl *SettingsController) validateSettingValue(value, typ string) bool {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return true
+	}
 	switch typ {
 	case "number":
-		_, err := strconv.ParseFloat(value, 64)
+		_, err := strconv.ParseFloat(trimmed, 64)
 		return err == nil
 	case "boolean":
-		lower := strings.ToLower(value)
+		lower := strings.ToLower(trimmed)
 		return lower == "true" || lower == "false" || lower == "1" || lower == "0"
 	case "json":
-		// JSON 类型允许任意字符串，前端负责解析
-		return true
+		var payload interface{}
+		return json.Unmarshal([]byte(trimmed), &payload) == nil
 	case "string":
 		return true
 	default:
@@ -615,12 +676,31 @@ func (ctrl *SettingsController) resolveSettingValueForAdmin(setting models.Syste
 			return config.GlobalConfig.SMTPSSL
 		}
 		return setting.GetTypedValue()
+	case "system_email_address":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			val = strings.TrimSpace(config.GlobalConfig.SystemEmail)
+		}
+		return val
 	case "system_email_name":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
 			val = strings.TrimSpace(config.GlobalConfig.SystemEmailName)
 		}
 		return val
+	case "frontend_url":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			val = strings.TrimSpace(config.GlobalConfig.FrontendURL)
+		}
+		return val
+	case "register_code_expire_minutes":
+		if strings.TrimSpace(setting.Value) == "" {
+			if config.GlobalConfig.RegisterCodeExpireMinutes > 0 {
+				return config.GlobalConfig.RegisterCodeExpireMinutes
+			}
+		}
+		return setting.GetTypedValue()
 	case "jwt_access_expire":
 		if strings.TrimSpace(setting.Value) == "" {
 			if config.GlobalConfig.JWTAccessExpire > 0 {
@@ -781,80 +861,10 @@ func parsePositiveIntSetting(v string, fallback int) int {
 }
 
 func (ctrl *SettingsController) refreshRuntimeConfig() {
-	if services.GlobalSettingsService != nil {
-		services.GlobalSettingsService.InvalidateCache()
-	}
-
-	geetest := services.GetGlobalGeetestRuntimeConfig()
-	config.GlobalConfig.GeetestEnabled = geetest.Enabled
-	config.GlobalConfig.GeetestID = geetest.CaptchaID
-	config.GlobalConfig.GeetestKey = geetest.CaptchaKey
-
-	keys := []string{
-		"smtp_host",
-		"smtp_port",
-		"smtp_username",
-		"smtp_password",
-		"smtp_ssl",
-		"system_email_name",
-		"jwt_access_expire",
-		"jwt_refresh_expire",
-		"login_max_failure",
-		"login_lock_duration",
-	}
-	settingMap, err := models.GetSettingsMap(keys)
-	if err != nil {
-		return
-	}
-
-	if v, ok := settingMap["smtp_host"]; ok {
-		config.GlobalConfig.SMTPHost = strings.TrimSpace(v)
-	}
-	if v, ok := settingMap["smtp_port"]; ok {
-		config.GlobalConfig.SMTPPort = strings.TrimSpace(v)
-	}
-	if v, ok := settingMap["smtp_username"]; ok {
-		config.GlobalConfig.SMTPUser = strings.TrimSpace(v)
-	}
-	if v, ok := settingMap["smtp_password"]; ok {
-		config.GlobalConfig.SMTPPass = v
-	}
-	if v, ok := settingMap["smtp_ssl"]; ok {
-		config.GlobalConfig.SMTPSSL = parseBoolSettingValue(v, config.GlobalConfig.SMTPSSL)
-	}
-	if v, ok := settingMap["system_email_name"]; ok {
-		config.GlobalConfig.SystemEmailName = strings.TrimSpace(v)
-	}
-	if v, ok := settingMap["jwt_access_expire"]; ok {
-		config.GlobalConfig.JWTAccessExpire = parsePositiveIntSetting(v, config.GlobalConfig.JWTAccessExpire)
-	}
-	if v, ok := settingMap["jwt_refresh_expire"]; ok {
-		config.GlobalConfig.JWTRefreshExpire = parsePositiveIntSetting(v, config.GlobalConfig.JWTRefreshExpire)
-	}
-	if v, ok := settingMap["login_max_failure"]; ok {
-		config.GlobalConfig.LoginMaxFailureCount = parsePositiveIntSetting(v, config.GlobalConfig.LoginMaxFailureCount)
-	}
-	if v, ok := settingMap["login_lock_duration"]; ok {
-		config.GlobalConfig.LoginLockDurationMinutes = parsePositiveIntSetting(v, config.GlobalConfig.LoginLockDurationMinutes)
-	}
-
-	// 同步邮箱/短信验证开关
-	verifyConfig := services.GetGlobalVerifyConfig()
-	config.GlobalConfig.EmailVerifyEnabled = verifyConfig.EmailEnabled
-	config.GlobalConfig.SMSVerifyEnabled = verifyConfig.SMSEnabled
+	services.ReloadGlobalRuntimeConfig()
 
 	// 同步短信服务配置并更新 SMS Provider
 	smsConfig := services.GetGlobalSMSRuntimeConfig()
-	config.GlobalConfig.SMSProvider = smsConfig.Provider
-	config.GlobalConfig.SMSAccessKey = smsConfig.AccessKey
-	config.GlobalConfig.SMSSecretKey = smsConfig.SecretKey
-	config.GlobalConfig.SMSSignName = smsConfig.SignName
-	config.GlobalConfig.SMSTemplateCode = smsConfig.TemplateCode
-	config.GlobalConfig.SMSTemplateCodeEN = smsConfig.TemplateCodeEN
-	config.GlobalConfig.SMSRegion = smsConfig.Region
-	config.GlobalConfig.SMSEndpoint = smsConfig.Endpoint
-	config.GlobalConfig.SMSSdkAppID = smsConfig.SdkAppID
-	config.GlobalConfig.SMSBodyFormat = smsConfig.BodyFormat
 
 	if services.GlobalSMSService != nil {
 		smsSvcCfg := services.SMSConfig{
@@ -870,6 +880,17 @@ func (ctrl *SettingsController) refreshRuntimeConfig() {
 			BodyFormat:     smsConfig.BodyFormat,
 		}
 		sms_plugin.ApplyRuntimeProvider(smsSvcCfg)
+	}
+
+	apiLogConfig := services.GetGlobalAPILogRuntimeConfig()
+	if apiLogConfig.MaxCount > 0 {
+		go func(maxCount int) {
+			if _, err := models.CleanExcessAPIAccessLogs(maxCount); err != nil {
+				log.Printf("[APIAccessLog] 应用运行时配置后清理超限日志失败: %v", err)
+				return
+			}
+			invalidateAPILogStatsCache()
+		}(apiLogConfig.MaxCount)
 	}
 }
 
@@ -1007,6 +1028,49 @@ func (ctrl *SettingsController) GetServerMonitoringStatus(c *gin.Context) {
 	})
 }
 
+func (ctrl *SettingsController) GetServerOperationsStatus(c *gin.Context) {
+	apiLogConfig := services.GetGlobalAPILogRuntimeConfig()
+	utils.Success(c, gin.H{
+		"tasks":       services.GetBackgroundTaskStatusList(),
+		"rate_limits": middleware.GetDynamicRateLimitSnapshots(),
+		"api_log": gin.H{
+			"enabled":    apiLogConfig.Enabled,
+			"query_days": apiLogConfig.QueryDays,
+			"max_count":  apiLogConfig.MaxCount,
+		},
+	})
+}
+
+func (ctrl *SettingsController) RunBackgroundTask(c *gin.Context) {
+	var req struct {
+		Key string `json:"key" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Fail(c, 400, "参数错误")
+		return
+	}
+
+	message, err := services.RunBackgroundTaskNow(strings.TrimSpace(req.Key))
+	if err != nil {
+		utils.Fail(c, 500, err.Error())
+		return
+	}
+
+	utils.Success(c, gin.H{
+		"message": message,
+	})
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		trimmed := strings.TrimSpace(v)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
 func bytesToMB(v uint64) float64 {
 	return float64(v) / 1024.0 / 1024.0
 }
@@ -1045,16 +1109,6 @@ func buildDatabaseStatus() gin.H {
 		"in_use":           stats.InUse,
 		"idle":             stats.Idle,
 	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		trimmed := strings.TrimSpace(v)
-		if trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }
 
 func (ctrl *SettingsController) buildSMTPStatus() gin.H {
@@ -1106,7 +1160,9 @@ func (ctrl *SettingsController) RegisterRoutes(group *gin.RouterGroup) {
 		settings.GET("", ctrl.List)
 		settings.GET("/category/:category", ctrl.GetByCategory)
 		settings.GET("/server-monitoring", ctrl.GetServerMonitoringStatus)
+		settings.GET("/server-ops", ctrl.GetServerOperationsStatus)
 		settings.POST("", ctrl.Create)
+		settings.POST("/background-tasks/run", ctrl.RunBackgroundTask)
 		settings.POST("/restart-backend", ctrl.RestartBackend)
 		settings.PUT("/batch", ctrl.BatchUpdate)
 		settings.GET("/:key", ctrl.Get)

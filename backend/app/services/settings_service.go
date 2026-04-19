@@ -3,8 +3,9 @@ package services
 import (
 	"encoding/json"
 	"fst/backend/app/models"
-	"fst/backend/internal/config"
+	"fst/backend/pkg/config"
 	"log"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,10 +25,7 @@ var GlobalSettingsService *SettingsService
 // InitSettingsService initializes the global settings cache service.
 func InitSettingsService() {
 	GlobalSettingsService = NewSettingsService(5 * time.Minute)
-	if err := GlobalSettingsService.RefreshCache(); err != nil {
-		log.Printf("[SettingsService] Refresh cache failed: %v", err)
-	}
-	ApplyGlobalRuntimeConfig()
+	ReloadGlobalRuntimeConfig()
 	log.Println("[SettingsService] Initialized with cache TTL: 5m")
 }
 
@@ -37,6 +35,35 @@ func NewSettingsService(ttl time.Duration) *SettingsService {
 		cache: make(map[string]*models.SystemSetting),
 		ttl:   ttl,
 	}
+}
+
+// ensureFreshCache 在读取缓存前确保缓存尽量保持最新。
+func (s *SettingsService) ensureFreshCache() {
+	if s == nil {
+		return
+	}
+
+	s.cacheMu.RLock()
+	expired := s.cacheTime.IsZero() || time.Since(s.cacheTime) > s.ttl
+	s.cacheMu.RUnlock()
+	if !expired {
+		return
+	}
+
+	if err := s.RefreshCache(); err != nil {
+		log.Printf("[SettingsService] Refresh cache failed: %v", err)
+	}
+}
+
+// ReloadGlobalRuntimeConfig 强制刷新全局配置缓存并重新应用运行时配置。
+func ReloadGlobalRuntimeConfig() {
+	if GlobalSettingsService != nil {
+		if err := GlobalSettingsService.RefreshCache(); err != nil {
+			log.Printf("[SettingsService] Refresh cache failed: %v", err)
+		}
+	}
+
+	ApplyGlobalRuntimeConfig()
 }
 
 // RefreshCache refreshes all settings from DB.
@@ -60,14 +87,13 @@ func (s *SettingsService) RefreshCache() error {
 
 // Get returns setting value by key.
 func (s *SettingsService) Get(key string) (string, bool) {
+	if s == nil {
+		return "", false
+	}
+	s.ensureFreshCache()
+
 	s.cacheMu.RLock()
 	defer s.cacheMu.RUnlock()
-
-	if time.Since(s.cacheTime) > s.ttl {
-		s.cacheMu.RUnlock()
-		_ = s.RefreshCache()
-		s.cacheMu.RLock()
-	}
 
 	setting, ok := s.cache[key]
 	if !ok {
@@ -129,20 +155,24 @@ func (s *SettingsService) GetIntWithDefault(key string, defaultValue int) int {
 
 // GetSetting returns full setting model by key from cache.
 func (s *SettingsService) GetSetting(key string) *models.SystemSetting {
+	if s == nil {
+		return nil
+	}
+	s.ensureFreshCache()
+
 	s.cacheMu.RLock()
 	defer s.cacheMu.RUnlock()
-
-	if time.Since(s.cacheTime) > s.ttl {
-		s.cacheMu.RUnlock()
-		_ = s.RefreshCache()
-		s.cacheMu.RLock()
-	}
 
 	return s.cache[key]
 }
 
 // GetAllFromCache returns a shallow copy of cache map.
 func (s *SettingsService) GetAllFromCache() map[string]*models.SystemSetting {
+	if s == nil {
+		return map[string]*models.SystemSetting{}
+	}
+	s.ensureFreshCache()
+
 	s.cacheMu.RLock()
 	defer s.cacheMu.RUnlock()
 
@@ -210,6 +240,20 @@ type SMSRuntimeConfig struct {
 	BodyFormat   string
 }
 
+// APILogRuntimeConfig API访问日志运行时配置
+type APILogRuntimeConfig struct {
+	Enabled   bool
+	QueryDays int
+	MaxCount  int
+}
+
+// RateLimitRuntimeConfig 全局/管理员限速运行时配置
+type RateLimitRuntimeConfig struct {
+	Enabled bool
+	Rate    int
+	Burst   int
+}
+
 // GeetestRuntimeConfig is the effective config used by backend validation.
 type GeetestRuntimeConfig struct {
 	Enabled    bool
@@ -227,32 +271,98 @@ type RealnameAPIRuntimeConfig struct {
 }
 
 func parseBoolSetting(val string) bool {
-	return val == "true" || val == "1" || strings.EqualFold(val, "true")
+	return parseBoolSettingWithFallback(val, false)
+}
+
+func parseBoolSettingWithFallback(val string, fallback bool) bool {
+	switch strings.ToLower(strings.TrimSpace(val)) {
+	case "1", "true":
+		return true
+	case "0", "false":
+		return false
+	case "":
+		return fallback
+	default:
+		return fallback
+	}
+}
+
+func parsePositiveIntSettingWithFallback(val string, fallback int) int {
+	val = strings.TrimSpace(val)
+	if val == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(val)
+	if err != nil || parsed <= 0 {
+		return fallback
+	}
+	return parsed
+}
+
+func getDirectSettingString(key, fallback string) string {
+	setting, err := models.GetSettingByKey(key)
+	if err != nil || setting == nil {
+		return strings.TrimSpace(fallback)
+	}
+	val := strings.TrimSpace(setting.Value)
+	if val != "" {
+		return val
+	}
+	return strings.TrimSpace(fallback)
+}
+
+func getDirectSettingBool(key string, fallback bool) bool {
+	setting, err := models.GetSettingByKey(key)
+	if err != nil || setting == nil {
+		return fallback
+	}
+	return parseBoolSettingWithFallback(setting.Value, fallback)
+}
+
+func getDirectSettingPositiveInt(key string, fallback int) int {
+	setting, err := models.GetSettingByKey(key)
+	if err != nil || setting == nil {
+		return fallback
+	}
+	return parsePositiveIntSettingWithFallback(setting.Value, fallback)
+}
+
+func (s *SettingsService) getRuntimeString(key, fallback string) string {
+	if s != nil {
+		if val, ok := s.Get(key); ok {
+			val = strings.TrimSpace(val)
+			if val != "" {
+				return val
+			}
+		}
+	}
+	return strings.TrimSpace(fallback)
+}
+
+func (s *SettingsService) getRuntimeBool(key string, fallback bool) bool {
+	if s != nil {
+		if val, ok := s.Get(key); ok {
+			return parseBoolSettingWithFallback(val, fallback)
+		}
+	}
+	return fallback
+}
+
+func (s *SettingsService) getRuntimePositiveInt(key string, fallback int) int {
+	if s != nil {
+		if val, ok := s.Get(key); ok {
+			return parsePositiveIntSettingWithFallback(val, fallback)
+		}
+	}
+	return fallback
 }
 
 // GetGeetestRuntimeConfig returns effective geetest config.
 // Priority: database values -> environment fallback.
 func (s *SettingsService) GetGeetestRuntimeConfig() GeetestRuntimeConfig {
-	enabled := config.GlobalConfig.GeetestEnabled
-	if val, ok := s.Get("geetest_enabled"); ok {
-		enabled = parseBoolSetting(strings.TrimSpace(val))
-	}
-
-	captchaID := strings.TrimSpace(config.GlobalConfig.GeetestID)
-	if val, ok := s.Get("geetest_captcha_id"); ok {
-		val = strings.TrimSpace(val)
-		if val != "" {
-			captchaID = val
-		}
-	}
-
-	captchaKey := strings.TrimSpace(config.GlobalConfig.GeetestKey)
-	if val, ok := s.Get("geetest_captcha_key"); ok {
-		val = strings.TrimSpace(val)
-		if val != "" {
-			captchaKey = val
-		}
-	}
+	enabled := s.getRuntimeBool("geetest_enabled", config.GlobalConfig.GeetestEnabled)
+	captchaID := s.getRuntimeString("geetest_captcha_id", config.GlobalConfig.GeetestID)
+	captchaKey := s.getRuntimeString("geetest_captcha_key", config.GlobalConfig.GeetestKey)
 
 	enabled = enabled && captchaID != "" && captchaKey != ""
 
@@ -281,26 +391,19 @@ func GetGlobalGeetestRuntimeConfig() GeetestRuntimeConfig {
 
 // GetRealnameAPIRuntimeConfig returns effective realname API config.
 func (s *SettingsService) GetRealnameAPIRuntimeConfig() RealnameAPIRuntimeConfig {
-	get := func(dbKey, envFallback string) string {
-		if val, ok := s.Get(dbKey); ok && strings.TrimSpace(val) != "" {
-			return strings.TrimSpace(val)
-		}
-		return envFallback
-	}
-
-	enabled := parseBoolSetting(get("realname_api_enabled", "false"))
-	appKey := get("realname_api_app_key", "")
-	appSecret := get("realname_api_app_secret", "")
+	enabled := s.getRuntimeBool("realname_api_enabled", false)
+	appKey := s.getRuntimeString("realname_api_app_key", "")
+	appSecret := s.getRuntimeString("realname_api_app_secret", "")
 
 	// 只有当启用且有密钥时才认为真正启用
 	enabled = enabled && appKey != "" && appSecret != ""
 
 	return RealnameAPIRuntimeConfig{
 		Enabled:   enabled,
-		Provider:  get("realname_api_provider", "aliyun"),
+		Provider:  s.getRuntimeString("realname_api_provider", "aliyun"),
 		AppKey:    appKey,
 		AppSecret: appSecret,
-		Endpoint:  get("realname_api_endpoint", ""),
+		Endpoint:  s.getRuntimeString("realname_api_endpoint", ""),
 	}
 }
 
@@ -318,42 +421,25 @@ func GetGlobalRealnameAPIRuntimeConfig() RealnameAPIRuntimeConfig {
 // GetVerifyConfig returns effective verify enable/disable config.
 // Priority: database values -> environment fallback.
 func (s *SettingsService) GetVerifyConfig() VerifyConfig {
-	emailEnabled := config.GlobalConfig.EmailVerifyEnabled
-	if val, ok := s.Get("email_verify_enabled"); ok {
-		emailEnabled = parseBoolSetting(strings.TrimSpace(val))
-	}
-
-	smsEnabled := config.GlobalConfig.SMSVerifyEnabled
-	if val, ok := s.Get("sms_verify_enabled"); ok {
-		smsEnabled = parseBoolSetting(strings.TrimSpace(val))
-	}
-
 	return VerifyConfig{
-		EmailEnabled: emailEnabled,
-		SMSEnabled:   smsEnabled,
+		EmailEnabled: s.getRuntimeBool("email_verify_enabled", config.GlobalConfig.EmailVerifyEnabled),
+		SMSEnabled:   s.getRuntimeBool("sms_verify_enabled", config.GlobalConfig.SMSVerifyEnabled),
 	}
 }
 
 // GetSMSRuntimeConfig returns effective SMS provider config.
 func (s *SettingsService) GetSMSRuntimeConfig() SMSRuntimeConfig {
-	get := func(dbKey, envFallback string) string {
-		if val, ok := s.Get(dbKey); ok && strings.TrimSpace(val) != "" {
-			return strings.TrimSpace(val)
-		}
-		return envFallback
-	}
-
 	return SMSRuntimeConfig{
-		Provider:       get("sms_provider", config.GlobalConfig.SMSProvider),
-		AccessKey:      get("sms_access_key", config.GlobalConfig.SMSAccessKey),
-		SecretKey:      get("sms_secret_key", config.GlobalConfig.SMSSecretKey),
-		SignName:       get("sms_sign_name", config.GlobalConfig.SMSSignName),
-		TemplateCode:   get("sms_template_code", config.GlobalConfig.SMSTemplateCode),
-		TemplateCodeEN: get("sms_template_code_en", config.GlobalConfig.SMSTemplateCodeEN),
-		Region:         get("sms_region", config.GlobalConfig.SMSRegion),
-		Endpoint:       get("sms_endpoint", config.GlobalConfig.SMSEndpoint),
-		SdkAppID:       get("sms_sdk_app_id", config.GlobalConfig.SMSSdkAppID),
-		BodyFormat:     get("sms_body_format", config.GlobalConfig.SMSBodyFormat),
+		Provider:       s.getRuntimeString("sms_provider", config.GlobalConfig.SMSProvider),
+		AccessKey:      s.getRuntimeString("sms_access_key", config.GlobalConfig.SMSAccessKey),
+		SecretKey:      s.getRuntimeString("sms_secret_key", config.GlobalConfig.SMSSecretKey),
+		SignName:       s.getRuntimeString("sms_sign_name", config.GlobalConfig.SMSSignName),
+		TemplateCode:   s.getRuntimeString("sms_template_code", config.GlobalConfig.SMSTemplateCode),
+		TemplateCodeEN: s.getRuntimeString("sms_template_code_en", config.GlobalConfig.SMSTemplateCodeEN),
+		Region:         s.getRuntimeString("sms_region", config.GlobalConfig.SMSRegion),
+		Endpoint:       s.getRuntimeString("sms_endpoint", config.GlobalConfig.SMSEndpoint),
+		SdkAppID:       s.getRuntimeString("sms_sdk_app_id", config.GlobalConfig.SMSSdkAppID),
+		BodyFormat:     s.getRuntimeString("sms_body_format", config.GlobalConfig.SMSBodyFormat),
 	}
 }
 
@@ -387,11 +473,141 @@ func GetGlobalSMSRuntimeConfig() SMSRuntimeConfig {
 	}
 }
 
+func (s *SettingsService) GetAPILogRuntimeConfig() APILogRuntimeConfig {
+	return APILogRuntimeConfig{
+		Enabled:   s.getRuntimeBool("api_access_log_enabled", true),
+		QueryDays: s.getRuntimePositiveInt("api_log_query_days", 7),
+		MaxCount:  s.getRuntimePositiveInt("api_log_max_count", 1000),
+	}
+}
+
+func GetGlobalAPILogRuntimeConfig() APILogRuntimeConfig {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.GetAPILogRuntimeConfig()
+	}
+	return APILogRuntimeConfig{
+		Enabled:   getDirectSettingBool("api_access_log_enabled", true),
+		QueryDays: getDirectSettingPositiveInt("api_log_query_days", 7),
+		MaxCount:  getDirectSettingPositiveInt("api_log_max_count", 1000),
+	}
+}
+
+func (s *SettingsService) GetAPIRateLimitRuntimeConfig() RateLimitRuntimeConfig {
+	return RateLimitRuntimeConfig{
+		Enabled: s.getRuntimeBool("api_rate_limit_enabled", false),
+		Rate:    s.getRuntimePositiveInt("api_rate_limit_rate", 120),
+		Burst:   s.getRuntimePositiveInt("api_rate_limit_burst", 240),
+	}
+}
+
+func GetGlobalAPIRateLimitRuntimeConfig() RateLimitRuntimeConfig {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.GetAPIRateLimitRuntimeConfig()
+	}
+	return RateLimitRuntimeConfig{
+		Enabled: getDirectSettingBool("api_rate_limit_enabled", false),
+		Rate:    getDirectSettingPositiveInt("api_rate_limit_rate", 120),
+		Burst:   getDirectSettingPositiveInt("api_rate_limit_burst", 240),
+	}
+}
+
+func (s *SettingsService) GetAdminRateLimitRuntimeConfig() RateLimitRuntimeConfig {
+	return RateLimitRuntimeConfig{
+		Enabled: s.getRuntimeBool("admin_rate_limit_enabled", false),
+		Rate:    s.getRuntimePositiveInt("admin_rate_limit_rate", 60),
+		Burst:   s.getRuntimePositiveInt("admin_rate_limit_burst", 120),
+	}
+}
+
+func GetGlobalAdminRateLimitRuntimeConfig() RateLimitRuntimeConfig {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.GetAdminRateLimitRuntimeConfig()
+	}
+	return RateLimitRuntimeConfig{
+		Enabled: getDirectSettingBool("admin_rate_limit_enabled", false),
+		Rate:    getDirectSettingPositiveInt("admin_rate_limit_rate", 60),
+		Burst:   getDirectSettingPositiveInt("admin_rate_limit_burst", 120),
+	}
+}
+
+func GetGlobalAllowRegister() bool {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.getRuntimeBool("allow_register", true)
+	}
+	return getDirectSettingBool("allow_register", true)
+}
+
+func GetGlobalAllowDeleteAccount() bool {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.getRuntimeBool("allow_delete_account", false)
+	}
+	return getDirectSettingBool("allow_delete_account", false)
+}
+
+func GetGlobalPaymentEnabled() bool {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.getRuntimeBool("payment_enabled", false)
+	}
+	return getDirectSettingBool("payment_enabled", false)
+}
+
+func GetGlobalPaymentOrderExpireMinutes() int {
+	const fallback = 30
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.getRuntimePositiveInt("payment_order_expire_minutes", fallback)
+	}
+	return getDirectSettingPositiveInt("payment_order_expire_minutes", fallback)
+}
+
+func GetGlobalFrontendURL() string {
+	fallback := ""
+	if config.GlobalConfig != nil {
+		fallback = config.GlobalConfig.FrontendURL
+	}
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.getRuntimeString("frontend_url", fallback)
+	}
+	return getDirectSettingString("frontend_url", fallback)
+}
+
+func GetGlobalBackendAPIURL() string {
+	fallback := ""
+	if config.GlobalConfig != nil {
+		fallback = config.GlobalConfig.BackendAPIURL
+	}
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.getRuntimeString("backend_api_url", fallback)
+	}
+	return getDirectSettingString("backend_api_url", fallback)
+}
+
 func ApplyGlobalRuntimeConfig() {
+	if config.GlobalConfig == nil {
+		return
+	}
+
 	geetestConfig := GetGlobalGeetestRuntimeConfig()
 	config.GlobalConfig.GeetestEnabled = geetestConfig.Enabled
 	config.GlobalConfig.GeetestID = geetestConfig.CaptchaID
 	config.GlobalConfig.GeetestKey = geetestConfig.CaptchaKey
+
+	if GlobalSettingsService != nil {
+		config.GlobalConfig.AppName = GlobalSettingsService.getRuntimeString("site_name", config.GlobalConfig.AppName)
+		config.GlobalConfig.FrontendURL = GlobalSettingsService.getRuntimeString("frontend_url", config.GlobalConfig.FrontendURL)
+		config.GlobalConfig.BackendAPIURL = GlobalSettingsService.getRuntimeString("backend_api_url", config.GlobalConfig.BackendAPIURL)
+		config.GlobalConfig.SMTPHost = GlobalSettingsService.getRuntimeString("smtp_host", config.GlobalConfig.SMTPHost)
+		config.GlobalConfig.SMTPPort = GlobalSettingsService.getRuntimeString("smtp_port", config.GlobalConfig.SMTPPort)
+		config.GlobalConfig.SMTPUser = GlobalSettingsService.getRuntimeString("smtp_username", config.GlobalConfig.SMTPUser)
+		config.GlobalConfig.SMTPPass = GlobalSettingsService.getRuntimeString("smtp_password", config.GlobalConfig.SMTPPass)
+		config.GlobalConfig.SMTPSSL = GlobalSettingsService.getRuntimeBool("smtp_ssl", config.GlobalConfig.SMTPSSL)
+		config.GlobalConfig.SystemEmail = GlobalSettingsService.getRuntimeString("system_email_address", config.GlobalConfig.SystemEmail)
+		config.GlobalConfig.SystemEmailName = GlobalSettingsService.getRuntimeString("system_email_name", config.GlobalConfig.SystemEmailName)
+		config.GlobalConfig.RegisterCodeExpireMinutes = GlobalSettingsService.getRuntimePositiveInt("register_code_expire_minutes", config.GlobalConfig.RegisterCodeExpireMinutes)
+		config.GlobalConfig.JWTAccessExpire = GlobalSettingsService.getRuntimePositiveInt("jwt_access_expire", config.GlobalConfig.JWTAccessExpire)
+		config.GlobalConfig.JWTRefreshExpire = GlobalSettingsService.getRuntimePositiveInt("jwt_refresh_expire", config.GlobalConfig.JWTRefreshExpire)
+		config.GlobalConfig.LoginMaxFailureCount = GlobalSettingsService.getRuntimePositiveInt("login_max_failure", config.GlobalConfig.LoginMaxFailureCount)
+		config.GlobalConfig.LoginLockDurationMinutes = GlobalSettingsService.getRuntimePositiveInt("login_lock_duration", config.GlobalConfig.LoginLockDurationMinutes)
+	}
 
 	verifyConfig := GetGlobalVerifyConfig()
 	config.GlobalConfig.EmailVerifyEnabled = verifyConfig.EmailEnabled
@@ -430,10 +646,10 @@ func (s *SettingsService) GetPublicAppConfig() *PublicAppConfig {
 		EmailVerifyEnabled: verifyConfig.EmailEnabled,
 		SMSVerifyEnabled:   verifyConfig.SMSEnabled,
 		RealnameEnabled:    s.GetBoolWithDefault("realname_enabled", true),
-		RealnameNotifyText: s.GetWithDefault("realname_notify_text", "完成实名认证后可享受更多服务"),
+		RealnameNotifyText: s.GetWithDefault("realname_notify_text", ""),
 		WithdrawEnabled:    s.GetBoolWithDefault("withdraw_enabled", true),
 		WithdrawMinAmount:  parseJSONFloatWithDefault(s.GetWithDefault("withdraw_min_amount", "10"), 10),
-		WithdrawNotifyText: s.GetWithDefault("withdraw_notify_text", "提现申请提交后需管理员审核，通过后人工打款。"),
+		WithdrawNotifyText: s.GetWithDefault("withdraw_notify_text", ""),
 		WithdrawAccountTypes: parseJSONStringArrayWithDefault(s.GetWithDefault("withdraw_account_types", "[\"bank\",\"alipay\",\"wechat\",\"usdt\"]"), []string{"bank", "alipay", "wechat", "usdt"}),
 	}
 }
@@ -462,22 +678,35 @@ func ParseJSONStringArrayForPublic(val string, fallback []string) []string {
 	return parseJSONStringArrayWithDefault(val, fallback)
 }
 
-// UpdateSettingsWithCache updates settings in DB and invalidates cache.
+// refreshAfterWrite 在写入配置后刷新缓存，并在需要时同步运行时配置。
+func (s *SettingsService) refreshAfterWrite() error {
+	if s == nil {
+		ApplyGlobalRuntimeConfig()
+		return nil
+	}
+	if err := s.RefreshCache(); err != nil {
+		return err
+	}
+	if s == GlobalSettingsService {
+		ApplyGlobalRuntimeConfig()
+	}
+	return nil
+}
+
+// UpdateSettingsWithCache 批量更新配置并刷新缓存。
 func (s *SettingsService) UpdateSettingsWithCache(settings map[string]string) error {
 	err := models.BatchUpdateSettings(settings)
 	if err != nil {
 		return err
 	}
-	s.InvalidateCache()
-	return nil
+	return s.refreshAfterWrite()
 }
 
-// UpdateSingleSettingWithCache updates one setting in DB and invalidates cache.
+// UpdateSingleSettingWithCache 更新单项配置并刷新缓存。
 func (s *SettingsService) UpdateSingleSettingWithCache(key, value string) error {
 	err := models.UpdateSetting(key, value)
 	if err != nil {
 		return err
 	}
-	s.InvalidateCache()
-	return nil
+	return s.refreshAfterWrite()
 }

@@ -3,6 +3,8 @@ import { h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NButton, NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
+import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
+import { useTableColumnVisibility } from '@/hooks'
 import { fetchWithdrawDetail, fetchWithdrawRecords, fetchWithdrawStats, payWithdraw, reviewWithdraw } from '@/service/api/admin/finance'
 import type { WithdrawRecord, WithdrawStats } from '@/service/api/admin/finance'
 import { adminUserApi } from '@/service/api/admin/user'
@@ -190,6 +192,36 @@ const columns: DataTableColumns<WithdrawRecord> = [
   },
 ]
 
+const selectableColumnOptions = [
+  { key: 'id', label: 'ID' },
+  { key: 'user_id', label: t('adminWithdraw.userId') },
+  { key: 'amount', label: t('adminWithdraw.withdrawAmount') },
+  { key: 'status', label: t('adminWithdraw.status') },
+  { key: 'account_type', label: t('adminWithdraw.accountType') },
+  { key: 'account_name', label: t('adminWithdraw.accountName') },
+  { key: 'account_no', label: t('adminWithdraw.accountNo') },
+  { key: 'real_name', label: t('adminWithdraw.realName') },
+  { key: 'reviewed_at', label: t('adminWithdraw.reviewedAt') },
+  { key: 'paid_at', label: t('adminWithdraw.paidAt') },
+  { key: 'create_time', label: t('adminWithdraw.createdAt') },
+]
+
+const {
+  columnOptions,
+  selectedColumnKeys,
+  visibleColumns,
+  visibleColumnCount,
+  totalColumnCount,
+  tableScrollX,
+  resetSelectedColumns,
+} = useTableColumnVisibility<WithdrawRecord>({
+  storageKey: 'admin-withdraw-list',
+  columns,
+  options: selectableColumnOptions,
+  minVisibleCount: 1,
+  minScrollX: 1180,
+})
+
 async function fetchData() {
   loading.value = true
   try {
@@ -324,69 +356,142 @@ onMounted(fetchData)
 </script>
 
 <template>
-  <n-card :title="t('adminWithdraw.title')">
-    <n-space vertical>
-      <n-grid :cols="5" :x-gap="12">
-        <n-gi>
-          <n-card size="small">
-            <n-statistic :label="t('adminWithdraw.statPending')" :value="stats.pending_count" />
-          </n-card>
-        </n-gi>
-        <n-gi>
-          <n-card size="small">
-            <n-statistic :label="t('adminWithdraw.statApproved')" :value="stats.approved_count" />
-          </n-card>
-        </n-gi>
-        <n-gi>
-          <n-card size="small">
-            <n-statistic :label="t('adminWithdraw.statRejected')" :value="stats.rejected_count" />
-          </n-card>
-        </n-gi>
-        <n-gi>
-          <n-card size="small">
-            <n-statistic :label="t('adminWithdraw.statPaidCount')" :value="stats.paid_count" />
-          </n-card>
-        </n-gi>
-        <n-gi>
-          <n-card size="small">
-            <n-statistic :label="t('adminWithdraw.statPaidAmount')" :value="stats.paid_amount" :precision="2">
-              <template #prefix>
-                ¥
-              </template>
-            </n-statistic>
-          </n-card>
-        </n-gi>
-      </n-grid>
-      <n-space>
-        <n-input v-model:value="searchForm.keyword" :placeholder="t('adminWithdraw.searchPlaceholder')" clearable style="width: 240px" @keyup.enter="fetchData" />
-        <n-input-number v-model:value="searchForm.user_id" :placeholder="t('adminWithdraw.userIdPlaceholder')" style="width: 140px" :show-button="false" />
-        <n-select v-model:value="searchForm.status" :options="statusOptions" clearable :placeholder="t('adminWithdraw.statusPlaceholder')" style="width: 140px" />
-        <NButton type="primary" @click="handleSearch">
-          {{ t('adminWithdraw.search') }}
-        </NButton>
-        <NButton @click="handleReset">
-          {{ t('adminWithdraw.reset') }}
-        </NButton>
+  <div class="admin-withdraw-page">
+    <n-card :title="t('adminWithdraw.title')">
+      <template #header-extra>
+        <TableColumnSelector
+          v-model="selectedColumnKeys"
+          :options="columnOptions"
+          :visible-count="visibleColumnCount"
+          :total-count="totalColumnCount"
+          :button-label="t('common.showFields')"
+          :title="t('common.visibleFields')"
+          :hint="t('common.columnVisibilityHint')"
+          :reset-label="t('common.restoreDefaultFields')"
+          @reset="resetSelectedColumns"
+        />
+      </template>
+      <n-space vertical>
+        <n-grid :cols="5" :x-gap="12">
+          <n-gi>
+            <n-card size="small">
+              <n-statistic :label="t('adminWithdraw.statPending')" :value="stats.pending_count" />
+            </n-card>
+          </n-gi>
+          <n-gi>
+            <n-card size="small">
+              <n-statistic :label="t('adminWithdraw.statApproved')" :value="stats.approved_count" />
+            </n-card>
+          </n-gi>
+          <n-gi>
+            <n-card size="small">
+              <n-statistic :label="t('adminWithdraw.statRejected')" :value="stats.rejected_count" />
+            </n-card>
+          </n-gi>
+          <n-gi>
+            <n-card size="small">
+              <n-statistic :label="t('adminWithdraw.statPaidCount')" :value="stats.paid_count" />
+            </n-card>
+          </n-gi>
+          <n-gi>
+            <n-card size="small">
+              <n-statistic :label="t('adminWithdraw.statPaidAmount')" :value="stats.paid_amount" :precision="2">
+                <template #prefix>
+                  ¥
+                </template>
+              </n-statistic>
+            </n-card>
+          </n-gi>
+        </n-grid>
+        <n-space>
+          <n-input v-model:value="searchForm.keyword" :placeholder="t('adminWithdraw.searchPlaceholder')" clearable style="width: 240px" @keyup.enter="fetchData" />
+          <n-input-number v-model:value="searchForm.user_id" :placeholder="t('adminWithdraw.userIdPlaceholder')" style="width: 140px" :show-button="false" />
+          <n-select v-model:value="searchForm.status" :options="statusOptions" clearable :placeholder="t('adminWithdraw.statusPlaceholder')" style="width: 140px" />
+          <NButton type="primary" @click="handleSearch">
+            {{ t('adminWithdraw.search') }}
+          </NButton>
+          <NButton @click="handleReset">
+            {{ t('adminWithdraw.reset') }}
+          </NButton>
+        </n-space>
+
+        <n-data-table
+          :columns="visibleColumns"
+          :data="list"
+          :loading="loading"
+          :pagination="pagination"
+          :scroll-x="tableScrollX"
+          striped
+          size="small"
+          :row-key="(row: WithdrawRecord) => row.id"
+          @update:page="handlePageChange"
+          @update:page-size="handlePageSizeChange"
+        />
       </n-space>
+    </n-card>
 
-      <n-data-table
-        :columns="columns"
-        :data="list"
-        :loading="loading"
-        :pagination="pagination"
-        striped
-        size="small"
-        :row-key="(row: WithdrawRecord) => row.id"
-        @update:page="handlePageChange"
-        @update:page-size="handlePageSizeChange"
-      />
-    </n-space>
-  </n-card>
+    <n-modal v-model:show="showDetailModal" preset="card" :title="t('adminWithdraw.detailTitle')" style="width: 620px">
+      <template v-if="currentRow">
+        <n-spin :show="detailLoading">
+          <n-descriptions :column="1" bordered label-placement="left">
+            <n-descriptions-item :label="t('adminWithdraw.applicationId')">
+              {{ currentRow.id }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminWithdraw.userId')">
+              {{ currentRow.user_id }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminWithdraw.withdrawAmount')">
+              ¥{{ Number(currentRow.amount).toFixed(2) }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminWithdraw.status')">
+              <NTag :type="getStatusMeta(currentRow.status).type">
+                {{ getStatusMeta(currentRow.status).label }}
+              </NTag>
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminWithdraw.accountType')">
+              {{ currentRow.account_type }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminWithdraw.accountName')">
+              {{ currentRow.account_name }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminWithdraw.accountNo')">
+              {{ currentRow.account_no }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminWithdraw.realName')">
+              {{ currentRow.real_name }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminWithdraw.userRemark')">
+              {{ currentRow.remark || '-' }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminWithdraw.reviewRemark')">
+              {{ currentRow.review_remark || '-' }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminWithdraw.transferRemark')">
+              {{ currentRow.transfer_remark || '-' }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminWithdraw.createdAt')">
+              {{ formatTime(currentRow.create_time) }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminWithdraw.reviewedAt')">
+              {{ formatTime(currentRow.reviewed_at) }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminWithdraw.reviewer')">
+              {{ getAdminDisplayName(currentRow.reviewed_by) }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminWithdraw.paidAt')">
+              {{ formatTime(currentRow.paid_at) }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminWithdraw.payer')">
+              {{ getAdminDisplayName(currentRow.paid_by) }}
+            </n-descriptions-item>
+          </n-descriptions>
+        </n-spin>
+      </template>
+    </n-modal>
 
-  <n-modal v-model:show="showDetailModal" preset="card" :title="t('adminWithdraw.detailTitle')" style="width: 620px">
-    <template v-if="currentRow">
-      <n-spin :show="detailLoading">
-        <n-descriptions :column="1" bordered label-placement="left">
+    <n-modal v-model:show="showReviewModal" preset="card" :title="t('adminWithdraw.reviewModalTitle')" style="width: 520px" :mask-closable="!submitting">
+      <template v-if="currentRow">
+        <n-descriptions :column="1" bordered label-placement="left" style="margin-bottom: 16px">
           <n-descriptions-item :label="t('adminWithdraw.applicationId')">
             {{ currentRow.id }}
           </n-descriptions-item>
@@ -395,11 +500,6 @@ onMounted(fetchData)
           </n-descriptions-item>
           <n-descriptions-item :label="t('adminWithdraw.withdrawAmount')">
             ¥{{ Number(currentRow.amount).toFixed(2) }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminWithdraw.status')">
-            <NTag :type="getStatusMeta(currentRow.status).type">
-              {{ getStatusMeta(currentRow.status).label }}
-            </NTag>
           </n-descriptions-item>
           <n-descriptions-item :label="t('adminWithdraw.accountType')">
             {{ currentRow.account_type }}
@@ -413,125 +513,73 @@ onMounted(fetchData)
           <n-descriptions-item :label="t('adminWithdraw.realName')">
             {{ currentRow.real_name }}
           </n-descriptions-item>
-          <n-descriptions-item :label="t('adminWithdraw.userRemark')">
-            {{ currentRow.remark || '-' }}
+        </n-descriptions>
+        <n-form label-placement="left" label-width="80">
+          <n-form-item :label="t('adminWithdraw.reviewResult')">
+            <n-radio-group v-model:value="reviewForm.status">
+              <n-space>
+                <n-radio :value="1">
+                  {{ t('adminWithdraw.approve') }}
+                </n-radio>
+                <n-radio :value="2">
+                  {{ t('adminWithdraw.reject') }}
+                </n-radio>
+              </n-space>
+            </n-radio-group>
+          </n-form-item>
+          <n-form-item :label="t('adminWithdraw.reviewRemark')">
+            <n-input v-model:value="reviewForm.review_remark" type="textarea" :rows="3" maxlength="255" show-count :placeholder="t('adminWithdraw.reviewRemarkPlaceholder')" />
+          </n-form-item>
+        </n-form>
+      </template>
+      <template #footer>
+        <n-space justify="end">
+          <NButton :disabled="submitting" @click="showReviewModal = false">
+            {{ t('common.cancel') }}
+          </NButton>
+          <NButton type="primary" :loading="submitting" @click="handleSubmitReview">
+            {{ t('adminWithdraw.submitReview') }}
+          </NButton>
+        </n-space>
+      </template>
+    </n-modal>
+
+    <n-modal v-model:show="showPayModal" preset="card" :title="t('adminWithdraw.payModalTitle')" style="width: 520px" :mask-closable="!submitting">
+      <template v-if="currentRow">
+        <n-alert type="warning" style="margin-bottom: 16px">
+          {{ t('adminWithdraw.payWarning') }}
+        </n-alert>
+        <n-descriptions :column="1" bordered label-placement="left" style="margin-bottom: 16px">
+          <n-descriptions-item :label="t('adminWithdraw.applicationId')">
+            {{ currentRow.id }}
           </n-descriptions-item>
-          <n-descriptions-item :label="t('adminWithdraw.reviewRemark')">
-            {{ currentRow.review_remark || '-' }}
+          <n-descriptions-item :label="t('adminWithdraw.userId')">
+            {{ currentRow.user_id }}
           </n-descriptions-item>
-          <n-descriptions-item :label="t('adminWithdraw.transferRemark')">
-            {{ currentRow.transfer_remark || '-' }}
+          <n-descriptions-item :label="t('adminWithdraw.withdrawAmount')">
+            ¥{{ Number(currentRow.amount).toFixed(2) }}
           </n-descriptions-item>
-          <n-descriptions-item :label="t('adminWithdraw.createdAt')">
-            {{ formatTime(currentRow.create_time) }}
+          <n-descriptions-item :label="t('adminWithdraw.accountType')">
+            {{ currentRow.account_type }}
           </n-descriptions-item>
-          <n-descriptions-item :label="t('adminWithdraw.reviewedAt')">
-            {{ formatTime(currentRow.reviewed_at) }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminWithdraw.reviewer')">
-            {{ getAdminDisplayName(currentRow.reviewed_by) }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminWithdraw.paidAt')">
-            {{ formatTime(currentRow.paid_at) }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminWithdraw.payer')">
-            {{ getAdminDisplayName(currentRow.paid_by) }}
+          <n-descriptions-item :label="t('adminWithdraw.accountNo')">
+            {{ currentRow.account_no }}
           </n-descriptions-item>
         </n-descriptions>
-      </n-spin>
-    </template>
-  </n-modal>
-
-  <n-modal v-model:show="showReviewModal" preset="card" :title="t('adminWithdraw.reviewModalTitle')" style="width: 520px" :mask-closable="!submitting">
-    <template v-if="currentRow">
-      <n-descriptions :column="1" bordered label-placement="left" style="margin-bottom: 16px">
-        <n-descriptions-item :label="t('adminWithdraw.applicationId')">
-          {{ currentRow.id }}
-        </n-descriptions-item>
-        <n-descriptions-item :label="t('adminWithdraw.userId')">
-          {{ currentRow.user_id }}
-        </n-descriptions-item>
-        <n-descriptions-item :label="t('adminWithdraw.withdrawAmount')">
-          ¥{{ Number(currentRow.amount).toFixed(2) }}
-        </n-descriptions-item>
-        <n-descriptions-item :label="t('adminWithdraw.accountType')">
-          {{ currentRow.account_type }}
-        </n-descriptions-item>
-        <n-descriptions-item :label="t('adminWithdraw.accountName')">
-          {{ currentRow.account_name }}
-        </n-descriptions-item>
-        <n-descriptions-item :label="t('adminWithdraw.accountNo')">
-          {{ currentRow.account_no }}
-        </n-descriptions-item>
-        <n-descriptions-item :label="t('adminWithdraw.realName')">
-          {{ currentRow.real_name }}
-        </n-descriptions-item>
-      </n-descriptions>
-      <n-form label-placement="left" label-width="80">
-        <n-form-item :label="t('adminWithdraw.reviewResult')">
-          <n-radio-group v-model:value="reviewForm.status">
-            <n-space>
-              <n-radio :value="1">
-                {{ t('adminWithdraw.approve') }}
-              </n-radio>
-              <n-radio :value="2">
-                {{ t('adminWithdraw.reject') }}
-              </n-radio>
-            </n-space>
-          </n-radio-group>
+        <n-form-item :label="t('adminWithdraw.transferRemark')">
+          <n-input v-model:value="payForm.transfer_remark" type="textarea" :rows="3" maxlength="255" show-count :placeholder="t('adminWithdraw.transferRemarkPlaceholder')" />
         </n-form-item>
-        <n-form-item :label="t('adminWithdraw.reviewRemark')">
-          <n-input v-model:value="reviewForm.review_remark" type="textarea" :rows="3" maxlength="255" show-count :placeholder="t('adminWithdraw.reviewRemarkPlaceholder')" />
-        </n-form-item>
-      </n-form>
-    </template>
-    <template #footer>
-      <n-space justify="end">
-        <NButton :disabled="submitting" @click="showReviewModal = false">
-          {{ t('common.cancel') }}
-        </NButton>
-        <NButton type="primary" :loading="submitting" @click="handleSubmitReview">
-          {{ t('adminWithdraw.submitReview') }}
-        </NButton>
-      </n-space>
-    </template>
-  </n-modal>
-
-  <n-modal v-model:show="showPayModal" preset="card" :title="t('adminWithdraw.payModalTitle')" style="width: 520px" :mask-closable="!submitting">
-    <template v-if="currentRow">
-      <n-alert type="warning" style="margin-bottom: 16px">
-        {{ t('adminWithdraw.payWarning') }}
-      </n-alert>
-      <n-descriptions :column="1" bordered label-placement="left" style="margin-bottom: 16px">
-        <n-descriptions-item :label="t('adminWithdraw.applicationId')">
-          {{ currentRow.id }}
-        </n-descriptions-item>
-        <n-descriptions-item :label="t('adminWithdraw.userId')">
-          {{ currentRow.user_id }}
-        </n-descriptions-item>
-        <n-descriptions-item :label="t('adminWithdraw.withdrawAmount')">
-          ¥{{ Number(currentRow.amount).toFixed(2) }}
-        </n-descriptions-item>
-        <n-descriptions-item :label="t('adminWithdraw.accountType')">
-          {{ currentRow.account_type }}
-        </n-descriptions-item>
-        <n-descriptions-item :label="t('adminWithdraw.accountNo')">
-          {{ currentRow.account_no }}
-        </n-descriptions-item>
-      </n-descriptions>
-      <n-form-item :label="t('adminWithdraw.transferRemark')">
-        <n-input v-model:value="payForm.transfer_remark" type="textarea" :rows="3" maxlength="255" show-count :placeholder="t('adminWithdraw.transferRemarkPlaceholder')" />
-      </n-form-item>
-    </template>
-    <template #footer>
-      <n-space justify="end">
-        <NButton :disabled="submitting" @click="showPayModal = false">
-          {{ t('common.cancel') }}
-        </NButton>
-        <NButton type="warning" :loading="submitting" @click="handleSubmitPay">
-          {{ t('adminWithdraw.confirmPaid') }}
-        </NButton>
-      </n-space>
-    </template>
-  </n-modal>
+      </template>
+      <template #footer>
+        <n-space justify="end">
+          <NButton :disabled="submitting" @click="showPayModal = false">
+            {{ t('common.cancel') }}
+          </NButton>
+          <NButton type="warning" :loading="submitting" @click="handleSubmitPay">
+            {{ t('adminWithdraw.confirmPaid') }}
+          </NButton>
+        </n-space>
+      </template>
+    </n-modal>
+  </div>
 </template>

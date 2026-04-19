@@ -313,3 +313,4 @@ func (m *Manager) IsInitialized() bool {
 func (m *Manager) Count() int {
 	return m.pm.Count()
 }
+

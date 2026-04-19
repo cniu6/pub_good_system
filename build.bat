@@ -109,7 +109,7 @@ if "%BMODE%" == "external" (
     xcopy /s /e /q /y frontend\dist\* %OUTDIR%\dist\ >nul
 )
 
-if exist .env copy /y .env %OUTDIR%\.env.example >nul
+if exist .env.example copy /y .env.example %OUTDIR%\.env.example >nul
 
 exit /b 0
 

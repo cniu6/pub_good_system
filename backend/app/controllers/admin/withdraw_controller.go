@@ -1,10 +1,12 @@
 package admin
 
 import (
+	"database/sql"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
-	"fst/backend/internal/middleware"
+	"fst/backend/pkg/middleware"
 	"fst/backend/utils"
+	"log"
 	"strconv"
 	"time"
 
@@ -53,7 +55,8 @@ func (ctrl *WithdrawController) List(c *gin.Context) {
 		Status:   status,
 	})
 	if err != nil {
-		utils.Fail(c, 500, "获取提现列表失败: "+err.Error())
+		log.Printf("[ADMIN][WITHDRAW] list failed: %v", err)
+		utils.Fail(c, 500, "获取提现列表失败")
 		return
 	}
 	utils.Success(c, result)
@@ -81,7 +84,8 @@ func (ctrl *WithdrawController) Stats(c *gin.Context) {
 		Status:   status,
 	})
 	if err != nil {
-		utils.Fail(c, 500, "获取提现统计失败: "+err.Error())
+		log.Printf("[ADMIN][WITHDRAW] stats failed: %v", err)
+		utils.Fail(c, 500, "获取提现统计失败")
 		return
 	}
 	utils.Success(c, result)
@@ -95,7 +99,12 @@ func (ctrl *WithdrawController) Detail(c *gin.Context) {
 	}
 	item, err := ctrl.withdrawService.GetByID(id)
 	if err != nil {
-		utils.Fail(c, 404, "提现记录不存在")
+		if err == sql.ErrNoRows {
+			utils.Fail(c, 404, "提现记录不存在")
+			return
+		}
+		log.Printf("[ADMIN][WITHDRAW] detail failed id=%d: %v", id, err)
+		utils.Fail(c, 500, "获取提现详情失败")
 		return
 	}
 	utils.Success(c, item)
@@ -126,7 +135,12 @@ func (ctrl *WithdrawController) Review(c *gin.Context) {
 		Status:       req.Status,
 		ReviewRemark: req.ReviewRemark,
 	}); err != nil {
-		utils.Fail(c, 400, err.Error())
+		if services.IsClientError(err) {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
+		log.Printf("[ADMIN][WITHDRAW] review failed admin_id=%d request_id=%d: %v", adminID.(uint64), id, err)
+		utils.Fail(c, 500, "提现审核失败，请稍后重试")
 		return
 	}
 	utils.SuccessMsg(c, "审核完成", nil)
@@ -156,7 +170,12 @@ func (ctrl *WithdrawController) MarkPaid(c *gin.Context) {
 		ID:             id,
 		TransferRemark: req.TransferRemark,
 	}); err != nil {
-		utils.Fail(c, 400, err.Error())
+		if services.IsClientError(err) {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
+		log.Printf("[ADMIN][WITHDRAW] mark paid failed admin_id=%d request_id=%d: %v", adminID.(uint64), id, err)
+		utils.Fail(c, 500, "提现打款处理失败，请稍后重试")
 		return
 	}
 	utils.SuccessMsg(c, "已标记为人工打款完成", nil)
@@ -172,3 +191,4 @@ func (ctrl *WithdrawController) RegisterRoutes(group *gin.RouterGroup) {
 		withdraw.POST("/:id/pay", middleware.RequireIdempotency("admin_withdraw_pay", 10*time.Minute), ctrl.MarkPaid)
 	}
 }
+

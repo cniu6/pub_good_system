@@ -6,6 +6,7 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/utils"
+	"log"
 	"math/big"
 	"strconv"
 	"time"
@@ -184,7 +185,8 @@ func (ctrl *UserMoneyScoreController) MoneyLogList(c *gin.Context) {
 
 	logs, total, err := services.GetUserMoneyLogList(userIDFilter, page, pageSize, keyword)
 	if err != nil {
-		utils.Fail(c, 500, "获取余额日志失败: "+err.Error())
+		log.Printf("[ADMIN][MONEY] list money logs failed: %v", err)
+		utils.Fail(c, 500, "获取余额日志失败")
 		return
 	}
 
@@ -219,7 +221,8 @@ func (ctrl *UserMoneyScoreController) MoneyLogDelete(c *gin.Context) {
 	}
 
 	if err := models.DeleteUserMoneyLog(id); err != nil {
-		utils.Fail(c, 500, "删除失败: "+err.Error())
+		log.Printf("[ADMIN][MONEY] delete money log failed id=%d: %v", id, err)
+		utils.Fail(c, 500, "删除余额日志失败")
 		return
 	}
 
@@ -328,7 +331,8 @@ func (ctrl *UserMoneyScoreController) ScoreLogList(c *gin.Context) {
 
 	logs, total, err := services.GetUserScoreLogList(userIDFilter, page, pageSize, keyword)
 	if err != nil {
-		utils.Fail(c, 500, "获取积分日志失败: "+err.Error())
+		log.Printf("[ADMIN][SCORE] list score logs failed: %v", err)
+		utils.Fail(c, 500, "获取积分日志失败")
 		return
 	}
 
@@ -363,7 +367,8 @@ func (ctrl *UserMoneyScoreController) ScoreLogDelete(c *gin.Context) {
 	}
 
 	if err := models.DeleteUserScoreLog(id); err != nil {
-		utils.Fail(c, 500, "删除失败: "+err.Error())
+		log.Printf("[ADMIN][SCORE] delete score log failed id=%d: %v", id, err)
+		utils.Fail(c, 500, "删除积分日志失败")
 		return
 	}
 
@@ -420,3 +425,4 @@ func (ctrl *UserMoneyScoreController) RegisterRoutes(adminGroup *gin.RouterGroup
 		scoreLogs.DELETE("/:id", ctrl.ScoreLogDelete)
 	}
 }
+

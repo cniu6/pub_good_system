@@ -1,7 +1,7 @@
 package models
 
 import (
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"time"
 )
 
@@ -277,3 +277,4 @@ func InitEmailTemplates() {
 		_ = UpdateEmailTemplateContent("reset_password", "en-US", resetPasswordEN)
 	}
 }
+

@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"fst/backend/internal/config"
+	"fst/backend/pkg/config"
 	"testing"
 	"time"
 
@@ -137,3 +137,4 @@ func TestAuthGuardSeparationRefreshToken(t *testing.T) {
 		t.Fatal("ParseRefreshTokenForGuard should reject user refresh token for admin guard")
 	}
 }
+

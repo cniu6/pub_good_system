@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import hljs from 'highlight.js/lib/common'
 import { naiveI18nOptions } from '@/utils'
 import { darkTheme } from 'naive-ui'
 import { useAppStore } from './store'
@@ -13,6 +14,7 @@ const naiveLocale = computed(() => {
 <template>
   <n-config-provider
     class="wh-full"
+    :hljs="hljs"
     inline-theme-disabled
     :theme="appStore.colorMode === 'dark' ? darkTheme : null"
     :locale="naiveLocale.locale"

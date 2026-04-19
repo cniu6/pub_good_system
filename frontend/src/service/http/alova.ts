@@ -14,6 +14,7 @@ import {
   handleRefreshToken,
   handleResponseError,
   handleServiceResult,
+  localizeBackendMessagePayload,
   normalizeRequestError,
 } from './handle'
 
@@ -90,16 +91,17 @@ export function createAlovaInstance(
 
           // 返回json数据
           const apiData = await response.json() as Record<string, unknown>
+          const localizedApiData = localizeBackendMessagePayload(apiData, _backendConfig)
           // 请求成功
-          if (apiData[_backendConfig.codeKey] === _backendConfig.successCode)
-            return handleServiceResult(apiData)
+          if (localizedApiData[_backendConfig.codeKey] === _backendConfig.successCode)
+            return handleServiceResult(localizedApiData)
 
           // 业务请求失败
-          const errorResult = handleBusinessError(apiData, _backendConfig, method.meta?.noErrorTip)
+          const errorResult = handleBusinessError(localizedApiData, _backendConfig, method.meta?.noErrorTip)
           return handleServiceResult(errorResult, false)
         }
         // 接口请求失败
-        const errorResult = handleResponseError(response)
+        const errorResult = await handleResponseError(response)
         return handleServiceResult(errorResult, false)
       },
       onError: async (error, method) => {

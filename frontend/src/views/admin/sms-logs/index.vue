@@ -21,6 +21,8 @@ import {
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
+import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
+import { useTableColumnVisibility } from '@/hooks'
 import { adminSMSLogApi, type SMSLog, type SMSLogListParams } from '@/service/api/admin/sms-log'
 
 const message = useMessage()
@@ -162,6 +164,33 @@ const columns: DataTableColumns<SMSLog> = [
     },
   },
 ]
+
+const selectableColumnOptions = [
+  { key: 'id', label: 'ID' },
+  { key: 'phone', label: t('adminSMSLogs.phone') },
+  { key: 'provider', label: t('adminSMSLogs.provider') },
+  { key: 'template_name', label: t('adminSMSLogs.template') },
+  { key: 'lang', label: t('adminSMSLogs.lang') },
+  { key: 'content', label: t('adminSMSLogs.content') },
+  { key: 'status', label: t('adminSMSLogs.status') },
+  { key: 'created_at', label: t('adminSMSLogs.time') },
+]
+
+const {
+  columnOptions,
+  selectedColumnKeys,
+  visibleColumns,
+  visibleColumnCount,
+  totalColumnCount,
+  tableScrollX,
+  resetSelectedColumns,
+} = useTableColumnVisibility<SMSLog>({
+  storageKey: 'admin-sms-logs-list',
+  columns,
+  options: selectableColumnOptions,
+  minVisibleCount: 1,
+  minScrollX: 960,
+})
 
 async function fetchList() {
   loading.value = true
@@ -332,6 +361,17 @@ onMounted(() => {
     <NCard :title="t('adminSMSLogs.title')">
       <template #header-extra>
         <NSpace>
+          <TableColumnSelector
+            v-model="selectedColumnKeys"
+            :options="columnOptions"
+            :visible-count="visibleColumnCount"
+            :total-count="totalColumnCount"
+            :button-label="t('common.showFields')"
+            :title="t('common.visibleFields')"
+            :hint="t('common.columnVisibilityHint')"
+            :reset-label="t('common.restoreDefaultFields')"
+            @reset="resetSelectedColumns"
+          />
           <NButton size="small" type="primary" :loading="loading" @click="fetchList">{{ t('adminSMSLogs.refresh') }}</NButton>
           <NButton size="small" type="warning" @click="showClean = true">{{ t('adminSMSLogs.cleanLogs') }}</NButton>
         </NSpace>
@@ -351,10 +391,11 @@ onMounted(() => {
 
       <NDataTable
         remote
-        :columns="columns"
+        :columns="visibleColumns"
         :data="logList"
         :loading="loading"
         :pagination="pagination"
+        :scroll-x="tableScrollX"
         :row-key="(row: SMSLog) => row.id"
         @update:page="handlePageChange"
       />

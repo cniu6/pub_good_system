@@ -67,3 +67,4 @@ func GetPluginByName(name string) Plugin {
 	}
 	return nil
 }
+

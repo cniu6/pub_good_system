@@ -3,7 +3,7 @@ package sms_plugin
 import (
 	"encoding/json"
 	"fst/backend/app/services"
-	"fst/backend/internal/config"
+	"fst/backend/pkg/config"
 	"net/url"
 	"testing"
 )
@@ -209,3 +209,4 @@ func TestCustomProviderIsSuccess(t *testing.T) {
 		t.Fatal("expected failure payload to be recognized as failure")
 	}
 }
+

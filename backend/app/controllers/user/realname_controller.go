@@ -161,3 +161,4 @@ func (c *RealnameController) RegisterRoutes(group *gin.RouterGroup) {
 	group.POST("/realname", c.SubmitRealname)
 	group.GET("/realname", c.GetMyRealnameStatus)
 }
+

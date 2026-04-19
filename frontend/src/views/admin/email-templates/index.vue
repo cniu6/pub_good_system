@@ -17,6 +17,8 @@ import {
   NSpace,
   NTag,
 } from 'naive-ui'
+import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
+import { useTableColumnVisibility } from '@/hooks'
 import {
   adminEmailTemplateApi,
   fetchEmailTemplateList,
@@ -186,6 +188,29 @@ const columns = computed(() => [
     },
   },
 ])
+
+const selectableColumnOptions = computed(() => [
+  { key: 'lang', label: text.value.lang },
+  { key: 'subject', label: text.value.subject },
+  { key: 'description', label: text.value.description },
+  { key: 'status', label: text.value.status },
+])
+
+const {
+  columnOptions,
+  selectedColumnKeys,
+  visibleColumns,
+  visibleColumnCount,
+  totalColumnCount,
+  tableScrollX,
+  resetSelectedColumns,
+} = useTableColumnVisibility<EmailTemplate>({
+  storageKey: 'admin-email-templates-list',
+  columns,
+  options: selectableColumnOptions,
+  minVisibleCount: 1,
+  minScrollX: 620,
+})
 
 // ---- Data ----
 async function loadData() {
@@ -407,9 +432,22 @@ onMounted(() => {
     <!-- Template List Card -->
     <NCard :title="text.pageTitle">
       <template #header-extra>
-        <NButton type="primary" :loading="loading" @click="loadData">
-          {{ text.refresh }}
-        </NButton>
+        <NSpace>
+          <TableColumnSelector
+            v-model="selectedColumnKeys"
+            :options="columnOptions"
+            :visible-count="visibleColumnCount"
+            :total-count="totalColumnCount"
+            :button-label="t('common.showFields')"
+            :title="t('common.visibleFields')"
+            :hint="t('common.columnVisibilityHint')"
+            :reset-label="t('common.restoreDefaultFields')"
+            @reset="resetSelectedColumns"
+          />
+          <NButton type="primary" :loading="loading" @click="loadData">
+            {{ text.refresh }}
+          </NButton>
+        </NSpace>
       </template>
 
       <NSpace vertical>
@@ -422,10 +460,11 @@ onMounted(() => {
             <span class="font-bold">{{ templateNameMap[name] || name }}</span>
           </NDivider>
           <NDataTable
-            :columns="columns"
+            :columns="visibleColumns"
             :data="tpls"
             :bordered="false"
             :loading="loading"
+            :scroll-x="tableScrollX"
           />
         </div>
       </NSpace>

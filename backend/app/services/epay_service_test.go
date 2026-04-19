@@ -1,10 +1,12 @@
 package services
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
-// TestGenerateEpaySign 测试签名生成
 func TestGenerateEpaySign(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -62,7 +64,6 @@ func TestGenerateEpaySign(t *testing.T) {
 			if len(sign) != 32 {
 				t.Errorf("MD5签名长度应为32，实际为 %d", len(sign))
 			}
-			// 验证签名一致性：相同参数应产生相同签名
 			sign2 := GenerateEpaySign(tt.params, tt.key)
 			if sign != sign2 {
 				t.Errorf("相同参数两次签名不一致: %s != %s", sign, sign2)
@@ -71,10 +72,7 @@ func TestGenerateEpaySign(t *testing.T) {
 	}
 }
 
-// TestGenerateEpaySign_Deterministic 测试签名确定性（手动计算验证）
 func TestGenerateEpaySign_Deterministic(t *testing.T) {
-	// 手动构造一个简单的签名用例
-	// 参数按 key 排序: money=1.00&name=test&out_trade_no=123&pid=1&type=alipay + key
 	params := map[string]string{
 		"pid":          "1",
 		"type":         "alipay",
@@ -91,14 +89,12 @@ func TestGenerateEpaySign_Deterministic(t *testing.T) {
 		t.Fatalf("确定性签名失败: %s != %s", sign1, sign2)
 	}
 
-	// 改变一个参数，签名应不同
 	params["money"] = "2.00"
 	sign3 := GenerateEpaySign(params, key)
 	if sign1 == sign3 {
 		t.Error("不同参数产生了相同签名")
 	}
 
-	// 改变 key，签名应不同
 	params["money"] = "1.00"
 	sign4 := GenerateEpaySign(params, "different_key")
 	if sign1 == sign4 {
@@ -106,11 +102,9 @@ func TestGenerateEpaySign_Deterministic(t *testing.T) {
 	}
 }
 
-// TestVerifyEpaySign 测试签名验证
 func TestVerifyEpaySign(t *testing.T) {
 	key := "test_secret_key"
 
-	// 构造参数并生成签名
 	params := map[string]string{
 		"pid":          "1001",
 		"type":         "alipay",
@@ -121,7 +115,6 @@ func TestVerifyEpaySign(t *testing.T) {
 		"trade_status": "TRADE_SUCCESS",
 	}
 
-	// 生成正确签名
 	sign := GenerateEpayNotifySign(params, key)
 	params["sign"] = sign
 	params["sign_type"] = "MD5"
@@ -159,7 +152,7 @@ func TestVerifyEpaySign(t *testing.T) {
 		for k, v := range params {
 			tamperedParams[k] = v
 		}
-		tamperedParams["money"] = "99999.00" // 篡改金额
+		tamperedParams["money"] = "99999.00"
 		if VerifyEpaySign(tamperedParams, key) {
 			t.Error("篡改金额后签名不应验证通过")
 		}
@@ -170,7 +163,7 @@ func TestVerifyEpaySign(t *testing.T) {
 		for k, v := range params {
 			tamperedParams[k] = v
 		}
-		tamperedParams["out_trade_no"] = "FAKE_ORDER" // 篡改订单号
+		tamperedParams["out_trade_no"] = "FAKE_ORDER"
 		if VerifyEpaySign(tamperedParams, key) {
 			t.Error("篡改订单号后签名不应验证通过")
 		}
@@ -206,7 +199,6 @@ func TestVerifyEpaySign(t *testing.T) {
 	})
 }
 
-// TestGenerateEpaySign_EmptyParams 测试空参数处理
 func TestGenerateEpaySign_EmptyParams(t *testing.T) {
 	t.Run("空参数map", func(t *testing.T) {
 		sign := GenerateEpaySign(map[string]string{}, "key")
@@ -227,7 +219,6 @@ func TestGenerateEpaySign_EmptyParams(t *testing.T) {
 	})
 }
 
-// TestValidatePaymentType 测试支付方式验证
 func TestValidatePaymentType(t *testing.T) {
 	config := &EpayConfig{
 		PaymentTypes: []string{"alipay", "wxpay", "qqpay"},
@@ -242,7 +233,7 @@ func TestValidatePaymentType(t *testing.T) {
 		{"qqpay", true},
 		{"bankcard", false},
 		{"", false},
-		{"ALIPAY", false}, // 大小写敏感
+		{"ALIPAY", false},
 	}
 
 	for _, tt := range tests {
@@ -255,18 +246,15 @@ func TestValidatePaymentType(t *testing.T) {
 	}
 }
 
-// TestSignFilterFields 测试签名时过滤 sign/sign_type/空值
 func TestSignFilterFields(t *testing.T) {
 	key := "mykey"
 
-	// 不含 sign/sign_type 的参数
 	baseParams := map[string]string{
 		"pid":   "1",
 		"money": "10.00",
 	}
 	baseSig := GenerateEpaySign(baseParams, key)
 
-	// 含 sign/sign_type 的参数（应被过滤，签名一致）
 	withSignParams := map[string]string{
 		"pid":       "1",
 		"money":     "10.00",
@@ -279,7 +267,6 @@ func TestSignFilterFields(t *testing.T) {
 		t.Errorf("sign/sign_type 未被正确过滤: base=%s, withSign=%s", baseSig, withSignSig)
 	}
 
-	// 含空值的参数（空值应被过滤，签名一致）
 	withEmptyParams := map[string]string{
 		"pid":     "1",
 		"money":   "10.00",
@@ -294,7 +281,56 @@ func TestSignFilterFields(t *testing.T) {
 	}
 }
 
-// BenchmarkGenerateEpaySign 签名性能基准测试
+func TestQueryEpayOrder_FallbackIdentifiers(t *testing.T) {
+	queries := make([]url.Values, 0, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries = append(queries, r.URL.Query())
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("out_trade_no") != "" {
+			_, _ = w.Write([]byte(`{"code":-3,"msg":"order not found"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"code":1,"msg":"success","trade_no":"TN123","out_trade_no":"P123","type":false,"money":"10.00","status":"1"}`))
+	}))
+	defer server.Close()
+
+	result, err := QueryEpayOrder(&EpayConfig{
+		ApiURL: server.URL,
+		PID:    "1001",
+		Key:    "secret-key",
+	}, "P123", "TN123")
+	if err != nil {
+		t.Fatalf("QueryEpayOrder returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("QueryEpayOrder returned nil result")
+	}
+	if len(queries) != 2 {
+		t.Fatalf("expected 2 query attempts, got %d", len(queries))
+	}
+	if got := queries[0].Get("out_trade_no"); got != "P123" {
+		t.Fatalf("expected first query to use out_trade_no, got %q", got)
+	}
+	if got := queries[0].Get("key"); got != "secret-key" {
+		t.Fatalf("expected first query to include key, got %q", got)
+	}
+	if got := queries[0].Get("sign"); got != "" {
+		t.Fatalf("expected first query not to include sign, got %q", got)
+	}
+	if got := queries[1].Get("trade_no"); got != "TN123" {
+		t.Fatalf("expected second query to use trade_no, got %q", got)
+	}
+	if result.Code != 1 || result.OutTradeNo != "P123" || result.TradeNo != "TN123" {
+		t.Fatalf("unexpected query result: %+v", result)
+	}
+	if result.TradeStatus != "TRADE_SUCCESS" {
+		t.Fatalf("expected normalized trade status to be TRADE_SUCCESS, got %q", result.TradeStatus)
+	}
+	if result.Type != "" {
+		t.Fatalf("expected false type to normalize to empty string, got %q", result.Type)
+	}
+}
+
 func BenchmarkGenerateEpaySign(b *testing.B) {
 	params := map[string]string{
 		"pid":          "1001",
@@ -313,7 +349,6 @@ func BenchmarkGenerateEpaySign(b *testing.B) {
 	}
 }
 
-// BenchmarkVerifyEpaySign 验签性能基准测试
 func BenchmarkVerifyEpaySign(b *testing.B) {
 	key := "benchmark_key_12345"
 	params := map[string]string{

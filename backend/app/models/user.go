@@ -3,7 +3,8 @@ package models
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
+	"strings"
 	"time"
 )
 
@@ -29,6 +30,7 @@ type User struct {
 	JoinIp        string  `db:"join_ip" json:"join_ip"`
 	JoinTime      *int64  `db:"join_time" json:"join_time"`
 	Motto         string  `db:"motto" json:"motto"`
+	AdminRemark   string  `db:"admin_remark" json:"-"`
 	Password      string  `db:"password" json:"-"`
 	Status        uint8   `db:"status" json:"status"`
 
@@ -55,17 +57,61 @@ func (u *User) TableName() string {
 	return "users"
 }
 
+func BuildUserSelectColumns(tableAlias string) string {
+	alias := strings.TrimSpace(tableAlias)
+	if alias == "" {
+		alias = "users"
+	}
+	qualified := func(column string) string {
+		return alias + "." + column
+	}
+	columns := []string{
+		qualified("id"),
+		qualified("group_id"),
+		qualified("username"),
+		qualified("nickname"),
+		qualified("email"),
+		qualified("mobile"),
+		qualified("avatar"),
+		qualified("back_ground"),
+		qualified("gender"),
+		qualified("birthday"),
+		qualified("money"),
+		qualified("score"),
+		qualified("level"),
+		qualified("role"),
+		qualified("last_login_time"),
+		qualified("last_login_ip"),
+		qualified("login_failure"),
+		qualified("lock_until"),
+		qualified("join_ip"),
+		qualified("join_time"),
+		qualified("motto"),
+		"COALESCE(" + qualified("admin_remark") + ", '') AS admin_remark",
+		qualified("password"),
+		qualified("status"),
+		qualified("apikey"),
+		qualified("update_time"),
+		qualified("create_time"),
+		qualified("delete_time"),
+		qualified("language"),
+		qualified("country"),
+		qualified("token"),
+	}
+	return strings.Join(columns, ", ")
+}
+
 // CreateUser inserts a new user into the database
 func CreateUser(user *User) error {
 	query := `INSERT INTO users (
 		group_id, username, nickname, email, mobile, avatar, back_ground, gender, birthday, 
 		money, score, level, role, last_login_time, last_login_ip, login_failure, 
-		join_ip, join_time, motto, password, status, apikey, update_time, create_time, 
+		join_ip, join_time, motto, admin_remark, password, status, apikey, update_time, create_time, 
 		language, country, token
 	) VALUES (
 		:group_id, :username, :nickname, :email, :mobile, :avatar, :back_ground, :gender, :birthday, 
 		:money, :score, :level, :role, :last_login_time, :last_login_ip, :login_failure, 
-		:join_ip, :join_time, :motto, :password, :status, :apikey, :update_time, :create_time, 
+		:join_ip, :join_time, :motto, :admin_remark, :password, :status, :apikey, :update_time, :create_time, 
 		:language, :country, :token
 	)`
 
@@ -110,7 +156,7 @@ func CreateUser(user *User) error {
 // GetUserByUsername finds a user by username
 func GetUserByUsername(username string) (*User, error) {
 	var user User
-	err := db.DB.Get(&user, "SELECT * FROM users WHERE username = ? AND delete_time IS NULL", username)
+	err := db.DB.Get(&user, "SELECT "+BuildUserSelectColumns("users")+" FROM users WHERE username = ? AND delete_time IS NULL", username)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +166,7 @@ func GetUserByUsername(username string) (*User, error) {
 // GetUserByEmail finds a user by email
 func GetUserByEmail(email string) (*User, error) {
 	var user User
-	err := db.DB.Get(&user, "SELECT * FROM users WHERE email = ? AND delete_time IS NULL", email)
+	err := db.DB.Get(&user, "SELECT "+BuildUserSelectColumns("users")+" FROM users WHERE email = ? AND delete_time IS NULL", email)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +176,7 @@ func GetUserByEmail(email string) (*User, error) {
 // GetUserByMobile finds a user by mobile number
 func GetUserByMobile(mobile string) (*User, error) {
 	var user User
-	err := db.DB.Get(&user, "SELECT * FROM users WHERE mobile = ? AND delete_time IS NULL", mobile)
+	err := db.DB.Get(&user, "SELECT "+BuildUserSelectColumns("users")+" FROM users WHERE mobile = ? AND delete_time IS NULL", mobile)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +186,7 @@ func GetUserByMobile(mobile string) (*User, error) {
 // GetUserByUsernameOrEmail finds a user by username or email
 func GetUserByUsernameOrEmail(identifier string) (*User, error) {
 	var user User
-	err := db.DB.Get(&user, "SELECT * FROM users WHERE (username = ? OR email = ?) AND delete_time IS NULL", identifier, identifier)
+	err := db.DB.Get(&user, "SELECT "+BuildUserSelectColumns("users")+" FROM users WHERE (username = ? OR email = ?) AND delete_time IS NULL", identifier, identifier)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +196,7 @@ func GetUserByUsernameOrEmail(identifier string) (*User, error) {
 // GetUserByID finds a user by ID
 func GetUserByID(id uint64) (*User, error) {
 	var user User
-	err := db.DB.Get(&user, "SELECT * FROM users WHERE id = ? AND delete_time IS NULL", id)
+	err := db.DB.Get(&user, "SELECT "+BuildUserSelectColumns("users")+" FROM users WHERE id = ? AND delete_time IS NULL", id)
 	if err != nil {
 		return nil, err
 	}
@@ -223,3 +269,4 @@ func IncrementLoginFailure(userID uint64, maxFailureCount int, lockDurationMinut
 
 	return nil
 }
+

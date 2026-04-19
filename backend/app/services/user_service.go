@@ -1,8 +1,9 @@
 package services
 
 import (
+	"fmt"
 	"fst/backend/app/models"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -27,7 +28,10 @@ type UserListQuery struct {
 
 type AdminUserListItem struct {
 	models.User
-	RealnameStatus *uint8 `db:"realname_status" json:"realname_status"`
+	AdminRemark      string  `db:"-" json:"admin_remark"`
+	RealnameStatus   *uint8  `db:"realname_status" json:"realname_status"`
+	TotalPaidAmount  float64 `db:"total_paid_amount" json:"total_paid_amount"`
+	BalancePaidRatio float64 `db:"balance_paid_ratio" json:"balance_paid_ratio"`
 }
 
 // UserListResult 用户列表返回结果
@@ -57,9 +61,9 @@ func (s *UserService) GetList(query *UserListQuery) (*UserListResult, error) {
 	args := []interface{}{}
 
 	if query.Keyword != "" {
-		where += " AND (users.username LIKE ? OR users.nickname LIKE ? OR users.email LIKE ? OR users.mobile LIKE ?)"
+		where += " AND (users.username LIKE ? OR users.nickname LIKE ? OR users.email LIKE ? OR users.mobile LIKE ? OR users.admin_remark LIKE ?)"
 		kw := "%" + query.Keyword + "%"
-		args = append(args, kw, kw, kw, kw)
+		args = append(args, kw, kw, kw, kw, kw)
 	}
 	if query.Status != nil {
 		where += " AND users.status = ?"
@@ -74,7 +78,7 @@ func (s *UserService) GetList(query *UserListQuery) (*UserListResult, error) {
 		args = append(args, *query.RealnameStatus)
 	}
 
-	fromClause := ` FROM users
+	fromClause := fmt.Sprintf(` FROM users
 		LEFT JOIN (
 			SELECT t.user_id, t.status
 			FROM user_realname_verifications t
@@ -84,11 +88,19 @@ func (s *UserService) GetList(query *UserListQuery) (*UserListResult, error) {
 				WHERE delete_time IS NULL
 				GROUP BY user_id
 			) latest ON latest.max_id = t.id
-		) rv ON rv.user_id = users.id `
+		) rv ON rv.user_id = users.id
+		LEFT JOIN (
+			SELECT user_id, COALESCE(SUM(pay_amount), 0) AS total_paid_amount
+			FROM payment_orders
+			WHERE status = ? AND %s
+			GROUP BY user_id
+		) p ON p.user_id = users.id `, models.RealPaidOrderFilterSQL)
+
+	baseArgs := append([]interface{}{models.PaymentStatusPaid}, args...)
 
 	// 查询总数
 	count_query := "SELECT COUNT(*)" + fromClause + where
-	err := db.DB.Get(&total, count_query, args...)
+	err := db.DB.Get(&total, count_query, baseArgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -96,12 +108,16 @@ func (s *UserService) GetList(query *UserListQuery) (*UserListResult, error) {
 	// 分页查询
 	offset := (query.Page - 1) * query.PageSize
 	// 关联每个用户最后一条未删除实名记录的状态，方便管理员列表直接展示认证结果。
-	list_query := "SELECT users.*, rv.status AS realname_status" + fromClause + where + " ORDER BY users.id DESC LIMIT ? OFFSET ?"
-	args = append(args, query.PageSize, offset)
+	list_query := "SELECT " + models.BuildUserSelectColumns("users") + ", rv.status AS realname_status, COALESCE(p.total_paid_amount, 0) AS total_paid_amount, CASE WHEN COALESCE(p.total_paid_amount, 0) > 0 THEN COALESCE(users.money, 0) / p.total_paid_amount ELSE 0 END AS balance_paid_ratio" + fromClause + where + " ORDER BY users.id DESC LIMIT ? OFFSET ?"
+	listArgs := append(baseArgs, query.PageSize, offset)
 
-	err = db.DB.Select(&users, list_query, args...)
+	err = db.DB.Select(&users, list_query, listArgs...)
 	if err != nil {
 		return nil, err
+	}
+
+	for i := range users {
+		users[i].AdminRemark = users[i].User.AdminRemark
 	}
 
 	return &UserListResult{
@@ -115,6 +131,39 @@ func (s *UserService) GetList(query *UserListQuery) (*UserListResult, error) {
 // GetByID 根据ID获取用户
 func (s *UserService) GetByID(id uint64) (*models.User, error) {
 	return models.GetUserByID(id)
+}
+
+func (s *UserService) GetAdminDetail(id uint64) (*AdminUserListItem, error) {
+	var user AdminUserListItem
+	query := fmt.Sprintf(`SELECT
+		%s,
+		rv.status AS realname_status,
+		COALESCE(p.total_paid_amount, 0) AS total_paid_amount,
+		CASE WHEN COALESCE(p.total_paid_amount, 0) > 0 THEN COALESCE(users.money, 0) / p.total_paid_amount ELSE 0 END AS balance_paid_ratio
+	FROM users
+	LEFT JOIN (
+		SELECT t.user_id, t.status
+		FROM user_realname_verifications t
+		INNER JOIN (
+			SELECT user_id, MAX(id) AS max_id
+			FROM user_realname_verifications
+			WHERE delete_time IS NULL
+			GROUP BY user_id
+		) latest ON latest.max_id = t.id
+	) rv ON rv.user_id = users.id
+	LEFT JOIN (
+		SELECT user_id, COALESCE(SUM(pay_amount), 0) AS total_paid_amount
+		FROM payment_orders
+		WHERE status = ? AND %s
+		GROUP BY user_id
+	) p ON p.user_id = users.id
+	WHERE users.id = ? AND users.delete_time IS NULL`, models.BuildUserSelectColumns("users"), models.RealPaidOrderFilterSQL)
+
+	if err := db.DB.Get(&user, query, models.PaymentStatusPaid, id); err != nil {
+		return nil, err
+	}
+	user.AdminRemark = user.User.AdminRemark
+	return &user, nil
 }
 
 // GetByUsername 根据用户名获取用户
@@ -136,6 +185,7 @@ type UserCreateRequest struct {
 	Mobile   string `json:"mobile"`
 	Language string `json:"language"`
 	Country  string `json:"country"`
+	AdminRemark string `json:"admin_remark"`
 	Level    uint64 `json:"level"`
 	Role     string `json:"role"`
 	Status   uint8  `json:"status"`
@@ -163,6 +213,7 @@ func (s *UserService) Create(req *UserCreateRequest) (*models.User, error) {
 		Mobile:   req.Mobile,
 		Language: req.Language,
 		Country:  req.Country,
+		AdminRemark: req.AdminRemark,
 		Level:    req.Level,
 		Role:     req.Role,
 		Status:   req.Status,
@@ -198,6 +249,7 @@ type UserUpdateRequest struct {
 	BackGround *string `json:"back_ground"`
 	Language   *string `json:"language"`
 	Country    *string `json:"country"`
+	AdminRemark *string `json:"admin_remark"`
 	Level      *uint64 `json:"level"`
 	Role       *string `json:"role"`
 	Status     *uint8  `json:"status"`
@@ -210,6 +262,10 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 	if err != nil {
 		return NewClientError("用户不存在")
 	}
+
+	// 记录原始关键字段，用于更新完成后判断是否需要级联撤销会话
+	previousStatus := user.Status
+	previousRole := user.Role
 
 	// 检查邮箱是否被其他用户使用
 	if req.Email != nil && *req.Email != user.Email {
@@ -251,6 +307,9 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 	if req.Country != nil {
 		user.Country = *req.Country
 	}
+	if req.AdminRemark != nil {
+		user.AdminRemark = *req.AdminRemark
+	}
 	if req.Level != nil && *req.Level > 0 {
 		user.Level = *req.Level
 	}
@@ -268,19 +327,31 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 	user.UpdateTime = &now
 
 	query := `UPDATE users SET nickname = :nickname, email = :email, mobile = :mobile,
-			  avatar = :avatar, gender = :gender, birthday = :birthday, motto = :motto,
+			  avatar = :avatar, gender = :gender, birthday = :birthday, motto = :motto, admin_remark = :admin_remark,
 			  back_ground = :back_ground, language = :language, country = :country,
 			  level = :level, role = :role, status = :status, group_id = :group_id, update_time = :update_time
 			  WHERE id = :id`
-	_, err = db.DB.NamedExec(query, user)
-	return err
+	if _, err = db.DB.NamedExec(query, user); err != nil {
+		return err
+	}
+
+	// 状态从启用变为禁用、或用户角色变更时，需级联撤销其全部会话，避免旧 token 仍然可用。
+	if (previousStatus == 1 && user.Status == 0) || user.Role != previousRole {
+		revokeAllGuardSessions(user.ID)
+	}
+	return nil
 }
 
-// UpdateStatus 更新用户状态
+// UpdateStatus 更新用户状态。禁用时顺手撤销其所有活跃会话，避免旧 token 仍被使用。
 func (s *UserService) UpdateStatus(user_id uint64, status uint8) error {
 	now := time.Now().Unix()
-	_, err := db.DB.Exec("UPDATE users SET status = ?, update_time = ? WHERE id = ?", status, now, user_id)
-	return err
+	if _, err := db.DB.Exec("UPDATE users SET status = ?, update_time = ? WHERE id = ?", status, now, user_id); err != nil {
+		return err
+	}
+	if status == 0 {
+		revokeAllGuardSessions(user_id)
+	}
+	return nil
 }
 
 // UpdatePassword 更新用户密码
@@ -288,14 +359,17 @@ func (s *UserService) UpdatePassword(user_id uint64, hashed_password string) err
 	return models.UpdatePassword(user_id, hashed_password)
 }
 
-// Delete 软删除用户（同时禁用账号状态）
+// Delete 软删除用户（同时禁用账号状态，并撤销其所有会话）
 func (s *UserService) Delete(user_id uint64) error {
 	now := time.Now().Unix()
-	_, err := db.DB.Exec("UPDATE users SET delete_time = ?, status = 0, update_time = ? WHERE id = ?", now, now, user_id)
-	return err
+	if _, err := db.DB.Exec("UPDATE users SET delete_time = ?, status = 0, update_time = ? WHERE id = ?", now, now, user_id); err != nil {
+		return err
+	}
+	revokeAllGuardSessions(user_id)
+	return nil
 }
 
-// BatchDelete 批量软删除用户
+// BatchDelete 批量软删除用户，同时撤销会话
 func (s *UserService) BatchDelete(user_ids []uint64) error {
 	if len(user_ids) == 0 {
 		return nil
@@ -307,11 +381,16 @@ func (s *UserService) BatchDelete(user_ids []uint64) error {
 	if err != nil {
 		return err
 	}
-	_, err = db.DB.Exec(query, args...)
-	return err
+	if _, err = db.DB.Exec(query, args...); err != nil {
+		return err
+	}
+	for _, uid := range user_ids {
+		revokeAllGuardSessions(uid)
+	}
+	return nil
 }
 
-// BatchUpdateStatus 批量更新用户状态
+// BatchUpdateStatus 批量更新用户状态；禁用时同步撤销相关会话
 func (s *UserService) BatchUpdateStatus(user_ids []uint64, status uint8) error {
 	if len(user_ids) == 0 {
 		return nil
@@ -323,8 +402,26 @@ func (s *UserService) BatchUpdateStatus(user_ids []uint64, status uint8) error {
 	if err != nil {
 		return err
 	}
-	_, err = db.DB.Exec(query, args...)
-	return err
+	if _, err = db.DB.Exec(query, args...); err != nil {
+		return err
+	}
+	if status == 0 {
+		for _, uid := range user_ids {
+			revokeAllGuardSessions(uid)
+		}
+	}
+	return nil
+}
+
+// revokeAllGuardSessions 级联撤销用户在所有 guard 下的活跃会话。
+// 该函数故意忽略单条错误，以免某条撤销失败导致整个管理员批量操作回滚。
+func revokeAllGuardSessions(user_id uint64) {
+	for _, guard := range []string{"user", "admin"} {
+		if err := models.RevokeAllUserSessionsWithGuard(user_id, guard, ""); err != nil {
+			// 这里属于清理动作，失败仅日志化即可
+			continue
+		}
+	}
 }
 
 // UpdateLoginInfo 更新登录信息
@@ -342,30 +439,39 @@ func (s *UserService) IncrementLoginFailure(user_id uint64) error {
 	return err
 }
 
-// IncrementLoginFailureWithLock 增加登录失败次数（带自动锁定）
+// IncrementLoginFailureWithLock 原子地增加登录失败次数，并在达到阈值时锁定账户。
+// 原实现分两步 UPDATE/SELECT 存在并发竞态：多个失败登录可能互相读到对方递增后的值，
+// 造成“不该锁定”或“漏锁定”。此处改为在事务中 FOR UPDATE，确保计数与锁定判定一致。
 func (s *UserService) IncrementLoginFailureWithLock(user_id uint64, max_failures, lock_duration_minutes int) error {
+	if max_failures <= 0 {
+		return nil
+	}
 	now := time.Now().Unix()
-	lock_until := now + int64(lock_duration_minutes*60)
 
-	// 先增加失败次数
-	_, err := db.DB.Exec("UPDATE users SET login_failure = login_failure + 1, update_time = ? WHERE id = ?", now, user_id)
+	tx, err := db.DB.Begin()
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback()
 
-	// 检查是否达到锁定阈值
-	var current_failure int
-	err = db.DB.Get(&current_failure, "SELECT login_failure FROM users WHERE id = ?", user_id)
-	if err != nil {
+	var currentFailure int
+	if err := tx.QueryRow("SELECT login_failure FROM users WHERE id = ? FOR UPDATE", user_id).Scan(&currentFailure); err != nil {
 		return err
 	}
 
-	if current_failure >= max_failures {
-		// 锁定账户
-		_, err = db.DB.Exec("UPDATE users SET lock_until = ? WHERE id = ?", lock_until, user_id)
+	nextFailure := currentFailure + 1
+	if _, err := tx.Exec("UPDATE users SET login_failure = ?, update_time = ? WHERE id = ?", nextFailure, now, user_id); err != nil {
+		return err
 	}
 
-	return err
+	if nextFailure >= max_failures && lock_duration_minutes > 0 {
+		lockUntil := now + int64(lock_duration_minutes*60)
+		if _, err := tx.Exec("UPDATE users SET lock_until = ? WHERE id = ?", lockUntil, user_id); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 // ClearLockUntil 清除账户锁定

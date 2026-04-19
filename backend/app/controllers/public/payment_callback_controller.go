@@ -3,21 +3,13 @@ package public
 import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
+	"fst/backend/pkg/config"
 	"log"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
-
-// getFrontendURL 从系统设置获取前端地址
-func getFrontendURL() string {
-	setting, err := models.GetSettingByKey("frontend_url")
-	if err == nil && setting.Value != "" {
-		return strings.TrimRight(setting.Value, "/")
-	}
-	return ""
-}
 
 // PaymentCallbackController 支付回调控制器（公共接口，无需登录）
 type PaymentCallbackController struct{}
@@ -34,7 +26,7 @@ func (ctrl *PaymentCallbackController) Notify(c *gin.Context) {
 	// 从 GET 或 POST 参数中提取回调数据
 	params := extractCallbackParams(c)
 
-	log.Printf("[Payment Notify] 收到回调: %v", params)
+	log.Printf("[Payment Notify] 收到回调: %v", sanitizeCallbackParamsForLog(params))
 
 	ok, err := services.HandlePaymentNotify(params)
 	if !ok || err != nil {
@@ -52,12 +44,21 @@ func (ctrl *PaymentCallbackController) Notify(c *gin.Context) {
 func (ctrl *PaymentCallbackController) Return(c *gin.Context) {
 	params := extractCallbackParams(c)
 
-	log.Printf("[Payment Return] 收到跳转: %v", params)
+	log.Printf("[Payment Return] 收到跳转: %v", sanitizeCallbackParamsForLog(params))
 
 	order, err := services.HandlePaymentReturn(params)
 
 	// 构造前端跳转地址
-	frontendURL := getFrontendURL()
+	frontendURL := services.GetGlobalFrontendURL()
+	if frontendURL == "" {
+		if !config.IsProductionMode() {
+			frontendURL = "http://localhost:5173"
+		} else {
+			log.Printf("[Payment Return] frontend_url missing, cannot redirect order=%v err=%v", order, err)
+			c.String(http.StatusOK, "支付结果已处理，请联系管理员检查前端地址配置")
+			return
+		}
+	}
 
 	if err != nil || order == nil {
 		// 验签失败或订单不存在，跳转到前端充值页并附加错误提示
@@ -102,6 +103,34 @@ func extractCallbackParams(c *gin.Context) map[string]string {
 	return params
 }
 
+func sanitizeCallbackParamsForLog(params map[string]string) map[string]string {
+	sanitized := make(map[string]string, len(params))
+	for key, value := range params {
+		cleanValue := strings.ReplaceAll(value, "\r", " ")
+		cleanValue = strings.ReplaceAll(cleanValue, "\n", " ")
+		switch key {
+		case "sign":
+			if cleanValue != "" {
+				cleanValue = "***"
+			}
+		case "trade_no", "out_trade_no":
+			cleanValue = maskCallbackLogValue(cleanValue)
+		}
+		sanitized[key] = cleanValue
+	}
+	return sanitized
+}
+
+func maskCallbackLogValue(value string) string {
+	if value == "" {
+		return ""
+	}
+	if len(value) <= 8 {
+		return "***"
+	}
+	return value[:4] + "***" + value[len(value)-4:]
+}
+
 // ========================================
 // 注册路由
 // ========================================
@@ -117,3 +146,4 @@ func (ctrl *PaymentCallbackController) RegisterRoutes(group *gin.RouterGroup) {
 		payment.GET("/return", ctrl.Return)
 	}
 }
+

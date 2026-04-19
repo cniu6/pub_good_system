@@ -3,7 +3,7 @@ package public
 import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
-	"fst/backend/internal/config"
+	"fst/backend/pkg/config"
 	"fst/backend/utils"
 	"strings"
 
@@ -193,3 +193,4 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 func (ctrl *SettingsController) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/app-config", ctrl.GetAppConfig)
 }
+

@@ -2,7 +2,8 @@ package services
 
 import (
 	"fst/backend/app/models"
-	"fst/backend/internal/config"
+	"fst/backend/pkg/config"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -17,48 +18,68 @@ type CleanupStatus struct {
 }
 
 var cleanupStatus = &CleanupStatus{}
+var cleanupStartOnce sync.Once
 
-// StartCleanupTask 启动验证码定时清理后台任务
-// 不输出周期性日志，仅在出错时打印，清理时间记录在内存中
-func StartCleanupTask() {
+func GetCleanupIntervalMinutes() int {
 	interval := config.GlobalConfig.CleanupIntervalMinutes
 	if interval <= 0 {
 		interval = 10
 	}
+	return interval
+}
 
-	cleanupStatus.mu.Lock()
-	cleanupStatus.intervalMinutes = interval
-	cleanupStatus.running = true
-	cleanupStatus.mu.Unlock()
+// StartCleanupTask 启动验证码定时清理后台任务（幂等）
+// 不输出周期性日志，仅在出错时打印，清理时间记录在内存中
+func StartCleanupTask() {
+	interval := GetCleanupIntervalMinutes()
 
-	go func() {
-		ticker := time.NewTicker(time.Duration(interval) * time.Minute)
-		defer ticker.Stop()
+	// 使用 sync.Once 保证即使被重复调用，也只启动一个后台 goroutine，
+	// 避免重复清理在并发下引发的无谓 DB 压力或日志噪音。
+	cleanupStartOnce.Do(func() {
+		cleanupStatus.mu.Lock()
+		cleanupStatus.intervalMinutes = interval
+		cleanupStatus.running = true
+		cleanupStatus.mu.Unlock()
+		ensureBackgroundTask("cleanup", "验证码/会话清理", time.Duration(interval)*time.Minute)
 
-		// 立即执行一次清理
-		runCleanup()
+		go func() {
+			ticker := time.NewTicker(time.Duration(interval) * time.Minute)
+			defer ticker.Stop()
 
-		for range ticker.C {
-			runCleanup()
-		}
-	}()
+			// 立即执行一次清理
+			if _, err := RunCleanupNow(); err != nil {
+				log.Printf("[Cleanup] initial run failed: %v", err)
+			}
+
+			for range ticker.C {
+				if _, err := RunCleanupNow(); err != nil {
+					log.Printf("[Cleanup] periodic run failed: %v", err)
+				}
+			}
+		}()
+	})
 }
 
 // runCleanup 执行一次清理，只在出错时输出日志
-func runCleanup() {
+func executeCleanupOnce() (string, error) {
 	if err := models.SoftDeleteExpiredCodes(); err != nil {
 		log.Printf("[Cleanup] Failed to soft delete expired codes: %v", err)
+		return "", err
 	}
 	if err := models.CleanupOldVerificationCodes(); err != nil {
 		log.Printf("[Cleanup] Failed to cleanup old codes: %v", err)
+		return "", err
 	}
 	if err := models.CleanupExpiredSessions(); err != nil {
 		log.Printf("[Cleanup] Failed to cleanup user sessions: %v", err)
+		return "", err
 	}
 
 	cleanupStatus.mu.Lock()
 	cleanupStatus.lastCleanupTime = time.Now()
 	cleanupStatus.mu.Unlock()
+
+	return fmt.Sprintf("清理完成，最近执行时间：%s", cleanupStatus.lastCleanupTime.Format("2006-01-02 15:04:05")), nil
 }
 
 // GetCleanupStatus 返回清理任务的当前状态
@@ -75,6 +96,15 @@ func GetCleanupStatus() map[string]interface{} {
 		result["last_cleanup_time"] = cleanupStatus.lastCleanupTime.Format("2006-01-02 15:04:05")
 		next := cleanupStatus.lastCleanupTime.Add(time.Duration(cleanupStatus.intervalMinutes) * time.Minute)
 		result["next_cleanup_time"] = next.Format("2006-01-02 15:04:05")
+	}
+
+	for _, item := range GetBackgroundTaskStatusList() {
+		if item.Key == "cleanup" {
+			result["last_status"] = item.LastStatus
+			result["last_message"] = item.LastMessage
+			result["last_duration_ms"] = item.LastDurationMs
+			break
+		}
 	}
 
 	return result

@@ -5,7 +5,7 @@ import (
 	"fst/backend/app/plugins"
 	smstemplates "fst/backend/app/plugins/sms/templates"
 	"fst/backend/app/services"
-	"fst/backend/internal/config"
+	"fst/backend/pkg/config"
 	"fst/backend/pkg/pluginregistry"
 	"log"
 
@@ -121,3 +121,4 @@ func (p *Plugin) Shutdown() error {
 	log.Println("[SMSPlugin] 已关闭")
 	return nil
 }
+

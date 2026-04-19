@@ -1,10 +1,60 @@
 import { defineStore } from 'pinia'
-import type { RouteLocationNormalized } from 'vue-router'
+import type { RouteLocationNormalized, RouteRecordNameGeneric } from 'vue-router'
 import { router } from '@/router'
+import { getRuntimeRouteMode } from '@/router/runtime-mode'
+
+function resolveScopedTabStorageKey(key: string) {
+  return `${key}:${getRuntimeRouteMode()}`
+}
+
+const scopedSessionStorage = {
+  getItem(key: string) {
+    return window.sessionStorage.getItem(resolveScopedTabStorageKey(key))
+  },
+  setItem(key: string, value: string) {
+    window.sessionStorage.setItem(resolveScopedTabStorageKey(key), value)
+  },
+  removeItem(key: string) {
+    window.sessionStorage.removeItem(resolveScopedTabStorageKey(key))
+  },
+}
+
+export interface TabRouteItem {
+  fullPath: string
+  path: string
+  name?: RouteRecordNameGeneric | null
+  meta: {
+    title: string
+  } & Partial<Omit<AppRoute.RouteMeta, 'title'>>
+}
+
+function createTabRouteItem(route: RouteLocationNormalized): TabRouteItem {
+  const meta: TabRouteItem['meta'] = {
+    title: typeof route.meta.title === 'string' ? route.meta.title : String(route.name ?? route.path),
+    icon: typeof route.meta.icon === 'string' ? route.meta.icon : undefined,
+    requiresAuth: route.meta.requiresAuth,
+    roles: route.meta.roles,
+    keepAlive: route.meta.keepAlive,
+    hide: route.meta.hide,
+    order: route.meta.order,
+    href: route.meta.href,
+    activeMenu: route.meta.activeMenu,
+    withoutTab: route.meta.withoutTab,
+    pinTab: route.meta.pinTab,
+    menuType: route.meta.menuType,
+  }
+
+  return {
+    fullPath: route.fullPath,
+    path: route.path,
+    name: route.name,
+    meta,
+  }
+}
 
 interface TabState {
-  pinTabs: RouteLocationNormalized[]
-  tabs: RouteLocationNormalized[]
+  pinTabs: TabRouteItem[]
+  tabs: TabRouteItem[]
   currentTabPath: string
 }
 export const useTabStore = defineStore('tab-store', {
@@ -28,11 +78,13 @@ export const useTabStore = defineStore('tab-store', {
       if (this.hasExistTab(route.fullPath as string))
         return
 
+      const tabRoute = createTabRouteItem(route)
+
       // 根据meta.pinTab传递到不同的分组中
       if (route.meta.pinTab)
-        this.pinTabs.push(route)
+        this.pinTabs.push(tabRoute)
       else
-        this.tabs.push(route)
+        this.tabs.push(tabRoute)
     },
     async closeTab(fullPath: string) {
       const tabsLength = this.tabs.length
@@ -96,12 +148,13 @@ export const useTabStore = defineStore('tab-store', {
         return item.fullPath === fullPath
       })
     },
-    modifyTab(fullPath: string, modifyFn: (route: RouteLocationNormalized) => void) {
+    modifyTab(fullPath: string, modifyFn: (route: TabRouteItem) => void) {
       const index = this.getTabIndex(fullPath)
-      modifyFn(this.tabs[index])
+      if (index >= 0)
+        modifyFn(this.tabs[index])
     },
   },
   persist: {
-    storage: sessionStorage,
+    storage: scopedSessionStorage,
   },
 })

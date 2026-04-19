@@ -225,3 +225,4 @@ func GetSwaggerStatus() map[string]interface{} {
 		"swagger_enabled": os.Getenv("GO_ENV") != "production",
 	}
 }
+

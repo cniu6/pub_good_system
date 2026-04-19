@@ -14,6 +14,10 @@ export const adminLogApi = {
     return request.Get<Service.ResponseResult<{ list: any[]; total: number; page: number; page_size: number }>>(BASE_URL, { params })
   },
 
+  detail(id: number) {
+    return request.Get<Service.ResponseResult<any>>(`${BASE_URL}/${id}`)
+  },
+
   /**
    * 清理日志
    * @param before_time 清理此时间戳之前的日志

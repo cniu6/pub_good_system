@@ -2,7 +2,7 @@ package models
 
 import (
 	"database/sql"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"log"
 	"time"
 )
@@ -35,11 +35,22 @@ func InitIdempotencyKeysTable() {
 	}
 }
 
-func CleanupExpiredIdempotencyKeys() {
+func CleanupExpiredIdempotencyKeys() (int64, error) {
 	now := time.Now().Unix()
-	if _, err := db.DB.Exec("DELETE FROM idempotency_keys WHERE expire_at > 0 AND expire_at < ?", now); err != nil {
+	result, err := db.DB.Exec("DELETE FROM idempotency_keys WHERE expire_at > 0 AND expire_at <= ?", now)
+	if err != nil {
 		log.Printf("[Idempotency] cleanup failed: %v", err)
+		return 0, err
 	}
+	return result.RowsAffected()
+}
+
+func DeleteExpiredIdempotencyKeyTx(tx *sql.Tx, idemKey string, userID uint64, scope string, now int64) error {
+	_, err := tx.Exec(
+		"DELETE FROM idempotency_keys WHERE idem_key = ? AND user_id = ? AND scope = ? AND expire_at > 0 AND expire_at <= ?",
+		idemKey, userID, scope, now,
+	)
+	return err
 }
 
 func CreateIdempotencyKeyTx(tx *sql.Tx, idemKey string, userID uint64, scope string, requestHash string, expireAt int64) error {
@@ -51,14 +62,15 @@ func CreateIdempotencyKeyTx(tx *sql.Tx, idemKey string, userID uint64, scope str
 	return err
 }
 
-func GetIdempotencyKeyTx(tx *sql.Tx, idemKey string, userID uint64, scope string) (*IdempotencyKey, error) {
+func GetActiveIdempotencyKeyTx(tx *sql.Tx, idemKey string, userID uint64, scope string, now int64) (*IdempotencyKey, error) {
 	var item IdempotencyKey
 	err := tx.QueryRow(
-		"SELECT id, idem_key, user_id, scope, request_hash, expire_at, create_time FROM idempotency_keys WHERE idem_key = ? AND user_id = ? AND scope = ? LIMIT 1",
-		idemKey, userID, scope,
+		"SELECT id, idem_key, user_id, scope, request_hash, expire_at, create_time FROM idempotency_keys WHERE idem_key = ? AND user_id = ? AND scope = ? AND (expire_at = 0 OR expire_at > ?) LIMIT 1",
+		idemKey, userID, scope, now,
 	).Scan(&item.ID, &item.IdemKey, &item.UserID, &item.Scope, &item.RequestHash, &item.ExpireAt, &item.CreateTime)
 	if err != nil {
 		return nil, err
 	}
 	return &item, nil
 }
+

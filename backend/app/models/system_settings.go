@@ -3,7 +3,7 @@ package models
 import (
 	"database/sql"
 	"encoding/json"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"log"
 	"strings"
 	"time"
@@ -126,10 +126,20 @@ var defaultSettings = []SystemSetting{
 	{Key: "geetest_captcha_key", Value: "", Type: "string", Category: "security", Label: "极验 Captcha Key", Description: "极验验证码 Key", IsPublic: false, IsEditable: true, SortOrder: 3},
 	{Key: "jwt_access_expire", Value: "7200", Type: "number", Category: "security", Label: "Token有效期", Description: "Access Token 有效期（秒）", IsPublic: false, IsEditable: true, SortOrder: 4},
 	{Key: "jwt_refresh_expire", Value: "604800", Type: "number", Category: "security", Label: "Refresh Token有效期", Description: "Refresh Token 有效期（秒）", IsPublic: false, IsEditable: true, SortOrder: 5},
+	{Key: "register_code_expire_minutes", Value: "60", Type: "number", Category: "security", Label: "注册验证码有效期", Description: "注册验证码有效期（分钟）", IsPublic: false, IsEditable: true, SortOrder: 6},
 	{Key: "login_max_failure", Value: "5", Type: "number", Category: "security", Label: "登录失败锁定次数", Description: "连续登录失败多少次后锁定账户", IsPublic: false, IsEditable: true, SortOrder: 6},
 	{Key: "login_lock_duration", Value: "10", Type: "number", Category: "security", Label: "账户锁定时长", Description: "账户锁定时长（分钟）", IsPublic: false, IsEditable: true, SortOrder: 7},
 	{Key: "operation_log_query_days", Value: "30", Type: "number", Category: "security", Label: "操作日志查询天数", Description: "操作日志默认查询范围（天）", IsPublic: false, IsEditable: true, SortOrder: 8},
 	{Key: "operation_log_max_count", Value: "20", Type: "number", Category: "security", Label: "操作日志最大数量", Description: "操作日志单页最大查询数量", IsPublic: false, IsEditable: true, SortOrder: 9},
+	{Key: "api_access_log_enabled", Value: "true", Type: "boolean", Category: "security", Label: "启用API接口日志", Description: "是否记录API接口访问日志（请求/响应内容会按规则脱敏）", IsPublic: false, IsEditable: true, SortOrder: 10},
+	{Key: "api_log_query_days", Value: "7", Type: "number", Category: "security", Label: "API日志查询天数", Description: "API接口日志默认查询范围（天）", IsPublic: false, IsEditable: true, SortOrder: 11},
+	{Key: "api_log_max_count", Value: "1000", Type: "number", Category: "security", Label: "API日志保留上限", Description: "API接口日志自动保留的最大条数", IsPublic: false, IsEditable: true, SortOrder: 12},
+	{Key: "api_rate_limit_enabled", Value: "false", Type: "boolean", Category: "security", Label: "启用全局API限流", Description: "是否对全部 /api 请求启用基础限流（开发环境默认关闭）", IsPublic: false, IsEditable: true, SortOrder: 13},
+	{Key: "api_rate_limit_rate", Value: "120", Type: "number", Category: "security", Label: "全局API每秒速率", Description: "全局API限流每秒允许请求数", IsPublic: false, IsEditable: true, SortOrder: 14},
+	{Key: "api_rate_limit_burst", Value: "240", Type: "number", Category: "security", Label: "全局API突发上限", Description: "全局API限流突发流量上限", IsPublic: false, IsEditable: true, SortOrder: 15},
+	{Key: "admin_rate_limit_enabled", Value: "false", Type: "boolean", Category: "security", Label: "启用管理端限流", Description: "是否对管理员后台接口额外启用更严格的限流", IsPublic: false, IsEditable: true, SortOrder: 16},
+	{Key: "admin_rate_limit_rate", Value: "60", Type: "number", Category: "security", Label: "管理端每秒速率", Description: "管理员后台接口每秒允许请求数", IsPublic: false, IsEditable: true, SortOrder: 17},
+	{Key: "admin_rate_limit_burst", Value: "120", Type: "number", Category: "security", Label: "管理端突发上限", Description: "管理员后台接口限流突发流量上限", IsPublic: false, IsEditable: true, SortOrder: 18},
 
 	// ===== 邮件设置 =====
 	{Key: "email_verify_enabled", Value: "true", Type: "boolean", Category: "email", Label: "邮箱验证码", Description: "是否启用邮箱验证码功能（关闭后修改邮箱无需验证）", IsPublic: true, IsEditable: true, SortOrder: 0},
@@ -138,33 +148,34 @@ var defaultSettings = []SystemSetting{
 	{Key: "smtp_username", Value: "", Type: "string", Category: "email", Label: "发件人邮箱", Description: "SMTP登录用户名/邮箱", IsPublic: false, IsEditable: true, SortOrder: 3},
 	{Key: "smtp_password", Value: "", Type: "string", Category: "email", Label: "邮箱密码", Description: "SMTP登录密码或应用密钥", IsPublic: false, IsEditable: true, SortOrder: 4},
 	{Key: "smtp_ssl", Value: "true", Type: "boolean", Category: "email", Label: "SSL加密", Description: "是否启用SSL加密", IsPublic: false, IsEditable: true, SortOrder: 5},
-	{Key: "system_email_name", Value: "F.st", Type: "string", Category: "email", Label: "发件人名称", Description: "邮件中显示的发件人名称", IsPublic: false, IsEditable: true, SortOrder: 6},
+	{Key: "system_email_address", Value: "", Type: "string", Category: "email", Label: "系统发件邮箱", Description: "邮件头中显示的发件邮箱地址；留空时回退 SMTP 登录邮箱", IsPublic: false, IsEditable: true, SortOrder: 6},
+	{Key: "system_email_name", Value: "F.st", Type: "string", Category: "email", Label: "发件人名称", Description: "邮件中显示的发件人名称", IsPublic: false, IsEditable: true, SortOrder: 7},
 
 	// ===== 短信设置 =====
 	{Key: "sms_verify_enabled", Value: "false", Type: "boolean", Category: "sms", Label: "短信验证码", Description: "是否启用短信验证码功能（关闭后修改手机号无需验证）", IsPublic: true, IsEditable: true, SortOrder: 0},
-	{Key: "sms_provider", Value: "console", Type: "string", Category: "sms", Label: "短信服务商", Description: "短信服务商标识：console(控制台日志)、aliyun(阿里云)、tencent(腾讯云)、custom(自定义HTTP)", IsPublic: false, IsEditable: true, SortOrder: 1},
-	{Key: "sms_access_key", Value: "", Type: "string", Category: "sms", Label: "AccessKey", Description: "短信服务商 AccessKey / API Key", IsPublic: false, IsEditable: true, SortOrder: 2},
-	{Key: "sms_secret_key", Value: "", Type: "string", Category: "sms", Label: "SecretKey", Description: "短信服务商 SecretKey / API Secret", IsPublic: false, IsEditable: true, SortOrder: 3},
-	{Key: "sms_sign_name", Value: "", Type: "string", Category: "sms", Label: "短信签名", Description: "短信签名（如：F.st）", IsPublic: false, IsEditable: true, SortOrder: 4},
-	{Key: "sms_template_code", Value: "", Type: "string", Category: "sms", Label: "默认模板ID", Description: "默认短信模板 ID / Code，通常用于中文或默认语言", IsPublic: false, IsEditable: true, SortOrder: 5},
-	{Key: "sms_template_code_en", Value: "", Type: "string", Category: "sms", Label: "英文模板ID", Description: "英文短信模板 ID / Code，可选；未填写时回退默认模板", IsPublic: false, IsEditable: true, SortOrder: 6},
-	{Key: "sms_region", Value: "", Type: "string", Category: "sms", Label: "服务区域", Description: "短信服务区域（部分服务商需要）", IsPublic: false, IsEditable: true, SortOrder: 7},
-	{Key: "sms_sdk_app_id", Value: "", Type: "string", Category: "sms", Label: "腾讯云 AppID", Description: "腾讯云短信 SmsSdkAppId", IsPublic: false, IsEditable: true, SortOrder: 8},
-	{Key: "sms_endpoint", Value: "", Type: "string", Category: "sms", Label: "HTTP Endpoint", Description: "自定义短信网关请求地址", IsPublic: false, IsEditable: true, SortOrder: 9},
-	{Key: "sms_body_format", Value: "json", Type: "string", Category: "sms", Label: "请求体格式", Description: "自定义短信网关请求体格式：json 或 form", IsPublic: false, IsEditable: true, SortOrder: 10},
+	{Key: "sms_provider", Value: "console", Type: "string", Category: "sms", Label: "短信服务商", Description: "短信服务商标识：console(仅控制台日志)、aliyun(阿里云 SendSms)、tencent(腾讯云 SendSms)、custom(自定义HTTP)", IsPublic: false, IsEditable: true, SortOrder: 1},
+	{Key: "sms_access_key", Value: "", Type: "string", Category: "sms", Label: "AccessKey", Description: "阿里云填 AccessKeyId，腾讯云填 SecretId，自定义网关填 X-Api-Key", IsPublic: false, IsEditable: true, SortOrder: 2},
+	{Key: "sms_secret_key", Value: "", Type: "string", Category: "sms", Label: "SecretKey", Description: "阿里云填 AccessKeySecret，腾讯云填 SecretKey，自定义网关作为 Authorization Bearer", IsPublic: false, IsEditable: true, SortOrder: 3},
+	{Key: "sms_sign_name", Value: "", Type: "string", Category: "sms", Label: "短信签名", Description: "必须填写服务商控制台已审核通过的签名内容（腾讯云填签名内容而不是签名ID）", IsPublic: false, IsEditable: true, SortOrder: 4},
+	{Key: "sms_template_code", Value: "", Type: "string", Category: "sms", Label: "默认模板ID", Description: "默认短信模板 ID / Code：阿里云对应 TemplateCode，腾讯云对应 TemplateId", IsPublic: false, IsEditable: true, SortOrder: 5},
+	{Key: "sms_template_code_en", Value: "", Type: "string", Category: "sms", Label: "英文模板ID", Description: "英文短信模板 ID / Code，可选；en-US 时优先使用，未填写时回退默认模板", IsPublic: false, IsEditable: true, SortOrder: 6},
+	{Key: "sms_region", Value: "", Type: "string", Category: "sms", Label: "服务区域", Description: "服务区域；留空时阿里云默认 cn-hangzhou，腾讯云默认 ap-guangzhou", IsPublic: false, IsEditable: true, SortOrder: 7},
+	{Key: "sms_sdk_app_id", Value: "", Type: "string", Category: "sms", Label: "腾讯云 AppID", Description: "腾讯云短信 SmsSdkAppId，仅 tencent Provider 必填", IsPublic: false, IsEditable: true, SortOrder: 8},
+	{Key: "sms_endpoint", Value: "", Type: "string", Category: "sms", Label: "HTTP Endpoint", Description: "自定义短信网关请求地址，仅 custom Provider 使用", IsPublic: false, IsEditable: true, SortOrder: 9},
+	{Key: "sms_body_format", Value: "json", Type: "string", Category: "sms", Label: "请求体格式", Description: "自定义短信网关请求体格式：json 或 form，仅 custom Provider 使用", IsPublic: false, IsEditable: true, SortOrder: 10},
 
 	// ===== 支付设置 =====
 	{Key: "payment_enabled", Value: "false", Type: "boolean", Category: "payment", Label: "支付功能", Description: "是否启用在线支付充值功能", IsPublic: true, IsEditable: true, SortOrder: 0},
 	{Key: "payment_order_expire_minutes", Value: "30", Type: "number", Category: "payment", Label: "订单有效期", Description: "订单有效期（分钟），超时自动取消", IsPublic: false, IsEditable: true, SortOrder: 1},
 	{Key: "withdraw_enabled", Value: "true", Type: "boolean", Category: "payment", Label: "提现功能", Description: "是否启用用户提现申请功能", IsPublic: true, IsEditable: true, SortOrder: 2},
 	{Key: "withdraw_min_amount", Value: "10", Type: "number", Category: "payment", Label: "最低提现金额", Description: "用户单次提现的最低金额", IsPublic: true, IsEditable: true, SortOrder: 3},
-	{Key: "withdraw_notify_text", Value: "提现申请提交后需管理员审核，通过后人工打款。", Type: "string", Category: "payment", Label: "提现提示语", Description: "显示在用户提现页面的说明文案", IsPublic: true, IsEditable: true, SortOrder: 4},
+	{Key: "withdraw_notify_text", Value: "", Type: "string", Category: "payment", Label: "提现提示语", Description: "显示在用户提现页面的说明文案（留空则使用系统默认多语言文案）", IsPublic: true, IsEditable: true, SortOrder: 4},
 	{Key: "withdraw_account_types", Value: "[\"bank\",\"alipay\",\"wechat\",\"usdt\"]", Type: "json", Category: "payment", Label: "支持收款方式", Description: "用户可选择的提现收款方式列表(JSON数组)", IsPublic: true, IsEditable: true, SortOrder: 5},
 
 	// ===== 实名认证设置 =====
-	{Key: "realname_enabled", Value: "true", Type: "boolean", Category: "security", Label: "实名认证功能", Description: "是否启用实名认证功能入口", IsPublic: true, IsEditable: true, SortOrder: 10},
-	{Key: "realname_review_required", Value: "true", Type: "boolean", Category: "security", Label: "实名认证审核", Description: "是否需要管理员审核实名认证申请", IsPublic: false, IsEditable: true, SortOrder: 11},
-	{Key: "realname_notify_text", Value: "完成实名认证后可享受更多服务", Type: "string", Category: "security", Label: "实名认证提示语", Description: "显示在用户实名认证页面的提示文案", IsPublic: true, IsEditable: true, SortOrder: 12},
+	{Key: "realname_enabled", Value: "true", Type: "boolean", Category: "security", Label: "实名认证功能", Description: "是否启用实名认证功能入口；仅控制站内实名入口，不代表已接第三方实名服务", IsPublic: true, IsEditable: true, SortOrder: 19},
+	{Key: "realname_review_required", Value: "true", Type: "boolean", Category: "security", Label: "实名认证审核", Description: "是否需要管理员审核实名认证申请；当前仓库默认仍是站内人工审核流", IsPublic: false, IsEditable: true, SortOrder: 20},
+	{Key: "realname_notify_text", Value: "", Type: "string", Category: "security", Label: "实名认证提示语", Description: "显示在用户实名认证页面的说明文案（可用于提示人工审核或第三方核验说明）", IsPublic: true, IsEditable: true, SortOrder: 21},
 }
 
 // initDefaultSettings 初始化默认配置
@@ -315,3 +326,4 @@ func GetSettingsMap(keys []string) (map[string]string, error) {
 
 	return result, nil
 }
+

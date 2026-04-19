@@ -1,10 +1,11 @@
 package services
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"fst/backend/app/models"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"fst/backend/utils"
 	"log"
 	"strconv"
@@ -36,12 +37,7 @@ type CreatePaymentOrderResponse struct {
 // CreatePaymentOrder 创建支付订单并生成支付链接（多通道版本）
 func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL, returnURL string) (*CreatePaymentOrderResponse, error) {
 	// 1. 检查全局支付开关
-	settingsMap, err := models.GetSettingsMap([]string{"payment_enabled"})
-	if err != nil {
-		return nil, errors.New("读取支付配置失败，请稍后重试")
-	}
-	paymentEnabled := settingsMap["payment_enabled"] == "true" || settingsMap["payment_enabled"] == "1"
-	if !paymentEnabled {
+	if !GetGlobalPaymentEnabled() {
 		return nil, NewClientError("支付功能未启用")
 	}
 	if req.Amount <= 0 {
@@ -186,6 +182,48 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 	}, nil
 }
 
+func settleThirdPartyPaidOrderTx(tx *sql.Tx, orderNo, tradeNo, paymentType, moneyStr, source string) (*models.PaymentOrder, *utils.BalanceResult, bool, error) {
+	order, err := models.GetPaymentOrderForUpdate(tx, orderNo)
+	if err != nil {
+		log.Printf("[Payment] 订单不存在: source=%s, order_no=%s, err=%v", source, orderNo, err)
+		return nil, nil, false, errors.New("订单不存在")
+	}
+
+	if order.Status == models.PaymentStatusPaid {
+		log.Printf("[Payment] 订单已支付（%s 幂等跳过）: order_no=%s", source, orderNo)
+		return order, nil, false, nil
+	}
+	if order.Status != models.PaymentStatusPending {
+		log.Printf("[Payment] 订单状态不允许处理: source=%s, order_no=%s, status=%d", source, orderNo, order.Status)
+		return order, nil, false, errors.New("订单状态不允许处理回调")
+	}
+	if err := validatePaymentNotifyBinding(order, nil, "", paymentType, tradeNo); err != nil {
+		log.Printf("[Payment] 绑定校验失败: source=%s, order_no=%s, err=%v", source, orderNo, err)
+		return order, nil, false, err
+	}
+	if err := validateCallbackMoney(order.PayAmount, moneyStr); err != nil {
+		log.Printf("[Payment] 金额校验失败: source=%s, order_no=%s, err=%v", source, orderNo, err)
+		return order, nil, false, err
+	}
+
+	balanceResult, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
+		UserID: order.UserID,
+		Amount: order.Amount,
+		MemoI18n: map[string]string{
+			"zhCN": fmt.Sprintf("在线充值-订单号%s", orderNo),
+			"enUS": fmt.Sprintf("Online Recharge - Order#%s", orderNo),
+		},
+		OrderNo:     orderNo,
+		TradeNo:     tradeNo,
+		OrderStatus: models.PaymentStatusPaid,
+	}, utils.OpFull)
+	if err != nil {
+		return order, nil, false, fmt.Errorf("充值到账失败: %w", err)
+	}
+
+	return order, balanceResult, true, nil
+}
+
 // HandlePaymentNotify 处理易支付异步回调（多通道版本）
 // 返回: 是否处理成功, 错误信息
 func HandlePaymentNotify(params map[string]string) (bool, error) {
@@ -237,57 +275,21 @@ func HandlePaymentNotify(params map[string]string) (bool, error) {
 	}
 	defer tx.Rollback()
 
-	// 7. 锁定订单行
-	order, err := models.GetPaymentOrderForUpdate(tx, outTradeNo)
+	order, balanceResult, changed, err := settleThirdPartyPaidOrderTx(tx, outTradeNo, tradeNo, callbackType, moneyStr, "支付回调")
 	if err != nil {
-		log.Printf("[Payment] 订单不存在: order_no=%s, err=%v", outTradeNo, err)
-		return false, errors.New("订单不存在")
-	}
-
-	// 8. 幂等检查
-	if order.Status == models.PaymentStatusPaid {
-		log.Printf("[Payment] 订单已支付（幂等跳过）: order_no=%s", outTradeNo)
-		return true, nil
-	}
-	if order.Status != models.PaymentStatusPending {
-		log.Printf("[Payment] 订单状态不允许处理回调: order_no=%s, status=%d", outTradeNo, order.Status)
 		models.IncrementNotifyCount(outTradeNo)
-		return false, errors.New("订单状态不允许处理回调")
-	}
-	if err := validatePaymentNotifyBinding(order, nil, "", callbackType, tradeNo); err != nil {
-		log.Printf("[Payment] 回调绑定校验失败: order_no=%s, err=%v", outTradeNo, err)
 		return false, err
 	}
 
-	// 9. 金额校验：回调金额应匹配实际支付金额（pay_amount）
-	if err := validateCallbackMoney(order.PayAmount, moneyStr); err != nil {
-		log.Printf("[Payment] 回调金额校验失败: order_no=%s, err=%v", outTradeNo, err)
-		return false, err
-	}
-
-	// 10. 通过统一余额工具完成：修改余额 + 更新订单状态 + 添加余额变动记录
-	balanceResult, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
-		UserID: order.UserID,
-		Amount: order.Amount,
-		MemoI18n: map[string]string{
-			"zhCN": fmt.Sprintf("在线充值-订单号%s", outTradeNo),
-			"enUS": fmt.Sprintf("Online Recharge - Order#%s", outTradeNo),
-		},
-		OrderNo:     outTradeNo,
-		TradeNo:     tradeNo,
-		OrderStatus: models.PaymentStatusPaid,
-	}, utils.OpFull)
-	if err != nil {
-		return false, fmt.Errorf("充值到账失败: %w", err)
-	}
-
-	// 11. 提交事务
+	// 7. 提交事务
 	if err := tx.Commit(); err != nil {
 		return false, fmt.Errorf("提交事务失败: %w", err)
 	}
 
-	log.Printf("[Payment] 充值到账成功: order_no=%s, user_id=%d, amount=%.2f, fee=%.2f, pay_amount=%.2f, before=%.2f, after=%.2f",
-		outTradeNo, order.UserID, order.Amount, order.Fee, order.PayAmount, balanceResult.BeforeMoney, balanceResult.AfterMoney)
+	if changed {
+		log.Printf("[Payment] 充值到账成功: order_no=%s, user_id=%d, amount=%.2f, fee=%.2f, pay_amount=%.2f, before=%.2f, after=%.2f",
+			outTradeNo, order.UserID, order.Amount, order.Fee, order.PayAmount, balanceResult.BeforeMoney, balanceResult.AfterMoney)
+	}
 
 	return true, nil
 }
@@ -317,18 +319,119 @@ func HandlePaymentReturn(params map[string]string) (*models.PaymentOrder, error)
 	return order, nil
 }
 
+func ReconcilePaymentOrderByID(orderID uint64) (*models.PaymentOrder, bool, error) {
+	order, err := models.GetPaymentOrderByID(orderID)
+	if err != nil {
+		return nil, false, err
+	}
+
+	reconciled, err := reconcilePendingPaymentOrder(order)
+	if err != nil {
+		return order, false, err
+	}
+	if !reconciled {
+		return order, false, nil
+	}
+
+	refreshedOrder, err := models.GetPaymentOrderByID(orderID)
+	if err != nil {
+		return nil, true, err
+	}
+	return refreshedOrder, true, nil
+}
+
+func reconcilePendingPaymentOrder(order *models.PaymentOrder) (bool, error) {
+	if order == nil {
+		return false, errors.New("订单不存在")
+	}
+	if order.Status != models.PaymentStatusPending {
+		return false, nil
+	}
+	if order.GatewayID == 0 || order.PaymentChannel != "epay" {
+		return false, nil
+	}
+
+	orderNo := strings.TrimSpace(order.OrderNo)
+	tradeNo := models.NormalizeTradeNo(order.TradeNo)
+	if orderNo == "" && tradeNo == "" {
+		return false, nil
+	}
+
+	gateway, err := models.GetPayGatewayByID(order.GatewayID)
+	if err != nil {
+		return false, fmt.Errorf("获取支付通道失败: %w", err)
+	}
+
+	queryResult, err := QueryEpayOrder(&EpayConfig{
+		Enabled:      true,
+		ApiURL:       strings.TrimRight(gateway.ApiURL, "/"),
+		PID:          gateway.PID,
+		Key:          gateway.Key,
+		PaymentTypes: []string{gateway.PayType},
+	}, orderNo, tradeNo)
+	if err != nil {
+		return false, err
+	}
+	if queryResult == nil {
+		return false, errors.New("查询结果为空")
+	}
+	if queryResult.Code != 1 {
+		log.Printf("[Payment] 主动查单未返回成功结果: order_no=%s, trade_no=%s, code=%d, msg=%s, status=%s", orderNo, tradeNo, queryResult.Code, strings.TrimSpace(queryResult.Msg), strings.TrimSpace(queryResult.TradeStatus))
+		return false, nil
+	}
+	if queryResult.OutTradeNo != "" && queryResult.OutTradeNo != orderNo {
+		return false, errors.New("云端订单号不匹配")
+	}
+
+	queryTradeNo := models.NormalizeTradeNo(queryResult.TradeNo)
+	if queryTradeNo == "" {
+		queryTradeNo = tradeNo
+	}
+	if err := validatePaymentNotifyBinding(order, nil, "", strings.TrimSpace(queryResult.Type), queryTradeNo); err != nil {
+		return false, err
+	}
+	if err := validateCallbackMoney(order.PayAmount, queryResult.Money); err != nil {
+		return false, err
+	}
+	if queryResult.TradeStatus != "TRADE_SUCCESS" {
+		log.Printf("[Payment] 主动查单未确认支付成功: order_no=%s, trade_no=%s, code=%d, msg=%s, status=%s", orderNo, tradeNo, queryResult.Code, strings.TrimSpace(queryResult.Msg), strings.TrimSpace(queryResult.TradeStatus))
+		return false, nil
+	}
+
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return false, fmt.Errorf("开启事务失败: %w", err)
+	}
+	defer tx.Rollback()
+
+	lockedOrder, balanceResult, changed, err := settleThirdPartyPaidOrderTx(tx, order.OrderNo, queryTradeNo, strings.TrimSpace(queryResult.Type), queryResult.Money, "主动查单")
+	if err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, fmt.Errorf("提交事务失败: %w", err)
+	}
+
+	if changed {
+		log.Printf("[Payment] 主动查单补账成功: order_no=%s, user_id=%d, amount=%.2f, fee=%.2f, pay_amount=%.2f, before=%.2f, after=%.2f",
+			lockedOrder.OrderNo, lockedOrder.UserID, lockedOrder.Amount, lockedOrder.Fee, lockedOrder.PayAmount, balanceResult.BeforeMoney, balanceResult.AfterMoney)
+	}
+
+	return changed, nil
+}
+
 // AdminCompleteOrder 管理员手动补单
 func AdminCompleteOrder(orderID uint64, memo string) error {
 	order, err := models.GetPaymentOrderByID(orderID)
 	if err != nil {
-		return errors.New("订单不存在")
+		return NewClientError("订单不存在")
 	}
 
 	if order.Status == models.PaymentStatusPaid {
-		return errors.New("订单已支付，无需重复操作")
+		return NewClientError("订单已支付，无需重复操作")
 	}
 	if order.Status != models.PaymentStatusPending {
-		return errors.New("只能对待支付的订单进行补单操作")
+		return NewClientError("只能对待支付的订单进行补单操作")
 	}
 
 	// 事务处理
@@ -341,10 +444,10 @@ func AdminCompleteOrder(orderID uint64, memo string) error {
 	// 锁定订单
 	lockedOrder, err := models.GetPaymentOrderForUpdate(tx, order.OrderNo)
 	if err != nil {
-		return errors.New("锁定订单失败")
+		return fmt.Errorf("锁定订单失败: %w", err)
 	}
 	if lockedOrder.Status != models.PaymentStatusPending {
-		return errors.New("订单状态已变更")
+		return NewClientError("订单状态已变更")
 	}
 
 	// 通过统一余额工具完成：修改余额 + 更新订单状态 + 添加余额变动记录
@@ -388,11 +491,11 @@ func AdminCancelOrder(orderID uint64) error {
 
 	order, err := models.GetPaymentOrderByIDForUpdate(tx, orderID)
 	if err != nil {
-		return errors.New("订单不存在")
+		return NewClientError("订单不存在")
 	}
 
 	if order.Status != models.PaymentStatusPending {
-		return errors.New("只能取消待支付的订单")
+		return NewClientError("只能取消待支付的订单")
 	}
 
 	if err := models.UpdatePaymentOrderStatusTx(tx, order.OrderNo, models.PaymentStatusCanceled, ""); err != nil {
@@ -407,15 +510,16 @@ func AdminCancelOrder(orderID uint64) error {
 }
 
 // CancelExpiredOrders 取消过期未支付订单（定时任务调用）
-func CancelExpiredOrders() {
+func CancelExpiredOrders() (int64, error) {
 	affected, err := models.CancelExpiredOrders()
 	if err != nil {
 		log.Printf("[Payment] 取消过期订单失败: %v", err)
-		return
+		return 0, err
 	}
 	if affected > 0 {
 		log.Printf("[Payment] 已取消 %d 个过期订单", affected)
 	}
+	return affected, nil
 }
 
 func AdminDeleteOrder(orderID uint64) error {
@@ -427,7 +531,7 @@ func AdminDeleteOrder(orderID uint64) error {
 
 	order, err := models.GetPaymentOrderByIDForUpdate(tx, orderID)
 	if err != nil {
-		return errors.New("订单不存在")
+		return NewClientError("订单不存在")
 	}
 	if err := validatePaymentOrderDeletion(order.Status); err != nil {
 		return err
@@ -452,9 +556,6 @@ func validatePaymentNotifyBinding(order *models.PaymentOrder, gateway *models.Pa
 		if order.TradeNo != "" && order.TradeNo != tradeNo {
 			return errors.New("交易号不匹配")
 		}
-		if order.PaymentType != "" && callbackType != "" && callbackType != order.PaymentType {
-			return errors.New("支付类型不匹配")
-		}
 	}
 	return nil
 }
@@ -475,21 +576,14 @@ func validateCallbackMoney(expected float64, moneyStr string) error {
 
 func validatePaymentOrderDeletion(status int) error {
 	if status != models.PaymentStatusCanceled && status != models.PaymentStatusFailed {
-		return errors.New("仅允许删除已取消或失败的订单")
+		return NewClientError("仅允许删除已取消或失败的订单")
 	}
 	return nil
 }
 
 // getOrderExpireMinutes 从系统配置获取订单过期时间（分钟）
 func getOrderExpireMinutes() int {
-	settingsMap, err := models.GetSettingsMap([]string{"payment_order_expire_minutes"})
-	if err != nil {
-		return 30
-	}
-	if v, err := strconv.Atoi(settingsMap["payment_order_expire_minutes"]); err == nil && v > 0 {
-		return v
-	}
-	return 30
+	return GetGlobalPaymentOrderExpireMinutes()
 }
 
 // abs 浮点数绝对值
@@ -499,3 +593,4 @@ func abs(x float64) float64 {
 	}
 	return x
 }
+

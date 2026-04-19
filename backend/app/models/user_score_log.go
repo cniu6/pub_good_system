@@ -2,7 +2,7 @@ package models
 
 import (
 	"database/sql"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"log"
 	"time"
 )
@@ -164,3 +164,4 @@ func GetUserScoreForUpdate(tx *sql.Tx, userID uint64) (int64, error) {
 	err := tx.QueryRow("SELECT score FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE", userID).Scan(&score)
 	return score, err
 }
+

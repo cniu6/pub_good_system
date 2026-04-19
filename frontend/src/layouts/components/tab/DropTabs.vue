@@ -1,22 +1,36 @@
 <script setup lang="ts">
+import type { MenuOption } from 'naive-ui'
+import type { TabRouteItem } from '@/store/tab'
 import { useTabStore } from '@/store'
-import { renderIcon } from '@/utils'
+import { renderIcon, resolveRouteTitle } from '@/utils'
 
 const tabStore = useTabStore()
-
 const { t } = useI18n()
 
-function renderDropTabsLabel(option: any) {
-  return t(`route.${String(option.name)}`, option.meta.title)
+function isTabRouteItem(option: MenuOption): option is MenuOption & TabRouteItem {
+  return typeof option.key === 'string'
+    && 'fullPath' in option
+    && 'path' in option
+    && 'meta' in option
 }
 
-function renderDropTabsIcon(option: any) {
+function renderDropTabsLabel(option: MenuOption) {
+  if (!isTabRouteItem(option))
+    return ''
+  return resolveRouteTitle(t, option.name, option.meta.title)
+}
+
+function renderDropTabsIcon(option: MenuOption) {
+  if (!isTabRouteItem(option) || !option.meta.icon)
+    return null
   return renderIcon(option.meta.icon)!()
 }
 
 const router = useRouter()
-function handleDropTabs(key: string, option: any) {
-  router.push(option.path)
+function handleDropTabs(key: string, option: MenuOption) {
+  if (!isTabRouteItem(option))
+    return
+  router.push(option.fullPath)
 }
 </script>
 

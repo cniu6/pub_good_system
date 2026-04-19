@@ -82,53 +82,57 @@ func (s *SMSService) GetConfig() SMSConfig {
 	return s.config
 }
 
-func (s *SMSService) Send(phone, content string) error {
+// snapshotProviders 在读锁下拷贝当前 provider 引用，避免在远程调用期间长时间持锁。
+func (s *SMSService) snapshotProviders() (active []SMSProvider, console SMSProvider) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	for name, provider := range s.providers {
+		if name == "console" {
+			console = provider
+			continue
+		}
+		active = append(active, provider)
+	}
+	return active, console
+}
 
-	if len(s.providers) == 0 {
+func (s *SMSService) Send(phone, content string) error {
+	active, console := s.snapshotProviders()
+	if len(active) == 0 && console == nil {
 		return fmt.Errorf("no SMS provider configured")
 	}
 
 	var lastErr error
-	for name, provider := range s.providers {
-		if name == "console" {
-			continue
-		}
+	for _, provider := range active {
 		if err := provider.Send(phone, content); err == nil {
 			return nil
 		} else {
 			lastErr = err
 		}
 	}
-	if provider, ok := s.providers["console"]; ok {
-		return provider.Send(phone, content)
+	if console != nil {
+		return console.Send(phone, content)
 	}
 	return lastErr
 }
 
 func (s *SMSService) SendCode(phone, code string, expireMinutes int, templateParams map[string]string, lang string) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if len(s.providers) == 0 {
+	active, console := s.snapshotProviders()
+	if len(active) == 0 && console == nil {
 		return fmt.Errorf("no SMS provider configured")
 	}
 
 	var lastErr error
-	for name, provider := range s.providers {
-		if name == "console" {
-			continue
-		}
+	for _, provider := range active {
 		if err := provider.SendCode(phone, code, expireMinutes, templateParams, lang); err == nil {
 			return nil
 		} else {
 			lastErr = err
-			log.Printf("[SMSService] Provider %s failed: %v, trying next...", name, err)
+			log.Printf("[SMSService] Provider %s failed: %v, trying next...", provider.Name(), err)
 		}
 	}
-	if provider, ok := s.providers["console"]; ok {
-		return provider.SendCode(phone, code, expireMinutes, templateParams, lang)
+	if console != nil {
+		return console.SendCode(phone, code, expireMinutes, templateParams, lang)
 	}
 	return lastErr
 }
@@ -183,3 +187,4 @@ func (p *consoleProvider) SendCode(phone, code string, expireMinutes int, templa
 		phone, code, expireMinutes, lang, templateParams)
 	return nil
 }
+

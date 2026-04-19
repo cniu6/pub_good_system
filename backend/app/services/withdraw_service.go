@@ -2,10 +2,9 @@ package services
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"fst/backend/app/models"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"fst/backend/utils"
 	"strings"
 	"time"
@@ -44,6 +43,14 @@ func validateWithdrawTextField(value string, fieldName string, maxLen int) (stri
 		return "", NewClientError(fmt.Sprintf("%s不能超过%d个字符", fieldName, maxLen))
 	}
 	return value, nil
+}
+
+func shouldRefundReservedBalance(reviewStatus uint8, balanceDeducted bool) bool {
+	return reviewStatus == models.WithdrawStatusRejected && balanceDeducted
+}
+
+func shouldDeductBalanceOnWithdrawPay(balanceDeducted bool) bool {
+	return !balanceDeducted
 }
 
 func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*models.WithdrawRequest, error) {
@@ -117,7 +124,7 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 	}
 	if err := tx.QueryRow("SELECT status, money FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE", userID).Scan(&user.Status, &user.Money); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, errors.New("用户不存在")
+			return nil, NewClientError("用户不存在")
 		}
 		return nil, err
 	}
@@ -136,6 +143,20 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 		return nil, NewClientError("您有待处理的提现申请，请勿重复提交")
 	}
 
+	if _, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
+		UserID: userID,
+		Amount: -req.Amount,
+		MemoI18n: map[string]string{
+			"zhCN": "提交提现申请，系统预扣余额",
+			"enUS": "Balance reserved for withdrawal request",
+		},
+	}, utils.OpChangeAndLog); err != nil {
+		if strings.Contains(err.Error(), "扣款金额超出用户余额") {
+			return nil, NewClientError("账户余额不足")
+		}
+		return nil, err
+	}
+
 	item := &models.WithdrawRequest{
 		UserID:      userID,
 		Amount:      req.Amount,
@@ -145,16 +166,17 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 		RealName:    realName,
 		Remark:      remark,
 		Status:      models.WithdrawStatusPending,
+		BalanceDeducted: true,
 	}
 	now := time.Now().Unix()
 	item.CreateTime = now
 	item.UpdateTime = now
 
 	result, err := tx.Exec(
-		`INSERT INTO withdraw_requests (user_id, amount, account_type, account_name, account_no, real_name, remark, status, review_remark, transfer_remark, reviewed_at, reviewed_by, paid_at, paid_by, create_time, update_time, delete_time)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO withdraw_requests (user_id, amount, account_type, account_name, account_no, real_name, remark, status, balance_deducted, review_remark, transfer_remark, reviewed_at, reviewed_by, paid_at, paid_by, create_time, update_time, delete_time)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		item.UserID, item.Amount, item.AccountType, item.AccountName, item.AccountNo, item.RealName, item.Remark,
-		item.Status, item.ReviewRemark, item.TransferRemark, item.ReviewedAt, item.ReviewedBy, item.PaidAt, item.PaidBy,
+		item.Status, item.BalanceDeducted, item.ReviewRemark, item.TransferRemark, item.ReviewedAt, item.ReviewedBy, item.PaidAt, item.PaidBy,
 		item.CreateTime, item.UpdateTime, item.DeleteTime,
 	)
 	if err != nil {
@@ -186,7 +208,7 @@ func (s *WithdrawService) GetByID(id uint64) (*models.WithdrawRequest, error) {
 
 func (s *WithdrawService) Review(adminID uint64, req *ReviewWithdrawRequest) error {
 	if req.Status != models.WithdrawStatusApproved && req.Status != models.WithdrawStatusRejected {
-		return errors.New("审核状态无效")
+		return NewClientError("审核状态无效")
 	}
 	reviewRemark, err := validateWithdrawTextField(req.ReviewRemark, "审核备注", 255)
 	if err != nil {
@@ -202,15 +224,28 @@ func (s *WithdrawService) Review(adminID uint64, req *ReviewWithdrawRequest) err
 	item, err := models.GetWithdrawRequestByIDForUpdate(tx, req.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errors.New("提现申请不存在")
+			return NewClientError("提现申请不存在")
 		}
 		return err
 	}
 	if item.Status != models.WithdrawStatusPending {
-		return errors.New("该提现申请已处理，无法重复审核")
+		return NewClientError("该提现申请已处理，无法重复审核")
 	}
 	if item.UserID == adminID {
-		return errors.New("不能审核自己的提现申请")
+		return NewClientError("不能审核自己的提现申请")
+	}
+
+	if shouldRefundReservedBalance(req.Status, item.BalanceDeducted) {
+		if _, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
+			UserID: item.UserID,
+			Amount: item.Amount,
+			MemoI18n: map[string]string{
+				"zhCN": fmt.Sprintf("提现申请已拒绝，退回预扣余额-申请#%d", item.ID),
+				"enUS": fmt.Sprintf("Withdrawal rejected, reserved balance released - Request#%d", item.ID),
+			},
+		}, utils.OpChangeAndLog); err != nil {
+			return err
+		}
 	}
 
 	if err := models.UpdateWithdrawReviewTx(tx, req.ID, req.Status, reviewRemark, adminID); err != nil {
@@ -233,35 +268,31 @@ func (s *WithdrawService) MarkPaid(adminID uint64, req *PayWithdrawRequest) erro
 	item, err := models.GetWithdrawRequestByIDForUpdate(tx, req.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errors.New("提现申请不存在")
+			return NewClientError("提现申请不存在")
 		}
 		return err
 	}
 	if item.Status != models.WithdrawStatusApproved {
-		return errors.New("仅已审核通过的提现申请可标记为已打款")
+		return NewClientError("仅已审核通过的提现申请可标记为已打款")
 	}
 	if item.UserID == adminID {
-		return errors.New("不能给自己的提现申请执行打款")
+		return NewClientError("不能给自己的提现申请执行打款")
 	}
 
-	beforeMoney, err := models.GetUserMoneyForUpdate(tx, item.UserID)
-	if err != nil {
-		return errors.New("用户不存在")
-	}
-	if beforeMoney < item.Amount {
-		return errors.New("用户当前余额不足，无法执行提现打款")
-	}
-
-	memo := utils.BuildMemo("", map[string]string{
-		"zhCN": fmt.Sprintf("人工提现打款-申请#%d", item.ID),
-		"enUS": fmt.Sprintf("Manual withdrawal payout - Request#%d", item.ID),
-	})
-	if _, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
-		UserID: item.UserID,
-		Amount: -item.Amount,
-		Memo:   memo,
-	}, utils.OpChangeAndLog); err != nil {
-		return err
+	if shouldDeductBalanceOnWithdrawPay(item.BalanceDeducted) {
+		if _, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
+			UserID: item.UserID,
+			Amount: -item.Amount,
+			MemoI18n: map[string]string{
+				"zhCN": fmt.Sprintf("人工提现打款-申请#%d", item.ID),
+				"enUS": fmt.Sprintf("Manual withdrawal payout - Request#%d", item.ID),
+			},
+		}, utils.OpChangeAndLog); err != nil {
+			if strings.Contains(err.Error(), "扣款金额超出用户余额") {
+				return NewClientError("用户当前余额不足，无法执行提现打款")
+			}
+			return err
+		}
 	}
 
 	if err := models.MarkWithdrawPaidTx(tx, item.ID, transferRemark, adminID); err != nil {
@@ -269,3 +300,4 @@ func (s *WithdrawService) MarkPaid(adminID uint64, req *PayWithdrawRequest) erro
 	}
 	return tx.Commit()
 }
+

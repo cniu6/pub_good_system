@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
-	"fst/backend/internal/config"
+	"fst/backend/pkg/config"
 	"log"
 	"net"
 	"net/smtp"
@@ -197,3 +197,4 @@ func ReplaceTemplateVars(template string, vars map[string]string) string {
 	}
 	return result
 }
+

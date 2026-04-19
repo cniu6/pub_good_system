@@ -30,6 +30,7 @@ export interface AdminUser {
   join_ip: string
   join_time?: number | null
   motto: string
+  admin_remark?: string
   status: number
   apikey?: string | null
   update_time?: number | null
@@ -38,6 +39,8 @@ export interface AdminUser {
   country: string
   token: string
   realname_status?: 0 | 1 | 2 | null
+  total_paid_amount?: number
+  balance_paid_ratio?: number
   realname?: Api.Login.RealnameSummary
 }
 
@@ -189,6 +192,7 @@ export const adminUserApi = {
     mobile?: string
     language?: string
     country?: string
+    admin_remark?: string
     level?: number
     role?: string
     status?: number
@@ -203,6 +207,7 @@ export const adminUserApi = {
     mobile?: string
     language?: string
     country?: string
+    admin_remark?: string
     role?: string
     status?: number
   }) {

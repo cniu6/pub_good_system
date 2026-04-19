@@ -10,8 +10,13 @@
 
 # 构建产物
 build/*/fst*
+build/*/.env.example
 backend/main.exe
 backend/cmd/dist/
+
+# 本地敏感配置
+.env
+backend/.env
 
 # 日志
 *.log
@@ -23,6 +28,7 @@ pnpm-debug.log*
 frontend/node_modules/
 frontend/dist/
 frontend/dist-ssr/
+dist/
 frontend/*.local
 # 管理端入口 HTML 由 vite.config.ts 根据 VITE_ADMIN_BASE_PATH 自动生成，无需提交
 # 模板源文件位于 frontend/_admin-entry/index.html

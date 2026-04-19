@@ -63,6 +63,7 @@ declare module 'vue' {
     NCard: typeof import('naive-ui')['NCard']
     NCascader: typeof import('naive-ui')['NCascader']
     NCheckbox: typeof import('naive-ui')['NCheckbox']
+    NCheckboxGroup: typeof import('naive-ui')['NCheckboxGroup']
     NColorPicker: typeof import('naive-ui')['NColorPicker']
     NConfigProvider: typeof import('naive-ui')['NConfigProvider']
     NDataTable: typeof import('naive-ui')['NDataTable']
@@ -134,6 +135,7 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     SvgIconsCool: typeof import('~icons/svg-icons/cool')['default']
     SvgIconsLogo: typeof import('~icons/svg-icons/logo')['default']
+    TableColumnSelector: typeof import('./../components/common/TableColumnSelector.vue')['default']
     Watermark: typeof import('./../components/common/Watermark.vue')['default']
   }
 }

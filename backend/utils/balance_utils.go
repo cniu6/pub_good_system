@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"fst/backend/app/models"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"log"
 )
 
@@ -205,3 +205,4 @@ func ExecuteBalanceOpTx(tx *sql.Tx, req *BalanceReq, opType BalanceOpType) (*Bal
 
 	return result, nil
 }
+

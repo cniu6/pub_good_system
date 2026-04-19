@@ -12,20 +12,21 @@ interface Props {
   placeholder?: string
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  langs: () => [
-    { key: 'zhCN', label: t('common.chinese') },
-    { key: 'enUS', label: t('common.english') },
-  ],
-  rows: 3,
-  placeholder: '',
-})
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: Record<string, string>]
 }>()
 
-const activeTab = ref(props.langs[0]?.key || 'zhCN')
+// 使用计算属性提供带翻译的默认值
+const langsWithDefaults = computed(() => {
+  return props.langs ?? [
+    { key: 'zhCN', label: t('common.chinese') },
+    { key: 'enUS', label: t('common.english') },
+  ]
+})
+
+const activeTab = ref(langsWithDefaults.value[0]?.key || 'zhCN')
 
 const i18nData = ref<Record<string, string>>({})
 
@@ -53,20 +54,23 @@ function handleInput(lang: string, text: string) {
   emit('update:modelValue', { ...i18nData.value })
 }
 
+// rows 默认值
+const rowsWithDefault = computed(() => props.rows ?? 3)
+
 const placeholderFor = computed(() => (lang: string) => {
   if (props.placeholder) return props.placeholder
-  const langObj = props.langs.find(l => l.key === lang)
+  const langObj = langsWithDefaults.value.find(l => l.key === lang)
   return t('common.enterRemarkFor', { lang: langObj?.label || lang })
 })
 </script>
 
 <template>
   <NTabs v-model:value="activeTab" type="line" size="small" animated>
-    <NTabPane v-for="lang in langs" :key="lang.key" :name="lang.key" :tab="lang.label">
+    <NTabPane v-for="lang in langsWithDefaults" :key="lang.key" :name="lang.key" :tab="lang.label">
       <NInput
         :value="i18nData[lang.key] || ''"
         type="textarea"
-        :rows="rows"
+        :rows="rowsWithDefault"
         :placeholder="placeholderFor(lang.key)"
         @update:value="(v: string) => handleInput(lang.key, v)"
       />

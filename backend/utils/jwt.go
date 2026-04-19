@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"fst/backend/internal/config"
+	"fst/backend/pkg/config"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -240,3 +240,4 @@ func ParseRefreshTokenLegacy(tokenString string) (*RefreshClaims, error) {
 
 	return claims, nil
 }
+

@@ -133,14 +133,65 @@ export function getAdminRoutes(): RouteRecordRaw[] {
             },
           ],
         },
-        // ── 系统设置（独立页面）──
+        // ── 系统设置（分组目录）──
         {
           path: 'settings',
           name: 'admin-settings',
-          component: () => import('@/views/admin/settings/index.vue'),
+          component: PassThrough,
+          redirect: { name: 'admin-settings-config' },
           meta: {
             title: 'route.systemSettings',
             icon: 'icon-park-outline:setting-two',
+            menuType: 'dir',
+          },
+          children: [
+            {
+              path: 'config',
+              name: 'admin-settings-config',
+              component: () => import('@/views/admin/settings/index.vue'),
+              meta: {
+                title: 'route.systemConfig',
+                icon: 'icon-park-outline:setting-config',
+              },
+            },
+            {
+              path: 'log-management',
+              name: 'admin-log-management',
+              component: () => import('@/views/admin/log-management/index.vue'),
+              meta: {
+                title: 'route.logManagement',
+                icon: 'icon-park-outline:log',
+              },
+            },
+            {
+              path: 'server-management',
+              name: 'admin-server-management',
+              component: () => import('@/views/admin/server-management/index.vue'),
+              meta: {
+                title: 'route.serverManagement',
+                icon: 'icon-park-outline:server',
+              },
+            },
+          ],
+        },
+        {
+          path: 'log-management',
+          name: 'admin-log-management-legacy',
+          redirect: '/settings/log-management',
+          meta: {
+            title: 'route.logManagement',
+            hide: true,
+            activeMenu: '/settings/log-management',
+          },
+        },
+        {
+          path: 'server-management',
+          name: 'admin-server-management-legacy',
+          redirect: '/settings/server-management',
+          meta: {
+            title: 'route.serverManagement',
+            hide: true,
+            activeMenu: '/settings/server-management',
           },
         },
       ],

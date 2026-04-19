@@ -165,3 +165,4 @@ func (ctrl *EmailLogController) TemplateNames(c *gin.Context) {
 
 	utils.Success(c, names)
 }
+

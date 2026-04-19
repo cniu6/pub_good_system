@@ -165,3 +165,4 @@ func (m *Manager) InitDefaultTemplates() {
 		Description: "Phone binding verification code",
 	})
 }
+

@@ -32,6 +32,19 @@
 
     <!-- 订单列表 -->
     <n-card :title="t('adminPaymentOrders.title')">
+      <template #header-extra>
+        <TableColumnSelector
+          v-model="selectedColumnKeys"
+          :options="columnOptions"
+          :visible-count="visibleColumnCount"
+          :total-count="totalColumnCount"
+          :button-label="t('common.showFields')"
+          :title="t('common.visibleFields')"
+          :hint="t('common.columnVisibilityHint')"
+          :reset-label="t('common.restoreDefaultFields')"
+          @reset="resetSelectedColumns"
+        />
+      </template>
       <n-space vertical>
         <n-space>
           <n-input v-model:value="searchForm.keyword" :placeholder="t('adminPaymentOrders.searchPlaceholder')" clearable style="width: 240px" @keyup.enter="handleSearch" />
@@ -48,11 +61,12 @@
         </n-space>
 
         <n-data-table
-          :columns="columns"
+          :columns="visibleColumns"
           :data="orderList"
           :loading="loading"
           :pagination="pagination"
           :row-key="(row: any) => row.id"
+          :scroll-x="tableScrollX"
           striped
           size="small"
           @update:page="handlePageChange"
@@ -118,6 +132,8 @@ import { ref, reactive, onMounted, h, type VNodeChild } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NButton, NTag, NSpace as NSpaceComp, useMessage, useDialog } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
+import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
+import { useTableColumnVisibility } from '@/hooks'
 import { adminPaymentApi } from '@/service/api/admin/payment'
 import type { PaymentOrder, PaymentStats } from '@/service/api/admin/payment'
 
@@ -186,6 +202,9 @@ const paymentTypeMap: Record<string, string> = {
   alipay: t('recharge.alipay'),
   wxpay: t('recharge.wechatPay'),
   qqpay: t('recharge.qqWallet'),
+  bank: t('recharge.bankCard'),
+  jdpay: t('recharge.jdPay'),
+  manual: t('recharge.manual'),
 }
 
 function formatTime(ts: number) {
@@ -278,6 +297,33 @@ const columns: DataTableColumns<PaymentOrder> = [
     },
   },
 ]
+
+ const selectableColumnOptions = [
+   { key: 'id', label: 'ID' },
+   { key: 'order_no', label: t('recharge.orderNo') },
+   { key: 'user_id', label: t('adminRealname.userId') },
+   { key: 'amount', label: t('adminUsers.amount') },
+   { key: 'payment_type', label: t('recharge.paymentMethod') },
+   { key: 'status', label: t('recharge.status') },
+   { key: 'trade_no', label: t('adminPaymentOrders.tradeNoThirdParty') },
+   { key: 'create_time', label: t('recharge.createdAt') },
+ ]
+
+ const {
+   columnOptions,
+   selectedColumnKeys,
+   visibleColumns,
+   visibleColumnCount,
+   totalColumnCount,
+   tableScrollX,
+   resetSelectedColumns,
+ } = useTableColumnVisibility<PaymentOrder>({
+   storageKey: 'admin-payment-orders-list',
+   columns,
+   options: selectableColumnOptions,
+   minVisibleCount: 1,
+   minScrollX: 1080,
+ })
 
 // 数据加载
 async function fetchData() {

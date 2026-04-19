@@ -16,3 +16,4 @@ type BaseModel struct {
 func (b *BaseModel) IsDeleted() bool {
 	return b.DeletedAt != nil
 }
+

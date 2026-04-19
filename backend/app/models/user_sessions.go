@@ -1,7 +1,7 @@
 package models
 
 import (
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"log"
 	"time"
 )
@@ -90,34 +90,11 @@ func CreateUserSession(userID uint64, authGuard, tokenHash, refreshTokenHash, ip
 	if authGuard == "" {
 		authGuard = "user"
 	}
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
-
-	var lockedUserID uint64
-	if err = tx.QueryRow("SELECT id FROM users WHERE id = ? FOR UPDATE", userID).Scan(&lockedUserID); err != nil {
-		return err
-	}
-
-	if _, err = tx.Exec("DELETE FROM user_sessions WHERE user_id = ? AND auth_guard = ?", userID, authGuard); err != nil {
-		return err
-	}
-
-	if _, err = tx.Exec(
+	_, err := db.DB.Exec(
 		`INSERT INTO user_sessions (user_id, auth_guard, token_hash, refresh_token_hash, ip, user_agent, device, is_active, login_at, expires_at, refresh_expires_at, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
 		userID, authGuard, tokenHash, refreshTokenHash, ip, userAgent, device, now, expiresAt, refreshExpiresAt, now,
-	); err != nil {
-		return err
-	}
-
-	err = tx.Commit()
+	)
 	return err
 }
 
@@ -263,21 +240,6 @@ func CleanupExpiredSessions() error {
 		return err
 	}
 
-	if _, err = tx.Exec(
-		`DELETE stale FROM user_sessions stale
-		 INNER JOIN user_sessions latest
-		 	ON stale.user_id = latest.user_id
-		 	AND stale.id <> latest.id
-		 	AND latest.is_active = 1
-		 	AND ((latest.refresh_expires_at > 0 AND latest.refresh_expires_at > ?) OR (latest.refresh_expires_at = 0 AND latest.expires_at > ?))
-		 	AND (stale.login_at < latest.login_at OR (stale.login_at = latest.login_at AND stale.id < latest.id))
-		 WHERE stale.is_active = 1
-		 	AND ((stale.refresh_expires_at > 0 AND stale.refresh_expires_at > ?) OR (stale.refresh_expires_at = 0 AND stale.expires_at > ?))`,
-		now, now, now, now,
-	); err != nil {
-		return err
-	}
-
 	err = tx.Commit()
 	return err
 }
@@ -294,3 +256,4 @@ func GetUserLoginCount(userID uint64) (int64, error) {
 	}
 	return count, nil
 }
+

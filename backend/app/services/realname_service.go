@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fst/backend/app/models"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"regexp"
 	"strings"
 	"time"
@@ -155,13 +155,14 @@ func (s *RealnameService) GetList(query *models.RealnameVerificationListQuery) (
 }
 
 // Review 审核实名认证（管理员）
+// 业务层错误统一使用 ClientError，便于控制器与内部错误区分。
 func (s *RealnameService) Review(adminID uint64, req *RealnameReviewRequest) error {
 	if req.Status != RealnameStatusApproved && req.Status != RealnameStatusRejected {
-		return errors.New("审核状态无效")
+		return NewClientError("审核状态无效")
 	}
 
 	if req.Status == RealnameStatusRejected && strings.TrimSpace(req.RejectReason) == "" {
-		return errors.New("请填写拒绝原因")
+		return NewClientError("请填写拒绝原因")
 	}
 
 	tx, err := db.DB.Begin()
@@ -173,18 +174,18 @@ func (s *RealnameService) Review(adminID uint64, req *RealnameReviewRequest) err
 	verification, err := models.GetRealnameVerificationByIDForUpdate(tx, req.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errors.New("实名认证记录不存在")
+			return NewClientError("实名认证记录不存在")
 		}
 		return err
 	}
 
 	// 防止管理员审核自己的申请
 	if adminID == verification.UserID {
-		return errors.New("不能审核自己的实名认证申请")
+		return NewClientError("不能审核自己的实名认证申请")
 	}
 
 	if verification.Status != RealnameStatusPending {
-		return errors.New("该申请已处理，无法重复审核")
+		return NewClientError("该申请已处理，无法重复审核")
 	}
 
 	rejectReason := ""
@@ -311,3 +312,4 @@ func (s *RealnameService) validateOfficerCert(certNo string) error {
 	}
 	return nil
 }
+

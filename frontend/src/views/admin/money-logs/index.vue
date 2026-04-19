@@ -3,6 +3,8 @@ import { h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NButton, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
+import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
+import { useTableColumnVisibility } from '@/hooks'
 import { adminMoneyLogApi, adminUserApi } from '@/service/api/admin/user'
 import { parseMemo } from '@/utils/memo'
 import I18nMemoEditor from '@/components/common/I18nMemoEditor.vue'
@@ -86,6 +88,32 @@ const columns: DataTableColumns<Entity.UserMoneyLog> = [
     }, { default: () => t('adminUsers.delete') }),
   },
 ]
+
+const selectableColumnOptions = [
+  { key: 'id', label: 'ID' },
+  { key: 'user_id', label: t('adminRealname.userId') },
+  { key: 'money', label: t('adminMoneyLogs.amountChange') },
+  { key: 'before', label: t('moneyScore.beforeChange') },
+  { key: 'after', label: t('moneyScore.afterChange') },
+  { key: 'memo', label: t('moneyScore.remark') },
+  { key: 'create_time', label: t('moneyScore.time') },
+]
+
+const {
+  columnOptions,
+  selectedColumnKeys,
+  visibleColumns,
+  visibleColumnCount,
+  totalColumnCount,
+  tableScrollX,
+  resetSelectedColumns,
+} = useTableColumnVisibility<Entity.UserMoneyLog>({
+  storageKey: 'admin-money-logs-list',
+  columns,
+  options: selectableColumnOptions,
+  minVisibleCount: 1,
+  minScrollX: 900,
+})
 
 async function fetchData() {
   loading.value = true
@@ -219,12 +247,27 @@ onMounted(() => fetchData())
         </NButton>
       </n-space>
 
+      <n-space justify="end">
+        <TableColumnSelector
+          v-model="selectedColumnKeys"
+          :options="columnOptions"
+          :visible-count="visibleColumnCount"
+          :total-count="totalColumnCount"
+          :button-label="t('common.showFields')"
+          :title="t('common.visibleFields')"
+          :hint="t('common.columnVisibilityHint')"
+          :reset-label="t('common.restoreDefaultFields')"
+          @reset="resetSelectedColumns"
+        />
+      </n-space>
+
       <n-data-table
-        :columns="columns"
+        :columns="visibleColumns"
         :data="logList"
         :loading="loading"
         :pagination="pagination"
         :row-key="(row: Entity.UserMoneyLog) => row.id"
+        :scroll-x="tableScrollX"
         striped
         size="small"
         @update:page="handlePageChange"

@@ -335,8 +335,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-
+/* Plus Jakarta Sans 字体：如需使用请在 index.html 中通过 <link> 异步加载，避免阻塞 CSS */
 .index-page {
   --primary: #10b981;
   --secondary: #3b82f6;
@@ -347,7 +346,7 @@ onBeforeUnmount(() => {
   --border: rgba(0, 0, 0, 0.08);
   --shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05);
 
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   color: var(--text);
   background: var(--bg) !important;
   min-height: 100vh;

@@ -2,7 +2,7 @@ package models
 
 import (
 	"database/sql"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"log"
 	"strings"
 	"time"
@@ -25,6 +25,7 @@ type WithdrawRequest struct {
 	RealName        string   `db:"real_name" json:"real_name"`
 	Remark          string   `db:"remark" json:"remark"`
 	Status          uint8    `db:"status" json:"status"`
+	BalanceDeducted bool     `db:"balance_deducted" json:"balance_deducted"`
 	ReviewRemark    string   `db:"review_remark" json:"review_remark"`
 	TransferRemark  string   `db:"transfer_remark" json:"transfer_remark"`
 	ReviewedAt      *int64   `db:"reviewed_at" json:"reviewed_at"`
@@ -63,6 +64,13 @@ func InitWithdrawRequestsTable() {
 	if db.CheckTableExists("withdraw_requests") {
 		db.EnsureIndex("withdraw_requests", "idx_user_status_create", "ALTER TABLE withdraw_requests ADD INDEX idx_user_status_create (user_id, status, create_time)")
 		db.EnsureIndex("withdraw_requests", "idx_status_create", "ALTER TABLE withdraw_requests ADD INDEX idx_status_create (status, create_time)")
+		if !db.CheckColumnExists("withdraw_requests", "balance_deducted") {
+			if _, err := db.DB.Exec("ALTER TABLE withdraw_requests ADD COLUMN balance_deducted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已预扣余额:0=否,1=是' AFTER status"); err != nil {
+				log.Printf("[Init] Failed to add withdraw_requests.balance_deducted: %v", err)
+			} else {
+				log.Printf("[Init] Added withdraw_requests.balance_deducted column")
+			}
+		}
 		return
 	}
 
@@ -76,6 +84,7 @@ func InitWithdrawRequestsTable() {
 		real_name VARCHAR(100) NOT NULL DEFAULT '' COMMENT '收款人姓名',
 		remark VARCHAR(255) NOT NULL DEFAULT '' COMMENT '用户备注',
 		status TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态:0=待审核,1=已审核待打款,2=已拒绝,3=已打款',
+		balance_deducted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已预扣余额:0=否,1=是',
 		review_remark VARCHAR(255) NOT NULL DEFAULT '' COMMENT '审核备注',
 		transfer_remark VARCHAR(255) NOT NULL DEFAULT '' COMMENT '打款备注',
 		reviewed_at BIGINT NULL DEFAULT NULL COMMENT '审核时间',
@@ -104,10 +113,10 @@ func CreateWithdrawRequest(req *WithdrawRequest) error {
 	req.CreateTime = now
 	req.UpdateTime = now
 	result, err := db.DB.Exec(
-		`INSERT INTO withdraw_requests (user_id, amount, account_type, account_name, account_no, real_name, remark, status, review_remark, transfer_remark, reviewed_at, reviewed_by, paid_at, paid_by, create_time, update_time, delete_time)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO withdraw_requests (user_id, amount, account_type, account_name, account_no, real_name, remark, status, balance_deducted, review_remark, transfer_remark, reviewed_at, reviewed_by, paid_at, paid_by, create_time, update_time, delete_time)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		req.UserID, req.Amount, req.AccountType, req.AccountName, req.AccountNo, req.RealName, req.Remark,
-		req.Status, req.ReviewRemark, req.TransferRemark, req.ReviewedAt, req.ReviewedBy, req.PaidAt, req.PaidBy,
+		req.Status, req.BalanceDeducted, req.ReviewRemark, req.TransferRemark, req.ReviewedAt, req.ReviewedBy, req.PaidAt, req.PaidBy,
 		req.CreateTime, req.UpdateTime, req.DeleteTime,
 	)
 	if err != nil {
@@ -130,11 +139,11 @@ func GetWithdrawRequestByID(id uint64) (*WithdrawRequest, error) {
 func GetWithdrawRequestByIDForUpdate(tx *sql.Tx, id uint64) (*WithdrawRequest, error) {
 	var item WithdrawRequest
 	err := tx.QueryRow(
-		`SELECT id, user_id, amount, account_type, account_name, account_no, real_name, remark, status, review_remark, transfer_remark, reviewed_at, reviewed_by, paid_at, paid_by, create_time, update_time, delete_time
+		`SELECT id, user_id, amount, account_type, account_name, account_no, real_name, remark, status, balance_deducted, review_remark, transfer_remark, reviewed_at, reviewed_by, paid_at, paid_by, create_time, update_time, delete_time
 		 FROM withdraw_requests WHERE id = ? AND delete_time IS NULL FOR UPDATE`, id,
 	).Scan(
 		&item.ID, &item.UserID, &item.Amount, &item.AccountType, &item.AccountName, &item.AccountNo, &item.RealName,
-		&item.Remark, &item.Status, &item.ReviewRemark, &item.TransferRemark, &item.ReviewedAt, &item.ReviewedBy,
+		&item.Remark, &item.Status, &item.BalanceDeducted, &item.ReviewRemark, &item.TransferRemark, &item.ReviewedAt, &item.ReviewedBy,
 		&item.PaidAt, &item.PaidBy, &item.CreateTime, &item.UpdateTime, &item.DeleteTime,
 	)
 	if err != nil {

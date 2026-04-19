@@ -27,11 +27,20 @@ function createLocalStorage<T extends Record<string, any>>() {
   }
 
   function get<K extends keyof T>(key: K) {
-    const json = window.localStorage.getItem(`${STORAGE_PREFIX}${String(key)}`)
+    const storageKey = `${STORAGE_PREFIX}${String(key)}`
+    const json = window.localStorage.getItem(storageKey)
     if (!json)
       return null
 
-    const storageData: StorageData<T[K]> | null = JSON.parse(json)
+    let storageData: StorageData<T[K]> | null = null
+    try {
+      storageData = JSON.parse(json) as StorageData<T[K]> | null
+    }
+    catch {
+      // 损坏的 JSON 不应阻塞应用运行，直接丢弃并返回 null
+      window.localStorage.removeItem(storageKey)
+      return null
+    }
 
     if (storageData) {
       const { value, expire } = storageData
@@ -65,14 +74,20 @@ function createSessionStorage<T extends Record<string, any>>() {
     window.sessionStorage.setItem(`${STORAGE_PREFIX}${String(key)}`, json)
   }
   function get<K extends keyof T>(key: K) {
-    const json = sessionStorage.getItem(`${STORAGE_PREFIX}${String(key)}`)
+    const storageKey = `${STORAGE_PREFIX}${String(key)}`
+    const json = sessionStorage.getItem(storageKey)
     if (!json)
       return null
 
-    const storageData: T[K] | null = JSON.parse(json)
-
-    if (storageData)
-      return storageData
+    try {
+      const storageData: T[K] | null = JSON.parse(json)
+      if (storageData)
+        return storageData
+    }
+    catch {
+      // 损坏的 sessionStorage 数据直接丢弃，避免阻塞应用
+      window.sessionStorage.removeItem(storageKey)
+    }
 
     return null
   }

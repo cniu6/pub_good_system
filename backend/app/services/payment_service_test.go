@@ -245,13 +245,6 @@ func TestValidatePaymentNotifyBinding(t *testing.T) {
 		}
 	})
 
-	t.Run("订单支付类型不匹配", func(t *testing.T) {
-		err := validatePaymentNotifyBinding(&models.PaymentOrder{PaymentType: "alipay"}, nil, "", "wxpay", "")
-		if err == nil || err.Error() != "支付类型不匹配" {
-			t.Fatalf("expected payment type mismatch error, got %v", err)
-		}
-	})
-
 	t.Run("匹配参数通过", func(t *testing.T) {
 		err := validatePaymentNotifyBinding(
 			&models.PaymentOrder{TradeNo: "TN123", PaymentType: "alipay"},
@@ -265,10 +258,10 @@ func TestValidatePaymentNotifyBinding(t *testing.T) {
 		}
 	})
 
-	t.Run("空回调支付类型允许通过", func(t *testing.T) {
-		err := validatePaymentNotifyBinding(&models.PaymentOrder{PaymentType: "alipay"}, nil, "", "", "")
+	t.Run("非标准回调支付类型允许通过", func(t *testing.T) {
+		err := validatePaymentNotifyBinding(&models.PaymentOrder{PaymentType: "alipay"}, nil, "", "0", "")
 		if err != nil {
-			t.Fatalf("expected empty callback type to be allowed, got %v", err)
+			t.Fatalf("expected non-standard callback type to be allowed, got %v", err)
 		}
 	})
 }
@@ -316,3 +309,4 @@ func TestValidatePaymentOrderDeletion(t *testing.T) {
 		}
 	}
 }
+

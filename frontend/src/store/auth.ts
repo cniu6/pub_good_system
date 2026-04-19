@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
 import { unref } from 'vue'
+import { refreshAuthToken } from '@/service/http/token-refresh'
 import { router } from '@/router'
 import { buildAdminEntryUrl, getAdminBasePath } from '@/router/constants'
 import { getRuntimeRouteMode } from '@/router/runtime-mode'
-import { fetchLogin, fetchUpdateToken, fetchUserSettings } from '@/service'
+import { fetchLogin, fetchUserSettings } from '@/service'
 import { authStorage, langToFrontendFormat } from '@/utils'
 import { useRouteStore } from './router'
 import { useTabStore } from './tab'
@@ -36,7 +37,8 @@ export const useAuthStore = defineStore('auth-store', {
     updateUserInfo(info: Partial<Api.Login.Info>) {
       if (this.userInfo) {
         this.userInfo = { ...this.userInfo, ...info }
-      } else {
+      }
+      else {
         this.userInfo = info as Api.Login.Info
       }
       authStorage.setActive('userInfo', this.userInfo)
@@ -83,7 +85,8 @@ export const useAuthStore = defineStore('auth-store', {
 
         // 处理登录信息
         await this.handleLoginInfo(loginData)
-      } catch {
+      }
+      catch {
         // do nothing
       }
     },
@@ -144,6 +147,30 @@ export const useAuthStore = defineStore('auth-store', {
       this.setupAutoRefresh()
     },
 
+    applyRefreshedLoginInfo(data: LoginInfoPayload) {
+      const roles: Entity.RoleType[] = Array.isArray(data.role) && data.role.length
+        ? data.role
+        : (this.userInfo?.role || ['user'])
+      const nextUserInfo: LoginInfoPayload = {
+        ...(this.userInfo || {} as LoginInfoPayload),
+        ...data,
+        role: roles,
+      }
+
+      authStorage.setActive('accessToken', nextUserInfo.accessToken)
+      authStorage.setActive('refreshToken', nextUserInfo.refreshToken)
+      authStorage.setActive('role', roles)
+      if (nextUserInfo.expiresAt) {
+        authStorage.setActive('accessTokenExpiresAt', nextUserInfo.expiresAt)
+        this.accessTokenExpiresAt = nextUserInfo.expiresAt
+      }
+
+      this.token = nextUserInfo.accessToken
+      this.userInfo = nextUserInfo
+      authStorage.setActive('userInfo', nextUserInfo)
+      this.setupAutoRefresh()
+    },
+
     async restoreLanguageFromBackend() {
       try {
         const res = await fetchUserSettings()
@@ -155,7 +182,8 @@ export const useAuthStore = defineStore('auth-store', {
             appStore.setAppLang(frontendLang)
           }
         }
-      } catch {
+      }
+      catch {
         // do nothing
       }
     },
@@ -165,13 +193,15 @@ export const useAuthStore = defineStore('auth-store', {
      */
     setupAutoRefresh() {
       const autoRefresh = import.meta.env.VITE_AUTO_REFRESH_TOKEN === 'Y'
-      if (!autoRefresh) return
+      if (!autoRefresh)
+        return
 
       this.clearRefreshTimer()
 
       const expiresAt = this.accessTokenExpiresAt || authStorage.get('accessTokenExpiresAt')
       const refreshToken = authStorage.get('refreshToken')
-      if (!expiresAt || !refreshToken) return
+      if (!expiresAt || !refreshToken)
+        return
 
       const aheadSeconds = Number(import.meta.env.VITE_TOKEN_REFRESH_AHEAD || 60)
       const now = Math.floor(Date.now() / 1000)
@@ -180,7 +210,8 @@ export const useAuthStore = defineStore('auth-store', {
       if (delaySeconds <= 0) {
         // 已经到期或即将到期，立即刷新
         this.refreshTokenSilently()
-      } else {
+      }
+      else {
         // 开启定时器
         this.refreshTimer = setTimeout(() => {
           this.refreshTokenSilently()
@@ -199,33 +230,17 @@ export const useAuthStore = defineStore('auth-store', {
           return
         }
 
-        const mode = getRuntimeRouteMode()
-        const authGuard = mode === 'admin' ? 'admin' : 'user'
-
-        const { isSuccess, data } = await fetchUpdateToken({ refreshToken, authGuard })
-        const nextLoginInfo = data as LoginInfoPayload | undefined
-        if (!isSuccess || !nextLoginInfo) {
+        const nextLoginInfo = await refreshAuthToken(refreshToken)
+        if (!nextLoginInfo) {
           await this.logout()
           return
         }
 
-        // 更新存储
-        authStorage.setActive('accessToken', nextLoginInfo.accessToken)
-        authStorage.setActive('refreshToken', nextLoginInfo.refreshToken)
-        if (nextLoginInfo.expiresAt) {
-          authStorage.setActive('accessTokenExpiresAt', nextLoginInfo.expiresAt)
-          this.accessTokenExpiresAt = nextLoginInfo.expiresAt
-        }
-
-        this.token = nextLoginInfo.accessToken
-        this.userInfo = this.userInfo ? { ...this.userInfo, ...nextLoginInfo } : nextLoginInfo
-        authStorage.setActive('userInfo', this.userInfo)
-
-        // 安排下一次刷新
-        this.setupAutoRefresh()
-      } catch {
+        this.applyRefreshedLoginInfo(nextLoginInfo)
+      }
+      catch {
         await this.logout()
       }
-    }
+    },
   },
 })

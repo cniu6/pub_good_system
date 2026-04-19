@@ -23,3 +23,4 @@ func (ctrl *SystemController) GetUserPage(c *gin.Context) {
 func (ctrl *SystemController) GetCleanupStatus(c *gin.Context) {
 	utils.Success(c, services.GetCleanupStatus())
 }
+

@@ -64,3 +64,4 @@ func ValidateGeetest(captchaID, captchaKey string, req GeetestValidateRequest) (
 
 	return false, errors.New(result.Reason)
 }
+

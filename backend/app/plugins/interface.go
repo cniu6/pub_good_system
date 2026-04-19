@@ -207,3 +207,4 @@ func (pm *PluginManager) HasPlugin(name string) bool {
 func (pm *PluginManager) Count() int {
 	return len(pm.plugins)
 }
+

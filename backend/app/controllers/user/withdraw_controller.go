@@ -3,7 +3,7 @@ package user
 import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
-	"fst/backend/internal/middleware"
+	"fst/backend/pkg/middleware"
 	"fst/backend/utils"
 	"log"
 	"strconv"
@@ -134,3 +134,4 @@ func (ctrl *WithdrawController) RegisterRoutes(group *gin.RouterGroup) {
 		withdraw.GET("/:id", ctrl.Detail)
 	}
 }
+

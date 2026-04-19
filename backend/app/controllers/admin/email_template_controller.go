@@ -3,8 +3,9 @@ package admin
 import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"fst/backend/utils"
+	"log"
 	"strconv"
 	"strings"
 
@@ -360,7 +361,8 @@ func (ctrl *EmailTemplateController) SendTest(c *gin.Context) {
 
 	err := ctrl.email_svc.SendEmail(req.To, subject, content)
 	if err != nil {
-		utils.Fail(c, 500, "发送失败: "+err.Error())
+		log.Printf("[ADMIN][EMAIL] send test email failed to=%s: %v", req.To, err)
+		utils.Fail(c, 500, "发送测试邮件失败，请检查邮件配置")
 		return
 	}
 
@@ -380,3 +382,4 @@ func toString(v interface{}) string {
 		return ""
 	}
 }
+

@@ -6,8 +6,8 @@ import (
 	"fst/backend/app/controllers/public"
 	"fst/backend/app/controllers/user"
 	_ "fst/backend/docs"
-	"fst/backend/internal/config"
-	"fst/backend/internal/middleware"
+	"fst/backend/pkg/config"
+	"fst/backend/pkg/middleware"
 
 	// "fst/backend/utils"
 
@@ -31,6 +31,7 @@ var (
 	systemCtrl                *controllers.SystemController
 	adminUserCtrl             *admin.UserController
 	adminLogCtrl              *admin.LogController
+	adminAPILogCtrl           *admin.APILogController
 	adminEmailTplCtrl         *admin.EmailTemplateController
 	adminEmailLogCtrl         *admin.EmailLogController
 	adminSettingsCtrl         *admin.SettingsController
@@ -54,6 +55,7 @@ func initControllers() {
 	systemCtrl = &controllers.SystemController{}
 	adminUserCtrl = admin.NewUserController()
 	adminLogCtrl = admin.NewLogController()
+	adminAPILogCtrl = admin.NewAPILogController()
 	adminEmailTplCtrl = admin.NewEmailTemplateController()
 	adminEmailLogCtrl = admin.NewEmailLogController()
 	adminSettingsCtrl = admin.NewSettingsController()
@@ -101,14 +103,14 @@ func SetupRoutes(router *gin.Engine) {
 			// ----------------------------------------
 			// 用户接口 (需要登录，管理员token也可访问)
 			// ----------------------------------------
-		userGroup := v1.Group("/user")
-		userGroup.Use(middleware.AuthMiddlewareForGuard("user", "admin"))
-		{
-			userProfileCtrl.RegisterRoutes(userGroup)
-			userPaymentCtrl.RegisterRoutes(userGroup)
-			userRealnameCtrl.RegisterRoutes(userGroup)
-			userWithdrawCtrl.RegisterRoutes(userGroup)
-		}
+			userGroup := v1.Group("/user")
+			userGroup.Use(middleware.AuthMiddlewareForGuard("user", "admin"))
+			{
+				userProfileCtrl.RegisterRoutes(userGroup)
+				userPaymentCtrl.RegisterRoutes(userGroup)
+				userRealnameCtrl.RegisterRoutes(userGroup)
+				userWithdrawCtrl.RegisterRoutes(userGroup)
+			}
 
 			// ----------------------------------------
 			// 系统状态接口 (需要登录，管理员token也可访问)
@@ -125,6 +127,7 @@ func SetupRoutes(router *gin.Engine) {
 			adminGroup := v1.Group("/admin")
 			adminGroup.Use(middleware.AuthMiddlewareForGuard("admin"))
 			adminGroup.Use(middleware.AdminOnly())
+			adminGroup.Use(middleware.DynamicAdminRateLimitMiddleware())
 			{
 				// 仪表盘
 				adminGroup.GET("/dashboard", admin.GetDashboard)
@@ -150,7 +153,17 @@ func SetupRoutes(router *gin.Engine) {
 				logs := adminGroup.Group("/logs")
 				{
 					logs.GET("", adminLogCtrl.List)
+					logs.GET("/:id", adminLogCtrl.Detail)
 					logs.POST("/clean", adminLogCtrl.Clean)
+				}
+
+				// ----- API接口日志 -----
+				apiLogs := adminGroup.Group("/api-logs")
+				{
+					apiLogs.GET("", adminAPILogCtrl.List)
+					apiLogs.GET("/stats", adminAPILogCtrl.Stats)
+					apiLogs.GET("/:id", adminAPILogCtrl.Detail)
+					apiLogs.POST("/clean", adminAPILogCtrl.Clean)
 				}
 
 				// ----- 邮件发件测试 -----
@@ -232,3 +245,4 @@ func SetupRoutes(router *gin.Engine) {
 		}
 	}
 }
+

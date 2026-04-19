@@ -4,7 +4,7 @@ import (
 	crypto_rand "crypto/rand"
 	"database/sql"
 	"fmt"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"log"
 	"math/big"
 	"strings"
@@ -55,6 +55,8 @@ const (
 	PaymentStatusRefunded = 3 // 已退款
 	PaymentStatusFailed   = 4 // 支付失败
 )
+
+const RealPaidOrderFilterSQL = "gateway_id > 0 AND payment_channel <> 'admin' AND payment_type <> 'manual' AND trade_no <> '' AND UPPER(TRIM(trade_no)) NOT IN ('MANUAL', 'TRADENO', 'OUTTRADENO', 'NULL', 'UNDEFINED', 'NONE', 'NIL', 'NA')"
 
 // PaymentOrder 支付订单
 type PaymentOrder struct {
@@ -231,9 +233,6 @@ func canTransitionPaymentStatus(fromStatus, toStatus int) bool {
 	if fromStatus == toStatus {
 		return true
 	}
-	if toStatus == PaymentStatusPending {
-		return true
-	}
 
 	switch fromStatus {
 	case PaymentStatusPending:
@@ -384,23 +383,32 @@ type PaymentStats struct {
 	TotalAmount   float64 `db:"total_amount" json:"total_amount"`
 	TodayOrders   int64   `db:"today_orders" json:"today_orders"`
 	TodayAmount   float64 `db:"today_amount" json:"today_amount"`
+	MonthAmount   float64 `db:"month_amount" json:"month_amount"`
+	YearAmount    float64 `db:"year_amount" json:"year_amount"`
 	PendingOrders int64   `db:"pending_orders" json:"pending_orders"`
 }
 
 func GetPaymentStats() (*PaymentStats, error) {
 	var stats PaymentStats
-	todayStart := time.Now().Truncate(24 * time.Hour).Unix()
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Unix()
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Unix()
+	yearStart := time.Date(now.Year(), time.January, 1, 0, 0, 0, 0, now.Location()).Unix()
 
-	err := db.DB.Get(&stats, `
+	query := fmt.Sprintf(`
 		SELECT 
 			COUNT(*) as total_orders,
-			COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) as paid_orders,
-			COALESCE(SUM(CASE WHEN status = 1 THEN amount ELSE 0 END), 0) as total_amount,
-			COALESCE(SUM(CASE WHEN status = 1 AND create_time >= ? THEN 1 ELSE 0 END), 0) as today_orders,
-			COALESCE(SUM(CASE WHEN status = 1 AND create_time >= ? THEN amount ELSE 0 END), 0) as today_amount,
+			COALESCE(SUM(CASE WHEN status = 1 AND %s THEN 1 ELSE 0 END), 0) as paid_orders,
+			COALESCE(SUM(CASE WHEN status = 1 AND %s THEN pay_amount ELSE 0 END), 0) as total_amount,
+			COALESCE(SUM(CASE WHEN status = 1 AND %s AND create_time >= ? THEN 1 ELSE 0 END), 0) as today_orders,
+			COALESCE(SUM(CASE WHEN status = 1 AND %s AND create_time >= ? THEN pay_amount ELSE 0 END), 0) as today_amount,
+			COALESCE(SUM(CASE WHEN status = 1 AND %s AND create_time >= ? THEN pay_amount ELSE 0 END), 0) as month_amount,
+			COALESCE(SUM(CASE WHEN status = 1 AND %s AND create_time >= ? THEN pay_amount ELSE 0 END), 0) as year_amount,
 			COALESCE(SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END), 0) as pending_orders
 		FROM payment_orders
-	`, todayStart, todayStart)
+	`, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL)
+
+	err := db.DB.Get(&stats, query, todayStart, todayStart, monthStart, yearStart)
 	if err != nil {
 		return nil, err
 	}
@@ -421,3 +429,4 @@ func CountPendingOrdersByGatewayID(gatewayID uint64) (int64, error) {
 	}
 	return count, nil
 }
+

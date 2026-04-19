@@ -4,6 +4,7 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/utils"
+	"log"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -64,7 +65,8 @@ func (ctrl *PaymentController) ListOrders(c *gin.Context) {
 
 	orders, total, err := models.GetPaymentOrderList(userID, page, pageSize, status, keyword)
 	if err != nil {
-		utils.Fail(c, 500, "获取订单列表失败: "+err.Error())
+		log.Printf("[ADMIN][PAYMENT] list orders failed: %v", err)
+		utils.Fail(c, 500, "获取订单列表失败")
 		return
 	}
 
@@ -90,6 +92,13 @@ func (ctrl *PaymentController) OrderDetail(c *gin.Context) {
 	if err != nil {
 		utils.Fail(c, 404, "订单不存在")
 		return
+	}
+
+	refreshedOrder, reconciled, reconcileErr := services.ReconcilePaymentOrderByID(orderID)
+	if reconcileErr != nil {
+		log.Printf("[ADMIN][PAYMENT] reconcile order detail failed order_id=%d: %v", orderID, reconcileErr)
+	} else if reconciled && refreshedOrder != nil {
+		order = refreshedOrder
 	}
 
 	utils.Success(c, order)
@@ -120,7 +129,12 @@ func (ctrl *PaymentController) CompleteOrder(c *gin.Context) {
 	req.Memo = utils.Clean_XSS(req.Memo)
 
 	if err := services.AdminCompleteOrder(orderID, req.Memo); err != nil {
-		utils.Fail(c, 400, err.Error())
+		if services.IsClientError(err) {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
+		log.Printf("[ADMIN][PAYMENT] complete order failed order_id=%d: %v", orderID, err)
+		utils.Fail(c, 500, "补单失败，请稍后重试")
 		return
 	}
 
@@ -143,7 +157,12 @@ func (ctrl *PaymentController) CancelOrder(c *gin.Context) {
 	}
 
 	if err := services.AdminCancelOrder(orderID); err != nil {
-		utils.Fail(c, 400, err.Error())
+		if services.IsClientError(err) {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
+		log.Printf("[ADMIN][PAYMENT] cancel order failed order_id=%d: %v", orderID, err)
+		utils.Fail(c, 500, "取消订单失败，请稍后重试")
 		return
 	}
 
@@ -160,7 +179,8 @@ func (ctrl *PaymentController) CancelOrder(c *gin.Context) {
 func (ctrl *PaymentController) GetStats(c *gin.Context) {
 	stats, err := models.GetPaymentStats()
 	if err != nil {
-		utils.Fail(c, 500, "获取统计数据失败: "+err.Error())
+		log.Printf("[ADMIN][PAYMENT] get stats failed: %v", err)
+		utils.Fail(c, 500, "获取统计数据失败")
 		return
 	}
 
@@ -183,7 +203,12 @@ func (ctrl *PaymentController) DeleteOrder(c *gin.Context) {
 	}
 
 	if err := services.AdminDeleteOrder(orderID); err != nil {
-		utils.Fail(c, 400, err.Error())
+		if services.IsClientError(err) {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
+		log.Printf("[ADMIN][PAYMENT] delete order failed order_id=%d: %v", orderID, err)
+		utils.Fail(c, 500, "删除订单失败，请稍后重试")
 		return
 	}
 
@@ -224,7 +249,8 @@ func (ctrl *PaymentController) ListGateways(c *gin.Context) {
 
 	gateways, total, err := services.GetPayGatewayListForAdmin(page, pageSize, keyword)
 	if err != nil {
-		utils.Fail(c, 500, "获取支付通道列表失败: "+err.Error())
+		log.Printf("[ADMIN][PAYMENT] list gateways failed: %v", err)
+		utils.Fail(c, 500, "获取支付通道列表失败")
 		return
 	}
 
@@ -311,3 +337,4 @@ func (ctrl *PaymentController) RegisterPaymentRoutes(group *gin.RouterGroup) {
 		payment.DELETE("/gateways/:id", ctrl.DeleteGateway)
 	}
 }
+

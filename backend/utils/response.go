@@ -31,3 +31,4 @@ func Fail(c *gin.Context, code int, message string) {
 		Data:    nil,
 	})
 }
+

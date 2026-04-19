@@ -2,7 +2,7 @@ import type { Router } from 'vue-router'
 import type { AppRouteMode } from './index'
 import { useAppStore, useRouteStore, useTabStore } from '@/store'
 import { i18n } from '@/modules/i18n'
-import { authStorage } from '@/utils'
+import { authStorage, resolveI18nText } from '@/utils'
 import { buildAdminEntryUrl, getAdminBasePath } from './constants'
 
 function reportGuardError(message: string, error: unknown) {
@@ -31,20 +31,6 @@ function isAdminRoutePath(path: string, mode: AppRouteMode, adminPath: string) {
   if (mode === 'admin')
     return !ADMIN_PUBLIC_PATHS.has(path)
   return path === adminPath || path.startsWith(`${adminPath}/`)
-}
-
-function isI18nKey(key: string) {
-  // 仅对形如 "module.key" 的 key 做翻译，避免把中文标题当 key 触发 missing 警告
-  return key.includes('.') && /^[\w.-]+$/.test(key)
-}
-
-function resolveI18nText(t: (key: string) => string, key: unknown) {
-  if (!key || typeof key !== 'string')
-    return ''
-  if (!isI18nKey(key))
-    return key
-  const text = t(key)
-  return text === key ? key : text
 }
 
 export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {

@@ -2,7 +2,7 @@ package models
 
 import (
 	"database/sql"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"log"
 	"time"
 )
@@ -165,3 +165,4 @@ func GetUserMoneyForUpdate(tx *sql.Tx, userID uint64) (float64, error) {
 	err := tx.QueryRow("SELECT money FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE", userID).Scan(&money)
 	return money, err
 }
+

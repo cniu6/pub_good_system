@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import type { RouteLocationNormalized } from 'vue-router'
+import type { TabRouteItem } from '@/store/tab'
+import { resolveRouteTitle } from '@/utils'
 
 const { route, value, closable = false } = defineProps<{
-  route: RouteLocationNormalized
+  route: TabRouteItem
   value: string
   closable?: boolean
 }>()
+
+const { t } = useI18n()
 
 const emit = defineEmits<{
   close: [string]
@@ -24,7 +27,7 @@ const emit = defineEmits<{
   >
     <div class="flex-center gap-2 text-nowrap">
       <nova-icon :icon="route.meta.icon" />
-      <span>{{ $t(`route.${String(route.name)}`, route.meta.title) }}</span>
+      <span>{{ resolveRouteTitle(t, route.name, route.meta.title) }}</span>
       <button
         v-if="closable"
         type="button"

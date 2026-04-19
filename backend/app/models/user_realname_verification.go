@@ -2,7 +2,7 @@ package models
 
 import (
 	"database/sql"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"time"
 )
 
@@ -352,3 +352,4 @@ func GetRealnameVerificationList(query *RealnameVerificationListQuery) (*Realnam
 		PageSize: query.PageSize,
 	}, nil
 }
+

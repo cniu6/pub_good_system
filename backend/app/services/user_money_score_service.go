@@ -3,7 +3,7 @@ package services
 import (
 	"errors"
 	"fst/backend/app/models"
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"fst/backend/utils"
 	"strings"
 	"time"
@@ -356,3 +356,4 @@ func AddUserScoreLogOnly(userID uint64, amount int64, memo string) (*models.User
 
 	return logEntry, nil
 }
+

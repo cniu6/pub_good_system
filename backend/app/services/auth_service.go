@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"fst/backend/app/models"
-	"fst/backend/internal/config"
+	"fst/backend/pkg/config"
 	"fst/backend/utils"
 	"time"
 )
@@ -113,6 +113,20 @@ func BuildLoginRealnameSummaryForAPI(userID uint64) LoginRealnameSummary {
 	return buildLoginRealnameSummary(userID)
 }
 
+// validateUserAccessForGuard 统一校验当前用户状态与认证上下文是否匹配。
+func validateUserAccessForGuard(user *models.User, authGuard string) *ServiceError {
+	if user == nil {
+		return NewServiceError(401, "User not found")
+	}
+	if user.Status == 0 {
+		return NewServiceError(403, "Account is inactive")
+	}
+	if authGuard == utils.AdminAuthGuard && user.Role != utils.AdminAuthGuard {
+		return NewServiceError(403, "Admin access only")
+	}
+	return nil
+}
+
 // Login 用户登录
 func (s *AuthService) Login(username, password, authGuard, clientIP string) (*LoginResult, *ServiceError) {
 	var ok bool
@@ -138,9 +152,8 @@ func (s *AuthService) Login(username, password, authGuard, clientIP string) (*Lo
 		s.userService.ClearLockUntil(user.ID)
 	}
 
-	// 检查用户状态
-	if user.Status == 0 {
-		return nil, NewServiceError(403, "Account is inactive")
+	if accessErr := validateUserAccessForGuard(user, authGuard); accessErr != nil {
+		return nil, accessErr
 	}
 
 	// 验证密码
@@ -152,10 +165,6 @@ func (s *AuthService) Login(username, password, authGuard, clientIP string) (*Lo
 
 	// 更新登录信息
 	s.userService.UpdateLoginInfo(user.ID, clientIP)
-
-	if authGuard == utils.AdminAuthGuard && user.Role != "admin" {
-		return nil, NewServiceError(403, "Admin access only")
-	}
 
 	// 生成 Token
 	accessTTL := time.Duration(config.GlobalConfig.JWTAccessExpire) * time.Second
@@ -225,9 +234,8 @@ func (s *AuthService) RefreshToken(refreshToken, authGuard, clientIP, userAgent,
 		return nil, NewServiceError(401, "User not found")
 	}
 
-	// 检查状态
-	if user.Status == 0 {
-		return nil, NewServiceError(403, "Account is inactive")
+	if accessErr := validateUserAccessForGuard(user, authGuard); accessErr != nil {
+		return nil, accessErr
 	}
 
 	// 生成新Token
@@ -314,3 +322,4 @@ func (s *AuthService) ValidateToken(token string) (*utils.Claims, error) {
 func (s *AuthService) GetUserInfo(userID uint64) (*models.User, error) {
 	return models.GetUserByID(userID)
 }
+

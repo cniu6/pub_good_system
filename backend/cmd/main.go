@@ -6,15 +6,12 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/app/plugins"
 	"fst/backend/app/services"
-	"fst/backend/internal/config"
-	"fst/backend/internal/db"
-	"fst/backend/internal/middleware"
+	"fst/backend/pkg/config"
+	"fst/backend/pkg/db"
+	"fst/backend/pkg/middleware"
 	"fst/backend/routes"
+	"fst/backend/utils"
 	"log"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -67,6 +64,7 @@ func main() {
 	models.InitUserMoneyLogsTable()
 	models.InitUserScoreLogsTable()
 	models.InitOperationLogsTable()
+	models.InitAPIAccessLogsTable()
 
 	// 5.4 初始化支付订单表
 	models.InitPaymentOrdersTable()
@@ -88,17 +86,8 @@ func main() {
 
 	// 7. 启动定时清理任务
 	services.StartCleanupTask()
-	models.CleanupExpiredIdempotencyKeys()
-
-	// 7.1 启动过期订单自动取消任务（每分钟检查一次）
-	go func() {
-		ticker := time.NewTicker(1 * time.Minute)
-		defer ticker.Stop()
-		for range ticker.C {
-			services.CancelExpiredOrders()
-			models.CleanupExpiredIdempotencyKeys()
-		}
-	}()
+	_, _ = models.CleanupExpiredIdempotencyKeys()
+	services.StartExpiredOrderTask()
 
 	// 8. 创建路由
 	router := gin.New()
@@ -108,6 +97,8 @@ func main() {
 
 	// 9. 添加请求日志中间件
 	router.Use(middleware.LoggerMiddleware())
+	router.Use(middleware.APIAccessLogMiddleware())
+	router.Use(middleware.DynamicGlobalRateLimitMiddleware())
 
 	// 10. 注册路由
 	routes.SetupRoutes(router)
@@ -128,29 +119,14 @@ func main() {
 	apiGroup := router.Group("/api/v1")
 	pluginMgr.RegisterAllRoutes(apiGroup)
 
-	// 12. 优雅关闭处理
-	go func() {
-		quit := make(chan os.Signal, 1)
-		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-		<-quit
-		log.Println("[Server] 正在关闭...")
-
-		// 关闭插件
-		if err := pluginMgr.ShutdownAll(); err != nil {
-			log.Printf("[Plugin] 关闭失败: %v", err)
-		}
-
-		log.Println("[Server] 已关闭")
-		os.Exit(0)
-	}()
-
 	// 13. 启动服务
 	port := config.GlobalConfig.Port
+	server := utils.NewHTTPServer(":"+port, router)
 	log.Printf("[Server] 服务启动，端口: %s", port)
 	log.Printf("[Server] Swagger 文档: http://localhost:%s/swagger/index.html", port)
 	log.Printf("[Server] 已加载插件数量: %d", pluginMgr.Count())
 
-	if err := router.Run(":" + port); err != nil {
+	if err := utils.ServeHTTPServer(server, pluginMgr.ShutdownAll); err != nil {
 		log.Fatalf("[Server] 启动失败: %v", err)
 	}
 }

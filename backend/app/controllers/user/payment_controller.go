@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
-	"fst/backend/internal/middleware"
+	"fst/backend/pkg/middleware"
 	"fst/backend/utils"
 	"log"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -63,13 +62,8 @@ func (ctrl *PaymentController) CreateOrder(c *gin.Context) {
 	req.Subject = utils.Clean_XSS(req.Subject)
 
 	// 从系统设置读取后端API地址（用于异步回调和同步跳转）
-	urlSettings, err := models.GetSettingsMap([]string{"frontend_url", "backend_api_url"})
-	if err != nil {
-		utils.Fail(c, 500, "读取系统配置失败")
-		return
-	}
-	frontendURL := strings.TrimRight(urlSettings["frontend_url"], "/")
-	backendAPIURL := strings.TrimRight(urlSettings["backend_api_url"], "/")
+	frontendURL := services.GetGlobalFrontendURL()
+	backendAPIURL := services.GetGlobalBackendAPIURL()
 	if frontendURL == "" {
 		utils.Fail(c, 500, "系统未配置前端地址，请在管理后台「基本设置」中配置")
 		return
@@ -82,7 +76,7 @@ func (ctrl *PaymentController) CreateOrder(c *gin.Context) {
 	notifyURL := fmt.Sprintf("%s/api/v1/public/payment/notify", backendAPIURL)
 	returnURL := fmt.Sprintf("%s/api/v1/public/payment/return", backendAPIURL)
 
-	clientIP := c.ClientIP()
+	clientIP := utils.GetClientIP(c)
 
 	result, err := services.CreatePaymentOrder(uid, &services.CreatePaymentOrderRequest{
 		GatewayID: req.GatewayID,
@@ -175,6 +169,13 @@ func (ctrl *PaymentController) GetOrderDetail(c *gin.Context) {
 		return
 	}
 
+	refreshedOrder, reconciled, reconcileErr := services.ReconcilePaymentOrderByID(orderID)
+	if reconcileErr != nil {
+		log.Printf("[PAYMENT] reconcile order detail failed order_id=%d user_id=%d: %v", orderID, uid, reconcileErr)
+	} else if reconciled && refreshedOrder != nil {
+		order = refreshedOrder
+	}
+
 	utils.Success(c, order)
 }
 
@@ -211,10 +212,22 @@ func (ctrl *PaymentController) CheckOrderStatus(c *gin.Context) {
 		return
 	}
 
+	reconciled := false
+	refreshedOrder, didReconcile, reconcileErr := services.ReconcilePaymentOrderByID(orderID)
+	if reconcileErr != nil {
+		log.Printf("[PAYMENT] reconcile order status failed order_id=%d user_id=%d: %v", orderID, uid, reconcileErr)
+	} else {
+		reconciled = didReconcile
+		if refreshedOrder != nil {
+			order = refreshedOrder
+		}
+	}
+
 	utils.Success(c, gin.H{
 		"order_no": order.OrderNo,
 		"status":   order.Status,
 		"paid_at":  order.PaidAt,
+		"reconciled": reconciled,
 	})
 }
 
@@ -252,3 +265,4 @@ func (ctrl *PaymentController) RegisterRoutes(group *gin.RouterGroup) {
 		payment.GET("/gateways", ctrl.GetPayGateways)
 	}
 }
+

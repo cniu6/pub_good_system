@@ -3,7 +3,7 @@ package services
 import (
 	"fmt"
 	"fst/backend/app/models"
-	"fst/backend/internal/config"
+	"fst/backend/pkg/config"
 	"fst/backend/utils"
 	"log"
 	"strings"
@@ -49,6 +49,25 @@ func (s *EmailService) SendEmail(to, subject, body string) error {
 	return err
 }
 
+// sensitiveEmailTemplates 列出承载验证码/重置口令等敏感数据的模板名。
+// 这些模板在写入 email_logs 时需要对 content 做脱敏，避免验证码明文落库。
+var sensitiveEmailTemplates = map[string]struct{}{
+	"register_code":  {},
+	"reset_password": {},
+	"change_email":   {},
+	"change_phone":   {},
+	"bind_email":     {},
+	"bind_phone":     {},
+}
+
+// buildEmailLogContent 针对敏感模板返回替代文本，避免验证码等敏感信息明文落库。
+func buildEmailLogContent(templateName, content string) string {
+	if _, ok := sensitiveEmailTemplates[templateName]; ok {
+		return "[REDACTED: sensitive template content masked]"
+	}
+	return content
+}
+
 // SendTemplateEmail 发送模板邮件
 func (s *EmailService) SendTemplateEmail(to, template_name, lang string, vars map[string]string) error {
 	subject, content, err := s.RenderTemplateMail(template_name, lang, vars)
@@ -76,7 +95,8 @@ func (s *EmailService) SendTemplateEmail(to, template_name, lang string, vars ma
 		error_msg = send_err.Error()
 	}
 
-	if logErr := models.CreateEmailLog(to, subject, content, template_name, status, error_msg); logErr != nil {
+	loggedContent := buildEmailLogContent(template_name, content)
+	if logErr := models.CreateEmailLog(to, subject, loggedContent, template_name, status, error_msg); logErr != nil {
 		log.Printf("[Email] 记录模板邮件日志失败: %v", logErr)
 	}
 
@@ -179,7 +199,9 @@ func (s *EmailService) renderTemplate(template string, vars map[string]string) s
 	return result
 }
 
-// WrapHTMLLayout 将邮件内容包装在精美的 HTML 布局中
+// WrapHTMLLayout 将邮件内容包装在精美的 HTML 布局中。
+// 注意：content 视为已信任的 HTML（由后台模板提供），但 subject / appName
+// 会进入纯文本节点，必须做 HTML 转义以防止渲染后被解析为标签。
 func (s *EmailService) WrapHTMLLayout(subject, content string) string {
 	cfg := config.GlobalConfig
 	appName := cfg.AppName
@@ -188,13 +210,15 @@ func (s *EmailService) WrapHTMLLayout(subject, content string) string {
 	}
 
 	year := fmt.Sprintf("%d", time.Now().Year())
+	safeSubject := htmlEscapeStr(subject)
+	safeAppName := htmlEscapeStr(appName)
 
 	return `<!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>` + subject + `</title>
+<title>` + safeSubject + `</title>
 </head>
 <body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f2f5;padding:40px 0;">
@@ -205,13 +229,13 @@ func (s *EmailService) WrapHTMLLayout(subject, content string) string {
         <!-- Header -->
         <tr>
           <td style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);padding:36px 40px;text-align:center;">
-            <h1 style="margin:0;font-size:26px;font-weight:700;color:#ffffff;letter-spacing:1px;">` + appName + `</h1>
+            <h1 style="margin:0;font-size:26px;font-weight:700;color:#ffffff;letter-spacing:1px;">` + safeAppName + `</h1>
           </td>
         </tr>
         <!-- Subject -->
         <tr>
           <td style="padding:32px 40px 0 40px;">
-            <h2 style="margin:0 0 8px 0;font-size:20px;font-weight:600;color:#1a1a2e;">` + subject + `</h2>
+            <h2 style="margin:0 0 8px 0;font-size:20px;font-weight:600;color:#1a1a2e;">` + safeSubject + `</h2>
             <div style="width:48px;height:3px;background:linear-gradient(90deg,#667eea,#764ba2);border-radius:2px;"></div>
           </td>
         </tr>
@@ -231,7 +255,7 @@ func (s *EmailService) WrapHTMLLayout(subject, content string) string {
         <tr>
           <td style="padding:24px 40px 32px 40px;text-align:center;">
             <p style="margin:0 0 4px 0;font-size:12px;color:#a0a0b8;">此邮件由系统自动发送，请勿直接回复</p>
-            <p style="margin:0;font-size:12px;color:#a0a0b8;">&copy; ` + year + ` ` + appName + ` · All rights reserved</p>
+            <p style="margin:0;font-size:12px;color:#a0a0b8;">&copy; ` + year + ` ` + safeAppName + ` · All rights reserved</p>
           </td>
         </tr>
       </table>
@@ -240,6 +264,18 @@ func (s *EmailService) WrapHTMLLayout(subject, content string) string {
 </table>
 </body>
 </html>`
+}
+
+// htmlEscapeStr 对邮件布局中非 HTML 片段的纯文本做基础转义。
+func htmlEscapeStr(raw string) string {
+	replacer := strings.NewReplacer(
+		"&", "&amp;",
+		"<", "&lt;",
+		">", "&gt;",
+		"\"", "&quot;",
+		"'", "&#39;",
+	)
+	return replacer.Replace(raw)
 }
 
 // BatchSendEmail 批量发送邮件
@@ -307,3 +343,4 @@ func (s *EmailService) ValidateEmailConfig() error {
 func (s *EmailService) IsEmailConfigured() bool {
 	return s.ValidateEmailConfig() == nil
 }
+

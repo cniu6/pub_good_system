@@ -25,12 +25,27 @@
         />
       </n-space>
 
+      <n-space justify="end">
+        <TableColumnSelector
+          v-model="selectedColumnKeys"
+          :options="columnOptions"
+          :visible-count="visibleColumnCount"
+          :total-count="totalColumnCount"
+          :button-label="t('common.showFields')"
+          :title="t('common.visibleFields')"
+          :hint="t('common.columnVisibilityHint')"
+          :reset-label="t('common.restoreDefaultFields')"
+          @reset="resetSelectedColumns"
+        />
+      </n-space>
+
       <n-data-table
         remote
-        :columns="columns"
+        :columns="visibleColumns"
         :data="verificationList"
         :loading="loading"
         :pagination="pagination"
+        :scroll-x="tableScrollX"
         @update:page="handlePageChange"
       />
     </n-space>
@@ -143,6 +158,8 @@ import { useI18n } from 'vue-i18n'
 import { NButton, NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { useRouter } from 'vue-router'
+import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
+import { useTableColumnVisibility } from '@/hooks'
 import {
   realnameStatusOptions,
   type RealnameVerification,
@@ -291,6 +308,32 @@ const columns: DataTableColumns<RealnameVerification> = [
     },
   },
 ]
+
+ const selectableColumnOptions = [
+   { key: 'id', label: 'ID' },
+   { key: 'user_id', label: t('adminRealname.user') },
+   { key: 'real_name', label: t('realname.realName') },
+   { key: 'certificate_type', label: t('realname.certificateType') },
+   { key: 'certificate_no', label: t('realname.certificateNo') },
+   { key: 'status', label: t('realname.status') },
+   { key: 'submitted_at', label: t('realname.submittedAt') },
+ ]
+
+ const {
+   columnOptions,
+   selectedColumnKeys,
+   visibleColumns,
+   visibleColumnCount,
+   totalColumnCount,
+   tableScrollX,
+   resetSelectedColumns,
+ } = useTableColumnVisibility<RealnameVerification>({
+   storageKey: 'admin-realname-list',
+   columns,
+   options: selectableColumnOptions,
+   minVisibleCount: 1,
+   minScrollX: 900,
+ })
 
 // 批量获取用户信息
 async function fetchUserInfos(verifications: RealnameVerification[]) {

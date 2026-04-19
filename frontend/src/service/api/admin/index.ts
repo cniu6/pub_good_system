@@ -36,9 +36,13 @@ function createLazyModule<T extends Record<string, (...args: any[]) => any>>(
 export const adminApi = {
   user: createLazyModule(() => import('./user').then(m => m.adminUserApi)),
   log: createLazyModule(() => import('./log').then(m => m.adminLogApi)),
+  apiLog: createLazyModule(() => import('./api-log').then(m => m.adminAPILogApi)),
   smsLog: createLazyModule(() => import('./sms-log').then(m => m.adminSMSLogApi)),
+  emailLog: createLazyModule(() => import('./email-log').then(m => m.adminEmailLogApi)),
   emailTemplate: createLazyModule(() => import('./email-template').then(m => m.adminEmailTemplateApi)),
+  debug: createLazyModule(() => import('./debug').then(m => m.adminDebugApi)),
   settings: createLazyModule(() => import('./settings').then(m => m.adminSettingsApi)),
+  server: createLazyModule(() => import('./server').then(m => m.adminServerApi)),
   dashboard: createLazyModule(() => import('./dashboard').then(m => m.adminDashboardApi)),
   realname: createLazyModule(() => import('./realname').then(m => m.adminRealnameApi)),
 }

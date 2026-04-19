@@ -86,3 +86,4 @@ func TestSMSServiceIsConfiguredAndGetProviderName(t *testing.T) {
 		t.Fatalf("expected provider name custom, got %s", got)
 	}
 }
+

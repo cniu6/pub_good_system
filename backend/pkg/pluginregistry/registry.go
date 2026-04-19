@@ -52,3 +52,4 @@ func Clear() {
 	defer mu.Unlock()
 	plugins = make(map[string]Plugin)
 }
+

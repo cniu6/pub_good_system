@@ -1,7 +1,7 @@
 package models
 
 import (
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"log"
 	"time"
 )
@@ -325,3 +325,4 @@ func GetOperationLogStats() (*LogStats, error) {
 
 	return stats, nil
 }
+

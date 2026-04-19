@@ -1,7 +1,7 @@
 package models
 
 import (
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"log"
 	"time"
 )
@@ -77,3 +77,4 @@ func SaveUserSettings(settings *UserSettings) error {
 
 	return nil
 }
+

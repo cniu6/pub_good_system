@@ -167,3 +167,4 @@ func (ctrl *SMSLogController) TemplateNames(c *gin.Context) {
 
 	utils.Success(c, names)
 }
+

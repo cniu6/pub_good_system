@@ -1,7 +1,6 @@
-import { fetchUpdateToken } from '../api/user/login'
+import { refreshAuthToken } from './token-refresh'
 import { useAuthStore } from '@/store'
-import { getRuntimeRouteMode } from '@/router/runtime-mode'
-import { authStorage } from '@/utils'
+import { $t, authStorage } from '@/utils'
 import {
   ERROR_NO_TIP_STATUS,
   ERROR_STATUS,
@@ -9,7 +8,259 @@ import {
 
 type ErrorStatus = keyof typeof ERROR_STATUS
 type BackendBusinessPayload = Record<string, unknown> & { data?: unknown }
-type LoginTokenPayload = Api.Login.Info & { expiresAt?: number }
+type BackendResponsePayload = Record<string, unknown>
+interface LocalizedBackendMessageRule {
+  aliases?: string[]
+  pattern?: RegExp
+  localeKey?: string
+  resolve?: (match: RegExpMatchArray) => string
+}
+
+const BACKEND_MESSAGE_RULES: LocalizedBackendMessageRule[] = [
+  {
+    aliases: ['Invalid or expired token', 'Session expired or revoked', 'Invalid user session', 'Invalid or expired refresh token', 'Refresh session expired or revoked'],
+    localeKey: 'http.backendMessage.loginExpired',
+  },
+  {
+    aliases: ['Authorization header is required', 'Authorization header format must be Bearer {token}', 'User not logged in', '用户未登录'],
+    localeKey: 'http.backendMessage.loginRequired',
+  },
+  {
+    aliases: ['User not found', 'user not found', '用户不存在'],
+    localeKey: 'http.backendMessage.userNotFound',
+  },
+  {
+    aliases: ['Admin access only'],
+    localeKey: 'http.backendMessage.adminOnly',
+  },
+  {
+    aliases: ['Insufficient permissions', 'Role not found', 'Invalid role type'],
+    localeKey: 'http.backendMessage.insufficientPermissions',
+  },
+  {
+    aliases: ['Captcha validation failed'],
+    localeKey: 'http.backendMessage.captchaValidationFailed',
+  },
+  {
+    aliases: ['Email already in use', '邮箱已存在', '邮箱已被使用'],
+    localeKey: 'http.backendMessage.emailAlreadyInUse',
+  },
+  {
+    aliases: ['Mobile already in use', '手机号已存在', '手机号已被使用'],
+    localeKey: 'http.backendMessage.mobileAlreadyInUse',
+  },
+  {
+    aliases: ['Registration is disabled'],
+    localeKey: 'http.backendMessage.registrationDisabled',
+  },
+  {
+    aliases: ['Account deletion is currently disabled'],
+    localeKey: 'http.backendMessage.accountDeletionDisabled',
+  },
+  {
+    aliases: ['Invalid or expired verification code', '验证码错误或已过期'],
+    localeKey: 'http.backendMessage.invalidVerificationCode',
+  },
+  {
+    aliases: ['Please wait before requesting another verification code'],
+    localeKey: 'http.backendMessage.verificationCodeCooldown',
+  },
+  {
+    aliases: ['Invalid account or password'],
+    localeKey: 'http.backendMessage.invalidAccountOrPassword',
+  },
+  {
+    aliases: ['Account is inactive'],
+    localeKey: 'http.backendMessage.accountInactive',
+  },
+  {
+    aliases: ['incorrect old password'],
+    localeKey: 'http.backendMessage.incorrectOldPassword',
+  },
+  {
+    aliases: ['Verification code sent'],
+    localeKey: 'profile.codeSent',
+  },
+  {
+    aliases: ['Verification code sent to new email'],
+    localeKey: 'profile.emailCodeSent',
+  },
+  {
+    aliases: ['User registered successfully'],
+    localeKey: 'login.registerSuccess',
+  },
+  {
+    aliases: ['提现功能暂未开启'],
+    localeKey: 'moneyScore.withdrawDisabled',
+  },
+  {
+    aliases: ['提现申请已提交，等待管理员审核'],
+    localeKey: 'moneyScore.withdrawSubmitted',
+  },
+  {
+    aliases: ['请完整填写收款信息'],
+    localeKey: 'moneyScore.completeAccountInfo',
+  },
+  {
+    aliases: ['当前收款方式不可用'],
+    localeKey: 'moneyScore.selectValidAccountType',
+  },
+  {
+    aliases: ['账户余额不足'],
+    localeKey: 'http.backendMessage.insufficientBalance',
+  },
+  {
+    aliases: ['Failed to update profile'],
+    localeKey: 'profile.profileSaveFailed',
+  },
+  {
+    aliases: ['Failed to change password'],
+    localeKey: 'profile.changePasswordFailed',
+  },
+  {
+    aliases: ['Failed to update avatar'],
+    localeKey: 'userCenter.avatarUpdateFailed',
+  },
+  {
+    aliases: ['Failed to update settings', 'Failed to save settings'],
+    localeKey: 'settingsTab.saveFailed',
+  },
+  {
+    aliases: ['Failed to change email'],
+    localeKey: 'profile.emailVerifyFailed',
+  },
+  {
+    aliases: ['Failed to change phone'],
+    localeKey: 'profile.phoneVerifyFailed',
+  },
+  {
+    aliases: ['Failed to deactivate account'],
+    localeKey: 'securityTab.deactivateFailed',
+  },
+  {
+    aliases: ['Failed to load sessions'],
+    localeKey: 'securityTab.loadSessionsFailed',
+  },
+  {
+    aliases: ['Failed to revoke session'],
+    localeKey: 'securityTab.revokeFailed',
+  },
+  {
+    aliases: ['Failed to revoke sessions'],
+    localeKey: 'securityTab.revokeAllFailed',
+  },
+  {
+    aliases: ['Failed to reset API key'],
+    localeKey: 'apiTab.apiKeyResetFailed',
+  },
+  {
+    pattern: /^Account is locked\. Please try again in (\d+) minutes$/i,
+    resolve: match => $t('http.backendMessage.accountLocked', { minutes: match[1] }),
+  },
+  {
+    pattern: /^Failed to send .+$/i,
+    localeKey: 'profile.sendCodeFailed',
+  },
+  {
+    pattern: /^Failed to check verification cooldown$/i,
+    localeKey: 'profile.sendCodeFailed',
+  },
+  {
+    pattern: /^Failed to generate verification code$/i,
+    localeKey: 'profile.sendCodeFailed',
+  },
+  {
+    pattern: /^Failed to (load|fetch|get) .+$/i,
+    localeKey: 'http.backendMessage.loadFailed',
+  },
+  {
+    pattern: /^Failed to (update|save) .+$/i,
+    localeKey: 'http.backendMessage.saveFailed',
+  },
+  {
+    pattern: /^Failed to change .+$/i,
+    localeKey: 'http.backendMessage.changeFailed',
+  },
+  {
+    pattern: /^Failed to reset .+$/i,
+    localeKey: 'http.backendMessage.resetFailed',
+  },
+  {
+    pattern: /^Failed to revoke .+$/i,
+    localeKey: 'http.backendMessage.revokeFailed',
+  },
+  {
+    pattern: /^Failed to .+$/i,
+    localeKey: 'http.backendMessage.operationFailed',
+  },
+]
+
+function normalizeBackendMessage(message: string) {
+  return message.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+function renderLocalizedBackendMessage(rule: LocalizedBackendMessageRule, match?: RegExpMatchArray) {
+  if (rule.resolve && match)
+    return rule.resolve(match)
+
+  if (rule.localeKey)
+    return $t(rule.localeKey)
+
+  return ERROR_STATUS.default
+}
+
+function localizeBackendMessage(rawMessage: string) {
+  const message = rawMessage.trim()
+  if (!message)
+    return ERROR_STATUS.default
+
+  const normalizedMessage = normalizeBackendMessage(message)
+
+  for (const rule of BACKEND_MESSAGE_RULES) {
+    if (rule.aliases?.some(alias => normalizeBackendMessage(alias) === normalizedMessage))
+      return renderLocalizedBackendMessage(rule)
+
+    if (rule.pattern) {
+      const match = message.match(rule.pattern)
+      if (match)
+        return renderLocalizedBackendMessage(rule, match)
+    }
+  }
+
+  return message
+}
+
+async function extractResponseMessage(response: Response) {
+  try {
+    const payload = await response.clone().json() as BackendResponsePayload
+    if (typeof payload.message === 'string' && payload.message.trim())
+      return payload.message
+  }
+  catch {
+  }
+
+  try {
+    const text = (await response.clone().text()).trim()
+    if (text && !/^<!doctype html/i.test(text) && !/^<html/i.test(text))
+      return text
+  }
+  catch {
+  }
+
+  return ''
+}
+
+export function localizeBackendMessagePayload<T extends BackendResponsePayload>(data: T, config: Required<Service.BackendConfig>) {
+  const { msgKey } = config
+  const rawMessage = data[msgKey]
+  if (typeof rawMessage !== 'string' || !rawMessage.trim())
+    return data
+
+  return {
+    ...data,
+    [msgKey]: localizeBackendMessage(rawMessage),
+  } as T
+}
 
 export function normalizeRequestError(error: unknown, requestUrl?: string): Service.RequestError {
   const rawMessage = error instanceof Error ? error.message : String(error || '')
@@ -37,7 +288,7 @@ export function normalizeRequestError(error: unknown, requestUrl?: string): Serv
  * @param {Response} response
  * @return {*}
  */
-export function handleResponseError(response: Response) {
+export async function handleResponseError(response: Response) {
   const error: Service.RequestError = {
     errorType: 'Response Error',
     code: 0,
@@ -45,7 +296,8 @@ export function handleResponseError(response: Response) {
     data: null,
   }
   const errorCode: ErrorStatus = response.status as ErrorStatus
-  const message = ERROR_STATUS[errorCode] || ERROR_STATUS.default
+  const rawMessage = await extractResponseMessage(response)
+  const message = rawMessage ? localizeBackendMessage(rawMessage) : (ERROR_STATUS[errorCode] || ERROR_STATUS.default)
   Object.assign(error, { code: errorCode, message })
 
   showError(error)
@@ -67,7 +319,7 @@ export function handleBusinessError(data: BackendBusinessPayload, config: Requir
   const error: Service.RequestError = {
     errorType: 'Business Error',
     code: typeof rawCode === 'number' || typeof rawCode === 'string' ? rawCode : 0,
-    message: typeof rawMessage === 'string' ? rawMessage : ERROR_STATUS.default,
+    message: typeof rawMessage === 'string' ? localizeBackendMessage(rawMessage) : ERROR_STATUS.default,
     data: data.data,
   }
 
@@ -106,22 +358,10 @@ export async function handleRefreshToken() {
   }
 
   // 刷新token
-  const mode = getRuntimeRouteMode()
-  const authGuard = mode === 'admin' ? 'admin' : 'user'
-  try {
-    const result = await fetchUpdateToken({ refreshToken: authStorage.get('refreshToken'), authGuard })
-    const data = result.data as LoginTokenPayload | null
-    if (result.isSuccess && data) {
-      authStorage.setActive('accessToken', data.accessToken)
-      authStorage.setActive('refreshToken', data.refreshToken)
-      if (data.expiresAt) {
-        authStorage.setActive('accessTokenExpiresAt', data.expiresAt)
-      }
-      return
-    }
-  }
-  catch {
-    // noop: 统一走退出逻辑
+  const data = await refreshAuthToken(authStorage.get('refreshToken'))
+  if (data) {
+    authStore.applyRefreshedLoginInfo(data)
+    return
   }
 
   // 刷新失败，退出

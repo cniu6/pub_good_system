@@ -1,7 +1,7 @@
 package models
 
 import (
-	"fst/backend/internal/db"
+	"fst/backend/pkg/db"
 	"log"
 	"time"
 )
@@ -231,3 +231,4 @@ func VerifyCode(contact, code, codeType string) (bool, uint64, error) {
 
 	return true, vc.ID, nil
 }
+

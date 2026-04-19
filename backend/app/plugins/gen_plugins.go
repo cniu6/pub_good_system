@@ -114,3 +114,4 @@ func main() {
 
 	fmt.Printf("[Plugin] 已更新 main.go，共 %d 个插件\n", len(plugins))
 }
+

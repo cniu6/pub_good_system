@@ -2,13 +2,11 @@ package user
 
 import (
 	crypto_rand "crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
-	"fst/backend/internal/config"
-	"fst/backend/internal/middleware"
+	"fst/backend/pkg/config"
+	"fst/backend/pkg/middleware"
 	"fst/backend/utils"
 	"log"
 	"strconv"
@@ -964,14 +962,7 @@ func (ctrl *ProfileController) VerifyPhoneChange(c *gin.Context) {
 // @Router /api/v1/user/deactivate [post]
 func (ctrl *ProfileController) DeactivateAccount(c *gin.Context) {
 	// 检查系统设置是否允许注销账号
-	allowDeleteAccount := false
-	if services.GlobalSettingsService != nil {
-		allowDeleteAccount = services.GlobalSettingsService.GetBool("allow_delete_account")
-	} else {
-		settingsMap, err := models.GetSettingsMap([]string{"allow_delete_account"})
-		allowDeleteAccount = err == nil && (settingsMap["allow_delete_account"] == "true" || settingsMap["allow_delete_account"] == "1")
-	}
-	if !allowDeleteAccount {
+	if !services.GetGlobalAllowDeleteAccount() {
 		utils.Fail(c, 403, "Account deletion is currently disabled")
 		return
 	}
@@ -1123,14 +1114,7 @@ func (ctrl *ProfileController) RevokeAllSessions(c *gin.Context) {
 		return
 	}
 
-	current_token := c.GetHeader("Authorization")
-	// 去除 Bearer 前缀，只保留 token 部分
-	if strings.HasPrefix(current_token, "Bearer ") {
-		current_token = current_token[7:]
-	}
-	// 对 token 进行 SHA256 哈希，与存储时一致
-	h := sha256.Sum256([]byte(current_token))
-	currentTokenHash := hex.EncodeToString(h[:])
+	currentTokenHash := utils.HashToken(utils.ExtractBearerToken(c.GetHeader("Authorization")))
 	// 根据当前 token 的 authGuard 撤销对应会话
 	guard, _ := c.Get("authGuard")
 	guardStr, _ := guard.(string)
@@ -1208,17 +1192,7 @@ func generateCode() string {
 
 // getLangFromRequest 从请求获取语言
 func getLangFromRequest(c *gin.Context, req_lang string) string {
-	lang := req_lang
-	if lang == "" {
-		lang = c.GetHeader("Accept-Language")
-	}
-	if lang == "" {
-		lang = "zh-CN"
-	}
-	if strings.Contains(lang, "zh") {
-		return "zh-CN"
-	}
-	return "en-US"
+	return utils.ResolveRequestLang(c, req_lang, "zh-CN")
 }
 
 // validateGeetestFromRequest 从请求中提取极验参数并校验
@@ -1446,3 +1420,4 @@ func (ctrl *ProfileController) RegisterRoutes(group *gin.RouterGroup) {
 // ========================================
 
 var _ = models.User{}
+

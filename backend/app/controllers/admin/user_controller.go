@@ -3,7 +3,7 @@ package admin
 import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
-	"fst/backend/internal/config"
+	"fst/backend/pkg/config"
 	"fst/backend/utils"
 	"log"
 	"strconv"
@@ -30,8 +30,8 @@ type AdminUserRealnameSummary struct {
 }
 
 type AdminUserDetailResponse struct {
-	User     *models.User               `json:"user"`
-	Realname AdminUserRealnameSummary   `json:"realname"`
+	User     *services.AdminUserListItem `json:"user"`
+	Realname AdminUserRealnameSummary    `json:"realname"`
 }
 
 func NewUserController() *UserController {
@@ -89,7 +89,7 @@ func (c *UserController) Detail(ctx *gin.Context) {
 		return
 	}
 
-	user, err := c.userService.GetByID(id)
+	user, err := c.userService.GetAdminDetail(id)
 	if err != nil {
 		utils.Fail(ctx, 404, "用户不存在")
 		return
@@ -388,10 +388,7 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 		return
 	}
 
-	clientIP := ctx.ClientIP()
-	if clientIP == "" {
-		clientIP = "unknown"
-	}
+	clientIP := utils.GetClientIP(ctx)
 	userAgent := ctx.GetHeader("User-Agent")
 	expiresAt := time.Now().Add(accessTTL).Unix()
 	refreshExpiresAt := time.Now().Add(refreshTTL).Unix()
@@ -509,3 +506,4 @@ func (c *UserController) LookupUser(ctx *gin.Context) {
 
 	utils.Fail(ctx, 404, "用户不存在")
 }
+

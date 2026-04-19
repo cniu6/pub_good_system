@@ -372,6 +372,17 @@
             <n-tab-pane name="custom" :tab="t('adminSettings.customConfig')">
               <n-space vertical :size="16">
                 <n-space justify="end">
+                  <TableColumnSelector
+                    v-model="customSelectedColumnKeys"
+                    :options="customColumnOptions"
+                    :visible-count="customVisibleColumnCount"
+                    :total-count="customTotalColumnCount"
+                    :button-label="t('common.showFields')"
+                    :title="t('common.visibleFields')"
+                    :hint="t('common.columnVisibilityHint')"
+                    :reset-label="t('common.restoreDefaultFields')"
+                    @reset="resetCustomSelectedColumns"
+                  />
                   <n-button type="primary" @click="showAddModal = true">
                     <template #icon>
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 1em; height: 1em;">
@@ -382,7 +393,7 @@
                   </n-button>
                 </n-space>
 
-                <n-data-table :columns="customColumns" :data="customSettings" :pagination="false" :bordered="false" />
+                <n-data-table :columns="customVisibleColumns" :data="customSettings" :pagination="false" :bordered="false" :scroll-x="customTableScrollX" />
               </n-space>
             </n-tab-pane>
           </n-tabs>
@@ -392,15 +403,15 @@
           <EmailTemplates />
         </n-tab-pane>
 
-        <n-tab-pane name="sms-logs" :tab="t('adminSettings.smsLogs')">
+        <n-tab-pane v-if="false" name="sms-logs" :tab="t('adminSettings.smsLogs')">
           <SMSLogs />
         </n-tab-pane>
 
-        <n-tab-pane name="operation-logs" :tab="t('adminSettings.operationLogs')">
+        <n-tab-pane v-if="false" name="operation-logs" :tab="t('adminSettings.operationLogs')">
           <OperationLogs />
         </n-tab-pane>
 
-        <n-tab-pane name="info" :tab="t('adminSettings.systemInfo')">
+        <n-tab-pane v-if="false" name="info" :tab="t('adminSettings.systemInfo')">
           <n-space vertical>
             <n-descriptions bordered :column="2" label-placement="left">
               <n-descriptions-item :label="t('adminSettings.systemVersion')">{{ settingsStore.version }}</n-descriptions-item>
@@ -423,7 +434,7 @@
           </n-space>
         </n-tab-pane>
 
-        <n-tab-pane name="server-management" :tab="t('adminSettings.serverManagement')">
+        <n-tab-pane v-if="false" name="server-management" :tab="t('adminSettings.serverManagement')">
           <n-tabs type="line" animated>
             <n-tab-pane name="monitor" :tab="t('adminSettings.systemMonitor')">
               <n-space vertical :size="16">
@@ -568,14 +579,28 @@
 
                 <n-space justify="space-between" align="center">
                   <n-text depth="3">{{ t('adminSettings.serviceHealthSnapshot') }}</n-text>
-                  <n-text depth="3" style="font-size: 12px">{{ t('adminSettings.lastRefreshed') }}: {{ serverMonitoringGeneratedAt || '-' }}</n-text>
+                  <n-space>
+                    <TableColumnSelector
+                      v-model="serviceSelectedColumnKeys"
+                      :options="serviceColumnOptions"
+                      :visible-count="serviceVisibleColumnCount"
+                      :total-count="serviceTotalColumnCount"
+                      :button-label="t('common.showFields')"
+                      :title="t('common.visibleFields')"
+                      :hint="t('common.columnVisibilityHint')"
+                      :reset-label="t('common.restoreDefaultFields')"
+                      @reset="resetServiceSelectedColumns"
+                    />
+                    <n-text depth="3" style="font-size: 12px">{{ t('adminSettings.lastRefreshed') }}: {{ serverMonitoringGeneratedAt || '-' }}</n-text>
+                  </n-space>
                 </n-space>
 
                 <n-data-table
-                  :columns="serviceStatusColumns"
+                  :columns="serviceVisibleColumns"
                   :data="serviceStatusRows"
                   :pagination="false"
                   :bordered="false"
+                  :scroll-x="serviceTableScrollX"
                 />
               </n-space>
             </n-tab-pane>
@@ -782,135 +807,136 @@
         </n-space>
       </template>
     </n-modal>
-
   </n-card>
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
-import {
-  NAlert,
-  NButton,
-  NCode,
-  NDataTable,
-  NDescriptions,
-  NDescriptionsItem,
-  NDivider,
-  NForm,
-  NFormItem,
-  NGi,
-  NGrid,
-  NInput,
-  NInputNumber,
-  NModal,
-  NProgress,
-  NSelect,
-  NSpace,
-  NSpin,
-  NStatistic,
-  NSwitch,
-  NTabPane,
-  NTabs,
-  NTag,
-  NText,
-  NTooltip,
-  type DataTableColumns,
-  useMessage,
-} from 'naive-ui'
-import { adminApi } from '@/service/api/admin'
-import { adminDebugApi } from '@/service/api/admin/debug'
-import EmailTemplates from '@/views/admin/email-templates/index.vue'
-import SMSLogs from '@/views/admin/sms-logs/index.vue'
-import OperationLogs from '@/views/admin/logs/index.vue'
-import type { ServerMonitoringStatusResponse, SettingDTO, SettingType } from '@/service/api/admin/settings'
-import { useSettingsStore } from '@/store/settings'
-import { local } from '@/utils'
+  import { useI18n } from 'vue-i18n'
+  import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
+  import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
+  import { useTableColumnVisibility } from '@/hooks'
+  import {
+    NAlert,
+    NButton,
+    NCode,
+    NDataTable,
+    NDescriptions,
+    NDescriptionsItem,
+    NDivider,
+    NForm,
+    NFormItem,
+    NGi,
+    NGrid,
+    NInput,
+    NInputNumber,
+    NModal,
+    NProgress,
+    NSelect,
+    NSpace,
+    NSpin,
+    NStatistic,
+    NSwitch,
+    NTabPane,
+    NTabs,
+    NTag,
+    NText,
+    NTooltip,
+    type DataTableColumns,
+    useMessage,
+  } from 'naive-ui'
+  import { adminApi } from '@/service/api/admin'
+  import { adminDebugApi } from '@/service/api/admin/debug'
+  import EmailTemplates from '@/views/admin/email-templates/index.vue'
+  import SMSLogs from '@/views/admin/sms-logs/index.vue'
+  import OperationLogs from '@/views/admin/logs/index.vue'
+  import type { ServerMonitoringStatusResponse, SettingDTO, SettingType } from '@/service/api/admin/settings'
+  import { useSettingsStore } from '@/store/settings'
+  import { local, parseBooleanSetting } from '@/utils'
 
-const message = useMessage()
-const settingsStore = useSettingsStore()
-const { t } = useI18n()
+  const message = useMessage()
+  const settingsStore = useSettingsStore()
+  const { t } = useI18n()
 
-const loading = ref(true)
-const adding = ref(false)
-const savingEdit = ref(false)
-const showAddModal = ref(false)
-const showEditModal = ref(false)
-const savingBasic = ref(false)
-const savingEmail = ref(false)
-const savingSecurity = ref(false)
-const savingRealnameApi = ref(false)
-const savingPayment = ref(false)
-const testingEmail = ref(false)
-const restartingBackend = ref(false)
-const loadingServerMonitoring = ref(false)
-const topTab = ref('system-config')
-const systemSubTab = ref('basic')
-const mode = import.meta.env.MODE
-const buildTime = typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : t('adminSettings.developmentMode')
-const serverMonitoringGeneratedAt = ref('')
-const serverMonitoringData = ref<ServerMonitoringStatusResponse | null>(null)
+  const loading = ref(true)
+  const adding = ref(false)
+  const savingEdit = ref(false)
+  const showAddModal = ref(false)
+  const showEditModal = ref(false)
+  const savingBasic = ref(false)
+  const savingEmail = ref(false)
+  const savingSecurity = ref(false)
+  const savingRealnameApi = ref(false)
+  const savingPayment = ref(false)
+  const testingEmail = ref(false)
+  const restartingBackend = ref(false)
+  const loadingServerMonitoring = ref(false)
+  const topTab = ref('system-config')
+  const systemSubTab = ref('basic')
+  const mode = import.meta.env.MODE
+  const buildTime = typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : t('adminSettings.developmentMode')
+  const serverMonitoringGeneratedAt = ref('')
+  const serverMonitoringData = ref<ServerMonitoringStatusResponse | null>(null)
 
-const loadingDebugStats = ref(false)
-const debugAutoRefresh = ref(false)
-const debugRefreshInterval = ref<number | null>(null)
-const debugStats = ref<any>(null)
-const loadingRuntimeStacks = ref(false)
-const runtimeStackText = ref('')
-const stackFilterMinWaitMinutes = ref(0)
+  const loadingDebugStats = ref(false)
+  const debugAutoRefresh = ref(false)
+  const debugRefreshInterval = ref<number | null>(null)
+  const debugStats = ref<any>(null)
+  const loadingRuntimeStacks = ref(false)
+  const runtimeStackText = ref('')
+  const stackFilterMinWaitMinutes = ref(0)
 
-const pprofConfig = ref({
-  cpuSeconds: 30,
-})
+  const pprofConfig = ref({
+    cpuSeconds: 30,
+  })
 
-const pprofLoading = reactive({
-  cpu: false,
-  heap: false,
-  goroutine: false,
-  allocs: false,
-  block: false,
-  mutex: false,
-})
+  const pprofLoading = reactive({
+    cpu: false,
+    heap: false,
+    goroutine: false,
+    allocs: false,
+    block: false,
+    mutex: false,
+  })
 
-const pprofResults = ref({
-  cpu: false,
-  cpuText: '',
-  heap: false,
-  heapText: '',
-  heapStats: null as { alloc: number, objects: number } | null,
-  goroutine: '',
-  goroutineCount: 0,
-  allocs: false,
-  allocsText: '',
-  block: false,
-  blockText: '',
-  mutex: false,
-  mutexText: '',
-})
+  const pprofResults = ref({
+    cpu: false,
+    cpuText: '',
+    heap: false,
+    heapText: '',
+    heapStats: null as { alloc: number, objects: number } | null,
+    goroutine: '',
+    goroutineCount: 0,
+    allocs: false,
+    allocsText: '',
+    block: false,
+    blockText: '',
+    mutex: false,
+    mutexText: '',
+  })
 
-const hasAnyPprofResult = computed(() => {
-  const r = pprofResults.value
-  return r.cpu || r.heap || !!r.goroutine || r.allocs || r.block || r.mutex
-})
+  const hasAnyPprofResult = computed(() => {
+    const r = pprofResults.value
+    return r.cpu || r.heap || !!r.goroutine || r.allocs || r.block || r.mutex
+  })
 
-const switchLoading = reactive({
-  allow_register: false,
-  allow_delete_account: false,
-  smtp_ssl: false,
-  geetest_enabled: false,
-  realname_enabled: false,
-  realname_review_required: false,
-  realname_api_enabled: false,
-  email_verify_enabled: false,
-  sms_verify_enabled: false,
-  payment_enabled: false,
-  withdraw_enabled: false,
-})
+  const switchLoading = reactive({
+    allow_register: false,
+    allow_delete_account: false,
+    smtp_ssl: false,
+    geetest_enabled: false,
+    realname_enabled: false,
+    realname_review_required: false,
+    realname_api_enabled: false,
+    email_verify_enabled: false,
+    sms_verify_enabled: false,
+    payment_enabled: false,
+    withdraw_enabled: false,
+  })
 
-const langOptions = [
-  { label: t('adminSettings.langZhCN'), value: 'zhCN' },
-  { label: t('adminSettings.langEnUS'), value: 'enUS' },
-]
+  const langOptions = [
+    { label: t('adminSettings.langZhCN'), value: 'zhCN' },
+    { label: t('adminSettings.langEnUS'), value: 'enUS' },
+  ]
 
 const smsProviderOptions = [
   { label: t('adminSettings.smsProviderConsole'), value: 'console' },
@@ -1096,6 +1122,30 @@ const customColumns: DataTableColumns<SettingDTO> = [
   },
 ]
 
+const customSelectableColumnOptions = computed(() => [
+  { key: 'key', label: t('adminSettings.columnKey') },
+  { key: 'label', label: t('adminSettings.columnLabel') },
+  { key: 'value', label: t('adminSettings.columnValue') },
+  { key: 'type', label: t('adminSettings.columnType') },
+  { key: 'is_public', label: t('adminSettings.columnPublic') },
+])
+
+const {
+  columnOptions: customColumnOptions,
+  selectedColumnKeys: customSelectedColumnKeys,
+  visibleColumns: customVisibleColumns,
+  visibleColumnCount: customVisibleColumnCount,
+  totalColumnCount: customTotalColumnCount,
+  tableScrollX: customTableScrollX,
+  resetSelectedColumns: resetCustomSelectedColumns,
+} = useTableColumnVisibility<SettingDTO>({
+  storageKey: 'admin-settings-custom-list',
+  columns: customColumns,
+  options: customSelectableColumnOptions,
+  minVisibleCount: 1,
+  minScrollX: 760,
+})
+
 type ServiceStatusRow = {
   name: string
   status: 'up' | 'down' | 'warning'
@@ -1145,6 +1195,29 @@ const serviceStatusColumns: DataTableColumns<ServiceStatusRow> = [
   { title: t('adminSettings.columnMessage'), key: 'message' },
   { title: t('adminSettings.columnDetail'), key: 'detail' },
 ]
+
+const serviceSelectableColumnOptions = computed(() => [
+  { key: 'name', label: t('adminSettings.columnService') },
+  { key: 'status', label: t('adminSettings.columnStatus') },
+  { key: 'message', label: t('adminSettings.columnMessage') },
+  { key: 'detail', label: t('adminSettings.columnDetail') },
+])
+
+const {
+  columnOptions: serviceColumnOptions,
+  selectedColumnKeys: serviceSelectedColumnKeys,
+  visibleColumns: serviceVisibleColumns,
+  visibleColumnCount: serviceVisibleColumnCount,
+  totalColumnCount: serviceTotalColumnCount,
+  tableScrollX: serviceTableScrollX,
+  resetSelectedColumns: resetServiceSelectedColumns,
+} = useTableColumnVisibility<ServiceStatusRow>({
+  storageKey: 'admin-settings-service-health-list',
+  columns: serviceStatusColumns,
+  options: serviceSelectableColumnOptions,
+  minVisibleCount: 1,
+  minScrollX: 760,
+})
 
 const cpuPercent = computed(() => normalizePercent(serverMonitoringData.value?.metrics.cpu.usage_percent ?? 0))
 const memoryPercent = computed(() => normalizePercent(serverMonitoringData.value?.metrics.memory.used_percent ?? 0))
@@ -1296,10 +1369,6 @@ async function loadSettings() {
           if (item.key === 'icp') basicForm.icp = String(item.value || '')
           if (item.key === 'version') basicForm.version = String(item.value || '')
           if (item.key === 'default_lang') basicForm.default_lang = String(item.value || 'zhCN')
-          const parseBooleanSetting = (value: unknown) => {
-            const normalized = String(value ?? '').trim().toLowerCase()
-            return normalized === 'true' || normalized === '1'
-          }
 
           if (item.key === 'allow_register') basicForm.allow_register = parseBooleanSetting(item.value)
           if (item.key === 'allow_delete_account') securityForm.allow_delete_account = parseBooleanSetting(item.value)

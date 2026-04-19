@@ -135,3 +135,4 @@ func (p *DemoPlugin) echoHandler(c *gin.Context) {
 		"config": p.config,
 	})
 }
+

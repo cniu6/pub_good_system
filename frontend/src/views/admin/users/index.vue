@@ -5,6 +5,8 @@ import { useRoute } from 'vue-router'
 import { NButton, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns, FormRules } from 'naive-ui'
 import NovaIcon from '@/components/common/NovaIcon.vue'
+import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
+import { useTableColumnVisibility } from '@/hooks'
 import {
 
   adminUserApi,
@@ -94,6 +96,7 @@ const userForm = reactive({
   mobile: '',
   language: 'zh-CN',
   country: '',
+  admin_remark: '',
   password: '',
   role: 'user',
   level: 1,
@@ -300,7 +303,13 @@ const columns: DataTableColumns<AdminUser> = [
     title: t('adminUsers.balance'),
     key: 'money',
     width: 100,
-    render: (row: AdminUser) => `¥${(Number(row.money) || 0).toFixed(2)}`,
+    render: (row: AdminUser) => `¥${formatCurrency(row.money)}`,
+  },
+  {
+    title: t('adminUsers.rechargeRetentionRatio'),
+    key: 'balance_paid_ratio',
+    width: 130,
+    render: (row: AdminUser) => formatRechargeRetentionRatio(row),
   },
   {
     title: t('adminUsers.score'),
@@ -336,6 +345,13 @@ const columns: DataTableColumns<AdminUser> = [
         },
       )
     },
+  },
+  {
+    title: t('adminUsers.adminRemark'),
+    key: 'admin_remark',
+    width: 220,
+    ellipsis: { tooltip: true },
+    render: (row: AdminUser) => row.admin_remark || '-',
   },
   {
     title: t('adminUsers.registerTime'),
@@ -397,6 +413,42 @@ const columns: DataTableColumns<AdminUser> = [
     },
   },
 ]
+
+ const selectableColumnOptions = [
+   { key: 'id', label: 'ID' },
+   { key: 'username', label: t('adminUsers.username') },
+   { key: 'nickname', label: t('adminUsers.nickname') },
+   { key: 'group_id', label: t('adminUsers.userGroup') },
+   { key: 'email', label: t('adminUsers.email') },
+   { key: 'mobile', label: t('adminUsers.mobile') },
+   { key: 'language', label: t('adminUsers.language') },
+   { key: 'role', label: t('adminUsers.role') },
+   { key: 'level', label: t('adminUsers.level') },
+   { key: 'money', label: t('adminUsers.balance') },
+   { key: 'balance_paid_ratio', label: t('adminUsers.rechargeRetentionRatio') },
+   { key: 'score', label: t('adminUsers.score') },
+   { key: 'status', label: t('adminUsers.status') },
+   { key: 'realname_status', label: t('adminUsers.realnameStatus') },
+   { key: 'admin_remark', label: t('adminUsers.adminRemark') },
+   { key: 'create_time', label: t('adminUsers.registerTime') },
+   { key: 'update_time', label: t('adminUsers.updateTime') },
+ ]
+
+ const {
+   columnOptions,
+   selectedColumnKeys,
+   visibleColumns,
+   visibleColumnCount,
+   totalColumnCount,
+   tableScrollX,
+   resetSelectedColumns,
+ } = useTableColumnVisibility<AdminUser>({
+   storageKey: 'admin-users-list',
+   columns,
+   options: selectableColumnOptions,
+   minVisibleCount: 1,
+   minScrollX: 1280,
+ })
 
 // 获取用户数据
 async function fetchData() {
@@ -491,6 +543,17 @@ function formatTime(ts?: number | null) {
   return ts ? new Date(ts * 1000).toLocaleString() : '-'
 }
 
+function formatCurrency(value?: number | null) {
+  return Number(value || 0).toFixed(2)
+}
+
+function formatRechargeRetentionRatio(row: AdminUser) {
+  const totalPaid = Number(row.total_paid_amount || 0)
+  if (totalPaid <= 0)
+    return '-'
+  return `${(Number(row.balance_paid_ratio || 0) * 100).toFixed(2)}%`
+}
+
 function getWithdrawStatusMeta(status?: number): { type: 'warning' | 'info' | 'error' | 'success', label: string } {
   const map: Record<number, { type: 'warning' | 'info' | 'error' | 'success', label: string }> = {
     0: { type: 'warning', label: t('moneyScore.statusPending') },
@@ -541,6 +604,7 @@ function handleEdit(user: AdminUser) {
     mobile: user.mobile || '',
     language: user.language || 'zh-CN',
     country: user.country || '',
+    admin_remark: user.admin_remark || '',
     password: '',
     role: user.role,
     level: user.level,
@@ -672,6 +736,7 @@ function resetUserForm() {
     mobile: '',
     language: 'zh-CN',
     country: '',
+    admin_remark: '',
     password: '',
     role: 'user',
     level: 1,
@@ -707,6 +772,9 @@ async function handleSubmit() {
       }
       if (userForm.country !== (originalUser?.country || '')) {
         changedData.country = userForm.country
+      }
+      if (userForm.admin_remark !== (originalUser?.admin_remark || '')) {
+        changedData.admin_remark = userForm.admin_remark
       }
       if (userForm.role !== originalUser?.role) {
         changedData.role = userForm.role
@@ -762,6 +830,7 @@ async function handleSubmit() {
         mobile: userForm.mobile,
         language: userForm.language,
         country: userForm.country,
+        admin_remark: userForm.admin_remark,
         level: userForm.level,
         role: userForm.role,
         status: userForm.status,
@@ -1193,14 +1262,27 @@ async function handleScoreOperation() {
 
     <!-- 用户列表 -->
     <n-card class="table-card" :bordered="false">
+      <NSpace justify="end" style="margin-bottom: 12px;">
+        <TableColumnSelector
+          v-model="selectedColumnKeys"
+          :options="columnOptions"
+          :visible-count="visibleColumnCount"
+          :total-count="totalColumnCount"
+          :button-label="t('common.showFields')"
+          :title="t('common.visibleFields')"
+          :hint="t('common.columnVisibilityHint')"
+          :reset-label="t('common.restoreDefaultFields')"
+          @reset="resetSelectedColumns"
+        />
+      </NSpace>
       <n-data-table
-        :columns="columns"
+        :columns="visibleColumns"
         :data="userData"
         :loading="loading"
         :pagination="false"
         :row-key="(row) => row.id"
         :scrollbar-props="{ trigger: 'hover' }"
-        :scroll-x="1800"
+        :scroll-x="tableScrollX"
       />
 
       <!-- 外部分页组件 -->
@@ -1289,6 +1371,14 @@ async function handleScoreOperation() {
                 <n-input
                   v-model:value="userForm.country"
                   :placeholder="t('adminUsers.enterCountry')"
+                />
+              </n-form-item-gi>
+              <n-form-item-gi span="2" :label="t('adminUsers.adminRemark')" path="admin_remark">
+                <n-input
+                  v-model:value="userForm.admin_remark"
+                  type="textarea"
+                  :placeholder="t('adminUsers.enterAdminRemark')"
+                  :rows="3"
                 />
               </n-form-item-gi>
               <n-form-item-gi v-if="!isEdit" span="2" :label="t('adminUsers.password')" path="password" :rule="passwordRule">
@@ -1642,7 +1732,7 @@ async function handleScoreOperation() {
               {{ selectedUser?.gender === 1 ? t('adminUsers.male') : selectedUser?.gender === 2 ? t('adminUsers.female') : t('adminUsers.unknown') }}
             </n-descriptions-item>
             <n-descriptions-item :label="t('profile.birthday')">
-              {{ selectedUser?.birthday ? new Date(selectedUser.birthday).toLocaleDateString() : '-' }}
+              {{ selectedUser?.birthday ? new Date(Number(selectedUser.birthday) * 1000).toLocaleDateString() : '-' }}
             </n-descriptions-item>
           </n-descriptions>
         </div>
@@ -1663,13 +1753,21 @@ async function handleScoreOperation() {
             </n-descriptions-item>
             <n-descriptions-item :label="t('adminUsers.balance')">
               <n-text type="success">
-                ¥{{ selectedUser?.money ? Number(selectedUser.money).toFixed(2) : '0.00' }}
+                ¥{{ formatCurrency(selectedUser?.money) }}
+              </n-text>
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminUsers.totalPaidAmount')">
+              <n-text>
+                {{ Number(selectedUser?.total_paid_amount || 0) > 0 ? `¥${formatCurrency(selectedUser?.total_paid_amount)}` : '-' }}
               </n-text>
             </n-descriptions-item>
             <n-descriptions-item :label="t('adminUsers.score')">
               <n-text type="info">
                 {{ selectedUser?.score || '0' }}
               </n-text>
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminUsers.rechargeRetentionRatio')">
+              {{ selectedUser ? formatRechargeRetentionRatio(selectedUser) : '-' }}
             </n-descriptions-item>
           </n-descriptions>
         </div>
@@ -1747,6 +1845,9 @@ async function handleScoreOperation() {
             </n-descriptions-item>
             <n-descriptions-item :label="t('adminUsers.motto')">
               {{ selectedUser?.motto || '-' }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminUsers.adminRemark')">
+              {{ selectedUser?.admin_remark || '-' }}
             </n-descriptions-item>
             <n-descriptions-item :label="t('adminUsers.avatar')">
               <NSpace v-if="selectedUser?.avatar" vertical size="small">

@@ -2,10 +2,23 @@
   <n-space vertical :size="16">
     <n-card :title="t('route.admin-pay-gateways')">
       <template #header-extra>
-        <n-button type="primary" @click="handleCreate">
-          <template #icon><n-icon><icon-park-outline-add-one /></n-icon></template>
-          {{ t('adminPayGateways.addGatewayShort') }}
-        </n-button>
+        <n-space>
+          <TableColumnSelector
+            v-model="selectedColumnKeys"
+            :options="columnOptions"
+            :visible-count="visibleColumnCount"
+            :total-count="totalColumnCount"
+            :button-label="t('common.showFields')"
+            :title="t('common.visibleFields')"
+            :hint="t('common.columnVisibilityHint')"
+            :reset-label="t('common.restoreDefaultFields')"
+            @reset="resetSelectedColumns"
+          />
+          <n-button type="primary" @click="handleCreate">
+            <template #icon><n-icon><icon-park-outline-add-one /></n-icon></template>
+            {{ t('adminPayGateways.addGatewayShort') }}
+          </n-button>
+        </n-space>
       </template>
 
       <n-space vertical>
@@ -15,10 +28,11 @@
         </n-space>
 
         <n-data-table
-          :columns="columns"
+          :columns="visibleColumns"
           :data="list"
           :loading="loading"
           :pagination="pagination"
+          :scroll-x="tableScrollX"
           striped
           size="small"
           @update:page="(p: number) => { pagination.page = p; loadList() }"
@@ -138,6 +152,8 @@ import { ref, reactive, onMounted, h } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMessage, useDialog, NTag, NButton, NSpace, NImage } from 'naive-ui'
 import type { DataTableColumns, FormRules } from 'naive-ui'
+import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
+import { useTableColumnVisibility } from '@/hooks'
 import {
   fetchPayGateways,
   createPayGateway,
@@ -289,6 +305,34 @@ const columns: DataTableColumns<PayGateway> = [
     },
   },
 ]
+
+ const selectableColumnOptions = [
+   { key: 'id', label: 'ID' },
+   { key: 'logo_url', label: t('adminPayGateways.logo') },
+   { key: 'name', label: t('adminPayGateways.gatewayName') },
+   { key: 'pay_type', label: t('recharge.paymentMethod') },
+   { key: 'status', label: t('adminUsers.status') },
+   { key: 'amount_range', label: t('adminPayGateways.amountRange') },
+   { key: 'fee_rate', label: t('adminPayGateways.fee') },
+   { key: 'min_level', label: t('adminPayGateways.minLevel') },
+   { key: 'sort_order', label: t('adminPayGateways.sortOrder') },
+ ]
+
+ const {
+   columnOptions,
+   selectedColumnKeys,
+   visibleColumns,
+   visibleColumnCount,
+   totalColumnCount,
+   tableScrollX,
+   resetSelectedColumns,
+ } = useTableColumnVisibility<PayGateway>({
+   storageKey: 'admin-pay-gateways-list',
+   columns,
+   options: selectableColumnOptions,
+   minVisibleCount: 1,
+   minScrollX: 980,
+ })
 
 async function loadList() {
   loading.value = true

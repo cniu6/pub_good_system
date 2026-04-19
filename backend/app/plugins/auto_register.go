@@ -107,3 +107,4 @@ func GeneratePluginRegistryFile(pluginDir string, outputFile string) error {
 	// 写入文件
 	return ioutil.WriteFile(outputFile, []byte(code.String()), 0644)
 }
+

@@ -142,30 +142,77 @@ func BuildEpaySubmitURL(config *EpayConfig, order *models.PaymentOrder, notifyUR
 
 // EpayQueryResponse 易支付查询响应
 type EpayQueryResponse struct {
-	Code        int    `json:"code"`
-	TradeNo     string `json:"trade_no"`
-	OutTradeNo  string `json:"out_trade_no"`
-	Type        string `json:"type"`
-	Name        string `json:"name"`
-	Money       string `json:"money"`
-	TradeStatus string `json:"trade_status"`
+	Code        int    `json:"-"`
+	Msg         string `json:"-"`
+	TradeNo     string `json:"-"`
+	OutTradeNo  string `json:"-"`
+	Type        string `json:"-"`
+	Name        string `json:"-"`
+	Money       string `json:"-"`
+	TradeStatus string `json:"-"`
+}
+
+type epayQueryResponseRaw struct {
+	Code        int             `json:"code"`
+	Msg         string          `json:"msg"`
+	TradeNo     string          `json:"trade_no"`
+	OutTradeNo  string          `json:"out_trade_no"`
+	Type        json.RawMessage `json:"type"`
+	Name        string          `json:"name"`
+	Money       string          `json:"money"`
+	TradeStatus string          `json:"trade_status"`
+	Status      json.RawMessage `json:"status"`
 }
 
 // QueryEpayOrder 向易支付平台查询订单状态
-func QueryEpayOrder(config *EpayConfig, tradeNo string) (*EpayQueryResponse, error) {
+func QueryEpayOrder(config *EpayConfig, orderNo, tradeNo string) (*EpayQueryResponse, error) {
 	if config.ApiURL == "" || config.PID == "" || config.Key == "" {
 		return nil, fmt.Errorf("易支付配置不完整")
 	}
 
-	params := map[string]string{
-		"act":      "order",
-		"pid":      config.PID,
-		"trade_no": tradeNo,
+	orderNo = strings.TrimSpace(orderNo)
+	tradeNo = models.NormalizeTradeNo(tradeNo)
+	if orderNo == "" && tradeNo == "" {
+		return nil, fmt.Errorf("缺少查询订单号")
 	}
-	sign := GenerateEpaySign(params, config.Key)
-	params["sign"] = sign
-	params["sign_type"] = "MD5"
 
+	queryCandidates := make([]map[string]string, 0, 2)
+	if orderNo != "" {
+		queryCandidates = append(queryCandidates, map[string]string{
+			"act":          "order",
+			"pid":          config.PID,
+			"key":          config.Key,
+			"out_trade_no": orderNo,
+		})
+	}
+	if tradeNo != "" {
+		queryCandidates = append(queryCandidates, map[string]string{
+			"act":      "order",
+			"pid":      config.PID,
+			"key":      config.Key,
+			"trade_no": tradeNo,
+		})
+	}
+
+	var lastResult *EpayQueryResponse
+	for _, params := range queryCandidates {
+		result, err := queryEpayOrderOnce(config, params)
+		if err != nil {
+			return nil, err
+		}
+		if result == nil {
+			continue
+		}
+		lastResult = result
+		if result.Code == 1 {
+			return result, nil
+		}
+	}
+
+	return lastResult, nil
+}
+
+func queryEpayOrderOnce(config *EpayConfig, params map[string]string) (*EpayQueryResponse, error) {
 	u, err := url.Parse(config.ApiURL + "/api.php")
 	if err != nil {
 		return nil, fmt.Errorf("解析网关地址失败: %w", err)
@@ -188,13 +235,77 @@ func QueryEpayOrder(config *EpayConfig, tradeNo string) (*EpayQueryResponse, err
 		return nil, fmt.Errorf("读取响应失败: %w", err)
 	}
 
-	var result EpayQueryResponse
-	if err := json.Unmarshal(body, &result); err != nil {
+	bodyStr := strings.TrimSpace(string(body))
+	if strings.HasPrefix(bodyStr, "<") {
+		return nil, fmt.Errorf("查询接口返回HTML页面而非JSON，可能是API地址配置错误")
+	}
+
+	var raw epayQueryResponseRaw
+	if err := json.Unmarshal(body, &raw); err != nil {
 		log.Printf("[Epay] 查询响应解析失败: %s", string(body))
 		return nil, fmt.Errorf("解析查询响应失败: %w", err)
 	}
 
-	return &result, nil
+	result := &EpayQueryResponse{
+		Code:        raw.Code,
+		Msg:         raw.Msg,
+		TradeNo:     raw.TradeNo,
+		OutTradeNo:  raw.OutTradeNo,
+		Type:        normalizeEpayQueryFlexibleString(raw.Type),
+		Name:        raw.Name,
+		Money:       raw.Money,
+		TradeStatus: normalizeEpayQueryTradeStatus(raw.TradeStatus, raw.Status),
+	}
+
+	return result, nil
+}
+
+func normalizeEpayQueryFlexibleString(raw json.RawMessage) string {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" || trimmed == "false" {
+		return ""
+	}
+
+	var stringValue string
+	if err := json.Unmarshal(raw, &stringValue); err == nil {
+		return strings.TrimSpace(stringValue)
+	}
+
+	var boolValue bool
+	if err := json.Unmarshal(raw, &boolValue); err == nil {
+		if !boolValue {
+			return ""
+		}
+		return "true"
+	}
+
+	var numberValue json.Number
+	if err := json.Unmarshal(raw, &numberValue); err == nil {
+		return strings.TrimSpace(numberValue.String())
+	}
+
+	return strings.Trim(trimmed, `"`)
+}
+
+func normalizeEpayQueryTradeStatus(tradeStatus string, statusRaw json.RawMessage) string {
+	tradeStatus = strings.TrimSpace(tradeStatus)
+	if tradeStatus != "" {
+		return tradeStatus
+	}
+
+	status := strings.ToUpper(strings.TrimSpace(normalizeEpayQueryFlexibleString(statusRaw)))
+	if status == "" {
+		return ""
+	}
+
+	switch status {
+	case "1", "SUCCESS", "SUCC", "PAID", "TRADE_SUCCESS", "FINISHED":
+		return "TRADE_SUCCESS"
+	case "0", "PENDING", "WAIT", "WAIT_BUYER_PAY", "UNPAID", "CREATED":
+		return "PENDING"
+	default:
+		return status
+	}
 }
 
 // ValidatePaymentType 验证支付方式是否被允许
@@ -301,3 +412,4 @@ func EpayAPIPay(config *EpayConfig, order *models.PaymentOrder, notifyURL, retur
 
 	return "", normalizedTradeNo, fmt.Errorf("支付接口未返回可用的支付链接")
 }
+
