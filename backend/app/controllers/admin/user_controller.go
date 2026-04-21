@@ -180,12 +180,11 @@ func (c *UserController) Update(ctx *gin.Context) {
 		return
 	}
 
-	var req services.UserUpdateRequest
+	req := services.UserUpdateRequest{ID: id}
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		utils.Fail(ctx, 400, "参数错误: "+err.Error())
 		return
 	}
-	req.ID = id
 
 	if err := c.userService.Update(&req); err != nil {
 		if services.IsClientError(err) {

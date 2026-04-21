@@ -4,8 +4,6 @@ import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NCard,
-  NCheckbox,
-  NCheckboxGroup,
   NCode,
   NDataTable,
   NDatePicker,
@@ -17,7 +15,6 @@ import {
   NInput,
   NInputNumber,
   NModal,
-  NPopover,
   NSelect,
   NSpace,
   NStatistic,
@@ -32,6 +29,7 @@ import { useEcharts, useTableColumnVisibility } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { adminAPILogApi, type APIAccessLog, type APIAccessLogListParams, type APIAccessLogStats } from '@/service/api/admin/api-log'
 import { parseBooleanSetting, parseNumberSetting } from '@/utils'
+import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -356,25 +354,14 @@ const {
   visibleColumns,
   visibleColumnCount,
   totalColumnCount,
+  tableScrollX,
   resetSelectedColumns,
 } = useTableColumnVisibility<APIAccessLog>({
   storageKey: 'admin-api-logs-list',
   columns,
   options: selectableColumnOptions,
   minVisibleCount: 1,
-})
-
-const tableScrollX = computed(() => {
-  const width = visibleColumns.value.reduce((totalWidth, column) => {
-    const widthValue = Number((column as { width?: number | string }).width)
-    const minWidthValue = Number((column as { minWidth?: number | string }).minWidth)
-    if (Number.isFinite(widthValue) && widthValue > 0)
-      return totalWidth + widthValue
-    if (Number.isFinite(minWidthValue) && minWidthValue > 0)
-      return totalWidth + minWidthValue
-    return totalWidth + 140
-  }, 0)
-  return Math.max(960, width + 32)
+  minScrollX: 960,
 })
 
 async function loadRuntimeConfig() {
@@ -575,32 +562,17 @@ onMounted(() => {
     <NCard :title="t('adminAPILogs.title')">
       <template #header-extra>
         <NSpace>
-          <NPopover trigger="click" placement="bottom-end">
-            <template #trigger>
-              <NButton size="small">
-                {{ t('adminAPILogs.columnSettings') }} ({{ visibleColumnCount }}/{{ totalColumnCount }})
-              </NButton>
-            </template>
-            <NSpace vertical size="small" style="width: 260px;">
-              <NText strong>{{ t('adminAPILogs.visibleFields') }}</NText>
-              <NCheckboxGroup v-model:value="selectedColumnKeys">
-                <NSpace vertical size="small">
-                  <NCheckbox
-                    v-for="item in columnOptions"
-                    :key="item.key"
-                    :value="item.key"
-                    :disabled="item.disabled"
-                  >
-                    {{ item.label }}
-                  </NCheckbox>
-                </NSpace>
-              </NCheckboxGroup>
-              <NText depth="3">{{ t('adminAPILogs.columnSettingsHint') }}</NText>
-              <NSpace justify="end">
-                <NButton size="tiny" @click="resetSelectedColumns">{{ t('adminAPILogs.restoreDefaultColumns') }}</NButton>
-              </NSpace>
-            </NSpace>
-          </NPopover>
+          <TableColumnSelector
+            v-model="selectedColumnKeys"
+            :options="columnOptions"
+            :visible-count="visibleColumnCount"
+            :total-count="totalColumnCount"
+            :button-label="t('common.showFields')"
+            :title="t('common.visibleFields')"
+            :hint="t('common.columnVisibilityHint')"
+            :reset-label="t('common.restoreDefaultFields')"
+            @reset="resetSelectedColumns"
+          />
           <NButton size="small" type="primary" @click="fetchList">{{ t('adminAPILogs.refresh') }}</NButton>
           <NButton size="small" type="warning" @click="showClean = true">{{ t('adminAPILogs.cleanLogs') }}</NButton>
         </NSpace>

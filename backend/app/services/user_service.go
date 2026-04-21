@@ -238,7 +238,7 @@ func (s *UserService) Create(req *UserCreateRequest) (*models.User, error) {
 
 // UserUpdateRequest 更新用户请求
 type UserUpdateRequest struct {
-	ID         uint64  `json:"id" binding:"required"`
+	ID         uint64  `json:"id"`
 	Nickname   *string `json:"nickname"`
 	Email      *string `json:"email"`
 	Mobile     *string `json:"mobile"`

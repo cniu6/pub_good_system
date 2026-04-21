@@ -90,6 +90,22 @@ interface UserScoreChangeResponse {
   log: Entity.UserScoreLog
 }
 
+interface AdminUserUpdatePayload {
+  nickname?: string
+  email?: string
+  mobile?: string
+  avatar?: string
+  gender?: number | null
+  birthday?: number | null
+  motto?: string
+  language?: string
+  country?: string
+  admin_remark?: string
+  level?: number
+  role?: string
+  status?: number
+}
+
 export function normalizeAdminUserRole(role?: string): Entity.RoleType {
   if (role === 'admin' || role === 'super') {
     return role
@@ -201,16 +217,7 @@ export const adminUserApi = {
   },
 
   // 更新用户
-  update(id: number, data: {
-    nickname?: string
-    email?: string
-    mobile?: string
-    language?: string
-    country?: string
-    admin_remark?: string
-    role?: string
-    status?: number
-  }) {
+  update(id: number, data: AdminUserUpdatePayload) {
     return request.Put<Service.ResponseResult<null>>(`${BASE_URL}/${id}`, data)
   },
 
@@ -331,8 +338,8 @@ export function updateUserStatus(userId: number, data: { status: number }) {
   return adminUserApi.updateStatus(userId, Number(data.status))
 }
 
-export function updateAdminUserProfile(userId: number, data: Record<string, any>) {
-  return request.Put<Service.ResponseResult<null>>(`${BASE_URL}/${userId}`, data)
+export function updateAdminUserProfile(userId: number, data: AdminUserUpdatePayload) {
+  return adminUserApi.update(userId, data)
 }
 
 export function loginAsUser(userId: number) {

@@ -4074,9 +4074,6 @@ const docTemplate = `{
         },
         "fst_backend_app_services.UserUpdateRequest": {
             "type": "object",
-            "required": [
-                "id"
-            ],
             "properties": {
                 "avatar": {
                     "type": "string"
