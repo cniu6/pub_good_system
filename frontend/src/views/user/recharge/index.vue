@@ -2,6 +2,7 @@
 import { computed, h, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
+  NAlert,
   NButton,
   NCard,
   NDataTable,
@@ -22,6 +23,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns, PaginationProps, SelectOption } from 'naive-ui'
+import { useRoute } from 'vue-router'
 import {
   checkPaymentOrderStatus,
   createPaymentOrder,
@@ -36,6 +38,7 @@ import { useAuthStore } from '@/store'
 const message = useMessage()
 const authStore = useAuthStore()
 const { t } = useI18n()
+const route = useRoute()
 
 // ========== 加载状态 ==========
 const loading = ref(false)
@@ -70,6 +73,17 @@ const orderData = ref<PaymentOrder[]>([])
 const refreshingOrders = ref<Set<number>>(new Set())
 const autoRefreshTimer = ref<ReturnType<typeof setInterval> | null>(null)
 
+// ========== 支付回跳结果展示 ==========
+type PaymentReturnResult = 'success' | 'pending' | 'error'
+
+interface PaymentReturnState {
+  result: PaymentReturnResult
+  orderNo: string
+  message: string
+}
+
+const paymentReturnState = ref<PaymentReturnState | null>(null)
+
 // ========== 搜索和筛选 ==========
 const statusFilter = ref(-1)
 
@@ -91,6 +105,54 @@ const statusMap: Record<number, { label: string, type: 'default' | 'success' | '
   4: { label: t('recharge.failed'), type: 'error' },
 }
 
+const paymentReturnSummary = computed(() => {
+  const state = paymentReturnState.value
+  if (!state)
+    return null
+
+  const orderNoText = state.orderNo ? t('recharge.paymentReturnOrderNo', { orderNo: state.orderNo }) : ''
+
+  if (state.result === 'success') {
+    return {
+      type: 'success' as const,
+      tagType: 'success' as const,
+      tagLabel: t('recharge.paymentReturnSuccessTag'),
+      icon: '✅',
+      title: t('recharge.paymentReturnSuccessTitle'),
+      description: t('recharge.paymentReturnSuccessDesc'),
+      detail: orderNoText,
+    }
+  }
+
+  if (state.result === 'pending') {
+    return {
+      type: 'warning' as const,
+      tagType: 'warning' as const,
+      tagLabel: t('recharge.paymentReturnPendingTag'),
+      icon: '⏳',
+      title: t('recharge.paymentReturnPendingTitle'),
+      description: t('recharge.paymentReturnPendingDesc'),
+      detail: orderNoText,
+    }
+  }
+
+  const description = state.message === 'invalid_callback'
+    ? t('recharge.paymentReturnInvalidCallback')
+    : state.message
+      ? t('recharge.paymentReturnErrorReason', { reason: state.message })
+      : t('recharge.paymentReturnErrorDesc')
+
+  return {
+    type: 'error' as const,
+    tagType: 'error' as const,
+    tagLabel: t('recharge.paymentReturnErrorTag'),
+    icon: '⚠️',
+    title: t('recharge.paymentReturnErrorTitle'),
+    description,
+    detail: orderNoText,
+  }
+})
+
 const paymentTypeMap: Record<string, string> = {
   alipay: t('recharge.alipay'),
   wxpay: t('recharge.wechatPay'),
@@ -109,6 +171,40 @@ function payTypeIcon(payType: string): string {
     jdpay: '🔴',
   }
   return iconMap[payType] || '💳'
+}
+
+function getRouteQueryText(value: unknown): string {
+  if (Array.isArray(value))
+    return typeof value[0] === 'string' ? value[0] : ''
+  return typeof value === 'string' ? value : ''
+}
+
+function syncPaymentReturnState() {
+  const result = getRouteQueryText(route.query.result)
+  const orderNo = getRouteQueryText(route.query.order_no)
+  const messageText = getRouteQueryText(route.query.msg)
+
+  if (result === 'success' || result === 'pending' || result === 'error') {
+    paymentReturnState.value = {
+      result,
+      orderNo,
+      message: messageText,
+    }
+    return
+  }
+
+  paymentReturnState.value = null
+}
+
+function dismissPaymentReturnState() {
+  paymentReturnState.value = null
+}
+
+function getReturnedOrderRowClass(row: PaymentOrder) {
+  const orderNo = paymentReturnState.value?.orderNo
+  if (!orderNo)
+    return ''
+  return row.order_no === orderNo ? 'payment-return-order-row' : ''
 }
 
 // ========== 分页 ==========
@@ -521,6 +617,14 @@ watch(() => showOrderDetail.value, (show) => {
     stopAutoRefresh()
 })
 
+watch(
+  () => [route.query.result, route.query.order_no, route.query.msg],
+  () => {
+    syncPaymentReturnState()
+  },
+  { immediate: true },
+)
+
 onUnmounted(() => {
   stopAutoRefresh()
 })
@@ -533,6 +637,42 @@ onMounted(() => {
 
 <template>
   <div class="user-recharge-page">
+    <NAlert
+      v-if="paymentReturnSummary"
+      class="payment-return-alert"
+      :type="paymentReturnSummary.type"
+      closable
+      @close="dismissPaymentReturnState"
+    >
+      <div class="payment-return-content">
+        <div class="payment-return-main">
+          <div class="payment-return-head">
+            <span class="payment-return-icon">{{ paymentReturnSummary.icon }}</span>
+            <NText strong class="payment-return-title">
+              {{ paymentReturnSummary.title }}
+            </NText>
+            <NTag size="small" :type="paymentReturnSummary.tagType">
+              {{ paymentReturnSummary.tagLabel }}
+            </NTag>
+          </div>
+          <NText depth="3" class="payment-return-desc">
+            {{ paymentReturnSummary.description }}
+          </NText>
+          <NText v-if="paymentReturnSummary.detail" depth="3" class="payment-return-detail">
+            {{ paymentReturnSummary.detail }}
+          </NText>
+        </div>
+        <NSpace class="payment-return-actions" size="small">
+          <NButton size="small" @click="refreshBalance">
+            {{ t('common.reload') }}
+          </NButton>
+          <NButton size="small" @click="fetchOrders">
+            {{ t('recharge.refreshOrders') }}
+          </NButton>
+        </NSpace>
+      </div>
+    </NAlert>
+
     <!-- 余额显示和充值操作卡片 -->
     <NCard class="balance-card" :title="t('recharge.balanceTitle')">
       <template #header-extra>
@@ -630,6 +770,7 @@ onMounted(() => {
           :data="orderData"
           :loading="loading"
           :pagination="pagination"
+          :row-class-name="getReturnedOrderRowClass"
           :row-key="(row: PaymentOrder) => row.id"
           striped
           size="small"
@@ -821,6 +962,59 @@ onMounted(() => {
 .balance-card,
 .records-card {
   margin-bottom: 16px;
+}
+
+.payment-return-alert {
+  margin-bottom: 16px;
+}
+
+.payment-return-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.payment-return-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.payment-return-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.payment-return-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.payment-return-title {
+  font-size: 15px;
+}
+
+.payment-return-desc {
+  display: block;
+  margin-top: 8px;
+  line-height: 1.6;
+}
+
+.payment-return-detail {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.payment-return-actions {
+  flex-shrink: 0;
+}
+
+:deep(.payment-return-order-row td) {
+  background: rgba(24, 160, 88, 0.06) !important;
 }
 
 .balance-display {

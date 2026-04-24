@@ -615,6 +615,7 @@
     "onlineRecharge": "Online Recharge",
     "rechargeNow": "Recharge Now ¥{amount}",
     "orderRecords": "Order Records",
+    "refreshOrders": "Refresh Orders",
     "bulkRefresh": "Bulk Refresh",
     "selectPaymentMethod": "Select Payment Method",
     "safeConvenientPayment": "A safe and convenient payment method",
@@ -637,7 +638,19 @@
     "updatedAt": "Updated At",
     "orderStatus": "Order Status",
     "refreshOrder": "Refresh Order",
-    "payNow": "Pay Now"
+    "payNow": "Pay Now",
+    "paymentReturnOrderNo": "Returned Order: {orderNo}",
+    "paymentReturnSuccessTag": "Paid",
+    "paymentReturnSuccessTitle": "Payment completed",
+    "paymentReturnSuccessDesc": "The payment result has been received. The order status will refresh automatically and your balance will sync shortly.",
+    "paymentReturnPendingTag": "Processing",
+    "paymentReturnPendingTitle": "Payment result returned, waiting for confirmation",
+    "paymentReturnPendingDesc": "The payment page has returned, but the order may still be syncing in the background. Please refresh the order list later.",
+    "paymentReturnErrorTag": "Issue",
+    "paymentReturnErrorTitle": "Unable to verify the payment return",
+    "paymentReturnErrorDesc": "The current return result cannot be confirmed. Please refresh the order list later or retry the payment.",
+    "paymentReturnInvalidCallback": "The return parameters failed validation or came from an invalid source.",
+    "paymentReturnErrorReason": "Reason: {reason}"
   },
   "adminUsers": {
     "admin": "Admin",

@@ -97,7 +97,7 @@ func InitAPIAccessLogsTable() {
 		} else {
 			log.Println("[Init] Created api_access_logs table")
 		}
-		initAPIAccessLogAggregateTables()
+		InitAPIAccessLogAggregateTables()
 		return
 	}
 
@@ -168,7 +168,7 @@ func InitAPIAccessLogsTable() {
 		db.EnsureIndex("api_access_logs", indexName, alterSQL)
 	}
 
-	initAPIAccessLogAggregateTables()
+	InitAPIAccessLogAggregateTables()
 }
 
 func CreateAPIAccessLog(item *APIAccessLog) error {
@@ -231,6 +231,10 @@ type APIAccessLogQuery struct {
 }
 
 func GetAPIAccessLogList(query *APIAccessLogQuery) ([]APIAccessLog, int64, error) {
+	if query == nil {
+		query = &APIAccessLogQuery{}
+	}
+
 	var list []APIAccessLog
 	var total int64
 

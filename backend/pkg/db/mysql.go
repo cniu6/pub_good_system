@@ -12,7 +12,14 @@ var DB *sqlx.DB
 
 func InitDB() {
 	var err error
-	DB, err = sqlx.Connect(config.GlobalConfig.DBDriver, config.GlobalConfig.DBDSN)
+	cfg := config.GlobalConfig
+	if cfg == nil {
+		log.Fatalf("[数据库配置错误] 数据库配置未初始化")
+	}
+	if cfg.DBDriver != "mysql" {
+		log.Fatalf("[数据库配置错误] 当前仅支持 mysql 数据库驱动，收到: %s", cfg.DBDriver)
+	}
+	DB, err = sqlx.Connect(cfg.DBDriver, cfg.DBDSN)
 	if err != nil {
 		log.Fatalf("[数据库连接错误] 无法连接数据库，请检查数据库服务和配置: %v", err)
 	}

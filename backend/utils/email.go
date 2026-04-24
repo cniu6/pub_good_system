@@ -2,6 +2,7 @@ package utils
 
 import (
 	"crypto/tls"
+	"errors"
 	"encoding/base64"
 	"fmt"
 	"fst/backend/pkg/config"
@@ -12,6 +13,8 @@ import (
 	"time"
 	"unicode/utf8"
 )
+
+var errSMTPStartTLSUnsupported = errors.New("SMTP server does not support STARTTLS")
 
 // EmailMessage 邮件内容
 type EmailMessage struct {
@@ -40,9 +43,12 @@ func encodeRFC2047IfNeeded(s string) string {
 	return fmt.Sprintf("=?UTF-8?B?%s?=", encoded)
 }
 
-// SendEmail 发送邮件 (支持 SSL)
+// SendEmail 发送邮件 (支持 SSL / STARTTLS)
 func SendEmail(msg EmailMessage) error {
 	cfg := config.GlobalConfig
+	if cfg == nil {
+		return fmt.Errorf("email config not initialized")
+	}
 	if cfg.SMTPHost == "" {
 		return fmt.Errorf("SMTP host not configured")
 	}
@@ -51,6 +57,9 @@ func SendEmail(msg EmailMessage) error {
 	fromEmail := cfg.SystemEmail
 	if fromEmail == "" {
 		fromEmail = cfg.SMTPUser
+	}
+	if fromEmail == "" {
+		return fmt.Errorf("sender email not configured")
 	}
 	// 使用 SYSTEM_EMAIL_NAME 作为发信人名称，如果为空则使用 AppName
 	emailName := cfg.SystemEmailName
@@ -69,16 +78,22 @@ func SendEmail(msg EmailMessage) error {
 	message += "Content-Type: text/html; charset=UTF-8\r\n"
 	message += "\r\n" + msg.Body
 
-	auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPHost)
+	var auth smtp.Auth
+	if cfg.SMTPUser != "" || cfg.SMTPPass != "" {
+		auth = smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPHost)
+	}
 
 	// 重试机制：最多尝试3次，处理 EOF 等瞬时错误
 	var err error
 	for attempt := 1; attempt <= 3; attempt++ {
 		if cfg.SMTPSSL {
-			err = sendEmailSSL(cfg.SMTPHost, cfg.SMTPPort, fromEmail, msg.To, message, auth)
+			err = sendEmailSSL(cfg.SMTPHost, cfg.SMTPPort, fromEmail, msg.To, message, auth, cfg.SMTPUser, cfg.SMTPPass)
 		} else {
-			addr := net.JoinHostPort(cfg.SMTPHost, cfg.SMTPPort)
-			err = smtp.SendMail(addr, auth, fromEmail, []string{msg.To}, []byte(message))
+			err = sendEmailStartTLS(cfg.SMTPHost, cfg.SMTPPort, fromEmail, msg.To, message, auth, cfg.SMTPUser, cfg.SMTPPass)
+			if err != nil && errors.Is(err, errSMTPStartTLSUnsupported) {
+				log.Printf("[Email] 服务器不支持 STARTTLS，回退到普通 SMTP: %v", err)
+				err = sendEmailPlain(cfg.SMTPHost, cfg.SMTPPort, fromEmail, msg.To, message, auth, cfg.SMTPUser, cfg.SMTPPass)
+			}
 		}
 		if err == nil {
 			return nil
@@ -90,6 +105,100 @@ func SendEmail(msg EmailMessage) error {
 	}
 
 	return fmt.Errorf("发送邮件失败（已重试3次）: %w", err)
+}
+
+func sendEmailPlain(host, port, from, to, message string, auth smtp.Auth, smtpUser, smtpPass string) error {
+	addr := net.JoinHostPort(host, port)
+	log.Printf("[Email] 连接 %s (plain SMTP)...", addr)
+	dialer := &net.Dialer{Timeout: 30 * time.Second}
+	conn, err := dialer.Dial("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("SMTP连接失败: %w", err)
+	}
+	defer conn.Close()
+
+	client, err := smtp.NewClient(conn, host)
+	if err != nil {
+		return fmt.Errorf("SMTP客户端创建失败: %w", err)
+	}
+	defer client.Close()
+
+	return sendSMTPMessage(client, from, to, message, auth, smtpUser, smtpPass)
+}
+
+func sendSMTPMessage(client *smtp.Client, from, to, message string, auth smtp.Auth, smtpUser, smtpPass string) error {
+	if auth != nil {
+		log.Printf("[Email] 开始认证...")
+		if err := client.Auth(auth); err != nil {
+			log.Printf("[Email] AUTH 失败: %v, 尝试 LOGIN 方式...", err)
+			// PlainAuth 失败时回退到 LOGIN 认证
+			loginA := LoginAuth(smtpUser, smtpPass)
+			if err = client.Auth(loginA); err != nil {
+				return fmt.Errorf("认证失败: %w", err)
+			}
+		}
+		log.Printf("[Email] 认证成功")
+	} else {
+		log.Printf("[Email] 未配置 SMTP 认证信息，跳过认证")
+	}
+
+	if err := client.Mail(from); err != nil {
+		return fmt.Errorf("MAIL FROM 失败: %w", err)
+	}
+
+	if err := client.Rcpt(to); err != nil {
+		return fmt.Errorf("RCPT TO 失败: %w", err)
+	}
+
+	log.Printf("[Email] 开始写入邮件数据 (%d bytes)...", len(message))
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("DATA命令失败: %w", err)
+	}
+
+	_, err = w.Write([]byte(message))
+	if err != nil {
+		return fmt.Errorf("写入邮件内容失败: %w", err)
+	}
+
+	err = w.Close()
+	if err != nil {
+		return fmt.Errorf("完成数据传输失败: %w", err)
+	}
+
+	log.Printf("[Email] 邮件发送成功")
+	return client.Quit()
+}
+
+func sendEmailStartTLS(host, port, from, to, message string, auth smtp.Auth, smtpUser, smtpPass string) error {
+	addr := net.JoinHostPort(host, port)
+	tlsconfig := &tls.Config{
+		ServerName: host,
+	}
+
+	log.Printf("[Email] 连接 %s (STARTTLS)...", addr)
+	dialer := &net.Dialer{Timeout: 30 * time.Second}
+	conn, err := dialer.Dial("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("SMTP连接失败: %w", err)
+	}
+	defer conn.Close()
+
+	client, err := smtp.NewClient(conn, host)
+	if err != nil {
+		return fmt.Errorf("SMTP客户端创建失败: %w", err)
+	}
+	defer client.Close()
+
+	if ok, _ := client.Extension("STARTTLS"); !ok {
+		return fmt.Errorf("%w", errSMTPStartTLSUnsupported)
+	}
+
+	if err = client.StartTLS(tlsconfig); err != nil {
+		return fmt.Errorf("STARTTLS失败: %w", err)
+	}
+
+	return sendSMTPMessage(client, from, to, message, auth, smtpUser, smtpPass)
 }
 
 // loginAuth 实现 LOGIN 认证方式（兼容 Yandex 等邮件服务商）
@@ -120,7 +229,7 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	return nil, nil
 }
 
-func sendEmailSSL(host, port, from, to, message string, auth smtp.Auth) error {
+func sendEmailSSL(host, port, from, to, message string, auth smtp.Auth, smtpUser, smtpPass string) error {
 	addr := net.JoinHostPort(host, port)
 	tlsconfig := &tls.Config{
 		ServerName:         host,
@@ -146,46 +255,7 @@ func sendEmailSSL(host, port, from, to, message string, auth smtp.Auth) error {
 	closeConn = false
 	defer client.Close()
 
-	log.Printf("[Email] EHLO 成功，开始认证...")
-	if err = client.Auth(auth); err != nil {
-		log.Printf("[Email] AUTH 失败: %v, 尝试 LOGIN 方式...", err)
-		// PlainAuth 失败时回退到 LOGIN 认证
-		loginA := LoginAuth(
-			config.GlobalConfig.SMTPUser,
-			config.GlobalConfig.SMTPPass,
-		)
-		if err = client.Auth(loginA); err != nil {
-			return fmt.Errorf("认证失败: %w", err)
-		}
-	}
-	log.Printf("[Email] 认证成功")
-
-	if err = client.Mail(from); err != nil {
-		return fmt.Errorf("MAIL FROM 失败: %w", err)
-	}
-
-	if err = client.Rcpt(to); err != nil {
-		return fmt.Errorf("RCPT TO 失败: %w", err)
-	}
-
-	log.Printf("[Email] 开始写入邮件数据 (%d bytes)...", len(message))
-	w, err := client.Data()
-	if err != nil {
-		return fmt.Errorf("DATA命令失败: %w", err)
-	}
-
-	_, err = w.Write([]byte(message))
-	if err != nil {
-		return fmt.Errorf("写入邮件内容失败: %w", err)
-	}
-
-	err = w.Close()
-	if err != nil {
-		return fmt.Errorf("完成数据传输失败: %w", err)
-	}
-
-	log.Printf("[Email] 邮件发送成功")
-	return client.Quit()
+	return sendSMTPMessage(client, from, to, message, auth, smtpUser, smtpPass)
 }
 
 // ReplaceTemplateVars 替换模板变量

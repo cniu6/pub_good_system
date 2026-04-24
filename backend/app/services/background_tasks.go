@@ -58,7 +58,7 @@ func ensureBackgroundTask(key, label string, interval time.Duration) *background
 	return state
 }
 
-func runTrackedBackgroundTask(key, label string, interval time.Duration, runner func() (string, error)) (string, error) {
+func runTrackedBackgroundTask(key, label string, interval time.Duration, runner func() (string, error)) (message string, err error) {
 	state := ensureBackgroundTask(key, label, interval)
 	state.mu.Lock()
 	if state.running {
@@ -69,26 +69,31 @@ func runTrackedBackgroundTask(key, label string, interval time.Duration, runner 
 	state.mu.Unlock()
 
 	start := time.Now()
-	message, err := runner()
-	duration := time.Since(start).Milliseconds()
+	defer func() {
+		duration := time.Since(start).Milliseconds()
+		state.mu.Lock()
+		state.running = false
+		state.lastRunTime = start
+		state.lastDurationMs = duration
+		if err != nil {
+			state.lastStatus = "failed"
+			state.lastMessage = err.Error()
+		} else {
+			state.lastStatus = "success"
+			state.lastMessage = message
+		}
+		state.mu.Unlock()
+	}()
 
-	state.mu.Lock()
-	state.running = false
-	state.lastRunTime = start
-	state.lastDurationMs = duration
-	if err != nil {
-		state.lastStatus = "failed"
-		state.lastMessage = err.Error()
-	} else {
-		state.lastStatus = "success"
-		state.lastMessage = message
-	}
-	state.mu.Unlock()
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("task panic: %v", r)
+			message = ""
+		}
+	}()
 
-	if err != nil {
-		return message, err
-	}
-	return message, nil
+	message, err = runner()
+	return message, err
 }
 
 func snapshotBackgroundTask(state *backgroundTaskState) BackgroundTaskInfo {

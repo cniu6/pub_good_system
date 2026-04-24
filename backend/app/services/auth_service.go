@@ -127,6 +127,35 @@ func validateUserAccessForGuard(user *models.User, authGuard string) *ServiceErr
 	return nil
 }
 
+func getAuthRuntimeDefaults() (loginMaxFailureCount, loginLockDurationMinutes, accessExpireSeconds, refreshExpireSeconds int) {
+	cfg := config.GlobalConfig
+	if cfg == nil {
+		return 5, 10, 7200, 604800
+	}
+
+	loginMaxFailureCount = cfg.LoginMaxFailureCount
+	if loginMaxFailureCount <= 0 {
+		loginMaxFailureCount = 5
+	}
+
+	loginLockDurationMinutes = cfg.LoginLockDurationMinutes
+	if loginLockDurationMinutes <= 0 {
+		loginLockDurationMinutes = 10
+	}
+
+	accessExpireSeconds = cfg.JWTAccessExpire
+	if accessExpireSeconds <= 0 {
+		accessExpireSeconds = 7200
+	}
+
+	refreshExpireSeconds = cfg.JWTRefreshExpire
+	if refreshExpireSeconds <= 0 {
+		refreshExpireSeconds = 604800
+	}
+
+	return
+}
+
 // Login 用户登录
 func (s *AuthService) Login(username, password, authGuard, clientIP string) (*LoginResult, *ServiceError) {
 	var ok bool
@@ -159,7 +188,8 @@ func (s *AuthService) Login(username, password, authGuard, clientIP string) (*Lo
 	// 验证密码
 	if !utils.CheckPasswordHash(password, user.Password) {
 		// 增加失败次数（带锁定）
-		s.userService.IncrementLoginFailureWithLock(user.ID, config.GlobalConfig.LoginMaxFailureCount, config.GlobalConfig.LoginLockDurationMinutes)
+		loginMaxFailureCount, loginLockDurationMinutes, _, _ := getAuthRuntimeDefaults()
+		s.userService.IncrementLoginFailureWithLock(user.ID, loginMaxFailureCount, loginLockDurationMinutes)
 		return nil, NewServiceError(401, "Invalid account or password")
 	}
 
@@ -167,8 +197,9 @@ func (s *AuthService) Login(username, password, authGuard, clientIP string) (*Lo
 	s.userService.UpdateLoginInfo(user.ID, clientIP)
 
 	// 生成 Token
-	accessTTL := time.Duration(config.GlobalConfig.JWTAccessExpire) * time.Second
-	refreshTTL := time.Duration(config.GlobalConfig.JWTRefreshExpire) * time.Second
+	_, _, accessExpireSeconds, refreshExpireSeconds := getAuthRuntimeDefaults()
+	accessTTL := time.Duration(accessExpireSeconds) * time.Second
+	refreshTTL := time.Duration(refreshExpireSeconds) * time.Second
 
 	accessToken, err := utils.GenerateTokenForGuardWithTTL(user.ID, user.Role, authGuard, accessTTL)
 	if err != nil {
@@ -239,8 +270,9 @@ func (s *AuthService) RefreshToken(refreshToken, authGuard, clientIP, userAgent,
 	}
 
 	// 生成新Token
-	accessTTL := time.Duration(config.GlobalConfig.JWTAccessExpire) * time.Second
-	refreshTTL := time.Duration(config.GlobalConfig.JWTRefreshExpire) * time.Second
+	_, _, accessExpireSeconds, refreshExpireSeconds := getAuthRuntimeDefaults()
+	accessTTL := time.Duration(accessExpireSeconds) * time.Second
+	refreshTTL := time.Duration(refreshExpireSeconds) * time.Second
 
 	accessToken, err := utils.GenerateTokenForGuardWithTTL(user.ID, user.Role, authGuard, accessTTL)
 	if err != nil {

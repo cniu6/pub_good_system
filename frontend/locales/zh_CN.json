@@ -1677,6 +1677,7 @@
     "onlineRecharge": "在线充值",
     "rechargeNow": "立即充值 ¥{amount}",
     "orderRecords": "订单记录",
+    "refreshOrders": "刷新订单",
     "bulkRefresh": "批量刷新",
     "selectPaymentMethod": "选择支付方式",
     "safeConvenientPayment": "安全便捷的支付方式",
@@ -1699,7 +1700,19 @@
     "updatedAt": "更新时间",
     "orderStatus": "订单状态",
     "refreshOrder": "刷新订单",
-    "payNow": "立即支付"
+    "payNow": "立即支付",
+    "paymentReturnOrderNo": "回跳订单：{orderNo}",
+    "paymentReturnSuccessTag": "支付成功",
+    "paymentReturnSuccessTitle": "支付已完成",
+    "paymentReturnSuccessDesc": "系统已经收到支付结果，订单状态会自动刷新，余额稍后也会同步更新。",
+    "paymentReturnPendingTag": "处理中",
+    "paymentReturnPendingTitle": "支付结果已返回，正在确认",
+    "paymentReturnPendingDesc": "支付平台已经回跳，但订单可能还在异步确认中，你可以稍后刷新订单查看最新状态。",
+    "paymentReturnErrorTag": "异常",
+    "paymentReturnErrorTitle": "支付回跳未成功识别",
+    "paymentReturnErrorDesc": "当前回跳结果无法确认，请稍后刷新订单，或重新发起支付。",
+    "paymentReturnInvalidCallback": "回跳参数校验失败或来源不合法。",
+    "paymentReturnErrorReason": "错误原因：{reason}"
   },
   "adminUsers": {
     "admin": "管理员",

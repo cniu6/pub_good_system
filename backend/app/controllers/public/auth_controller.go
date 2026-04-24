@@ -311,7 +311,7 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 	code := generateSecureCode()
 
 	// 存储验证码
-	expireMinutes := config.GlobalConfig.RegisterCodeExpireMinutes
+	expireMinutes := services.GetGlobalRegisterCodeExpireMinutes()
 	expiresAt := time.Now().Add(time.Duration(expireMinutes) * time.Minute)
 	if err := models.CreateVerificationCode(req.Email, code, "register", expiresAt); err != nil {
 		utils.Fail(c, 500, "Failed to generate verification code")

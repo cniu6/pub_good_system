@@ -60,7 +60,13 @@ func main() {
  	models.InitUserMoneyLogsTable()
  	models.InitUserScoreLogsTable()
  	models.InitOperationLogsTable()
-	models.InitAPIAccessLogsTable()
+ 	models.InitAPIAccessLogsTable()
+
+	// 初始化API访问日志聚合表
+	models.InitAPIAccessLogAggregateTables()
+
+	// 初始化短信日志表
+	models.InitSMSTable()
  
  	// 初始化支付订单表
  	models.InitPaymentOrdersTable()

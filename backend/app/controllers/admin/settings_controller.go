@@ -634,13 +634,14 @@ func (ctrl *SettingsController) validateSettingValue(value, typ string) bool {
 }
 
 func (ctrl *SettingsController) resolveSettingValueForAdmin(setting models.SystemSetting) interface{} {
+	cfg := currentGlobalConfig()
 	switch setting.Key {
 	case "geetest_enabled":
 		return services.GetGlobalGeetestRuntimeConfig().Enabled
 	case "geetest_captcha_id":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
-			val = strings.TrimSpace(config.GlobalConfig.GeetestID)
+			val = strings.TrimSpace(cfg.GeetestID)
 		}
 		return val
 	case "geetest_captcha_key":
@@ -648,13 +649,13 @@ func (ctrl *SettingsController) resolveSettingValueForAdmin(setting models.Syste
 	case "smtp_host":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
-			val = strings.TrimSpace(config.GlobalConfig.SMTPHost)
+			val = strings.TrimSpace(cfg.SMTPHost)
 		}
 		return val
 	case "smtp_port":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
-			if port, err := strconv.Atoi(strings.TrimSpace(config.GlobalConfig.SMTPPort)); err == nil && port > 0 {
+			if port, err := strconv.Atoi(strings.TrimSpace(cfg.SMTPPort)); err == nil && port > 0 {
 				return port
 			}
 			return setting.GetTypedValue()
@@ -666,66 +667,64 @@ func (ctrl *SettingsController) resolveSettingValueForAdmin(setting models.Syste
 	case "smtp_username":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
-			val = strings.TrimSpace(config.GlobalConfig.SMTPUser)
+			val = strings.TrimSpace(cfg.SMTPUser)
 		}
 		return val
 	case "smtp_password":
 		return ctrl.maskSensitiveSettingValue(ctrl.resolveCurrentSensitiveSettingValue(setting))
 	case "smtp_ssl":
 		if strings.TrimSpace(setting.Value) == "" {
-			return config.GlobalConfig.SMTPSSL
+			return cfg.SMTPSSL
 		}
 		return setting.GetTypedValue()
 	case "system_email_address":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
-			val = strings.TrimSpace(config.GlobalConfig.SystemEmail)
+			val = strings.TrimSpace(cfg.SystemEmail)
 		}
 		return val
 	case "system_email_name":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
-			val = strings.TrimSpace(config.GlobalConfig.SystemEmailName)
+			val = strings.TrimSpace(cfg.SystemEmailName)
 		}
 		return val
 	case "frontend_url":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
-			val = strings.TrimSpace(config.GlobalConfig.FrontendURL)
+			val = strings.TrimSpace(cfg.FrontendURL)
 		}
 		return val
 	case "register_code_expire_minutes":
 		if strings.TrimSpace(setting.Value) == "" {
-			if config.GlobalConfig.RegisterCodeExpireMinutes > 0 {
-				return config.GlobalConfig.RegisterCodeExpireMinutes
-			}
+			return services.GetGlobalRegisterCodeExpireMinutes()
 		}
 		return setting.GetTypedValue()
 	case "jwt_access_expire":
 		if strings.TrimSpace(setting.Value) == "" {
-			if config.GlobalConfig.JWTAccessExpire > 0 {
-				return config.GlobalConfig.JWTAccessExpire
+			if cfg.JWTAccessExpire > 0 {
+				return cfg.JWTAccessExpire
 			}
 		}
 		return setting.GetTypedValue()
 	case "jwt_refresh_expire":
 		if strings.TrimSpace(setting.Value) == "" {
-			if config.GlobalConfig.JWTRefreshExpire > 0 {
-				return config.GlobalConfig.JWTRefreshExpire
+			if cfg.JWTRefreshExpire > 0 {
+				return cfg.JWTRefreshExpire
 			}
 		}
 		return setting.GetTypedValue()
 	case "login_max_failure":
 		if strings.TrimSpace(setting.Value) == "" {
-			if config.GlobalConfig.LoginMaxFailureCount > 0 {
-				return config.GlobalConfig.LoginMaxFailureCount
+			if cfg.LoginMaxFailureCount > 0 {
+				return cfg.LoginMaxFailureCount
 			}
 		}
 		return setting.GetTypedValue()
 	case "login_lock_duration":
 		if strings.TrimSpace(setting.Value) == "" {
-			if config.GlobalConfig.LoginLockDurationMinutes > 0 {
-				return config.GlobalConfig.LoginLockDurationMinutes
+			if cfg.LoginLockDurationMinutes > 0 {
+				return cfg.LoginLockDurationMinutes
 			}
 		}
 		return setting.GetTypedValue()
@@ -736,7 +735,7 @@ func (ctrl *SettingsController) resolveSettingValueForAdmin(setting models.Syste
 	case "sms_provider":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
-			val = config.GlobalConfig.SMSProvider
+			val = cfg.SMSProvider
 		}
 		if val == "" {
 			val = "console"
@@ -749,43 +748,43 @@ func (ctrl *SettingsController) resolveSettingValueForAdmin(setting models.Syste
 	case "sms_sign_name":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
-			val = config.GlobalConfig.SMSSignName
+			val = cfg.SMSSignName
 		}
 		return val
 	case "sms_template_code":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
-			val = config.GlobalConfig.SMSTemplateCode
+			val = cfg.SMSTemplateCode
 		}
 		return val
 	case "sms_template_code_en":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
-			val = config.GlobalConfig.SMSTemplateCodeEN
+			val = cfg.SMSTemplateCodeEN
 		}
 		return val
 	case "sms_region":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
-			val = config.GlobalConfig.SMSRegion
+			val = cfg.SMSRegion
 		}
 		return val
 	case "sms_sdk_app_id":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
-			val = config.GlobalConfig.SMSSdkAppID
+			val = cfg.SMSSdkAppID
 		}
 		return val
 	case "sms_endpoint":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
-			val = config.GlobalConfig.SMSEndpoint
+			val = cfg.SMSEndpoint
 		}
 		return val
 	case "sms_body_format":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
-			val = config.GlobalConfig.SMSBodyFormat
+			val = cfg.SMSBodyFormat
 		}
 		if val == "" {
 			val = "json"
@@ -812,16 +811,17 @@ func (ctrl *SettingsController) resolveCurrentSensitiveSettingValue(setting mode
 	if strings.TrimSpace(setting.Value) != "" {
 		return setting.Value
 	}
+	cfg := currentGlobalConfig()
 
 	switch setting.Key {
 	case "geetest_captcha_key":
-		return strings.TrimSpace(config.GlobalConfig.GeetestKey)
+		return strings.TrimSpace(cfg.GeetestKey)
 	case "smtp_password":
-		return config.GlobalConfig.SMTPPass
+		return cfg.SMTPPass
 	case "sms_access_key":
-		return strings.TrimSpace(config.GlobalConfig.SMSAccessKey)
+		return strings.TrimSpace(cfg.SMSAccessKey)
 	case "sms_secret_key":
-		return strings.TrimSpace(config.GlobalConfig.SMSSecretKey)
+		return strings.TrimSpace(cfg.SMSSecretKey)
 	default:
 		return setting.Value
 	}
@@ -832,6 +832,13 @@ func (ctrl *SettingsController) normalizeSettingValueForWrite(setting models.Sys
 		return ctrl.resolveCurrentSensitiveSettingValue(setting)
 	}
 	return value
+}
+
+func currentGlobalConfig() *config.Config {
+	if config.GlobalConfig != nil {
+		return config.GlobalConfig
+	}
+	return &config.Config{}
 }
 
 func parseBoolSettingValue(v string, fallback bool) bool {
@@ -977,9 +984,9 @@ func (ctrl *SettingsController) GetServerMonitoringStatus(c *gin.Context) {
 		"generated_at":   now.Format(time.RFC3339),
 		"uptime_seconds": int64(now.Sub(serverMonitorStartedAt).Seconds()),
 		"app": gin.H{
-			"name":       config.GlobalConfig.AppName,
-			"mode":       config.GlobalConfig.AppMode,
-			"port":       config.GlobalConfig.Port,
+			"name":       currentGlobalConfig().AppName,
+			"mode":       currentGlobalConfig().AppMode,
+			"port":       currentGlobalConfig().Port,
 			"go_version": runtime.Version(),
 		},
 		"metrics": gin.H{
@@ -1113,13 +1120,19 @@ func buildDatabaseStatus() gin.H {
 
 func (ctrl *SettingsController) buildSMTPStatus() gin.H {
 	settingMap, _ := models.GetSettingsMap([]string{"smtp_host", "smtp_port", "smtp_username", "smtp_password"})
+	cfg := currentGlobalConfig()
 
-	host := firstNonEmpty(settingMap["smtp_host"], config.GlobalConfig.SMTPHost)
-	port := firstNonEmpty(settingMap["smtp_port"], config.GlobalConfig.SMTPPort)
-	username := firstNonEmpty(settingMap["smtp_username"], config.GlobalConfig.SMTPUser)
-	password := firstNonEmpty(settingMap["smtp_password"], config.GlobalConfig.SMTPPass)
+	host := firstNonEmpty(settingMap["smtp_host"], cfg.SMTPHost)
+	port := firstNonEmpty(settingMap["smtp_port"], cfg.SMTPPort)
+	username := firstNonEmpty(settingMap["smtp_username"], cfg.SMTPUser)
+	password := firstNonEmpty(settingMap["smtp_password"], cfg.SMTPPass)
+	sender := strings.TrimSpace(cfg.SystemEmail)
+	if sender == "" {
+		sender = username
+	}
 
-	configured := host != "" && port != "" && username != "" && password != ""
+	credentialsOk := (username == "" && password == "") || (username != "" && password != "")
+	configured := host != "" && port != "" && sender != "" && credentialsOk
 	if !configured {
 		return gin.H{
 			"name":       "SMTP",

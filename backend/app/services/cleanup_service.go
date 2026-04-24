@@ -21,7 +21,12 @@ var cleanupStatus = &CleanupStatus{}
 var cleanupStartOnce sync.Once
 
 func GetCleanupIntervalMinutes() int {
-	interval := config.GlobalConfig.CleanupIntervalMinutes
+	cfg := config.GlobalConfig
+	if cfg == nil {
+		return 10
+	}
+
+	interval := cfg.CleanupIntervalMinutes
 	if interval <= 0 {
 		interval = 10
 	}
@@ -43,15 +48,21 @@ func StartCleanupTask() {
 		ensureBackgroundTask("cleanup", "验证码/会话清理", time.Duration(interval)*time.Minute)
 
 		go func() {
-			ticker := time.NewTicker(time.Duration(interval) * time.Minute)
-			defer ticker.Stop()
-
 			// 立即执行一次清理
 			if _, err := RunCleanupNow(); err != nil {
 				log.Printf("[Cleanup] initial run failed: %v", err)
 			}
 
-			for range ticker.C {
+			for {
+				currentInterval := GetCleanupIntervalMinutes()
+				if currentInterval <= 0 {
+					currentInterval = 10
+				}
+
+				timer := time.NewTimer(time.Duration(currentInterval) * time.Minute)
+				<-timer.C
+				timer.Stop()
+
 				if _, err := RunCleanupNow(); err != nil {
 					log.Printf("[Cleanup] periodic run failed: %v", err)
 				}
@@ -75,11 +86,12 @@ func executeCleanupOnce() (string, error) {
 		return "", err
 	}
 
+	cleanupTime := time.Now()
 	cleanupStatus.mu.Lock()
-	cleanupStatus.lastCleanupTime = time.Now()
+	cleanupStatus.lastCleanupTime = cleanupTime
 	cleanupStatus.mu.Unlock()
 
-	return fmt.Sprintf("清理完成，最近执行时间：%s", cleanupStatus.lastCleanupTime.Format("2006-01-02 15:04:05")), nil
+	return fmt.Sprintf("清理完成，最近执行时间：%s", cleanupTime.Format("2006-01-02 15:04:05")), nil
 }
 
 // GetCleanupStatus 返回清理任务的当前状态
@@ -87,19 +99,22 @@ func GetCleanupStatus() map[string]interface{} {
 	cleanupStatus.mu.RLock()
 	defer cleanupStatus.mu.RUnlock()
 
+	intervalMinutes := GetCleanupIntervalMinutes()
+
 	result := map[string]interface{}{
 		"running":          cleanupStatus.running,
-		"interval_minutes": cleanupStatus.intervalMinutes,
+		"interval_minutes": intervalMinutes,
 	}
 
 	if !cleanupStatus.lastCleanupTime.IsZero() {
 		result["last_cleanup_time"] = cleanupStatus.lastCleanupTime.Format("2006-01-02 15:04:05")
-		next := cleanupStatus.lastCleanupTime.Add(time.Duration(cleanupStatus.intervalMinutes) * time.Minute)
+		next := cleanupStatus.lastCleanupTime.Add(time.Duration(intervalMinutes) * time.Minute)
 		result["next_cleanup_time"] = next.Format("2006-01-02 15:04:05")
 	}
 
 	for _, item := range GetBackgroundTaskStatusList() {
 		if item.Key == "cleanup" {
+			result["running"] = item.Running
 			result["last_status"] = item.LastStatus
 			result["last_message"] = item.LastMessage
 			result["last_duration_ms"] = item.LastDurationMs

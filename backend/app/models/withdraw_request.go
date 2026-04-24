@@ -153,6 +153,10 @@ func GetWithdrawRequestByIDForUpdate(tx *sql.Tx, id uint64) (*WithdrawRequest, e
 }
 
 func GetWithdrawRequestList(query *WithdrawListQuery) (*WithdrawListResult, error) {
+	if query == nil {
+		query = &WithdrawListQuery{}
+	}
+
 	page := query.Page
 	if page <= 0 {
 		page = 1
@@ -201,6 +205,10 @@ func GetWithdrawRequestList(query *WithdrawListQuery) (*WithdrawListResult, erro
 }
 
 func GetWithdrawRequestStats(query *WithdrawListQuery) (*WithdrawStatsResult, error) {
+	if query == nil {
+		query = &WithdrawListQuery{}
+	}
+
 	where := " WHERE delete_time IS NULL "
 	args := []interface{}{}
 

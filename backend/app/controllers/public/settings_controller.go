@@ -3,7 +3,6 @@ package public
 import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
-	"fst/backend/pkg/config"
 	"fst/backend/utils"
 	"strings"
 
@@ -161,30 +160,28 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 	if v, ok := configMap["withdraw_account_types"]; ok && strings.TrimSpace(v) != "" {
 		response.WithdrawAccountTypes = services.ParseJSONStringArrayForPublic(v, []string{"bank", "alipay", "wechat", "usdt"})
 	}
-	enabled := config.GlobalConfig.GeetestEnabled
+	geetestConfig := services.GetGlobalGeetestRuntimeConfig()
 	if v, ok := configMap["geetest_enabled"]; ok {
 		v = strings.TrimSpace(v)
-		enabled = v == "true" || v == "1" || strings.EqualFold(v, "true")
+		geetestConfig.Enabled = v == "true" || v == "1" || strings.EqualFold(v, "true")
 	}
 
-	captchaID := strings.TrimSpace(config.GlobalConfig.GeetestID)
 	if v, ok := configMap["geetest_captcha_id"]; ok {
 		v = strings.TrimSpace(v)
 		if v != "" {
-			captchaID = v
+			geetestConfig.CaptchaID = v
 		}
 	}
 
-	captchaKey := strings.TrimSpace(config.GlobalConfig.GeetestKey)
 	if v, ok := configMap["geetest_captcha_key"]; ok {
 		v = strings.TrimSpace(v)
 		if v != "" {
-			captchaKey = v
+			geetestConfig.CaptchaKey = v
 		}
 	}
 
-	response.GeetestEnabled = enabled && captchaID != "" && captchaKey != ""
-	response.GeetestCaptchaId = captchaID
+	response.GeetestEnabled = geetestConfig.Enabled && geetestConfig.CaptchaID != "" && geetestConfig.CaptchaKey != ""
+	response.GeetestCaptchaId = geetestConfig.CaptchaID
 
 	return response
 }

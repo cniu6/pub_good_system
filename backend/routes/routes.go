@@ -41,6 +41,7 @@ var (
 	adminRealnameCtrl         *admin.RealnameController
 	adminWithdrawCtrl         *admin.WithdrawController
 	adminSMSLogCtrl          *admin.SMSLogController
+	adminDashboardCtrl        *admin.DashboardController
 )
 
 // initControllers 初始化所有控制器
@@ -64,6 +65,7 @@ func initControllers() {
 	adminPaymentCtrl = admin.NewPaymentController()
 	adminRealnameCtrl = admin.NewRealnameController()
 	adminWithdrawCtrl = admin.NewWithdrawController()
+	adminDashboardCtrl = admin.NewDashboardController()
 	adminSMSLogCtrl = admin.NewSMSLogController()
 }
 
@@ -76,7 +78,7 @@ func SetupRoutes(router *gin.Engine) {
 	// ========================================
 	// Swagger 文档
 	// ========================================
-	if config.GlobalConfig.EnableSwagger {
+	if cfg := config.GlobalConfig; cfg != nil && cfg.EnableSwagger {
 		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
@@ -130,7 +132,7 @@ func SetupRoutes(router *gin.Engine) {
 			adminGroup.Use(middleware.DynamicAdminRateLimitMiddleware())
 			{
 				// 仪表盘
-				adminGroup.GET("/dashboard", admin.GetDashboard)
+				adminGroup.GET("/dashboard", adminDashboardCtrl.GetDashboard)
 
 				// ----- 用户管理 -----
 				users := adminGroup.Group("/users")

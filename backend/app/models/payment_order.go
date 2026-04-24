@@ -400,10 +400,10 @@ func GetPaymentStats() (*PaymentStats, error) {
 			COUNT(*) as total_orders,
 			COALESCE(SUM(CASE WHEN status = 1 AND %s THEN 1 ELSE 0 END), 0) as paid_orders,
 			COALESCE(SUM(CASE WHEN status = 1 AND %s THEN pay_amount ELSE 0 END), 0) as total_amount,
-			COALESCE(SUM(CASE WHEN status = 1 AND %s AND create_time >= ? THEN 1 ELSE 0 END), 0) as today_orders,
-			COALESCE(SUM(CASE WHEN status = 1 AND %s AND create_time >= ? THEN pay_amount ELSE 0 END), 0) as today_amount,
-			COALESCE(SUM(CASE WHEN status = 1 AND %s AND create_time >= ? THEN pay_amount ELSE 0 END), 0) as month_amount,
-			COALESCE(SUM(CASE WHEN status = 1 AND %s AND create_time >= ? THEN pay_amount ELSE 0 END), 0) as year_amount,
+			COALESCE(SUM(CASE WHEN status = 1 AND %s AND paid_at >= ? THEN 1 ELSE 0 END), 0) as today_orders,
+			COALESCE(SUM(CASE WHEN status = 1 AND %s AND paid_at >= ? THEN pay_amount ELSE 0 END), 0) as today_amount,
+			COALESCE(SUM(CASE WHEN status = 1 AND %s AND paid_at >= ? THEN pay_amount ELSE 0 END), 0) as month_amount,
+			COALESCE(SUM(CASE WHEN status = 1 AND %s AND paid_at >= ? THEN pay_amount ELSE 0 END), 0) as year_amount,
 			COALESCE(SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END), 0) as pending_orders
 		FROM payment_orders
 	`, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL)

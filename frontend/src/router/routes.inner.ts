@@ -60,6 +60,15 @@ export const routes: RouteRecordRaw[] = [
     name: 'dashboard-redirect',
     redirect: '/user/dashboard/workbench',
   },
+  {
+    path: '/user/recharge',
+    name: 'legacy-user-recharge-redirect',
+    redirect: to => ({
+      path: '/user/account/recharge',
+      query: to.query,
+      hash: to.hash,
+    }),
+  },
 
   // ========================================
   // 公共 / 工具页面

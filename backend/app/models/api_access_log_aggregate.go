@@ -47,7 +47,8 @@ type apiAccessLogAggregateIPRow struct {
   LastSeenAt  int64  `db:"last_seen_at"`
 }
 
-func initAPIAccessLogAggregateTables() {
+// InitAPIAccessLogAggregateTables 初始化API访问日志聚合表
+func InitAPIAccessLogAggregateTables() {
   schemas := []string{
     `CREATE TABLE IF NOT EXISTS api_access_log_stats (
       stat_key VARCHAR(32) NOT NULL PRIMARY KEY,

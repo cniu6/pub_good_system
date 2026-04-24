@@ -6,7 +6,6 @@ import (
 	"fst/backend/pkg/config"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,10 +22,8 @@ func NewPaymentCallbackController() *PaymentCallbackController {
 // 易支付服务器会以 GET 或 POST 方式发送回调
 // 成功处理后必须返回纯文本 "SUCCESS"，否则易支付会重复通知
 func (ctrl *PaymentCallbackController) Notify(c *gin.Context) {
-	// 从 GET 或 POST 参数中提取回调数据
 	params := extractCallbackParams(c)
-
-	log.Printf("[Payment Notify] 收到回调: %v", sanitizeCallbackParamsForLog(params))
+	log.Printf("[Payment Notify] 收到回调: %v", params)
 
 	ok, err := services.HandlePaymentNotify(params)
 	if !ok || err != nil {
@@ -35,7 +32,6 @@ func (ctrl *PaymentCallbackController) Notify(c *gin.Context) {
 		return
 	}
 
-	// 必须返回 "SUCCESS" 告知易支付已成功处理
 	c.String(http.StatusOK, "SUCCESS")
 }
 
@@ -43,8 +39,7 @@ func (ctrl *PaymentCallbackController) Notify(c *gin.Context) {
 // 用户支付完成后浏览器跳转回来，仅做页面跳转，不做到账处理
 func (ctrl *PaymentCallbackController) Return(c *gin.Context) {
 	params := extractCallbackParams(c)
-
-	log.Printf("[Payment Return] 收到跳转: %v", sanitizeCallbackParamsForLog(params))
+	log.Printf("[Payment Return] 收到跳转: %v", params)
 
 	order, err := services.HandlePaymentReturn(params)
 
@@ -62,7 +57,7 @@ func (ctrl *PaymentCallbackController) Return(c *gin.Context) {
 
 	if err != nil || order == nil {
 		// 验签失败或订单不存在，跳转到前端充值页并附加错误提示
-		redirectURL := frontendURL + "/#/user/recharge?result=error&msg=invalid_callback"
+		redirectURL := frontendURL + "/user/account/recharge?result=error&msg=invalid_callback"
 		c.Redirect(http.StatusFound, redirectURL)
 		return
 	}
@@ -70,10 +65,10 @@ func (ctrl *PaymentCallbackController) Return(c *gin.Context) {
 	// 根据订单状态跳转
 	var redirectURL string
 	if order.Status == models.PaymentStatusPaid {
-		redirectURL = frontendURL + "/#/user/recharge?result=success&order_no=" + order.OrderNo
+		redirectURL = frontendURL + "/user/account/recharge?result=success&order_no=" + order.OrderNo
 	} else {
 		// 可能异步回调还没到，前端会通过轮询接口再次检查
-		redirectURL = frontendURL + "/#/user/recharge?result=pending&order_no=" + order.OrderNo
+		redirectURL = frontendURL + "/user/account/recharge?result=pending&order_no=" + order.OrderNo
 	}
 
 	c.Redirect(http.StatusFound, redirectURL)
@@ -101,34 +96,6 @@ func extractCallbackParams(c *gin.Context) map[string]string {
 	}
 
 	return params
-}
-
-func sanitizeCallbackParamsForLog(params map[string]string) map[string]string {
-	sanitized := make(map[string]string, len(params))
-	for key, value := range params {
-		cleanValue := strings.ReplaceAll(value, "\r", " ")
-		cleanValue = strings.ReplaceAll(cleanValue, "\n", " ")
-		switch key {
-		case "sign":
-			if cleanValue != "" {
-				cleanValue = "***"
-			}
-		case "trade_no", "out_trade_no":
-			cleanValue = maskCallbackLogValue(cleanValue)
-		}
-		sanitized[key] = cleanValue
-	}
-	return sanitized
-}
-
-func maskCallbackLogValue(value string) string {
-	if value == "" {
-		return ""
-	}
-	if len(value) <= 8 {
-		return "***"
-	}
-	return value[:4] + "***" + value[len(value)-4:]
 }
 
 // ========================================

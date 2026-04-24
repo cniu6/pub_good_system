@@ -38,7 +38,10 @@ func isOriginAllowed(origin, corsOrigins string) (allowed bool, wildcard bool) {
 // 避免 "*" / 任意反射 + 凭证并存这一经典 CSRF 风险。
 func CorsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		corsOrigins := config.GlobalConfig.CorsOrigins
+		corsOrigins := ""
+		if cfg := config.GlobalConfig; cfg != nil {
+			corsOrigins = cfg.CorsOrigins
+		}
 		origin := c.GetHeader("Origin")
 
 		allowed, wildcard := isOriginAllowed(origin, corsOrigins)

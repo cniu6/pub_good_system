@@ -34,11 +34,20 @@ const (
 	refreshTokenType = "refresh"
 )
 
-func getJWTSecretByGuard(authGuard string) string {
-	if authGuard == AdminAuthGuard && config.GlobalConfig.AdminJWTSecret != "" {
-		return config.GlobalConfig.AdminJWTSecret
+func getJWTSecretByGuard(authGuard string) (string, error) {
+	cfg := config.GlobalConfig
+	if cfg == nil {
+		return "", fmt.Errorf("JWT config not initialized")
 	}
-	return config.GlobalConfig.JWTSecret
+
+	secret := cfg.JWTSecret
+	if authGuard == AdminAuthGuard && cfg.AdminJWTSecret != "" {
+		secret = cfg.AdminJWTSecret
+	}
+	if secret == "" {
+		return "", fmt.Errorf("JWT secret not configured")
+	}
+	return secret, nil
 }
 
 func jwtSigningKeyByGuard(authGuard string) jwt.Keyfunc {
@@ -46,7 +55,11 @@ func jwtSigningKeyByGuard(authGuard string) jwt.Keyfunc {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(getJWTSecretByGuard(authGuard)), nil
+		secret, err := getJWTSecretByGuard(authGuard)
+		if err != nil {
+			return nil, err
+		}
+		return []byte(secret), nil
 	}
 }
 
@@ -54,7 +67,11 @@ func jwtSigningKey(token *jwt.Token) (interface{}, error) {
 	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
 		return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 	}
-	return []byte(config.GlobalConfig.JWTSecret), nil
+	secret, err := getJWTSecretByGuard(UserAuthGuard)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(secret), nil
 }
 
 func GenerateToken(userID uint64, role string) (string, error) {
@@ -81,7 +98,11 @@ func GenerateTokenForGuardWithTTL(userID uint64, role, authGuard string, ttl tim
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(getJWTSecretByGuard(authGuard)))
+	secret, err := getJWTSecretByGuard(authGuard)
+	if err != nil {
+		return "", err
+	}
+	return token.SignedString([]byte(secret))
 }
 
 // ParseToken parses and validates a JWT token
@@ -177,7 +198,11 @@ func GenerateRefreshTokenForGuardWithTTL(userID uint64, authGuard string, ttl ti
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(getJWTSecretByGuard(authGuard)))
+	secret, err := getJWTSecretByGuard(authGuard)
+	if err != nil {
+		return "", err
+	}
+	return token.SignedString([]byte(secret))
 }
 
 // ParseRefreshToken 解析Refresh Token

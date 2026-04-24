@@ -153,6 +153,13 @@ func (s *SettingsService) GetIntWithDefault(key string, defaultValue int) int {
 	return result
 }
 
+func getEffectiveGlobalConfig() *config.Config {
+	if config.GlobalConfig != nil {
+		return config.GlobalConfig
+	}
+	return &config.Config{}
+}
+
 // GetSetting returns full setting model by key from cache.
 func (s *SettingsService) GetSetting(key string) *models.SystemSetting {
 	if s == nil {
@@ -360,9 +367,10 @@ func (s *SettingsService) getRuntimePositiveInt(key string, fallback int) int {
 // GetGeetestRuntimeConfig returns effective geetest config.
 // Priority: database values -> environment fallback.
 func (s *SettingsService) GetGeetestRuntimeConfig() GeetestRuntimeConfig {
-	enabled := s.getRuntimeBool("geetest_enabled", config.GlobalConfig.GeetestEnabled)
-	captchaID := s.getRuntimeString("geetest_captcha_id", config.GlobalConfig.GeetestID)
-	captchaKey := s.getRuntimeString("geetest_captcha_key", config.GlobalConfig.GeetestKey)
+	cfg := getEffectiveGlobalConfig()
+	enabled := s.getRuntimeBool("geetest_enabled", cfg.GeetestEnabled)
+	captchaID := s.getRuntimeString("geetest_captcha_id", cfg.GeetestID)
+	captchaKey := s.getRuntimeString("geetest_captcha_key", cfg.GeetestKey)
 
 	enabled = enabled && captchaID != "" && captchaKey != ""
 
@@ -379,11 +387,12 @@ func GetGlobalGeetestRuntimeConfig() GeetestRuntimeConfig {
 		return GlobalSettingsService.GetGeetestRuntimeConfig()
 	}
 
-	captchaID := strings.TrimSpace(config.GlobalConfig.GeetestID)
-	captchaKey := strings.TrimSpace(config.GlobalConfig.GeetestKey)
+	cfg := getEffectiveGlobalConfig()
+	captchaID := strings.TrimSpace(cfg.GeetestID)
+	captchaKey := strings.TrimSpace(cfg.GeetestKey)
 
 	return GeetestRuntimeConfig{
-		Enabled:    config.GlobalConfig.GeetestEnabled && captchaID != "" && captchaKey != "",
+		Enabled:    cfg.GeetestEnabled && captchaID != "" && captchaKey != "",
 		CaptchaID:  captchaID,
 		CaptchaKey: captchaKey,
 	}
@@ -421,25 +430,27 @@ func GetGlobalRealnameAPIRuntimeConfig() RealnameAPIRuntimeConfig {
 // GetVerifyConfig returns effective verify enable/disable config.
 // Priority: database values -> environment fallback.
 func (s *SettingsService) GetVerifyConfig() VerifyConfig {
+	cfg := getEffectiveGlobalConfig()
 	return VerifyConfig{
-		EmailEnabled: s.getRuntimeBool("email_verify_enabled", config.GlobalConfig.EmailVerifyEnabled),
-		SMSEnabled:   s.getRuntimeBool("sms_verify_enabled", config.GlobalConfig.SMSVerifyEnabled),
+		EmailEnabled: s.getRuntimeBool("email_verify_enabled", cfg.EmailVerifyEnabled),
+		SMSEnabled:   s.getRuntimeBool("sms_verify_enabled", cfg.SMSVerifyEnabled),
 	}
 }
 
 // GetSMSRuntimeConfig returns effective SMS provider config.
 func (s *SettingsService) GetSMSRuntimeConfig() SMSRuntimeConfig {
+	cfg := getEffectiveGlobalConfig()
 	return SMSRuntimeConfig{
-		Provider:       s.getRuntimeString("sms_provider", config.GlobalConfig.SMSProvider),
-		AccessKey:      s.getRuntimeString("sms_access_key", config.GlobalConfig.SMSAccessKey),
-		SecretKey:      s.getRuntimeString("sms_secret_key", config.GlobalConfig.SMSSecretKey),
-		SignName:       s.getRuntimeString("sms_sign_name", config.GlobalConfig.SMSSignName),
-		TemplateCode:   s.getRuntimeString("sms_template_code", config.GlobalConfig.SMSTemplateCode),
-		TemplateCodeEN: s.getRuntimeString("sms_template_code_en", config.GlobalConfig.SMSTemplateCodeEN),
-		Region:         s.getRuntimeString("sms_region", config.GlobalConfig.SMSRegion),
-		Endpoint:       s.getRuntimeString("sms_endpoint", config.GlobalConfig.SMSEndpoint),
-		SdkAppID:       s.getRuntimeString("sms_sdk_app_id", config.GlobalConfig.SMSSdkAppID),
-		BodyFormat:     s.getRuntimeString("sms_body_format", config.GlobalConfig.SMSBodyFormat),
+		Provider:       s.getRuntimeString("sms_provider", cfg.SMSProvider),
+		AccessKey:      s.getRuntimeString("sms_access_key", cfg.SMSAccessKey),
+		SecretKey:      s.getRuntimeString("sms_secret_key", cfg.SMSSecretKey),
+		SignName:       s.getRuntimeString("sms_sign_name", cfg.SMSSignName),
+		TemplateCode:   s.getRuntimeString("sms_template_code", cfg.SMSTemplateCode),
+		TemplateCodeEN: s.getRuntimeString("sms_template_code_en", cfg.SMSTemplateCodeEN),
+		Region:         s.getRuntimeString("sms_region", cfg.SMSRegion),
+		Endpoint:       s.getRuntimeString("sms_endpoint", cfg.SMSEndpoint),
+		SdkAppID:       s.getRuntimeString("sms_sdk_app_id", cfg.SMSSdkAppID),
+		BodyFormat:     s.getRuntimeString("sms_body_format", cfg.SMSBodyFormat),
 	}
 }
 
@@ -448,9 +459,10 @@ func GetGlobalVerifyConfig() VerifyConfig {
 	if GlobalSettingsService != nil {
 		return GlobalSettingsService.GetVerifyConfig()
 	}
+	cfg := getEffectiveGlobalConfig()
 	return VerifyConfig{
-		EmailEnabled: config.GlobalConfig.EmailVerifyEnabled,
-		SMSEnabled:   config.GlobalConfig.SMSVerifyEnabled,
+		EmailEnabled: cfg.EmailVerifyEnabled,
+		SMSEnabled:   cfg.SMSVerifyEnabled,
 	}
 }
 
@@ -459,17 +471,18 @@ func GetGlobalSMSRuntimeConfig() SMSRuntimeConfig {
 	if GlobalSettingsService != nil {
 		return GlobalSettingsService.GetSMSRuntimeConfig()
 	}
+	cfg := getEffectiveGlobalConfig()
 	return SMSRuntimeConfig{
-		Provider:       config.GlobalConfig.SMSProvider,
-		AccessKey:      config.GlobalConfig.SMSAccessKey,
-		SecretKey:      config.GlobalConfig.SMSSecretKey,
-		SignName:       config.GlobalConfig.SMSSignName,
-		TemplateCode:   config.GlobalConfig.SMSTemplateCode,
-		TemplateCodeEN: config.GlobalConfig.SMSTemplateCodeEN,
-		Region:         config.GlobalConfig.SMSRegion,
-		Endpoint:       config.GlobalConfig.SMSEndpoint,
-		SdkAppID:       config.GlobalConfig.SMSSdkAppID,
-		BodyFormat:     config.GlobalConfig.SMSBodyFormat,
+		Provider:       cfg.SMSProvider,
+		AccessKey:      cfg.SMSAccessKey,
+		SecretKey:      cfg.SMSSecretKey,
+		SignName:       cfg.SMSSignName,
+		TemplateCode:   cfg.SMSTemplateCode,
+		TemplateCodeEN: cfg.SMSTemplateCodeEN,
+		Region:         cfg.SMSRegion,
+		Endpoint:       cfg.SMSEndpoint,
+		SdkAppID:       cfg.SMSSdkAppID,
+		BodyFormat:     cfg.SMSBodyFormat,
 	}
 }
 
@@ -557,6 +570,14 @@ func GetGlobalPaymentOrderExpireMinutes() int {
 		return GlobalSettingsService.getRuntimePositiveInt("payment_order_expire_minutes", fallback)
 	}
 	return getDirectSettingPositiveInt("payment_order_expire_minutes", fallback)
+}
+
+func GetGlobalRegisterCodeExpireMinutes() int {
+	const fallback = 60
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.getRuntimePositiveInt("register_code_expire_minutes", fallback)
+	}
+	return getDirectSettingPositiveInt("register_code_expire_minutes", fallback)
 }
 
 func GetGlobalFrontendURL() string {

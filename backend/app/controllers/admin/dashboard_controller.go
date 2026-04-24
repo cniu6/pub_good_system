@@ -12,6 +12,9 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+// DashboardController 仪表盘控制器
+type DashboardController struct{}
+
 // DashboardStatistics 仪表盘统计数据
 type DashboardStatistics struct {
 	// 用户统计
@@ -122,8 +125,8 @@ func buildDashboardTrends(database *sqlx.DB, start time.Time, days int) []Dashbo
 	startUnix := start.Unix()
 	newUsers := loadDashboardCountMap(database, "SELECT DATE(FROM_UNIXTIME(create_time)) AS day, COUNT(*) AS value FROM users WHERE create_time >= ? GROUP BY DATE(FROM_UNIXTIME(create_time))", startUnix)
 	activeUsers := loadDashboardCountMap(database, "SELECT DATE(FROM_UNIXTIME(last_login_time)) AS day, COUNT(*) AS value FROM users WHERE last_login_time >= ? GROUP BY DATE(FROM_UNIXTIME(last_login_time))", startUnix)
-	paidOrders := loadDashboardCountMap(database, fmt.Sprintf("SELECT DATE(FROM_UNIXTIME(create_time)) AS day, COUNT(*) AS value FROM payment_orders WHERE status = ? AND %s AND create_time >= ? GROUP BY DATE(FROM_UNIXTIME(create_time))", models.RealPaidOrderFilterSQL), models.PaymentStatusPaid, startUnix)
-	paidAmount := loadDashboardAmountMap(database, fmt.Sprintf("SELECT DATE(FROM_UNIXTIME(create_time)) AS day, COALESCE(SUM(pay_amount), 0) AS value FROM payment_orders WHERE status = ? AND %s AND create_time >= ? GROUP BY DATE(FROM_UNIXTIME(create_time))", models.RealPaidOrderFilterSQL), models.PaymentStatusPaid, startUnix)
+	paidOrders := loadDashboardCountMap(database, fmt.Sprintf("SELECT DATE(FROM_UNIXTIME(paid_at)) AS day, COUNT(*) AS value FROM payment_orders WHERE status = ? AND paid_at IS NOT NULL AND %s AND paid_at >= ? GROUP BY DATE(FROM_UNIXTIME(paid_at))", models.RealPaidOrderFilterSQL), models.PaymentStatusPaid, startUnix)
+	paidAmount := loadDashboardAmountMap(database, fmt.Sprintf("SELECT DATE(FROM_UNIXTIME(paid_at)) AS day, COALESCE(SUM(pay_amount), 0) AS value FROM payment_orders WHERE status = ? AND paid_at IS NOT NULL AND %s AND paid_at >= ? GROUP BY DATE(FROM_UNIXTIME(paid_at))", models.RealPaidOrderFilterSQL), models.PaymentStatusPaid, startUnix)
 	operationLogs := loadDashboardCountMap(database, "SELECT DATE(FROM_UNIXTIME(create_time)) AS day, COUNT(*) AS value FROM operation_logs WHERE create_time >= ? GROUP BY DATE(FROM_UNIXTIME(create_time))", startUnix)
 
 	trends := make([]DashboardTrendPoint, 0, days)
@@ -171,8 +174,13 @@ func loadDashboardUsers(database *sqlx.DB, orderBy string) []RecentUser {
 	return users
 }
 
+// NewDashboardController 创建仪表盘控制器实例
+func NewDashboardController() *DashboardController {
+	return &DashboardController{}
+}
+
 // GetDashboard 获取仪表盘统计数据
-func GetDashboard(ctx *gin.Context) {
+func (ctrl *DashboardController) GetDashboard(ctx *gin.Context) {
 	database := db.GetDB()
 	stats := DashboardStatistics{}
 	if database == nil {

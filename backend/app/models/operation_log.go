@@ -160,6 +160,10 @@ type OperationLogQuery struct {
 
 // GetOperationLogList 获取日志列表
 func GetOperationLogList(query *OperationLogQuery) ([]OperationLog, int64, error) {
+	if query == nil {
+		query = &OperationLogQuery{}
+	}
+
 	var logs []OperationLog
 	var total int64
 
@@ -305,8 +309,9 @@ func GetOperationLogStats() (*LogStats, error) {
 	}
 
 	// 今日数量
-	today_start := time.Now().Truncate(24 * time.Hour).Unix()
-	err = db.DB.Get(&stats.TodayCount, "SELECT COUNT(*) FROM operation_logs WHERE create_time >= ?", today_start)
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Unix()
+	err = db.DB.Get(&stats.TodayCount, "SELECT COUNT(*) FROM operation_logs WHERE create_time >= ?", todayStart)
 	if err != nil {
 		return nil, err
 	}

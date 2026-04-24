@@ -175,9 +175,13 @@ func (s *EmailService) SendTemplateEmailAsync(to, template_name, lang string, va
 // buildDefaultVars 构建默认变量
 func (s *EmailService) buildDefaultVars(vars map[string]string) map[string]string {
 	cfg := config.GlobalConfig
+	appName := "System"
+	if cfg != nil && cfg.AppName != "" {
+		appName = cfg.AppName
+	}
 
 	result := map[string]string{
-		"app_name": cfg.AppName,
+		"app_name": appName,
 		"app_url":  "", // 可扩展
 	}
 
@@ -204,7 +208,10 @@ func (s *EmailService) renderTemplate(template string, vars map[string]string) s
 // 会进入纯文本节点，必须做 HTML 转义以防止渲染后被解析为标签。
 func (s *EmailService) WrapHTMLLayout(subject, content string) string {
 	cfg := config.GlobalConfig
-	appName := cfg.AppName
+	appName := "System"
+	if cfg != nil && cfg.AppName != "" {
+		appName = cfg.AppName
+	}
 	if appName == "" {
 		appName = "System"
 	}
@@ -325,15 +332,21 @@ func (s *EmailService) UpdateTemplateContent(name, lang, content string) error {
 // ValidateEmailConfig 验证邮件配置
 func (s *EmailService) ValidateEmailConfig() error {
 	cfg := config.GlobalConfig
+	if cfg == nil {
+		return fmt.Errorf("邮件配置未初始化")
+	}
 
 	if cfg.SMTPHost == "" {
 		return fmt.Errorf("SMTP主机未配置")
 	}
-	if cfg.SMTPUser == "" {
-		return fmt.Errorf("SMTP用户名未配置")
+	if cfg.SMTPPort == "" {
+		return fmt.Errorf("SMTP端口未配置")
 	}
-	if cfg.SMTPPass == "" {
-		return fmt.Errorf("SMTP密码未配置")
+	if (cfg.SMTPUser == "") != (cfg.SMTPPass == "") {
+		return fmt.Errorf("SMTP用户名和密码必须同时配置或同时留空")
+	}
+	if cfg.SystemEmail == "" && cfg.SMTPUser == "" {
+		return fmt.Errorf("发件人邮箱未配置")
 	}
 
 	return nil

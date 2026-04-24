@@ -45,4 +45,7 @@ export const adminApi = {
   server: createLazyModule(() => import('./server').then(m => m.adminServerApi)),
   dashboard: createLazyModule(() => import('./dashboard').then(m => m.adminDashboardApi)),
   realname: createLazyModule(() => import('./realname').then(m => m.adminRealnameApi)),
+  finance: createLazyModule(() => import('./finance')),
+  payment: createLazyModule(() => import('./payment').then(m => m.adminPaymentApi)),
+  paygateway: createLazyModule(() => import('./paygateway')),
 }

@@ -299,6 +299,10 @@ type RealnameVerificationListResult struct {
 
 // GetRealnameVerificationList 获取实名认证列表（管理员）
 func GetRealnameVerificationList(query *RealnameVerificationListQuery) (*RealnameVerificationListResult, error) {
+	if query == nil {
+		query = &RealnameVerificationListQuery{}
+	}
+
 	var list []RealnameVerification
 	var total int64
 
