@@ -15,7 +15,7 @@ import (
 func NewHTTPServer(addr string, handler http.Handler) *http.Server {
 	readHeaderTimeout := 5 * time.Second
 	readTimeout := 5 * time.Second
-	writeTimeout := 10 * time.Second
+	writeTimeout := 60 * time.Second
 	idleTimeout := 120 * time.Second
 	maxHeaderBytes := 1 << 20
 

@@ -4,9 +4,10 @@ package main
 
 import (
 	"embed"
+	_ "fst/backend/app/plugins/demo"
+	_ "fst/backend/app/plugins/sms"
 	"fst/backend/app/models"
 	"fst/backend/app/plugins"
-	"fst/backend/app/plugins/demo"
 	"fst/backend/app/services"
 	"fst/backend/pkg/config"
 	"fst/backend/pkg/db"
@@ -15,7 +16,10 @@ import (
 	"fst/backend/utils"
 	"io/fs"
 	"log"
+	"mime"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -92,10 +96,12 @@ func main() {
  	// 初始化短信服务
  	services.InitSMSService()
  
- 	router := gin.New()
- 	router.Use(gin.Logger(), gin.Recovery())
- 	router.SetTrustedProxies(nil) // 修复 "trusted all proxies" 警告
- 	router.Use(middleware.CorsMiddleware())
+	router := gin.New()
+	router.RedirectTrailingSlash = false
+	router.RedirectFixedPath = false
+	router.Use(gin.Logger(), gin.Recovery())
+	router.SetTrustedProxies(nil) // 修复 "trusted all proxies" 警告
+	router.Use(middleware.CorsMiddleware())
 	router.Use(middleware.LoggerMiddleware())
 	router.Use(middleware.APIAccessLogMiddleware())
 	router.Use(middleware.DynamicGlobalRateLimitMiddleware())
@@ -104,7 +110,6 @@ func main() {
 	// 插件初始化
 	pluginMgr := plugins.NewManager()
 	plugins.AutoRegisterAll(pluginMgr)
-	pluginMgr.Register(demo.NewPlugin())
 	if err := pluginMgr.LoadAll(); err != nil {
 		log.Printf("[Plugin] 插件加载失败: %v", err)
 	}
@@ -112,44 +117,56 @@ func main() {
 	pluginMgr.RegisterAllRoutes(apiGroup)
 
 	// 前端资源处理
-	// 仅当 AppMode == "integrated" 且 BuildMode != "none" 时，才提供前端托管能力
-	if config.GlobalConfig.AppMode == "integrated" && BuildMode != "none" {
-		var publicFS http.FileSystem
+	// 只要构建模式不是 none，就提供前端托管能力
+	if BuildMode != "none" {
+		var rawFS fs.FS
 
 		if BuildMode == "external" {
 			log.Println("[Mode] External: Serving from ./dist folder")
-			publicFS = http.Dir("dist")
+			rawFS = os.DirFS("dist")
 		} else if BuildMode == "embedded" {
 			log.Println("[Mode] Embedded: Serving from binary internal FS")
 			distFS, err := fs.Sub(frontendFS, "dist")
 			if err != nil {
 				log.Fatalf("Failed to load embedded frontend: %v", err)
 			}
-			publicFS = http.FS(distFS)
+			rawFS = distFS
 		} else {
 			log.Printf("[Mode] Unknown BuildMode=%s, frontend will not be served", BuildMode)
 		}
 
-		if publicFS != nil {
-			staticFileServer := http.FileServer(publicFS)
+		if rawFS != nil {
 			router.NoRoute(func(c *gin.Context) {
 				path := c.Request.URL.Path
 				if strings.HasPrefix(path, "/api") {
 					utils.Fail(c, 404, "API not found")
 					return
 				}
-				// Serve static or index.html
-				f, err := publicFS.Open(strings.TrimPrefix(path, "/"))
-				if err == nil {
-					f.Close()
-					staticFileServer.ServeHTTP(c.Writer, c.Request)
+
+				relPath := strings.TrimPrefix(path, "/")
+				if relPath != "" && relPath != "index.html" {
+					if data, err := fs.ReadFile(rawFS, relPath); err == nil {
+						contentType := mime.TypeByExtension(filepath.Ext(relPath))
+						if contentType == "" {
+							contentType = "application/octet-stream"
+						}
+						c.Data(http.StatusOK, contentType, data)
+						return
+					}
+				}
+
+				indexData, err := fs.ReadFile(rawFS, "index.html")
+				if err != nil {
+					log.Printf("[Embedded] index.html 读取失败: %v", err)
+					c.Status(http.StatusNotFound)
 					return
 				}
-				c.FileFromFS("index.html", publicFS)
+
+				c.Data(http.StatusOK, "text/html; charset=utf-8", indexData)
 			})
 		}
 	} else {
-		log.Printf("[Mode] Backend only: AppMode=%s, BuildMode=%s, frontend not served", config.GlobalConfig.AppMode, BuildMode)
+		log.Printf("[Mode] Backend only: BuildMode=%s, frontend not served", BuildMode)
 	}
 
 	port := config.GlobalConfig.Port

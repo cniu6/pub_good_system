@@ -7,13 +7,15 @@
  */
 export function getServiceConfig(env: Record<string, string>): Record<ServiceEnvType, Record<string, string>> {
   const apiUrl = env.VITE_API_URL || 'http://localhost:8085'
+  const buildMode = env.VITE_BUILD_MODE || ''
+  const productionApiUrl = buildMode === 'embedded' ? '' : apiUrl
 
   return {
     dev: {
       url: apiUrl,
     },
     production: {
-      url: apiUrl,
+      url: productionApiUrl,
     },
   }
 }

@@ -25,7 +25,7 @@ echo.
 echo [1/4] Cleaning old build artifacts...
 
 if exist build rmdir /s /q build
-if exist frontend\dist rmdir /s /q frontend\dist
+if exist dist rmdir /s /q dist
 if exist backend\cmd\dist rmdir /s /q backend\cmd\dist
 
 mkdir build >nul 2>&1
@@ -37,17 +37,19 @@ echo [2/4] Building frontend (pnpm build)...
 echo.
 
 cd frontend
+set VITE_BUILD_MODE=%BMODE%
 call pnpm build
 if %ERRORLEVEL% neq 0 (
     echo [ERROR] Frontend build failed!
+    set VITE_BUILD_MODE=
     cd ..
-    pause
     exit /b 1
 )
+set VITE_BUILD_MODE=
 cd ..
 
 echo Copying frontend assets...
-xcopy /s /e /q /y frontend\dist\* backend\cmd\dist\ >nul
+xcopy /s /e /q /y dist\* backend\cmd\dist\ >nul
 
 echo.
 echo [3/4] Cross-compiling Go backend... (Mode: %BMODE%)
@@ -57,11 +59,7 @@ set CGO_ENABLED=0
 
 call :build_target windows amd64 .exe "Windows x64"
 if %ERRORLEVEL% neq 0 goto :build_fail
-call :build_target windows arm64 .exe "Windows arm64"
-if %ERRORLEVEL% neq 0 goto :build_fail
 call :build_target linux amd64 "" "Linux x64"
-if %ERRORLEVEL% neq 0 goto :build_fail
-call :build_target linux arm64 "" "Linux arm64"
 if %ERRORLEVEL% neq 0 goto :build_fail
 
 set CGO_ENABLED=
@@ -80,7 +78,6 @@ echo   Output: ./build/
 echo   Mode:   [%BMODE%]
 echo ============================================================
 echo.
-pause
 exit /b 0
 
 :build_target
@@ -94,7 +91,7 @@ echo   - Building: %LABEL%...
 mkdir %OUTDIR% >nul 2>&1
 
 cd backend\cmd
-go build -ldflags "-X main.BuildMode=%BMODE% -s -w" -o "..\..\%OUTDIR%\fst%EXT%" main.go
+go build -tags embedded -ldflags "-X main.BuildMode=%BMODE% -s -w" -o "..\..\%OUTDIR%\fst%EXT%" .
 set GOOK=%ERRORLEVEL%
 cd ..\..
 
@@ -106,7 +103,7 @@ if %GOOK% neq 0 (
 if "%BMODE%" == "external" (
     echo     - Copying external assets...
     mkdir %OUTDIR%\dist >nul 2>&1
-    xcopy /s /e /q /y frontend\dist\* %OUTDIR%\dist\ >nul
+    xcopy /s /e /q /y dist\* %OUTDIR%\dist\ >nul
 )
 
 if exist .env.example copy /y .env.example %OUTDIR%\.env.example >nul
@@ -116,5 +113,4 @@ exit /b 0
 :build_fail
 echo.
 echo [ERROR] Build aborted!
-pause
 exit /b 1
