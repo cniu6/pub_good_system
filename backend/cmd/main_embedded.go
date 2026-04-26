@@ -25,6 +25,51 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func requestAcceptsGzip(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	acceptEncoding := r.Header.Get("Accept-Encoding")
+	return strings.Contains(strings.ToLower(acceptEncoding), "gzip")
+}
+
+func isStaticAssetRequest(relPath string) bool {
+	return strings.TrimSpace(filepath.Ext(relPath)) != ""
+}
+
+func frontendContentType(relPath string) string {
+	cleanPath := strings.TrimSuffix(relPath, ".gz")
+	contentType := mime.TypeByExtension(filepath.Ext(cleanPath))
+	if contentType == "" {
+		return "application/octet-stream"
+	}
+	return contentType
+}
+
+func serveFrontendFile(c *gin.Context, rawFS fs.FS, relPath string) bool {
+	if c == nil || rawFS == nil {
+		return false
+	}
+
+	if requestAcceptsGzip(c.Request) {
+		gzipPath := relPath + ".gz"
+		if data, err := fs.ReadFile(rawFS, gzipPath); err == nil {
+			c.Header("Content-Encoding", "gzip")
+			c.Header("Vary", "Accept-Encoding")
+			c.Data(http.StatusOK, frontendContentType(gzipPath), data)
+			return true
+		}
+	}
+
+	data, err := fs.ReadFile(rawFS, relPath)
+	if err != nil {
+		return false
+	}
+
+	c.Data(http.StatusOK, frontendContentType(relPath), data)
+	return true
+}
+
 // BuildMode 由构建脚本在编译时注入: "embedded" 或 "external" 或 "none"
 // 默认值为 "none"，表示开发阶段不嵌入前端，仅提供后端 API
 var BuildMode = "none"
@@ -144,25 +189,24 @@ func main() {
 				}
 
 				relPath := strings.TrimPrefix(path, "/")
-				if relPath != "" && relPath != "index.html" {
-					if data, err := fs.ReadFile(rawFS, relPath); err == nil {
-						contentType := mime.TypeByExtension(filepath.Ext(relPath))
-						if contentType == "" {
-							contentType = "application/octet-stream"
-						}
-						c.Data(http.StatusOK, contentType, data)
+				if relPath != "" {
+					if serveFrontendFile(c, rawFS, relPath) {
+						return
+					}
+
+					if isStaticAssetRequest(relPath) {
+						c.Status(http.StatusNotFound)
 						return
 					}
 				}
 
-				indexData, err := fs.ReadFile(rawFS, "index.html")
-				if err != nil {
-					log.Printf("[Embedded] index.html 读取失败: %v", err)
+				if !serveFrontendFile(c, rawFS, "index.html") {
+					log.Printf("[Embedded] index.html 读取失败")
 					c.Status(http.StatusNotFound)
 					return
 				}
 
-				c.Data(http.StatusOK, "text/html; charset=utf-8", indexData)
+				log.Printf("[Embedded] 返回 index.html for path: %s", path)
 			})
 		}
 	} else {

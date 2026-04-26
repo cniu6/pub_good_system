@@ -48,6 +48,8 @@ if %ERRORLEVEL% neq 0 (
 set VITE_BUILD_MODE=
 cd ..
 
+if exist embedded_assets\share\cd2d5f2a2f5be-y.jpg copy /y embedded_assets\share\cd2d5f2a2f5be-y.jpg dist\cd2d5f2a2f5be-y.jpg >nul
+
 echo Copying frontend assets...
 xcopy /s /e /q /y dist\* backend\cmd\dist\ >nul
 

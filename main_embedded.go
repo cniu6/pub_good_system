@@ -4,9 +4,10 @@ package main
 
 import (
 	"embed"
+	_ "fst/backend/app/plugins/demo"
+	_ "fst/backend/app/plugins/sms"
 	"fst/backend/app/models"
 	"fst/backend/app/plugins"
-	"fst/backend/app/plugins/demo"
 	"fst/backend/app/services"
 	"fst/backend/pkg/config"
 	"fst/backend/pkg/db"
@@ -23,6 +24,51 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func requestAcceptsGzip(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	acceptEncoding := r.Header.Get("Accept-Encoding")
+	return strings.Contains(strings.ToLower(acceptEncoding), "gzip")
+}
+
+func isStaticAssetRequest(relPath string) bool {
+	return strings.TrimSpace(filepath.Ext(relPath)) != ""
+}
+
+func frontendContentType(relPath string) string {
+	cleanPath := strings.TrimSuffix(relPath, ".gz")
+	contentType := mime.TypeByExtension(filepath.Ext(cleanPath))
+	if contentType == "" {
+		return "application/octet-stream"
+	}
+	return contentType
+}
+
+func serveFrontendFile(c *gin.Context, rawFS fs.FS, relPath string) bool {
+	if c == nil || rawFS == nil {
+		return false
+	}
+
+	if requestAcceptsGzip(c.Request) {
+		gzipPath := relPath + ".gz"
+		if data, err := fs.ReadFile(rawFS, gzipPath); err == nil {
+			c.Header("Content-Encoding", "gzip")
+			c.Header("Vary", "Accept-Encoding")
+			c.Data(http.StatusOK, frontendContentType(gzipPath), data)
+			return true
+		}
+	}
+
+	data, err := fs.ReadFile(rawFS, relPath)
+	if err != nil {
+		return false
+	}
+
+	c.Data(http.StatusOK, frontendContentType(relPath), data)
+	return true
+}
 
 // BuildMode 由构建脚本在编译时注入: "embedded" 或 "external" 或 "none"
 // go run main_embedded.go 时默认为 "embedded"，直接从二进制内嵌 FS 提供前端
@@ -98,7 +144,6 @@ func main() {
 	// 插件初始化
 	pluginMgr := plugins.NewManager()
 	plugins.AutoRegisterAll(pluginMgr)
-	pluginMgr.Register(demo.NewPlugin())
 	if err := pluginMgr.LoadAll(); err != nil {
 		log.Printf("[Plugin] 插件加载失败: %v", err)
 	}
@@ -106,13 +151,11 @@ func main() {
 	pluginMgr.RegisterAllRoutes(apiGroup)
 
 	// 前端资源处理：main_embedded.go 始终托管嵌入的前端
-	var rawFS fs.FS           // 用于直接读取文件（避免 http.FileServer 重定向问题）
-	var publicHTTPFS http.FileSystem // 用于静态资源服务
+	var rawFS fs.FS
 
 	if BuildMode == "external" {
 		log.Println("[Mode] External: Serving from ./dist folder")
 		rawFS = os.DirFS("dist")
-		publicHTTPFS = http.Dir("dist")
 	} else {
 		// 默认 embedded 模式：从 go:embed 内嵌 FS 提供前端
 		log.Println("[Mode] Embedded: Serving from binary internal FS")
@@ -121,38 +164,34 @@ func main() {
 			log.Fatalf("Failed to load embedded frontend: %v", err)
 		}
 		rawFS = distFS
-		publicHTTPFS = http.FS(distFS)
 	}
 
-	// 不再使用 http.FileServer（会产生 301 重定向），改为直接读取并返回
-	_ = publicHTTPFS // 保留声明以兼容 external 模式扩展
 	router.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
 		if strings.HasPrefix(path, "/api") {
 			utils.Fail(c, 404, "API not found")
 			return
 		}
-		// 尝试直接读取静态文件（完全绕过 http.FileServer 的重定向逻辑）
+
 		relPath := strings.TrimPrefix(path, "/")
-		if relPath != "" && relPath != "index.html" {
-			if data, err := fs.ReadFile(rawFS, relPath); err == nil {
-				contentType := mime.TypeByExtension(filepath.Ext(relPath))
-				if contentType == "" {
-					contentType = "application/octet-stream"
-				}
-				c.Data(http.StatusOK, contentType, data)
+		if relPath != "" {
+			if serveFrontendFile(c, rawFS, relPath) {
+				return
+			}
+
+			if isStaticAssetRequest(relPath) {
+				c.Status(http.StatusNotFound)
 				return
 			}
 		}
-		// 根路径、不存在的路径一律返回 index.html 供 SPA 路由处理
-		indexData, err := fs.ReadFile(rawFS, "index.html")
-		if err != nil {
-			log.Printf("[Embedded] index.html 读取失败: %v", err)
+
+		if !serveFrontendFile(c, rawFS, "index.html") {
+			log.Printf("[Embedded] index.html 读取失败")
 			c.Status(http.StatusNotFound)
 			return
 		}
+
 		log.Printf("[Embedded] 返回 index.html for path: %s", path)
-		c.Data(http.StatusOK, "text/html; charset=utf-8", indexData)
 	})
 
 	port := config.GlobalConfig.Port
