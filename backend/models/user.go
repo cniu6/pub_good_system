@@ -78,7 +78,7 @@ type UserRegisterRequest struct {
 	Nickname string `json:"nickname" binding:"omitempty,max=50"`       // 昵称
 	Email    string `json:"email" binding:"required,email"`            // 邮箱
 	Mobile   string `json:"mobile" binding:"omitempty,max=50"`         // 手机
-	Password string `json:"password" binding:"required,min=6,max=100"` // 密码
+	Password string `json:"password" binding:"required,min=8,max=100"` // 密码（与 HashPassword ≥8 一致）
 	Country  string `json:"country" binding:"omitempty,max=100"`       // 国家
 	Region   string `json:"region" binding:"omitempty,max=100"`        // 地区
 	Language string `json:"language" binding:"omitempty,max=20"`       // 语言
@@ -131,5 +131,5 @@ type UserUpdateRequestForAdmin struct {
 // ChangePasswordRequest 修改密码请求
 type ChangePasswordRequest struct {
 	OldPassword string `json:"old_password" binding:"required"`               // 旧密码
-	NewPassword string `json:"new_password" binding:"required,min=6,max=100"` // 新密码
+	NewPassword string `json:"new_password" binding:"required,min=8,max=100"` // 新密码（与 HashPassword ≥8 一致）
 }

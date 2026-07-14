@@ -2,9 +2,9 @@ package services
 
 import (
 	"errors"
-	"fst/internal/db"
-	"fst/models"
-	"fst/utils"
+	"fst/backend/internal/db"
+	"fst/backend/models"
+	"fst/backend/utils"
 	"time"
 
 	"gorm.io/gorm"
@@ -74,8 +74,8 @@ func (s *UserService) Register(req *models.UserRegisterRequest) (*models.User, s
 		return nil, "", errors.New("用户创建失败: " + err.Error())
 	}
 
-	// 生成JWT token
-	token, err := utils.GenerateToken(user.ID, user.Username, string(user.Role), uint8(user.Status), user.Password)
+	// 生成 JWT（对齐现网 2 参数签名）
+	token, err := utils.GenerateToken(uint64(user.ID), string(user.Role))
 	if err != nil {
 		return nil, "", errors.New("令牌生成失败")
 	}
@@ -108,10 +108,9 @@ func (s *UserService) Login(req *models.UserLoginRequest) (*models.User, string,
 		return nil, "", errors.New("账号已被禁用")
 	}
 
-	// 验证密码
-	if !utils.CheckPassword(req.Password, user.Password) {
-		// 增加登录失败次数
-		dbInstance.Table("users").Where("id", "=", user.ID).Update(map[string]interface{}{
+	// 验证密码（复用现网 CheckPasswordHash）
+	if !utils.CheckPasswordHash(req.Password, user.Password) {
+		_ = dbInstance.Table("users").Where("id", "=", user.ID).Update(map[string]interface{}{
 			"login_failure": user.LoginFailure + 1,
 		})
 		return nil, "", errors.New("用户名或密码错误")
@@ -130,8 +129,7 @@ func (s *UserService) Login(req *models.UserLoginRequest) (*models.User, string,
 		// 记录日志即可
 	}
 
-	// 生成JWT token
-	token, err := utils.GenerateToken(user.ID, user.Username, string(user.Role), uint8(user.Status), user.Password)
+	token, err := utils.GenerateToken(uint64(user.ID), string(user.Role))
 	if err != nil {
 		return nil, "", errors.New("令牌生成失败")
 	}
@@ -258,8 +256,7 @@ func (s *UserService) ChangePassword(userID uint, req *models.ChangePasswordRequ
 		return errors.New("查询用户失败")
 	}
 
-	// 验证旧密码
-	if !utils.CheckPassword(req.OldPassword, user.Password) {
+	if !utils.CheckPasswordHash(req.OldPassword, user.Password) {
 		return errors.New("旧密码不正确")
 	}
 
@@ -373,11 +370,9 @@ func (s *UserService) AdminUpdateUser(userID uint, req *models.UserUpdateRequest
 	if req.Language != "" {
 		updates["language"] = req.Language
 	}
-	if req.Money != nil {
-		updates["money"] = *req.Money
-	}
-	if req.Score != nil {
-		updates["score"] = *req.Score
+	// 余额/积分禁止本接口直改，需走现网流水接口（user_money_score）
+	if req.Money != nil || req.Score != nil {
+		return errors.New("余额/积分请走专用流水接口，禁止在本接口直改")
 	}
 	if req.Level != nil {
 		updates["level"] = *req.Level

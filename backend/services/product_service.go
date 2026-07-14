@@ -3,13 +3,34 @@ package services
 import (
 	"encoding/json"
 	"errors"
-	"fst/internal/db"
-	"fst/models"
-	"fst/utils"
+	"fst/backend/internal/db"
+	"fst/backend/models"
+	"fst/backend/utils"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
 )
+
+// 商品列表排序字段白名单，防止 ORDER BY 注入
+var productSortColumns = map[string]bool{
+	"id": true, "price": true, "original_price": true,
+	"stock": true, "sold_count": true, "sort_order": true,
+	"create_time": true, "update_time": true,
+}
+
+// buildProductOrderBy 校验 sort_by 后生成 ORDER BY 子句
+func buildProductOrderBy(sortBy, sortOrder string) string {
+	col := strings.ToLower(strings.TrimSpace(sortBy))
+	if !productSortColumns[col] {
+		return "id DESC"
+	}
+	dir := "DESC"
+	if strings.EqualFold(strings.TrimSpace(sortOrder), "asc") {
+		dir = "ASC"
+	}
+	return col + " " + dir
+}
 
 // ProductService 产品服务
 type ProductService struct{}
@@ -288,15 +309,7 @@ func (s *ProductService) GetList(query *models.ProductQuery) ([]models.Product, 
 		query.PageSize = 100
 	}
 
-	// 排序
-	orderBy := "id DESC"
-	if query.SortBy != "" {
-		sortOrder := "DESC"
-		if query.SortOrder == "asc" {
-			sortOrder = "ASC"
-		}
-		orderBy = query.SortBy + " " + sortOrder
-	}
+	orderBy := buildProductOrderBy(query.SortBy, query.SortOrder)
 	dbInstance = dbInstance.OrderBy(orderBy)
 
 	// 查询列表
@@ -354,15 +367,7 @@ func (s *ProductService) AdminGetList(query *models.ProductQuery) ([]models.Prod
 		query.PageSize = 20
 	}
 
-	// 排序
-	orderBy := "id DESC"
-	if query.SortBy != "" {
-		sortOrder := "DESC"
-		if query.SortOrder == "asc" {
-			sortOrder = "ASC"
-		}
-		orderBy = query.SortBy + " " + sortOrder
-	}
+	orderBy := buildProductOrderBy(query.SortBy, query.SortOrder)
 
 	// 查询列表
 	var products []models.Product
