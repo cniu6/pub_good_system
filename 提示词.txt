@@ -1,0 +1,25 @@
+F.st 名字就叫这个，网站的浏览器标题和slogan 就是：
+F.st - Think Fast,Run F.st
+
+中文：F.st - 快速思考，用 F.st 跑
+
+
+
+我要你做一个项目在本fst文件夹下，作为一个新的项目，类似于通用的商城C2C,B2C，订阅saas服务都要，并且可开关，并且内容都是通用MVC框架架构（中间层）来解决，支持后期拓展插件Plugin的加入。。多语言。
+先一步一步去做，做好相关测试test保证正确，注释全部使用中文，简单，不允许有bug，在设计之初就做好安全设计，比如溢出，xss,性能优化，等问题。
+前端vue （Vue 3, Vite, TypeScript,shadcn-vue，i18n,做好风格化)
+后端go (全部使用原生库，方便多平台交叉编译）（MySQL：127.0.0.1，库：fst， 号密：root:root）（ Gin, GORM,等）
+
+学习"C:\Users\Administrator\Desktop\codingfile\闲机\vue"的前端架构
+学习"C:\Users\Administrator\Desktop\codingfile\闲机\golangv2"的后端架构
+
+根本方法：几乎就从0抄一遍里面的内容，做出修改。
+
+在后端用户表加上国家，地区，语言等相关参数。其他依旧照抄。
+并且在现有的基础上加上一个商品中间表：product 用来存放各种通用商品+各种属性+插件，以实现指定商品的不同内容/形式。
+
+其他继续照抄。。。
+重要的是完善内容，数据表参数够多，方便后续拓展。
+
+
+
