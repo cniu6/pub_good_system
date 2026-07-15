@@ -2,9 +2,9 @@
  * 管理端 API 服务 - 仪表盘
  */
 import { request } from '@/service/http'
+import { getAdminApiBase } from './base'
 
-const ADMIN_PATH = '/admin'
-const BASE_URL = `/api/v1${ADMIN_PATH}/dashboard`
+const BASE_URL = `${getAdminApiBase()}/dashboard`
 
 export interface AdminDashboardStatistics {
   total_users: number

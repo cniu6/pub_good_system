@@ -1,4 +1,5 @@
 import { request } from '../../http'
+import { getAdminApiBase } from './base'
 
 /**
  * 系统配置管理 API
@@ -151,21 +152,21 @@ export interface BatchUpdateSettingsRequest {
  * 获取所有配置（按分类分组）
  */
 export function fetchSettings() {
-  return request.Get<Service.ResponseResult<SettingsListResponse>>('/api/v1/admin/settings')
+  return request.Get<Service.ResponseResult<SettingsListResponse>>(`${getAdminApiBase()}/settings`)
 }
 
 /**
  * 获取指定分类的配置
  */
 export function fetchSettingsByCategory(category: SettingCategory) {
-  return request.Get<Service.ResponseResult<SettingDTO[]>>(`/api/v1/admin/settings/category/${category}`)
+  return request.Get<Service.ResponseResult<SettingDTO[]>>(`${getAdminApiBase()}/settings/category/${category}`)
 }
 
 /**
  * 获取单个配置
  */
 export function fetchSetting(key: string) {
-  return request.Get<Service.ResponseResult<SettingDTO>>(`/api/v1/admin/settings/${key}`)
+  return request.Get<Service.ResponseResult<SettingDTO>>(`${getAdminApiBase()}/settings/${key}`)
 }
 
 /**
@@ -175,7 +176,7 @@ export function fetchSetting(key: string) {
  * 业务层应以 isSuccess/message 为准，不在 API 层对 data 做过度收窄。
  */
 export function updateSetting(key: string, value: string) {
-  return request.Put<Service.ResponseResult<any>>(`/api/v1/admin/settings/${key}`, { value })
+  return request.Put<Service.ResponseResult<any>>(`${getAdminApiBase()}/settings/${key}`, { value })
 }
 
 /**
@@ -185,7 +186,7 @@ export function updateSetting(key: string, value: string) {
  * 由调用页面按实际场景消费，避免把动态配置结构错误固化到类型层。
  */
 export function updateSettingMeta(key: string, data: UpdateSettingMetaRequest) {
-  return request.Put<Service.ResponseResult<any>>(`/api/v1/admin/settings/${key}/meta`, data)
+  return request.Put<Service.ResponseResult<any>>(`${getAdminApiBase()}/settings/${key}/meta`, data)
 }
 
 /**
@@ -195,14 +196,14 @@ export function updateSettingMeta(key: string, data: UpdateSettingMetaRequest) {
  * 当前只需要统一判断 isSuccess/message。
  */
 export function batchUpdateSettings(settings: Record<string, string>) {
-  return request.Put<Service.ResponseResult<any>>('/api/v1/admin/settings/batch', { settings })
+  return request.Put<Service.ResponseResult<any>>(`${getAdminApiBase()}/settings/batch`, { settings })
 }
 
 /**
  * 创建新配置
  */
 export function createSetting(data: CreateSettingRequest) {
-  return request.Post<Service.ResponseResult<{ message: string, key: string }>>('/api/v1/admin/settings', data)
+  return request.Post<Service.ResponseResult<{ message: string, key: string }>>(`${getAdminApiBase()}/settings`, data)
 }
 
 /**
@@ -211,7 +212,7 @@ export function createSetting(data: CreateSettingRequest) {
  * 删除后前端只依赖通用成功/失败语义，不依赖固定 data 结构。
  */
 export function deleteSetting(key: string) {
-  return request.Delete<Service.ResponseResult<any>>(`/api/v1/admin/settings/${key}`)
+  return request.Delete<Service.ResponseResult<any>>(`${getAdminApiBase()}/settings/${key}`)
 }
 
 /**
@@ -220,14 +221,14 @@ export function deleteSetting(key: string) {
  * 重启接口本质是一次命令触发，前端只消费通用 message，不绑定具体 data 结构。
  */
 export function restartBackend() {
-  return request.Post<Service.ResponseResult<any>>('/api/v1/admin/settings/restart-backend')
+  return request.Post<Service.ResponseResult<any>>(`${getAdminApiBase()}/settings/restart-backend`)
 }
 
 /**
  * 获取本项目服务器监控状态
  */
 export function fetchServerMonitoringStatus() {
-  return request.Get<Service.ResponseResult<ServerMonitoringStatusResponse>>('/api/v1/admin/settings/server-monitoring')
+  return request.Get<Service.ResponseResult<ServerMonitoringStatusResponse>>(`${getAdminApiBase()}/settings/server-monitoring`)
 }
 
 // 导出管理端配置 API 对象（用于懒加载模式）

@@ -12,7 +12,10 @@
 build/*/fst*
 build/*/.env.example
 backend/main.exe
+# 旧入口目录产物（已统一到根目录 main.go / main_embedded.go）
 backend/cmd/dist/
+backend/cmd/main.go
+backend/cmd/main_embedded.go
 
 # 本地敏感配置
 .env

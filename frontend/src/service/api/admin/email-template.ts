@@ -2,10 +2,9 @@
  * Admin email template API.
  */
 import { request } from '../../http'
+import { getAdminApiBase } from './base'
 
-// Admin API path is fixed at /admin to match backend routes.
-const ADMIN_PATH = '/admin'
-const BASE_URL = `/api/v1${ADMIN_PATH}/email-templates`
+const BASE_URL = `${getAdminApiBase()}/email-templates`
 
 export interface EmailTemplate {
   id: number
@@ -51,7 +50,7 @@ export const adminEmailTemplateApi = {
   },
 
   sendTest(data: { to: string; subject?: string; content?: string; template_id?: number }) {
-    return request.Post<Service.ResponseResult<{ message: string }>>(`/api/v1${ADMIN_PATH}/email-send-test`, data)
+    return request.Post<Service.ResponseResult<{ message: string }>>(`${getAdminApiBase()}/email-send-test`, data)
   },
 }
 

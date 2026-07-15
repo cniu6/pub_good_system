@@ -2,8 +2,9 @@
  * Admin SMS log API
  */
 import { request } from '@/service/http'
+import { getAdminApiBase } from './base'
 
-const BASE_URL = '/api/v1/admin/sms-logs'
+const BASE_URL = `${getAdminApiBase()}/sms-logs`
 
 export interface SMSLog {
   id: number

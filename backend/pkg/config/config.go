@@ -32,7 +32,8 @@ type Config struct {
 	GeetestKey                string
 	JWTSecret                 string
 	AdminJWTSecret            string
-	AdminPath                 string
+	AdminPath                 string // 管理后台前端页面入口（隐藏路径，如 /system-mgr）
+	AdminAPIPath              string // 管理端 REST API 在 /api/v1 下的前缀（默认 /admin）
 	CorsOrigins               string
 	EnableSwagger             bool
 	FrontendURL               string
@@ -101,21 +102,63 @@ func resolveJWTSecret(secret string) string {
 	return generated
 }
 
+// isWeakJWTSecret 判断是否为明显不安全/占位密钥（仅开发环境 warning 用，生产不再因弱密钥 fatal）
+func isWeakJWTSecret(secret string) bool {
+	secret = strings.TrimSpace(secret)
+	if secret == "" || secret == defaultJWTSecret {
+		return true
+	}
+	// 常见占位串（与 .env.example 示例值对齐）
+	weakSet := map[string]bool{
+		"your_jwt_secret":                   true,
+		"change_me_to_a_long_random_secret": true,
+		"jwt_secret":                        true,
+		"secret":                            true,
+		"123456":                            true,
+	}
+	if weakSet[strings.ToLower(secret)] {
+		return true
+	}
+	return len(secret) < 16
+}
+
+// NormalizeAdminAPIPath 规范化管理 API 前缀：保证以 / 开头、去掉尾斜杠；空则默认 /admin
+func NormalizeAdminAPIPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "/admin"
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return strings.TrimRight(path, "/")
+}
+
 func validateCriticalSecurityConfig(cfg *Config) {
 	if cfg == nil {
 		return
 	}
 
 	secret := strings.TrimSpace(cfg.JWTSecret)
-	if isProductionEnvMode(cfg.Environment) || isProductionEnvMode(cfg.AppMode) {
-		if secret == "" || secret == defaultJWTSecret {
-			log.Fatal("[Security] Refusing to start with an empty or default JWT_SECRET in production mode")
+	prod := isProductionEnvMode(cfg.Environment) || isProductionEnvMode(cfg.AppMode)
+	cors := strings.TrimSpace(cfg.CorsOrigins)
+
+	// CORS：任意环境都必须配置；允许 * 与泛域名（如 *.example.com）
+	if cors == "" {
+		log.Fatal("[Security] CORS_ORIGINS 不能为空，请在根目录 .env 配置（可用 * 或具体域名/泛域名）")
+	}
+
+	if prod {
+		// 生产：JWT 仅空才 fatal；env 填了默认值即可启动，不再因占位/过短拦死
+		if secret == "" {
+			log.Fatal("[Security] 生产环境拒绝启动：JWT_SECRET 为空，请在根目录 .env 中配置")
 		}
 		return
 	}
 
-	if secret == "" || secret == defaultJWTSecret {
-		log.Println("[Security Warning] JWT_SECRET is using the default development value")
+	// 开发：弱密钥仅 warning
+	if secret == "" || secret == defaultJWTSecret || isWeakJWTSecret(secret) {
+		log.Println("[Security Warning] JWT_SECRET 仍是弱/占位值，仅开发可用；生产建议换成强随机密钥")
 	}
 }
 
@@ -235,7 +278,8 @@ func InitConfig() {
 		GeetestKey:      geetestKey,
 		JWTSecret:       jwtSecret,
 		AdminJWTSecret:  adminJWTSecret,
-		AdminPath:       getEnv("ADMIN_PATH", "/admin"),
+		AdminPath:       getEnv("ADMIN_PATH", "/system-mgr"),
+		AdminAPIPath:    NormalizeAdminAPIPath(getEnv("ADMIN_API_PATH", "/admin")),
 		CorsOrigins:     getEnv("CORS_ORIGINS", ""),
 		EnableSwagger:   enableSwagger,
 		FrontendURL:     getEnv("FRONTEND_URL", ""),
@@ -358,6 +402,7 @@ type jsonDotEnv struct {
 	JWTSecret                 string `json:"jwt_secret"`
 	JWTAdminSecret            string `json:"jwt_admin_secret"`
 	AdminPath                 string `json:"admin_path"`
+	AdminAPIPath              string `json:"admin_api_path"`
 	JWTExpireHours            string `json:"jwt_expire_hours"`
 	Debug                     string `json:"debug"`
 	GeetestEnabled            string `json:"geetest_enabled"`
@@ -471,11 +516,12 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 		AdminJWTSecret:  jwtAdminSecret,
 		AdminPath: func() string {
 			if strings.TrimSpace(raw.AdminPath) == "" {
-				return "/admin"
+				return "/system-mgr"
 			}
 			return strings.TrimSpace(raw.AdminPath)
 		}(),
-		CorsOrigins:     raw.CorsOrigins,
+		AdminAPIPath: NormalizeAdminAPIPath(raw.AdminAPIPath),
+		CorsOrigins:  raw.CorsOrigins,
 		EnableSwagger:   enableSwagger,
 		FrontendURL:     raw.FrontendURL,
 		BackendAPIURL:   raw.BackendAPIURL,

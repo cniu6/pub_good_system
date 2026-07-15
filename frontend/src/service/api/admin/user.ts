@@ -4,10 +4,10 @@
  */
 import { authStorage } from '@/utils'
 import { request } from '@/service/http'
+import { getAdminApiBase } from './base'
 
-// 管理端 API 路径固定为 /admin（与后端保持一致）
-const ADMIN_PATH = '/admin'
-const BASE_URL = `/api/v1${ADMIN_PATH}/users`
+// 管理端 API base 来自 VITE_ADMIN_API_PATH（默认 /admin）
+const BASE_URL = `${getAdminApiBase()}/users`
 
 export interface AdminUser {
   id: number
@@ -282,7 +282,7 @@ export const adminUserApi = {
 }
 
 // 余额日志管理 API
-const MONEY_LOGS_URL = `/api/v1${ADMIN_PATH}/money-logs`
+const MONEY_LOGS_URL = `${getAdminApiBase()}/money-logs`
 
 export const adminMoneyLogApi = {
   list(params: { page?: number, page_size?: number, keyword?: string, user_id?: number }) {
@@ -297,7 +297,7 @@ export const adminMoneyLogApi = {
 }
 
 // 积分日志管理 API
-const SCORE_LOGS_URL = `/api/v1${ADMIN_PATH}/score-logs`
+const SCORE_LOGS_URL = `${getAdminApiBase()}/score-logs`
 
 export const adminScoreLogApi = {
   list(params: { page?: number, page_size?: number, keyword?: string, user_id?: number }) {

@@ -66,8 +66,9 @@ async function handleLogin() {
   isLoading.value = true
   const { account, pwd } = formValue.value
 
+  // 「记住我」= 只记住账号到 localStorage；密码交给浏览器密码管理器保存，禁止写本地明文
   if (isRemember.value)
-    local.set('loginAccount', { account, pwd })
+    local.set('loginAccount', { account })
   else local.remove('loginAccount')
 
   const hadToken = Boolean(authStorage.get('accessToken'))
@@ -125,12 +126,20 @@ onMounted(() => {
   checkUserAccount()
 })
 function checkUserAccount() {
-  const loginAccount = local.get('loginAccount')
+  // 只恢复账号；密码依赖浏览器密码管理器（input autocomplete=current-password）
+  const loginAccount = local.get('loginAccount') as { account?: string, pwd?: string } | null
   if (!loginAccount)
     return
 
-  formValue.value = loginAccount
+  // 兼容旧数据：若本地曾存过 pwd 字段，读入后立即清掉并重写为仅账号
+  formValue.value = {
+    account: loginAccount.account || '',
+    pwd: '',
+  }
   isRemember.value = true
+  if (loginAccount.pwd !== undefined) {
+    local.set('loginAccount', { account: loginAccount.account || '' })
+  }
 }
 </script>
 
@@ -140,11 +149,12 @@ function checkUserAccount() {
       {{ $t('login.signInTitle') }}
     </n-h2>
     <n-form ref="formRef" :rules="rules" :model="formValue" :show-label="false" size="large">
+      <!-- 账号 username / 密码 current-password：配合浏览器密码管理器，不写 localStorage 明文密码 -->
       <n-form-item path="account">
-        <n-input v-model:value="formValue.account" clearable :placeholder="$t('login.accountOrEmailPlaceholder')" :input-props="{ autocomplete: 'username' }" />
+        <n-input v-model:value="formValue.account" clearable :placeholder="$t('login.accountOrEmailPlaceholder')" name="username" :input-props="{ autocomplete: 'username', name: 'username' }" />
       </n-form-item>
       <n-form-item path="pwd">
-        <n-input v-model:value="formValue.pwd" type="password" :placeholder="$t('login.passwordPlaceholder')" clearable show-password-on="click" :input-props="{ autocomplete: 'current-password' }">
+        <n-input v-model:value="formValue.pwd" type="password" :placeholder="$t('login.passwordPlaceholder')" clearable show-password-on="click" name="password" :input-props="{ autocomplete: 'current-password', name: 'password' }">
           <template #password-invisible-icon>
             <icon-park-outline-preview-close-one />
           </template>

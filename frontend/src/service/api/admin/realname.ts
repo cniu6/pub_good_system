@@ -3,9 +3,9 @@
  */
 import { i18n } from '@/modules/i18n'
 import { request } from '@/service/http'
+import { getAdminApiBase } from './base'
 
-const ADMIN_PATH = '/admin'
-const BASE_URL = `/api/v1${ADMIN_PATH}/realname`
+const BASE_URL = `${getAdminApiBase()}/realname`
 
 // 获取证件类型选项（支持 i18n）
 export function getCertificateTypeOptions() {

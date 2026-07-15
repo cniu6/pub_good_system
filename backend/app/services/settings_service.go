@@ -225,6 +225,8 @@ type PublicAppConfig struct {
 	WithdrawMinAmount  float64  `json:"withdraw_min_amount"`
 	WithdrawNotifyText string   `json:"withdraw_notify_text"`
 	WithdrawAccountTypes []string `json:"withdraw_account_types"`
+	// AdminAPIPath 管理端 REST API 在 /api/v1 下的前缀（来自 env ADMIN_API_PATH，默认 /admin）
+	AdminAPIPath string `json:"admin_api_path"`
 }
 
 // VerifyConfig 验证码功能开关运行时配置
@@ -652,6 +654,11 @@ func (s *SettingsService) GetPublicAppConfig() *PublicAppConfig {
 	geetestConfig := s.GetGeetestRuntimeConfig()
 	verifyConfig := s.GetVerifyConfig()
 
+	adminAPIPath := "/admin"
+	if config.GlobalConfig != nil {
+		adminAPIPath = config.NormalizeAdminAPIPath(config.GlobalConfig.AdminAPIPath)
+	}
+
 	return &PublicAppConfig{
 		SiteName:           s.GetWithDefault("site_name", "F.st"),
 		SiteDesc:           s.GetWithDefault("site_desc", "Full-stack admin template based on Go + Vue 3"),
@@ -672,6 +679,7 @@ func (s *SettingsService) GetPublicAppConfig() *PublicAppConfig {
 		WithdrawMinAmount:  parseJSONFloatWithDefault(s.GetWithDefault("withdraw_min_amount", "10"), 10),
 		WithdrawNotifyText: s.GetWithDefault("withdraw_notify_text", ""),
 		WithdrawAccountTypes: parseJSONStringArrayWithDefault(s.GetWithDefault("withdraw_account_types", "[\"bank\",\"alipay\",\"wechat\",\"usdt\"]"), []string{"bank", "alipay", "wechat", "usdt"}),
+		AdminAPIPath:       adminAPIPath,
 	}
 }
 

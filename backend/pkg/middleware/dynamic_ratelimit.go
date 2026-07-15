@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fst/backend/app/services"
+	"fst/backend/pkg/config"
 	"fst/backend/utils"
 	"strconv"
 	"strings"
@@ -152,7 +153,12 @@ func DynamicGlobalRateLimitMiddleware() gin.HandlerFunc {
 	state := ensureDynamicRateLimiterState("global_api", DefaultKeyFunc)
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
-		if !strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/api/v1/admin/debug/pprof") {
+		// pprof 不计入全局限流（路径随 ADMIN_API_PATH 变化）
+		adminPprofPrefix := "/api/v1/admin/debug/pprof"
+		if cfg := config.GlobalConfig; cfg != nil {
+			adminPprofPrefix = "/api/v1" + config.NormalizeAdminAPIPath(cfg.AdminAPIPath) + "/debug/pprof"
+		}
+		if !strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, adminPprofPrefix) {
 			c.Next()
 			return
 		}

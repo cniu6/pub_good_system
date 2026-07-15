@@ -56,32 +56,34 @@ func TestAmountValidation(t *testing.T) {
 	}
 }
 
-// TestCallbackAmountVerification 测试回调金额校验（防篡改核心逻辑）
+// TestCallbackAmountVerification 测试回调金额校验（防篡改核心逻辑，容差 0.001）
+// 规则与 validateCallbackMoney 一致：仅当 abs(diff) > 0.001 时拒绝
 func TestCallbackAmountVerification(t *testing.T) {
 	tests := []struct {
-		name         string
-		orderAmount  float64
+		name          string
+		orderAmount   float64
 		callbackMoney float64
-		shouldPass   bool
+		shouldPass    bool
 	}{
 		{"金额完全一致", 10.00, 10.00, true},
-		{"微小浮点误差（允许）", 10.00, 10.001, true},
-		{"微小浮点误差2", 10.00, 9.999, true},
-		{"边界误差0.01（允许）", 10.00, 10.01, true},
+		{"容差内0.0005应通过", 10.00, 10.0005, true},
+		{"容差内0.0009应通过", 10.00, 10.0009, true},
+		// 0.01 不是业务容差，必须拒绝
+		{"0.01超出容差应拒绝", 10.00, 10.01, false},
 		{"超出误差0.02", 10.00, 10.02, false},
 		{"金额被篡改-增大", 10.00, 100.00, false},
 		{"金额被篡改-减小", 10.00, 1.00, false},
 		{"金额被改为0", 10.00, 0.00, false},
 		{"金额被改为负数", 10.00, -10.00, false},
 		{"大金额一致", 9999.99, 9999.99, true},
-		{"大金额微小误差", 9999.99, 9999.989, true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			passed := abs(tt.callbackMoney-tt.orderAmount) <= 0.01
+			// 仅 abs(diff) > 0.001 拒绝
+			passed := !(abs(tt.callbackMoney-tt.orderAmount) > 0.001)
 			if passed != tt.shouldPass {
-				t.Errorf("orderAmount=%.2f, callbackMoney=%.2f: passed=%v, want=%v",
+				t.Errorf("orderAmount=%v, callbackMoney=%v: passed=%v, want=%v",
 					tt.orderAmount, tt.callbackMoney, passed, tt.shouldPass)
 			}
 		})
@@ -267,9 +269,17 @@ func TestValidatePaymentNotifyBinding(t *testing.T) {
 }
 
 func TestValidateCallbackMoney(t *testing.T) {
-	t.Run("空金额跳过校验", func(t *testing.T) {
-		if err := validateCallbackMoney(10, ""); err != nil {
-			t.Fatalf("expected empty amount to pass, got %v", err)
+	t.Run("空金额必须拒绝", func(t *testing.T) {
+		err := validateCallbackMoney(10, "")
+		if err == nil || err.Error() != "回调金额不能为空" {
+			t.Fatalf("expected empty amount error, got %v", err)
+		}
+	})
+
+	t.Run("空白金额必须拒绝", func(t *testing.T) {
+		err := validateCallbackMoney(10, "   ")
+		if err == nil || err.Error() != "回调金额不能为空" {
+			t.Fatalf("expected whitespace amount error, got %v", err)
 		}
 	})
 
@@ -280,16 +290,55 @@ func TestValidateCallbackMoney(t *testing.T) {
 		}
 	})
 
-	t.Run("超出容差拒绝", func(t *testing.T) {
-		err := validateCallbackMoney(10, "10.02")
+	// 业务上要求金额一致；0.01 不是浮点容差，必须拒绝
+	t.Run("10 vs 10.01 应拒绝", func(t *testing.T) {
+		err := validateCallbackMoney(10, "10.01")
 		if err == nil || err.Error() != "回调金额与订单金额不一致" {
-			t.Fatalf("expected amount mismatch error, got %v", err)
+			t.Fatalf("expected amount mismatch for 10.01, got %v", err)
 		}
 	})
 
-	t.Run("容差内允许", func(t *testing.T) {
-		if err := validateCallbackMoney(10, "10.01"); err != nil {
-			t.Fatalf("expected tolerance amount to pass, got %v", err)
+	// 规则：仅 abs(diff) > 0.001 才拒绝。
+	// 10.001 解析后的浮点差可能略大于 0.001（IEEE754），也可能刚好等于；
+	// 这里按「真实 abs 与 0.001 比较」断言，把边界写清楚。
+	t.Run("10 vs 10.001 边界按 abs>0.001", func(t *testing.T) {
+		err := validateCallbackMoney(10, "10.001")
+		// 与实现同一条件：diff = |parseFloat("10.001")-10|，仅 > 0.001 拒绝
+		diff := abs(10.001 - 10)
+		if diff > 0.001 {
+			if err == nil || err.Error() != "回调金额与订单金额不一致" {
+				t.Fatalf("diff=%g > 0.001, expected reject, got %v", diff, err)
+			}
+		} else {
+			if err != nil {
+				t.Fatalf("diff=%g <= 0.001, expected pass, got %v", diff, err)
+			}
+		}
+	})
+
+	// 明确小于 0.001 的误差应通过
+	t.Run("10 vs 10.0005 应通过", func(t *testing.T) {
+		if err := validateCallbackMoney(10, "10.0005"); err != nil {
+			t.Fatalf("expected 10.0005 within tolerance, got %v", err)
+		}
+	})
+
+	t.Run("10 vs 10.0009 应通过", func(t *testing.T) {
+		if err := validateCallbackMoney(10, "10.0009"); err != nil {
+			t.Fatalf("expected 10.0009 within tolerance, got %v", err)
+		}
+	})
+
+	t.Run("金额完全一致应通过", func(t *testing.T) {
+		if err := validateCallbackMoney(10, "10"); err != nil {
+			t.Fatalf("expected exact amount to pass, got %v", err)
+		}
+	})
+
+	t.Run("明显超出容差拒绝", func(t *testing.T) {
+		err := validateCallbackMoney(10, "10.02")
+		if err == nil || err.Error() != "回调金额与订单金额不一致" {
+			t.Fatalf("expected amount mismatch error, got %v", err)
 		}
 	})
 }

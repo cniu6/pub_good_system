@@ -1,6 +1,7 @@
 import { request } from '@/service/http'
+import { getAdminApiBase } from './base'
 
-const BASE_URL = '/api/v1/admin/email-logs'
+const BASE_URL = `${getAdminApiBase()}/email-logs`
 
 export interface EmailLog {
   id: number

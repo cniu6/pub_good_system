@@ -1,4 +1,5 @@
 import { request } from '@/service/http'
+import { getAdminApiBase } from './base'
 
 /**
  * 协程统计响应
@@ -61,63 +62,63 @@ export interface GCResponse {
  * 获取协程统计信息
  */
 export function fetchGoroutineStats(params?: { stacks?: boolean, min_wait_minutes?: number }) {
-  return request.Get<Service.ResponseResult<GoroutineStatsResponse>>('/api/v1/admin/debug/goroutines/stats', { params })
+  return request.Get<Service.ResponseResult<GoroutineStatsResponse>>(`${getAdminApiBase()}/debug/goroutines/stats`, { params })
 }
 
 /**
  * 强制执行垃圾回收
  */
 export function forceGC() {
-  return request.Post<Service.ResponseResult<GCResponse>>('/api/v1/admin/debug/gc')
+  return request.Post<Service.ResponseResult<GCResponse>>(`${getAdminApiBase()}/debug/gc`)
 }
 
 /**
  * 获取 pprof CPU profile
  */
 export function fetchCPUProfile(seconds: number = 30) {
-  return `/api/v1/admin/debug/pprof/profile?seconds=${seconds}`
+  return `${getAdminApiBase()}/debug/pprof/profile?seconds=${seconds}`
 }
 
 /**
  * 获取 pprof Heap profile
  */
 export function fetchHeapProfile() {
-  return `/api/v1/admin/debug/pprof/heap?debug=1`
+  return `${getAdminApiBase()}/debug/pprof/heap?debug=1`
 }
 
 /**
  * 获取 pprof Goroutine profile
  */
 export function fetchGoroutineProfile(minWaitMinutes: number = 0) {
-  return `/api/v1/admin/debug/pprof/goroutine?debug=2&min_wait_minutes=${minWaitMinutes}`
+  return `${getAdminApiBase()}/debug/pprof/goroutine?debug=2&min_wait_minutes=${minWaitMinutes}`
 }
 
 /**
  * 获取 pprof Allocs profile
  */
 export function fetchAllocsProfile() {
-  return `/api/v1/admin/debug/pprof/allocs?debug=1`
+  return `${getAdminApiBase()}/debug/pprof/allocs?debug=1`
 }
 
 /**
  * 获取 pprof Block profile
  */
 export function fetchBlockProfile() {
-  return `/api/v1/admin/debug/pprof/block?debug=1`
+  return `${getAdminApiBase()}/debug/pprof/block?debug=1`
 }
 
 /**
  * 获取 pprof Mutex profile
  */
 export function fetchMutexProfile() {
-  return `/api/v1/admin/debug/pprof/mutex?debug=1`
+  return `${getAdminApiBase()}/debug/pprof/mutex?debug=1`
 }
 
 /**
  * 获取 pprof ThreadCreate profile
  */
 export function fetchThreadCreateProfile() {
-  return '/api/v1/admin/debug/pprof/threadcreate?debug=1'
+  return `${getAdminApiBase()}/debug/pprof/threadcreate?debug=1`
 }
 
 /**
@@ -127,7 +128,7 @@ export function fetchTraceProfile(seconds: number = 5, binary: boolean = false) 
   const query = new URLSearchParams({ seconds: String(seconds) })
   if (binary)
     query.set('binary', '1')
-  return `/api/v1/admin/debug/pprof/trace?${query.toString()}`
+  return `${getAdminApiBase()}/debug/pprof/trace?${query.toString()}`
 }
 
 // 导出调试 API 对象

@@ -560,15 +560,18 @@ func validatePaymentNotifyBinding(order *models.PaymentOrder, gateway *models.Pa
 	return nil
 }
 
+// validateCallbackMoney 支付回调/查单金额必须提供且与订单应付金额一致。
+// 容差 0.001 仅用于浮点误差，不是业务宽限；abs(diff) > 0.001 一律拒绝。
 func validateCallbackMoney(expected float64, moneyStr string) error {
+	moneyStr = strings.TrimSpace(moneyStr)
 	if moneyStr == "" {
-		return nil
+		return errors.New("回调金额不能为空")
 	}
 	callbackMoney, err := strconv.ParseFloat(moneyStr, 64)
 	if err != nil {
 		return errors.New("回调金额格式非法")
 	}
-	if abs(callbackMoney-expected) > 0.01 {
+	if abs(callbackMoney-expected) > 0.001 {
 		return errors.New("回调金额与订单金额不一致")
 	}
 	return nil

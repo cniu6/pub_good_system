@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
+	"fst/backend/pkg/config"
 	"io"
 	"log"
 	"net"
@@ -29,11 +30,21 @@ const apiAccessLogCleanupInterval = 30 * time.Second
 var apiAccessLogRequestSeq atomic.Uint64
 var apiAccessLogCleanupNextAt atomic.Int64
 
+// adminAPIBasePath 返回管理端 API 完整前缀 /api/v1{ADMIN_API_PATH}
+func adminAPIBasePath() string {
+	apiPath := "/admin"
+	if config.GlobalConfig != nil {
+		apiPath = config.NormalizeAdminAPIPath(config.GlobalConfig.AdminAPIPath)
+	}
+	return "/api/v1" + apiPath
+}
+
 func shouldSkipAPIAccessLog(path string) bool {
 	if !strings.HasPrefix(path, "/api/") {
 		return true
 	}
-	if strings.HasPrefix(path, "/api/v1/admin/debug/pprof") {
+	// pprof 二进制输出体积大，跳过访问日志
+	if strings.HasPrefix(path, adminAPIBasePath()+"/debug/pprof") {
 		return true
 	}
 	return false
@@ -41,7 +52,7 @@ func shouldSkipAPIAccessLog(path string) bool {
 
 func resolveAPIScene(path string) string {
 	switch {
-	case strings.HasPrefix(path, "/api/v1/admin"):
+	case strings.HasPrefix(path, adminAPIBasePath()):
 		return "admin"
 	case strings.HasPrefix(path, "/api/v1/user"):
 		return "user"

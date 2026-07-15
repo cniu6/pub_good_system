@@ -3,8 +3,9 @@
  * 操作日志主要用于审计，不需要复杂查询，只提供分页浏览和清理功能
  */
 import { request } from '@/service/http'
+import { getAdminApiBase } from './base'
 
-const BASE_URL = '/api/v1/admin/logs'
+const BASE_URL = `${getAdminApiBase()}/logs`
 
 export const adminLogApi = {
   /**

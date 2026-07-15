@@ -1,10 +1,9 @@
 import { request } from '@/service/http'
 import { adminMoneyLogApi, adminScoreLogApi } from './user'
-
-const ADMIN_PATH = '/admin'
+import { getAdminApiBase } from './base'
 
 // 余额/积分“仅写日志”接口（后端新增）
-const USERS_BASE_URL = `/api/v1${ADMIN_PATH}/users`
+const USERS_BASE_URL = `${getAdminApiBase()}/users`
 
 interface MoneyChangeResponse {
   message: string
@@ -48,7 +47,7 @@ export function operateUserMoney(userId: number, data: MoneyOperationPayload) {
 
 /** 后端生成订单号和交易号 */
 export function generateNos() {
-  return request.Get<Service.ResponseResult<{ order_no: string, trade_no: string }>>(`/api/v1${ADMIN_PATH}/generate-nos`)
+  return request.Get<Service.ResponseResult<{ order_no: string, trade_no: string }>>(`${getAdminApiBase()}/generate-nos`)
 }
 
 export function addScoreLog(userId: number, data: { score: number, memo?: string }) {
@@ -99,7 +98,7 @@ export interface WithdrawStats {
   paid_amount: number
 }
 
-const WITHDRAW_URL = `/api/v1${ADMIN_PATH}/withdraw`
+const WITHDRAW_URL = `${getAdminApiBase()}/withdraw`
 
 function createIdempotencyKey(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`

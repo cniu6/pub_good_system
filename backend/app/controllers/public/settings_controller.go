@@ -3,6 +3,7 @@ package public
 import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
+	"fst/backend/pkg/config"
 	"fst/backend/utils"
 	"strings"
 
@@ -51,6 +52,9 @@ type AppConfigResponse struct {
 	WithdrawMinAmount    float64  `json:"withdraw_min_amount"`
 	WithdrawNotifyText   string   `json:"withdraw_notify_text"`
 	WithdrawAccountTypes []string `json:"withdraw_account_types"`
+
+	// 管理端 REST API 在 /api/v1 下的前缀（来自 env ADMIN_API_PATH，默认 /admin）
+	AdminAPIPath string `json:"admin_api_path"`
 }
 
 // GetAppConfig 获取应用配置
@@ -100,6 +104,10 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 		WithdrawMinAmount:  10,
 		WithdrawNotifyText: "提现申请提交后需管理员审核，通过后人工打款。",
 		WithdrawAccountTypes: []string{"bank", "alipay", "wechat", "usdt"},
+		AdminAPIPath:       "/admin",
+	}
+	if config.GlobalConfig != nil {
+		response.AdminAPIPath = config.NormalizeAdminAPIPath(config.GlobalConfig.AdminAPIPath)
 	}
 
 	// 构建配置map

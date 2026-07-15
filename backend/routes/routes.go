@@ -124,9 +124,15 @@ func SetupRoutes(router *gin.Engine) {
 			}
 
 			// ----------------------------------------
-			// 管理后台接口 (需要管理员权限)
+			// 管理后台 REST 接口（前缀可配置，需管理员权限）
+			// - API 前缀：根目录 .env 的 ADMIN_API_PATH（默认 /admin）→ 实际 /api/v1{ADMIN_API_PATH}
+			// - 前端页面入口：ADMIN_PATH / VITE_ADMIN_BASE_PATH（如 /system-mgr），与 API 分离
 			// ----------------------------------------
-			adminGroup := v1.Group("/admin")
+			adminAPIPath := "/admin"
+			if cfg := config.GlobalConfig; cfg != nil {
+				adminAPIPath = config.NormalizeAdminAPIPath(cfg.AdminAPIPath)
+			}
+			adminGroup := v1.Group(adminAPIPath)
 			adminGroup.Use(middleware.AuthMiddlewareForGuard("admin"))
 			adminGroup.Use(middleware.AdminOnly())
 			adminGroup.Use(middleware.DynamicAdminRateLimitMiddleware())

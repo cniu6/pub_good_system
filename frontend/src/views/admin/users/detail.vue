@@ -580,7 +580,7 @@ function handleWithdrawPageSizeChange(pageSize: number) {
 
 // 返回用户列表
 function handleBack() {
-  const adminBasePath = import.meta.env.VITE_ADMIN_BASE_PATH || '/admin'
+  const adminBasePath = import.meta.env.VITE_ADMIN_BASE_PATH || '/system-mgr'
   router.push(`${adminBasePath}/user-management/users`)
 }
 
@@ -591,7 +591,7 @@ function handleRefresh() {
 
 // 编辑用户
 function handleEdit() {
-  const adminBasePath = import.meta.env.VITE_ADMIN_BASE_PATH || '/admin'
+  const adminBasePath = import.meta.env.VITE_ADMIN_BASE_PATH || '/system-mgr'
   router.push({
     path: `${adminBasePath}/user-management/users`,
     query: { edit: userId.value },

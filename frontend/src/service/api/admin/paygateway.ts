@@ -2,8 +2,9 @@
  * 管理端 API 服务 - 支付通道管理
  */
 import { request } from '@/service/http'
+import { getAdminApiBase } from './base'
 
-const BASE_URL = '/api/v1/admin/payment/gateways'
+const BASE_URL = `${getAdminApiBase()}/payment/gateways`
 
 /** 支付通道 */
 export interface PayGateway {

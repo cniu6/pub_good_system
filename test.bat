@@ -74,7 +74,7 @@ if exist frontend\package.json (
 :: 4. 编译后端
 echo.
 echo [4/6] 编译后端...
-go build -o build\test_backend.exe .\backend\cmd\main.go 2>&1
+go build -o build\test_backend.exe .\main.go 2>&1
 if %errorlevel% neq 0 (
     echo %RED%✗ 后端编译失败%RESET%
     set /a ERROR_COUNT+=1

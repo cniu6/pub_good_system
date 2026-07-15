@@ -66,6 +66,12 @@ func main() {
 	models.InitOperationLogsTable()
 	models.InitAPIAccessLogsTable()
 
+	// 5.3.1 初始化API访问日志聚合表
+	models.InitAPIAccessLogAggregateTables()
+
+	// 5.3.2 初始化短信日志表
+	models.InitSMSTable()
+
 	// 5.4 初始化支付订单表
 	models.InitPaymentOrdersTable()
 

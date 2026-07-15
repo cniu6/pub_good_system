@@ -71,7 +71,7 @@ func serveFrontendFile(c *gin.Context, rawFS fs.FS, relPath string) bool {
 }
 
 // BuildMode 由构建脚本在编译时注入: "embedded" 或 "external" 或 "none"
-// go run main_embedded.go 时默认为 "embedded"，直接从二进制内嵌 FS 提供前端
+// 根目录入口默认 embedded；build.bat 会通过 -ldflags 覆盖
 var BuildMode = "embedded"
 
 //go:embed dist/*
@@ -105,13 +105,20 @@ func main() {
 	// 初始化用户会话表
 	models.InitUserSessionsTable()
 
-	// 初始化余额/积分变动日志表
-	models.InitUserMoneyLogsTable()
-	models.InitUserScoreLogsTable()
-	models.InitOperationLogsTable()
+ 	// 初始化余额/积分变动日志表
+ 	models.InitUserMoneyLogsTable()
+ 	models.InitUserScoreLogsTable()
+ 	models.InitOperationLogsTable()
+ 	models.InitAPIAccessLogsTable()
 
-	// 初始化支付订单表
-	models.InitPaymentOrdersTable()
+	// 初始化API访问日志聚合表
+	models.InitAPIAccessLogAggregateTables()
+
+	// 初始化短信日志表
+	models.InitSMSTable()
+ 
+ 	// 初始化支付订单表
+ 	models.InitPaymentOrdersTable()
 
 	// 初始化提现申请表
 	models.InitWithdrawRequestsTable()
@@ -125,21 +132,25 @@ func main() {
 	// 初始化配置服务（缓存）
 	services.InitSettingsService()
 
-	// 启动定时清理任务：间隔可通过 CLEANUP_INTERVAL_MINUTES 配置，默认10分钟
-	// 清理状态仅在内存中记录，不输出周期性日志，可通过接口查询
-	services.StartCleanupTask()
-	models.CleanupExpiredIdempotencyKeys()
-
-	// 初始化短信服务
-	services.InitSMSService()
-
+ 	// 启动定时清理任务：间隔可通过 CLEANUP_INTERVAL_MINUTES 配置，默认10分钟
+ 	// 清理状态仅在内存中记录，不输出周期性日志，可通过接口查询
+ 	services.StartCleanupTask()
+	_, _ = models.CleanupExpiredIdempotencyKeys()
+	services.StartExpiredOrderTask()
+ 
+ 	// 初始化短信服务
+ 	services.InitSMSService()
+ 
 	router := gin.New()
 	router.RedirectTrailingSlash = false
 	router.RedirectFixedPath = false
 	router.Use(gin.Logger(), gin.Recovery())
 	router.SetTrustedProxies(nil) // 修复 "trusted all proxies" 警告
 	router.Use(middleware.CorsMiddleware())
-	routes.SetupRoutes(router)
+	router.Use(middleware.LoggerMiddleware())
+	router.Use(middleware.APIAccessLogMiddleware())
+	router.Use(middleware.DynamicGlobalRateLimitMiddleware())
+ 	routes.SetupRoutes(router)
 
 	// 插件初始化
 	pluginMgr := plugins.NewManager()
@@ -150,49 +161,57 @@ func main() {
 	apiGroup := router.Group("/api/v1")
 	pluginMgr.RegisterAllRoutes(apiGroup)
 
-	// 前端资源处理：main_embedded.go 始终托管嵌入的前端
-	var rawFS fs.FS
+	// 前端资源处理
+	// 只要构建模式不是 none，就提供前端托管能力
+	if BuildMode != "none" {
+		var rawFS fs.FS
 
-	if BuildMode == "external" {
-		log.Println("[Mode] External: Serving from ./dist folder")
-		rawFS = os.DirFS("dist")
+		if BuildMode == "external" {
+			log.Println("[Mode] External: Serving from ./dist folder")
+			rawFS = os.DirFS("dist")
+		} else if BuildMode == "embedded" {
+			log.Println("[Mode] Embedded: Serving from binary internal FS")
+			distFS, err := fs.Sub(frontendFS, "dist")
+			if err != nil {
+				log.Fatalf("Failed to load embedded frontend: %v", err)
+			}
+			rawFS = distFS
+		} else {
+			log.Printf("[Mode] Unknown BuildMode=%s, frontend will not be served", BuildMode)
+		}
+
+		if rawFS != nil {
+			router.NoRoute(func(c *gin.Context) {
+				path := c.Request.URL.Path
+				if strings.HasPrefix(path, "/api") {
+					utils.Fail(c, 404, "API not found")
+					return
+				}
+
+				relPath := strings.TrimPrefix(path, "/")
+				if relPath != "" {
+					if serveFrontendFile(c, rawFS, relPath) {
+						return
+					}
+
+					if isStaticAssetRequest(relPath) {
+						c.Status(http.StatusNotFound)
+						return
+					}
+				}
+
+				if !serveFrontendFile(c, rawFS, "index.html") {
+					log.Printf("[Embedded] index.html 读取失败")
+					c.Status(http.StatusNotFound)
+					return
+				}
+
+				log.Printf("[Embedded] 返回 index.html for path: %s", path)
+			})
+		}
 	} else {
-		// 默认 embedded 模式：从 go:embed 内嵌 FS 提供前端
-		log.Println("[Mode] Embedded: Serving from binary internal FS")
-		distFS, err := fs.Sub(frontendFS, "dist")
-		if err != nil {
-			log.Fatalf("Failed to load embedded frontend: %v", err)
-		}
-		rawFS = distFS
+		log.Printf("[Mode] Backend only: BuildMode=%s, frontend not served", BuildMode)
 	}
-
-	router.NoRoute(func(c *gin.Context) {
-		path := c.Request.URL.Path
-		if strings.HasPrefix(path, "/api") {
-			utils.Fail(c, 404, "API not found")
-			return
-		}
-
-		relPath := strings.TrimPrefix(path, "/")
-		if relPath != "" {
-			if serveFrontendFile(c, rawFS, relPath) {
-				return
-			}
-
-			if isStaticAssetRequest(relPath) {
-				c.Status(http.StatusNotFound)
-				return
-			}
-		}
-
-		if !serveFrontendFile(c, rawFS, "index.html") {
-			log.Printf("[Embedded] index.html 读取失败")
-			c.Status(http.StatusNotFound)
-			return
-		}
-
-		log.Printf("[Embedded] 返回 index.html for path: %s", path)
-	})
 
 	port := config.GlobalConfig.Port
 	server := utils.NewHTTPServer(":"+port, router)

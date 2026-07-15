@@ -26,11 +26,10 @@ echo [1/4] Cleaning old build artifacts...
 
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
-if exist backend\cmd\dist rmdir /s /q backend\cmd\dist
 
 mkdir build >nul 2>&1
-mkdir backend\cmd\dist >nul 2>&1
-echo building... > backend\cmd\dist\index.html
+mkdir dist >nul 2>&1
+echo building... > dist\index.html
 
 echo.
 echo [2/4] Building frontend (pnpm build)...
@@ -50,11 +49,10 @@ cd ..
 
 if exist embedded_assets\share\cd2d5f2a2f5be-y.jpg copy /y embedded_assets\share\cd2d5f2a2f5be-y.jpg dist\cd2d5f2a2f5be-y.jpg >nul
 
-echo Copying frontend assets...
-xcopy /s /e /q /y dist\* backend\cmd\dist\ >nul
+echo Frontend assets ready in .\dist\
 
 echo.
-echo [3/4] Cross-compiling Go backend... (Mode: %BMODE%)
+echo [3/4] Cross-compiling Go backend from root main... (Mode: %BMODE%)
 echo.
 
 set CGO_ENABLED=0
@@ -70,7 +68,6 @@ set GOARCH=
 
 echo.
 echo   Cleaning up intermediate artifacts...
-if exist backend\cmd\dist rmdir /s /q backend\cmd\dist
 if exist backend\main.exe del /q backend\main.exe
 
 echo.
@@ -92,10 +89,9 @@ set OUTDIR=build\%GOOS%_%GOARCH%
 echo   - Building: %LABEL%...
 mkdir %OUTDIR% >nul 2>&1
 
-cd backend\cmd
-go build -tags embedded -ldflags "-X main.BuildMode=%BMODE% -s -w" -o "..\..\%OUTDIR%\fst%EXT%" .
+REM 统一入口：仅使用项目根目录 main.go / main_embedded.go
+go build -tags embedded -ldflags "-X main.BuildMode=%BMODE% -s -w" -o "%OUTDIR%\fst%EXT%" .
 set GOOK=%ERRORLEVEL%
-cd ..\..
 
 if %GOOK% neq 0 (
     echo [ERROR] Go build failed: %LABEL%

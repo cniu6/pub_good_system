@@ -1,4 +1,5 @@
 import { request } from '../../http'
+import { getAdminApiBase } from './base'
 
 // ========================================
 // 类型定义
@@ -40,8 +41,7 @@ export interface PaymentStats {
 // 管理端支付 API
 // ========================================
 
-const ADMIN_PATH = '/admin'
-const BASE_URL = `/api/v1${ADMIN_PATH}/payment`
+const BASE_URL = `${getAdminApiBase()}/payment`
 
 export const adminPaymentApi = {
   /** 订单列表 */

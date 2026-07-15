@@ -59,11 +59,11 @@ cd frontend && pnpm install
 ### 4. 启动开发
 
 ```bash
-# 直接运行 (推荐，Swagger 自动更新)
-go run ./backend/cmd/main.go
+# 直接运行（统一入口：项目根目录 main.go）
+go run ./main.go
 
 # 使用脚本
-./dev.bat          # Windows
+./dev.bat          # Windows：前端 + 根目录后端
 
 # 热重载 (需安装 air)
 go install github.com/cosmtrek/air@latest
@@ -208,11 +208,11 @@ go test ./backend/...
 用于手工验证管理员/用户切换时，在项目根目录执行：
 
 ```powershell
-cd C:\Users\Administrator\Desktop\codingfile\fst
-go run ./backend/cmd/main.go
+cd C:\Users\Administrator\Desktop\coding\codingfile\fst
+go run ./main.go
 ```
 
-默认监听在 `http://127.0.0.1:8085`，如端口占用可自行调整配置或停止旧进程。
+默认监听在根目录 `.env` 的 `PORT`（示例为 `8080`），如端口占用可自行调整配置或停止旧进程。
 
 ### 管理员 / 用户双 token 行为手工验证示例
 

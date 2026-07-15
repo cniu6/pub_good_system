@@ -1,5 +1,6 @@
 import { request } from '@/service/http'
 import type { ServerMonitoringStatusResponse } from './settings'
+import { getAdminApiBase } from './base'
 
 export interface BackgroundTaskInfo {
   key: string
@@ -38,14 +39,14 @@ export interface ServerOperationsStatusResponse {
 
 export const adminServerApi = {
   monitoring() {
-    return request.Get<Service.ResponseResult<ServerMonitoringStatusResponse>>('/api/v1/admin/settings/server-monitoring')
+    return request.Get<Service.ResponseResult<ServerMonitoringStatusResponse>>(`${getAdminApiBase()}/settings/server-monitoring`)
   },
 
   operations() {
-    return request.Get<Service.ResponseResult<ServerOperationsStatusResponse>>('/api/v1/admin/settings/server-ops')
+    return request.Get<Service.ResponseResult<ServerOperationsStatusResponse>>(`${getAdminApiBase()}/settings/server-ops`)
   },
 
   runTask(key: string) {
-    return request.Post<Service.ResponseResult<{ message: string }>>('/api/v1/admin/settings/background-tasks/run', { key })
+    return request.Post<Service.ResponseResult<{ message: string }>>(`${getAdminApiBase()}/settings/background-tasks/run`, { key })
   },
 }

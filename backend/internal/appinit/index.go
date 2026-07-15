@@ -9,7 +9,7 @@ import (
 )
 
 // Start 启动草稿应用栈（GORM + 独立路由）
-// 注意：正式线上入口仍是 backend/cmd/main.go / 根 main.go，本包默认不被主程序 import
+// 注意：正式线上入口仅项目根目录 main.go / main_embedded.go，本包默认不被主程序 import
 func Start() {
 	log.Println("")
 	log.Println("=========================================")
