@@ -1,3 +1,8 @@
+// Package admin 平行草稿栈管理侧控制器（现网请用 app/controllers/admin）。
+//
+// 【已注释禁用·留档】商品/分类/商城订单相关 handler 代码仍保留在本文件下方，
+// 但 internal/ginweb 路由已注释、appinit 电商表迁移已注释，现网入口不会调用。
+// 说明见 backend/留档.md →「电商半成品草稿（已注释禁用）」。
 package admin
 
 import (
@@ -82,6 +87,7 @@ func ResetPassword(c *gin.Context) {
 }
 
 // GetProductList 管理员产品列表
+// 【已注释禁用·留档】路由未挂载
 func GetProductList(c *gin.Context) {
 	var query models.ProductQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
@@ -98,6 +104,7 @@ func GetProductList(c *gin.Context) {
 }
 
 // GetProductDetail 管理员产品详情
+// 【已注释禁用·留档】路由未挂载
 func GetProductDetail(c *gin.Context) {
 	productID := utils.ParseUint(c.Param("id"))
 	if productID == 0 {
@@ -114,6 +121,7 @@ func GetProductDetail(c *gin.Context) {
 }
 
 // CreateProduct 管理员创建产品
+// 【已注释禁用·留档】路由未挂载
 func CreateProduct(c *gin.Context) {
 	var req models.ProductCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -130,6 +138,7 @@ func CreateProduct(c *gin.Context) {
 }
 
 // UpdateProduct 管理员更新产品
+// 【已注释禁用·留档】路由未挂载
 func UpdateProduct(c *gin.Context) {
 	productID := utils.ParseUint(c.Param("id"))
 	if productID == 0 {
@@ -150,6 +159,7 @@ func UpdateProduct(c *gin.Context) {
 }
 
 // DeleteProduct 管理员删除产品
+// 【已注释禁用·留档】路由未挂载
 func DeleteProduct(c *gin.Context) {
 	productID := utils.ParseUint(c.Param("id"))
 	if productID == 0 {
@@ -165,6 +175,7 @@ func DeleteProduct(c *gin.Context) {
 }
 
 // GetCategoryList 分类列表
+// 【已注释禁用·留档】路由未挂载
 func GetCategoryList(c *gin.Context) {
 	service := services.NewCategoryService()
 	list, err := service.ListAll()
@@ -176,6 +187,7 @@ func GetCategoryList(c *gin.Context) {
 }
 
 // GetCategoryDetail 分类详情
+// 【已注释禁用·留档】路由未挂载
 func GetCategoryDetail(c *gin.Context) {
 	id := utils.ParseUint(c.Param("id"))
 	if id == 0 {
@@ -192,6 +204,7 @@ func GetCategoryDetail(c *gin.Context) {
 }
 
 // CreateCategory 创建分类
+// 【已注释禁用·留档】路由未挂载
 func CreateCategory(c *gin.Context) {
 	var req models.CategoryCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -208,6 +221,7 @@ func CreateCategory(c *gin.Context) {
 }
 
 // UpdateCategory 更新分类
+// 【已注释禁用·留档】路由未挂载
 func UpdateCategory(c *gin.Context) {
 	id := utils.ParseUint(c.Param("id"))
 	if id == 0 {
@@ -228,6 +242,7 @@ func UpdateCategory(c *gin.Context) {
 }
 
 // DeleteCategory 删除分类
+// 【已注释禁用·留档】路由未挂载
 func DeleteCategory(c *gin.Context) {
 	id := utils.ParseUint(c.Param("id"))
 	if id == 0 {
@@ -242,7 +257,8 @@ func DeleteCategory(c *gin.Context) {
 	utils.SuccessMsg(c, "删除成功", nil)
 }
 
-// GetOrderList 订单列表
+// GetOrderList 商城订单列表（非充值单）
+// 【已注释禁用·留档】路由未挂载
 func GetOrderList(c *gin.Context) {
 	var query models.OrderQuery
 	_ = c.ShouldBindQuery(&query)
@@ -255,7 +271,8 @@ func GetOrderList(c *gin.Context) {
 	utils.PageResponse(c, list, total, query.Page, query.PageSize)
 }
 
-// GetOrderDetail 订单详情
+// GetOrderDetail 商城订单详情
+// 【已注释禁用·留档】路由未挂载
 func GetOrderDetail(c *gin.Context) {
 	orderID := utils.ParseUint(c.Param("id"))
 	if orderID == 0 {
@@ -271,7 +288,8 @@ func GetOrderDetail(c *gin.Context) {
 	utils.Success(c, order)
 }
 
-// UpdateOrderStatus 更新订单状态
+// UpdateOrderStatus 更新商城订单状态
+// 【已注释禁用·留档】路由未挂载
 func UpdateOrderStatus(c *gin.Context) {
 	orderID := utils.ParseUint(c.Param("id"))
 	if orderID == 0 {

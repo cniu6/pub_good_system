@@ -1,5 +1,8 @@
 package services
 
+// 【已注释禁用·留档】本文件为电商半成品「商城订单」服务（非 payment_orders 充值单）。
+// 路由/迁移/控制器挂载已注释，现网入口不使用。说明见 backend/留档.md。
+
 import (
 	"errors"
 	"fst/backend/internal/db"
@@ -10,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// OrderService 商品订单服务（平行栈最小实现）
+// OrderService 商品订单服务（平行栈最小实现）【已注释禁用·仅留档】
 type OrderService struct{}
 
 // NewOrderService 创建订单服务

@@ -1,3 +1,8 @@
+// Package user 平行草稿栈用户侧控制器（现网请用 app/controllers）。
+//
+// 【已注释禁用·留档】商品/分类/商城订单相关 handler 代码仍保留在本文件下方，
+// 但 internal/ginweb 路由已注释、appinit 电商表迁移已注释，现网入口不会调用。
+// 说明见 backend/留档.md →「电商半成品草稿（已注释禁用）」。
 package user
 
 import (
@@ -101,6 +106,7 @@ func ChangePassword(c *gin.Context) {
 }
 
 // GetList 公开产品列表
+// 【已注释禁用·留档】路由未挂载，勿当现网接口
 func GetList(c *gin.Context) {
 	var query models.ProductQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
@@ -117,6 +123,7 @@ func GetList(c *gin.Context) {
 }
 
 // GetDetail 公开产品详情
+// 【已注释禁用·留档】路由未挂载
 func GetDetail(c *gin.Context) {
 	productID := utils.ParseUint(c.Param("id"))
 	if productID == 0 {
@@ -133,6 +140,7 @@ func GetDetail(c *gin.Context) {
 }
 
 // CreateProduct 卖家创建产品
+// 【已注释禁用·留档】路由未挂载
 func CreateProduct(c *gin.Context) {
 	userID := utils.GetUserID(c)
 	if userID == 0 {
@@ -154,6 +162,7 @@ func CreateProduct(c *gin.Context) {
 }
 
 // UpdateProduct 卖家更新产品
+// 【已注释禁用·留档】路由未挂载
 func UpdateProduct(c *gin.Context) {
 	userID := utils.GetUserID(c)
 	if userID == 0 {
@@ -179,6 +188,7 @@ func UpdateProduct(c *gin.Context) {
 }
 
 // DeleteProduct 卖家删除产品
+// 【已注释禁用·留档】路由未挂载
 func DeleteProduct(c *gin.Context) {
 	userID := utils.GetUserID(c)
 	if userID == 0 {
@@ -199,6 +209,7 @@ func DeleteProduct(c *gin.Context) {
 }
 
 // GetCategoryList 公开分类列表
+// 【已注释禁用·留档】路由未挂载
 func GetCategoryList(c *gin.Context) {
 	service := services.NewCategoryService()
 	list, err := service.ListPublic()
@@ -210,6 +221,7 @@ func GetCategoryList(c *gin.Context) {
 }
 
 // GetCategoryDetail 公开分类详情
+// 【已注释禁用·留档】路由未挂载
 func GetCategoryDetail(c *gin.Context) {
 	id := utils.ParseUint(c.Param("id"))
 	if id == 0 {
@@ -225,7 +237,8 @@ func GetCategoryDetail(c *gin.Context) {
 	utils.Success(c, item)
 }
 
-// CreateOrder 创建订单
+// CreateOrder 创建商城订单（非充值单）
+// 【已注释禁用·留档】路由未挂载
 func CreateOrder(c *gin.Context) {
 	userID := utils.GetUserID(c)
 	if userID == 0 {
@@ -246,7 +259,8 @@ func CreateOrder(c *gin.Context) {
 	utils.Success(c, order)
 }
 
-// GetMyOrders 我的订单列表
+// GetMyOrders 我的商城订单列表
+// 【已注释禁用·留档】路由未挂载
 func GetMyOrders(c *gin.Context) {
 	userID := utils.GetUserID(c)
 	if userID == 0 {
@@ -264,7 +278,8 @@ func GetMyOrders(c *gin.Context) {
 	utils.PageResponse(c, list, total, query.Page, query.PageSize)
 }
 
-// GetOrderDetail 订单详情（买家）
+// GetOrderDetail 商城订单详情（买家）
+// 【已注释禁用·留档】路由未挂载
 func GetOrderDetail(c *gin.Context) {
 	userID := utils.GetUserID(c)
 	if userID == 0 {
@@ -285,7 +300,8 @@ func GetOrderDetail(c *gin.Context) {
 	utils.Success(c, order)
 }
 
-// CancelOrder 取消订单
+// CancelOrder 取消商城订单
+// 【已注释禁用·留档】路由未挂载
 func CancelOrder(c *gin.Context) {
 	userID := utils.GetUserID(c)
 	if userID == 0 {

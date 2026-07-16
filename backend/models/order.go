@@ -1,5 +1,8 @@
 package models
 
+// 【已注释禁用·留档】电商半成品商城 Order 模型（非 payment_orders）。
+// AutoMigrate 与路由已注释，现网不建表/不挂接口。说明见 backend/留档.md。
+
 import (
 	"gorm.io/gorm"
 )

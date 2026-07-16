@@ -9,11 +9,14 @@ import (
 )
 
 // Start 启动草稿应用栈（GORM + 独立路由）
-// 注意：正式线上入口仅项目根目录 main.go / main_embedded.go，本包默认不被主程序 import
+//
+// 注意：正式线上入口仅项目根目录 main.go / main_embedded.go，本包默认不被主程序 import。
+// 【已注释禁用】电商商品/分类/订单半成品：路由与 AutoMigrate 相关项已注释，见 backend/留档.md。
 func Start() {
 	log.Println("")
 	log.Println("=========================================")
 	log.Println("开始使用 F.st 平台（草稿栈）")
+	log.Println("【提示】电商半成品（商品/分类/商城订单）已注释禁用")
 	log.Println("F.st - Think Fast, Run F.st")
 	log.Println("=========================================")
 	log.Println("")
@@ -39,19 +42,21 @@ func Start() {
 }
 
 // AutoMigrate 迁移草稿 models 表结构
+// 【已注释禁用】products / categories / orders 电商表不迁移，仅保留 users、settings 对照用
 func AutoMigrate() {
 	gormDB := db.GetGormDB()
 	err := gormDB.AutoMigrate(
 		&models.User{},
-		&models.Product{},
-		&models.Category{},
-		&models.Order{},
+		// &models.Product{},   // 【已注释禁用】电商半成品
+		// &models.Category{},  // 【已注释禁用】电商半成品
+		// &models.Order{},     // 【已注释禁用】电商半成品
 		&models.Settings{},
 	)
 	if err != nil {
 		log.Fatalf("数据库迁移失败: %v", err)
 	}
-	log.Println("  - 已迁移: users, products, categories, orders, settings")
+	log.Println("  - 已迁移: users, settings")
+	log.Println("  - 已跳过(注释禁用): products, categories, orders")
 	log.Println("  - 数据库迁移完成")
 }
 

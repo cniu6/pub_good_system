@@ -77,18 +77,4 @@ export const staticRoutes: AppRoute.RowRoute[] = [
     pid: 9,
   },
 
-  // ----------------------------------------
-  // 关于（隐藏菜单，侧边栏底部小链接）
-  // ----------------------------------------
-  {
-    name: 'about',
-    path: '/user/about',
-    title: 'route.about',
-    requiresAuth: true,
-    hide: true,
-    icon: 'icon-park-outline:info',
-    componentPath: '/demo/about/index.vue',
-    id: 8,
-    pid: null,
-  },
 ]

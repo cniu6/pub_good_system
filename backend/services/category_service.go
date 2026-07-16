@@ -1,5 +1,8 @@
 package services
 
+// 【已注释禁用·留档】本文件为电商半成品商品分类服务。
+// 路由/迁移/控制器挂载已注释，现网入口不使用。说明见 backend/留档.md。
+
 import (
 	"errors"
 	"fst/backend/internal/db"
@@ -10,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// CategoryService 商品分类服务
+// CategoryService 商品分类服务【已注释禁用·仅留档】
 type CategoryService struct{}
 
 // NewCategoryService 创建分类服务

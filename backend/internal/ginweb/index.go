@@ -11,6 +11,10 @@ import (
 )
 
 // InitGin 初始化 Gin Web 服务器（草稿独立栈入口）
+//
+// 【已注释禁用说明】本包属于「平行草稿栈」，现网入口 main.go / main_embedded.go 不会调用本函数。
+// 电商商品/分类/订单路由已整段注释，仅保留用户注册登录与资料相关路由便于对照留档。
+// 详见：backend/留档.md →「电商半成品草稿（已注释禁用）」
 func InitGin() {
 	config := env.GetEnv()
 	r := gin.Default()
@@ -32,11 +36,12 @@ func setupRoutes(r *gin.Engine) {
 	// ---------- 公开路由（无需登录）----------
 	public := api.Group("/public")
 	{
-		public.GET("/products", user.GetList)
-		public.GET("/products/:id", user.GetDetail)
-		// 分类公开列表
-		public.GET("/categories", user.GetCategoryList)
-		public.GET("/categories/:id", user.GetCategoryDetail)
+		// 【已注释禁用】电商半成品：公开商品/分类
+		// public.GET("/products", user.GetList)
+		// public.GET("/products/:id", user.GetDetail)
+		// public.GET("/categories", user.GetCategoryList)
+		// public.GET("/categories/:id", user.GetCategoryDetail)
+		_ = public // 避免 public 未使用；恢复电商时删除本行并取消上方注释
 	}
 
 	// 注册/登录：放在鉴权中间件之外
@@ -54,45 +59,39 @@ func setupRoutes(r *gin.Engine) {
 		userRoutes.PUT("/profile", user.UpdateProfile)
 		userRoutes.PUT("/password", user.ChangePassword)
 
-		// 产品管理（C2C 卖家）
-		userRoutes.POST("/products", user.CreateProduct)
-		userRoutes.PUT("/products/:id", user.UpdateProduct)
-		userRoutes.DELETE("/products/:id", user.DeleteProduct)
-
-		// 订单：买家最小可用 CRUD
-		userRoutes.POST("/orders", user.CreateOrder)
-		userRoutes.GET("/orders", user.GetMyOrders)
-		userRoutes.GET("/orders/:id", user.GetOrderDetail)
-		userRoutes.PUT("/orders/:id/cancel", user.CancelOrder)
+		// 【已注释禁用】电商半成品：卖家产品 / 买家订单
+		// userRoutes.POST("/products", user.CreateProduct)
+		// userRoutes.PUT("/products/:id", user.UpdateProduct)
+		// userRoutes.DELETE("/products/:id", user.DeleteProduct)
+		// userRoutes.POST("/orders", user.CreateOrder)
+		// userRoutes.GET("/orders", user.GetMyOrders)
+		// userRoutes.GET("/orders/:id", user.GetOrderDetail)
+		// userRoutes.PUT("/orders/:id/cancel", user.CancelOrder)
 	}
 
 	// ---------- 管理员路由 ----------
 	adminRoutes := api.Group("/admin")
 	adminRoutes.Use(middleware.AuthMiddleware(), middleware.AdminMiddleware())
 	{
-		// 用户管理
+		// 用户管理（草稿栈内对照用，现网请用 app/controllers）
 		adminRoutes.GET("/users", admin.GetUserList)
 		adminRoutes.GET("/users/:id", admin.GetUserDetail)
 		adminRoutes.PUT("/users/:id", admin.UpdateUser)
 		adminRoutes.PUT("/users/:id/password", admin.ResetPassword)
 
-		// 产品管理
-		adminRoutes.GET("/products", admin.GetProductList)
-		adminRoutes.GET("/products/:id", admin.GetProductDetail)
-		adminRoutes.POST("/products", admin.CreateProduct)
-		adminRoutes.PUT("/products/:id", admin.UpdateProduct)
-		adminRoutes.DELETE("/products/:id", admin.DeleteProduct)
-
-		// 分类管理
-		adminRoutes.GET("/categories", admin.GetCategoryList)
-		adminRoutes.GET("/categories/:id", admin.GetCategoryDetail)
-		adminRoutes.POST("/categories", admin.CreateCategory)
-		adminRoutes.PUT("/categories/:id", admin.UpdateCategory)
-		adminRoutes.DELETE("/categories/:id", admin.DeleteCategory)
-
-		// 订单管理
-		adminRoutes.GET("/orders", admin.GetOrderList)
-		adminRoutes.GET("/orders/:id", admin.GetOrderDetail)
-		adminRoutes.PUT("/orders/:id/status", admin.UpdateOrderStatus)
+		// 【已注释禁用】电商半成品：产品 / 分类 / 订单管理
+		// adminRoutes.GET("/products", admin.GetProductList)
+		// adminRoutes.GET("/products/:id", admin.GetProductDetail)
+		// adminRoutes.POST("/products", admin.CreateProduct)
+		// adminRoutes.PUT("/products/:id", admin.UpdateProduct)
+		// adminRoutes.DELETE("/products/:id", admin.DeleteProduct)
+		// adminRoutes.GET("/categories", admin.GetCategoryList)
+		// adminRoutes.GET("/categories/:id", admin.GetCategoryDetail)
+		// adminRoutes.POST("/categories", admin.CreateCategory)
+		// adminRoutes.PUT("/categories/:id", admin.UpdateCategory)
+		// adminRoutes.DELETE("/categories/:id", admin.DeleteCategory)
+		// adminRoutes.GET("/orders", admin.GetOrderList)
+		// adminRoutes.GET("/orders/:id", admin.GetOrderDetail)
+		// adminRoutes.PUT("/orders/:id/status", admin.UpdateOrderStatus)
 	}
 }

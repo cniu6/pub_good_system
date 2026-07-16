@@ -1,5 +1,8 @@
 package models
 
+// 【已注释禁用·留档】电商半成品 Category 模型。AutoMigrate 与路由已注释，现网不建表/不挂接口。
+// 说明见 backend/留档.md。
+
 import "gorm.io/gorm"
 
 // CategoryStatus 分类状态

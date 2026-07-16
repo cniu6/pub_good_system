@@ -1,5 +1,9 @@
 package services
 
+// 【已注释禁用·留档】本文件为电商半成品商品服务。
+// 路由(internal/ginweb)、迁移(appinit.AutoMigrate)、控制器挂载已注释，现网入口不使用。
+// 现网「支付订单/充值」见 app/services/payment_service.go。说明见 backend/留档.md。
+
 import (
 	"encoding/json"
 	"errors"
