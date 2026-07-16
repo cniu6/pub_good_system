@@ -14,25 +14,20 @@ FST (Full Stack Template) 是一个基于 Go (Gin) 和 Vue 3 (Naive UI) 构建�
 
 ```text
 fst/
-├── backend/                 # 后端 Go 源码
-│   ├── app/
-│   │   ├── controllers/     # 控制器 (public/user/admin 三层)
-│   │   ├── models/          # 数据模型
-│   │   ├── services/        # 业务服务层
-│   │   └── plugins/         # 插件目录 (自动发现)
-│   ├── cmd/                 # 程序入口
-│   ├── docs/                # Swagger 文档 (自动生成)
-│   ├── internal/            # 内部系统库 (config/db/middleware)
-│   ├── pkg/pluginregistry/  # 插件注册表
-│   ├── routes/              # API 路由定义
-│   └── utils/               # 通用工具
-├── frontend/                # 前端 Vue 源码 (views: _builtin/admin/user/setting/demo/index)
-├── doc/                     # 详细文档
-├── build/                   # 构建产物
-├── .env / .env.example      # 环境变量
-├── dev.bat                  # 开发启动脚本
-├── build.bat                # 生产构建脚本
-└── test.bat                 # 集成测试脚本
+├── main.go / main_embedded.go   # 统一程序入口（开发 / 嵌入前端）
+├── backend/                     # 后端 Go 源码
+│   ├── app/                     # controllers / models / services / plugins
+│   ├── pkg/                     # config / db / middleware / pluginregistry
+│   ├── routes/                  # API 路由
+│   ├── utils/ · internal/ · docs/
+│   └── 留档.md
+├── frontend/                    # Vue3 源码 + 留档.md
+├── doc/                         # 知识库文档
+├── tools/                       # 运维小工具（注册管理员/重置密码）
+├── build/                       # 构建产物
+├── .env.example                 # 环境变量模板（本地 .env 勿提交）
+├── dev.bat / build.bat / test.bat
+└── README.md
 ```
 
 ## 快速开始
@@ -97,15 +92,25 @@ func init() {
 
 ### Swagger 文档
 
-启动时自动检测代码变化并重新生成，自动包含插件 API。访问：`http://localhost:8080/swagger/index.html`
+启动时（dev）可自动检测代码变化并重新生成，自动包含插件 API。访问：`http://localhost:{PORT}/swagger/index.html`。  
+管理端注解路径仍为 `/api/v1/admin/*`；若配置了自定义 `ADMIN_API_PATH`，`doc.json` **运行时改写**为实际前缀。
+
+### 管理端两套路径
+
+| 配置 | 含义 | 默认 |
+|------|------|------|
+| `ADMIN_PATH` + `VITE_ADMIN_BASE_PATH` | 管理**页面**入口 | `/system-mgr` |
+| `ADMIN_API_PATH`（前端运行时 app-config） | 管理 **REST** | `/admin` → `/api/v1/admin` |
+
+详见 [doc/管理端路径与Swagger自适应.md](doc/管理端路径与Swagger自适应.md)。
 
 ### 控制器三层架构
 
 ```text
 controllers/
-├── public/     # 无需登录 (登录/注册/密码重置)
-├── user/       # 需要登录 (个人信息/修改密码)
-└── admin/      # 需要管理员权限 (用户管理/日志/邮件模板)
+├── public/     # 无需登录 (登录/注册/app-config/支付回调)
+├── user/       # 需要登录 (资料/支付/实名/提现)
+└── admin/      # 管理员 (用户/日志/设置/支付/…；API 前缀可配置)
 ```
 
 ### 中间件
@@ -128,10 +133,11 @@ controllers/
 
 ```text
 /api/v1/
-├── public/              # 公共 (登录/注册/密码重置/刷新Token)
-├── user/                # 用户 (个人信息/修改密码/路由)
-├── admin/               # 管理 (仪表盘/用户CRUD/日志/邮件模板)
-└── */                   # 插件 (自动注册)
+├── public/                 # 公共 (登录/注册/app-config/支付回调)
+├── user/                   # 用户 (资料/支付/实名/提现)
+├── system/                 # 系统状态
+├── {ADMIN_API_PATH}/       # 管理端，默认 admin
+└── 插件路由                # 自动注册
 ```
 
 ## 环境变量
@@ -139,11 +145,13 @@ controllers/
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | 数据库连接 | 127.0.0.1:3306 |
-| `JWT_SECRET` | JWT 签名密钥 | your_jwt_secret |
+| `JWT_SECRET` | JWT 签名密钥 | 见 .env.example |
 | `ENABLE_SWAGGER` | 启用 Swagger | true |
-| `GO_ENV` | 运行环境 (production 跳过 Swagger 自动更新) | development |
+| `ENABLE_ADMIN_DEBUG` | 管理端 debug/pprof（生产强制关） | 非生产 true |
+| `GO_ENV` / `APP_ENV` | 运行环境 | development |
 | `GEETEST_ENABLED` | 启用极验验证码 | true |
-| `ADMIN_PATH` | 管理后台路由前缀 | /system-mgr |
+| `ADMIN_PATH` | 管理**页面**入口 | /system-mgr |
+| `ADMIN_API_PATH` | 管理 **REST** 前缀 | /admin |
 
 完整配置参考 `.env.example` 和 [doc/配置系统.md](doc/配置系统.md)。
 
@@ -151,20 +159,28 @@ controllers/
 
 | 文档 | 说明 |
 |------|------|
+| [doc/README.md](doc/README.md) | 知识库总索引 |
+| [doc/管理端路径与Swagger自适应.md](doc/管理端路径与Swagger自适应.md) | 页面/API 路径分离与自适应 |
 | [doc/JWT认证.md](doc/JWT认证.md) | Token 生成与验证 |
 | [doc/邮件系统.md](doc/邮件系统.md) | 邮件发送与模板管理 |
-| [doc/短信插件系统.md](doc/短信插件系统.md) | 短信插件（阿里云/腾讯云/自定义HTTP） |
-| [doc/实名认证接入说明.md](doc/实名认证接入说明.md) | 实名认证现状、官方接口与接入建议 |
-| [doc/第三方接口官方核验留档.md](doc/第三方接口官方核验留档.md) | 第三方接口官网来源、核验结论与落实情况 |
-| [doc/插件系统.md](doc/插件系统.md) | 插件开发指南 |
-| [doc/数据库模型.md](doc/数据库模型.md) | 数据模型与操作 |
+| [doc/短信插件系统.md](doc/短信插件系统.md) | 短信插件 |
+| [doc/支付订单系统.md](doc/支付订单系统.md) | 支付与回调 |
+| [doc/实名认证接入说明.md](doc/实名认证接入说明.md) | 实名认证 |
+| [doc/插件系统.md](doc/插件系统.md) | 插件开发 |
+| [doc/数据库模型.md](doc/数据库模型.md) | 数据模型 |
 | [doc/配置系统.md](doc/配置系统.md) | 配置管理 |
-| [doc/API路由.md](doc/API路由.md) | 路由定义规则 |
-| [doc/前端请求.md](doc/前端请求.md) | 请求封装与 API 调用 |
-| [doc/架构方案.md](doc/架构方案.md) | 高扩展性 MVC 插件架构设计 |
-| [doc/架构概览.md](doc/架构概览.md) | 全栈架构深度解析 |
+| [doc/API路由.md](doc/API路由.md) | 路由规则 |
+| [doc/前端请求.md](doc/前端请求.md) | 前端请求封装 |
+| [backend/留档.md](backend/留档.md) / [frontend/留档.md](frontend/留档.md) | 目录级留档 |
 
 ## 更新日志
+
+### 2026-07-16
+
+- 支付回调绑定校验与日志脱敏；代登录与 debug 高危接口收紧
+- 全局配置并发安全（Clone/Update）
+- `ADMIN_API_PATH` + app-config 注入前端管理 API 前缀；Swagger doc.json 运行时改写
+- 各目录留档与 doc 知识库同步更新
 
 ### 2026-02-24
 

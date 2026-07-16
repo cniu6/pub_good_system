@@ -1,11 +1,30 @@
 # API 路由系统 - 完整使用指南
 
-> 🌐 **文档位置**: `doc/API路由.md`
+> 🌐 **文档位置**: `doc/API路由.md`  
+> **最后更新**: 2026-07-16
 > 
 > **关联文件**:
 > - `backend/routes/routes.go` - 路由定义主文件
-> - `backend/internal/middleware/*.go` - 中间件
+> - `backend/pkg/middleware/*.go` - 中间件（注意：中间件在 **pkg**，非 internal）
 > - `backend/app/controllers/*.go` - 控制器
+
+---
+
+## 2026-07 更新摘要
+
+- 管理端 REST 组前缀：`ADMIN_API_PATH`（默认 `/admin`）→ `/api/v1{ADMIN_API_PATH}`。
+- 页面入口 `ADMIN_PATH` **不**在 API 路由里注册。
+- Swagger：`SwaggerAdminPathRewriteMiddleware` 按运行时前缀改写 `doc.json`。
+- 详细说明见 [管理端路径与Swagger自适应.md](./管理端路径与Swagger自适应.md)。
+
+当前路由树：
+
+```text
+/api/v1/public/*          # 公开
+/api/v1/user/*            # 用户（user/admin token）
+/api/v1/system/*          # 系统状态
+/api/v1{ADMIN_API_PATH}/* # 管理端（默认 /admin）
+```
 
 ---
 
@@ -640,6 +659,5 @@ func (ctrl *UserController) GetUser(c *gin.Context) {
 
 ---
 
-> 📝 **最后更新**: 2026-02-24
-> 
-> 如有疑问，请参考 `backend/routes/routes.go` 源代码。
+> 📝 **最后更新**: 2026-07-16  
+> 如有疑问，请参考 `backend/routes/routes.go` 与 [管理端路径与Swagger自适应.md](./管理端路径与Swagger自适应.md)。
