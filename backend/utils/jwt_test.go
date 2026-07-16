@@ -9,10 +9,10 @@ import (
 )
 
 func useTestJWTConfig() func() {
-	old := config.GlobalConfig
-	config.GlobalConfig = &config.Config{JWTSecret: "unit-test-secret"}
+	old := config.CloneGlobalConfig()
+	config.SetGlobalConfig(&config.Config{JWTSecret: "unit-test-secret"})
 	return func() {
-		config.GlobalConfig = old
+		config.SetGlobalConfig(old)
 	}
 }
 

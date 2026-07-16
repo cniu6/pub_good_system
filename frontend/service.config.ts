@@ -7,10 +7,12 @@
  */
 export function getServiceConfig(env: Record<string, string>): Record<ServiceEnvType, Record<string, string>> {
   // 与根目录 .env PORT 默认 8080、frontend/.env.dev 保持一致
-  const apiUrl = env.VITE_API_URL || 'http://localhost:8080'
-  const buildMode = env.VITE_BUILD_MODE || ''
+  const apiUrl = (env.VITE_API_URL || '').trim() || 'http://localhost:8080'
+  // 优先读 VITE_BUILD_MODE；未配置时：生产空 VITE_API_URL 视为 embedded 同源
+  const buildMode = (env.VITE_BUILD_MODE || '').trim().toLowerCase()
+  const isEmbedded = buildMode === 'embedded' || (buildMode === '' && !(env.VITE_API_URL || '').trim())
   // embedded 单二进制：生产走同源，API 基址留空
-  const productionApiUrl = buildMode === 'embedded' ? '' : apiUrl
+  const productionApiUrl = isEmbedded ? '' : apiUrl
 
   return {
     dev: {

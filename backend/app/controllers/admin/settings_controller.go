@@ -834,9 +834,10 @@ func (ctrl *SettingsController) normalizeSettingValueForWrite(setting models.Sys
 	return value
 }
 
+// currentGlobalConfig 读取全局配置快照，避免直接持有可变指针带来的竞态风险。
 func currentGlobalConfig() *config.Config {
-	if config.GlobalConfig != nil {
-		return config.GlobalConfig
+	if cfg := config.CloneGlobalConfig(); cfg != nil {
+		return cfg
 	}
 	return &config.Config{}
 }
@@ -902,11 +903,15 @@ func (ctrl *SettingsController) refreshRuntimeConfig() {
 }
 
 // RestartBackend restarts backend process after response is flushed.
+// 仅非生产且开启管理端 debug 运维开关时可用；写审计日志后延迟退出。
 func (ctrl *SettingsController) RestartBackend(c *gin.Context) {
-	if config.IsProductionMode() {
-		utils.Fail(c, 403, "生产环境已禁用该功能")
+	if !config.IsAdminDebugOpsEnabled() {
+		utils.Fail(c, 403, "当前环境已禁用后端重启能力")
 		return
 	}
+
+	adminID, _ := c.Get("userID")
+	log.Printf("[SECURITY AUDIT] restart-backend | admin_id=%v | ip=%s", adminID, c.ClientIP())
 
 	utils.Success(c, gin.H{"message": "Backend restart requested"})
 	go func() {
@@ -1049,6 +1054,12 @@ func (ctrl *SettingsController) GetServerOperationsStatus(c *gin.Context) {
 }
 
 func (ctrl *SettingsController) RunBackgroundTask(c *gin.Context) {
+	// 生产或关闭 debug 运维开关时禁止手工触发，降低运维面被滥用风险
+	if !config.IsAdminDebugOpsEnabled() {
+		utils.Fail(c, 403, "当前环境已禁用手动触发后台任务")
+		return
+	}
+
 	var req struct {
 		Key string `json:"key" binding:"required"`
 	}
@@ -1057,9 +1068,15 @@ func (ctrl *SettingsController) RunBackgroundTask(c *gin.Context) {
 		return
 	}
 
-	message, err := services.RunBackgroundTaskNow(strings.TrimSpace(req.Key))
+	taskKey := strings.TrimSpace(req.Key)
+	adminID, _ := c.Get("userID")
+	log.Printf("[SECURITY AUDIT] run-background-task | admin_id=%v | key=%s | ip=%s", adminID, taskKey, c.ClientIP())
+
+	message, err := services.RunBackgroundTaskNow(taskKey)
 	if err != nil {
-		utils.Fail(c, 500, err.Error())
+		// 不把内部错误细节直接回给前端
+		log.Printf("[SECURITY AUDIT] run-background-task failed | key=%s | err=%v", taskKey, err)
+		utils.Fail(c, 400, err.Error())
 		return
 	}
 

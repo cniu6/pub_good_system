@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/joho/godotenv"
 )
@@ -36,6 +37,9 @@ type Config struct {
 	AdminAPIPath              string // 管理端 REST API 在 /api/v1 下的前缀（默认 /admin）
 	CorsOrigins               string
 	EnableSwagger             bool
+	// EnableAdminDebugOps 是否开放管理端 debug/pprof/强制 GC 等高危运维接口。
+	// 生产环境一律视为关闭；非生产默认 true，可用 ENABLE_ADMIN_DEBUG=false 关闭。
+	EnableAdminDebugOps       bool
 	FrontendURL               string
 	BackendAPIURL             string
 	SMTPHost                  string
@@ -65,7 +69,10 @@ type Config struct {
 	SMSBodyFormat             string // 自定义短信请求体格式
 }
 
-var GlobalConfig *Config
+var (
+	globalConfigMu sync.RWMutex
+	GlobalConfig   *Config
+)
 
 const defaultJWTSecret = "secret"
 
@@ -163,10 +170,64 @@ func validateCriticalSecurityConfig(cfg *Config) {
 }
 
 func IsProductionMode() bool {
-	if GlobalConfig == nil {
+	cfg := GetGlobalConfig()
+	if cfg == nil {
 		return false
 	}
-	return isProductionEnvMode(GlobalConfig.Environment) || isProductionEnvMode(GlobalConfig.AppMode)
+	return isProductionEnvMode(cfg.Environment) || isProductionEnvMode(cfg.AppMode)
+}
+
+// IsAdminDebugOpsEnabled 管理端 debug/pprof/重启类高危能力是否可用。
+// 规则：生产永远 false；非生产看 EnableAdminDebugOps（默认 true）。
+func IsAdminDebugOpsEnabled() bool {
+	if IsProductionMode() {
+		return false
+	}
+	cfg := GetGlobalConfig()
+	if cfg == nil {
+		// 无配置时按开发态默认允许，避免本地启动被静默关掉
+		return true
+	}
+	return cfg.EnableAdminDebugOps
+}
+
+// GetGlobalConfig 返回当前全局配置指针（只读场景请优先 CloneGlobalConfig）。
+// 指针本身在锁内读取；调用方不得直接写字段，写入请用 UpdateGlobalConfig。
+func GetGlobalConfig() *Config {
+	globalConfigMu.RLock()
+	defer globalConfigMu.RUnlock()
+	return GlobalConfig
+}
+
+// SetGlobalConfig 整体替换全局配置（启动加载 / 测试注入）。
+func SetGlobalConfig(cfg *Config) {
+	globalConfigMu.Lock()
+	defer globalConfigMu.Unlock()
+	GlobalConfig = cfg
+}
+
+// UpdateGlobalConfig 在写锁内原地更新配置字段，避免并发写竞态。
+func UpdateGlobalConfig(updater func(cfg *Config)) {
+	if updater == nil {
+		return
+	}
+	globalConfigMu.Lock()
+	defer globalConfigMu.Unlock()
+	if GlobalConfig == nil {
+		GlobalConfig = &Config{}
+	}
+	updater(GlobalConfig)
+}
+
+// CloneGlobalConfig 返回全局配置的值拷贝（快照），适合跨请求只读使用。
+func CloneGlobalConfig() *Config {
+	globalConfigMu.RLock()
+	defer globalConfigMu.RUnlock()
+	if GlobalConfig == nil {
+		return nil
+	}
+	clone := *GlobalConfig
+	return &clone
 }
 
 // isFrontendDotEnv 判断 .env 是否为纯前端配置（仅含 VITE_ 变量）
@@ -222,9 +283,9 @@ func InitConfig() {
 	dotEnvPath, hasDotEnv := findDotEnvPath()
 	if hasDotEnv {
 		if cfg, ok := loadJSONDotEnv(dotEnvPath); ok {
-			GlobalConfig = cfg
+			SetGlobalConfig(cfg)
 			log.Printf("[Config] Loaded JSON .env from %s", dotEnvPath)
-			validateCriticalSecurityConfig(GlobalConfig)
+			validateCriticalSecurityConfig(cfg)
 			return
 		}
 
@@ -243,6 +304,15 @@ func InitConfig() {
 	}
 
 	enableSwagger, _ := strconv.ParseBool(strings.TrimSpace(getEnv("ENABLE_SWAGGER", "false")))
+	// 非生产默认开启 debug 运维接口；显式 false/0 可关闭
+	enableAdminDebugOps := true
+	if v := strings.TrimSpace(getEnv("ENABLE_ADMIN_DEBUG", "true")); v != "" {
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			enableAdminDebugOps = parsed
+		} else if v == "0" {
+			enableAdminDebugOps = false
+		}
+	}
 
 	geetestID := getEnv("GEETEST_ID", "")
 	if geetestID == "" {
@@ -259,7 +329,7 @@ func InitConfig() {
 		adminJWTSecret = jwtSecret
 	}
 
-	GlobalConfig = &Config{
+	cfg := &Config{
 		AppName:         getEnv("APP_NAME", "F.st"),
 		AppTitle:        getEnv("APP_TITLE", "F.st - Think Fast,Run F.st"),
 		AppMode:         getEnv("APP_MODE", "separate"),
@@ -280,17 +350,18 @@ func InitConfig() {
 		AdminJWTSecret:  adminJWTSecret,
 		AdminPath:       getEnv("ADMIN_PATH", "/system-mgr"),
 		AdminAPIPath:    NormalizeAdminAPIPath(getEnv("ADMIN_API_PATH", "/admin")),
-		CorsOrigins:     getEnv("CORS_ORIGINS", ""),
-		EnableSwagger:   enableSwagger,
-		FrontendURL:     getEnv("FRONTEND_URL", ""),
-		BackendAPIURL:   getEnv("BACKEND_API_URL", ""),
-		SMTPHost:        getEnv("SMTP_HOST", ""),
-		SMTPPort:        getEnv("SMTP_PORT", ""),
-		SMTPUser:        getEnv("SMTP_USERNAME", ""),
-		SMTPPass:        getEnv("SMTP_PASSWORD", ""),
-		SMTPSSL:         getEnv("SMTP_SSL_TYPE", "") == "ssl",
-		SystemEmail:     getEnv("SYSTEM_EMAIL_ADDRESS", ""),
-		SystemEmailName: getEnv("SYSTEM_EMAIL_NAME", ""),
+		CorsOrigins:           getEnv("CORS_ORIGINS", ""),
+		EnableSwagger:         enableSwagger,
+		EnableAdminDebugOps:   enableAdminDebugOps,
+		FrontendURL:           getEnv("FRONTEND_URL", ""),
+		BackendAPIURL:         getEnv("BACKEND_API_URL", ""),
+		SMTPHost:              getEnv("SMTP_HOST", ""),
+		SMTPPort:              getEnv("SMTP_PORT", ""),
+		SMTPUser:              getEnv("SMTP_USERNAME", ""),
+		SMTPPass:              getEnv("SMTP_PASSWORD", ""),
+		SMTPSSL:               getEnv("SMTP_SSL_TYPE", "") == "ssl",
+		SystemEmail:           getEnv("SYSTEM_EMAIL_ADDRESS", ""),
+		SystemEmailName:       getEnv("SYSTEM_EMAIL_NAME", ""),
 		RegisterCodeExpireMinutes: func() int {
 			v, err := strconv.Atoi(strings.TrimSpace(getEnv("REGISTER_CODE_EXPIRE_MINUTES", "60")))
 			if err != nil || v <= 0 {
@@ -353,7 +424,8 @@ func InitConfig() {
 		SMSBodyFormat:   getEnv("SMS_BODY_FORMAT", "json"),
 	}
 
-	validateCriticalSecurityConfig(GlobalConfig)
+	SetGlobalConfig(cfg)
+	validateCriticalSecurityConfig(cfg)
 }
 
 func getEnv(key, fallback string) string {
@@ -521,10 +593,12 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 			return strings.TrimSpace(raw.AdminPath)
 		}(),
 		AdminAPIPath: NormalizeAdminAPIPath(raw.AdminAPIPath),
-		CorsOrigins:  raw.CorsOrigins,
-		EnableSwagger:   enableSwagger,
-		FrontendURL:     raw.FrontendURL,
-		BackendAPIURL:   raw.BackendAPIURL,
+		CorsOrigins:         raw.CorsOrigins,
+		EnableSwagger:       enableSwagger,
+		// JSON .env 无独立开关时默认开启；生产仍会被 IsAdminDebugOpsEnabled 拦截
+		EnableAdminDebugOps: true,
+		FrontendURL:         raw.FrontendURL,
+		BackendAPIURL:       raw.BackendAPIURL,
 		SMTPHost:        raw.SMTPHost,
 		SMTPPort:        raw.SMTPPort,
 		SMTPUser:        raw.SMTPUser,

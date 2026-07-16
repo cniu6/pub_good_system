@@ -4,7 +4,7 @@
 import { request } from '../../http'
 import { getAdminApiBase } from './base'
 
-const BASE_URL = `${getAdminApiBase()}/email-templates`
+function baseUrl() { return `${getAdminApiBase()}/email-templates` }
 
 export interface EmailTemplate {
   id: number
@@ -22,11 +22,11 @@ export interface EmailTemplate {
 
 export const adminEmailTemplateApi = {
   list() {
-    return request.Get<Service.ResponseResult<EmailTemplate[]>>(BASE_URL)
+    return request.Get<Service.ResponseResult<EmailTemplate[]>>(baseUrl())
   },
 
   detail(id: number) {
-    return request.Get<Service.ResponseResult<EmailTemplate>>(`${BASE_URL}/${id}`)
+    return request.Get<Service.ResponseResult<EmailTemplate>>(`${baseUrl()}/${id}`)
   },
 
   update(id: number, data: {
@@ -35,18 +35,18 @@ export const adminEmailTemplateApi = {
     description?: string
     status?: number
   }) {
-    return request.Put<Service.ResponseResult<{ message: string }>>(`${BASE_URL}/${id}`, data)
+    return request.Put<Service.ResponseResult<{ message: string }>>(`${baseUrl()}/${id}`, data)
   },
 
   preview(id: number, data: {
     content: string
     vars?: Record<string, any>
   }) {
-    return request.Post<Service.ResponseResult<{ subject: string; content: string; wrapped: string }>>(`${BASE_URL}/${id}/preview`, data)
+    return request.Post<Service.ResponseResult<{ subject: string; content: string; wrapped: string }>>(`${baseUrl()}/${id}/preview`, data)
   },
 
   reset(id: number) {
-    return request.Post<Service.ResponseResult<{ message: string }>>(`${BASE_URL}/${id}/reset`, {})
+    return request.Post<Service.ResponseResult<{ message: string }>>(`${baseUrl()}/${id}/reset`, {})
   },
 
   sendTest(data: { to: string; subject?: string; content?: string; template_id?: number }) {

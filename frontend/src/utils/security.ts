@@ -279,10 +279,9 @@ export function protectConsole(): void {
  * 用于隐藏管理端路径等敏感配置
  */
 export function getSecureAdminPath(): string {
-  // 从环境变量获取，但运行时混淆
+  // 统一默认值 /system-mgr，与 router/constants、.env.* 保持一致
   const env = import.meta.env as Record<string, string | undefined>
-  const adminPath = env.VITE_ADMIN_BASE_PATH || '/system-mgr'
-  // 返回 Base64 编码后的路径（增加静态分析难度）
+  const adminPath = (env.VITE_ADMIN_BASE_PATH || '/system-mgr').replace(/\/+$/, '') || '/system-mgr'
   return adminPath
 }
 

@@ -106,8 +106,9 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 		WithdrawAccountTypes: []string{"bank", "alipay", "wechat", "usdt"},
 		AdminAPIPath:       "/admin",
 	}
-	if config.GlobalConfig != nil {
-		response.AdminAPIPath = config.NormalizeAdminAPIPath(config.GlobalConfig.AdminAPIPath)
+	// 从全局配置快照读取 ADMIN_API_PATH，供前端注入管理端请求前缀
+	if cfg := config.CloneGlobalConfig(); cfg != nil {
+		response.AdminAPIPath = config.NormalizeAdminAPIPath(cfg.AdminAPIPath)
 	}
 
 	// 构建配置map

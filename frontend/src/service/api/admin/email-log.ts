@@ -1,7 +1,7 @@
 import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
-const BASE_URL = `${getAdminApiBase()}/email-logs`
+function baseUrl() { return `${getAdminApiBase()}/email-logs` }
 
 export interface EmailLog {
   id: number
@@ -32,22 +32,22 @@ export interface EmailLogStats {
 
 export const adminEmailLogApi = {
   list(params?: EmailLogListParams) {
-    return request.Get<Service.ResponseResult<{ list: EmailLog[]; total: number; page: number; page_size: number }>>(BASE_URL, { params })
+    return request.Get<Service.ResponseResult<{ list: EmailLog[]; total: number; page: number; page_size: number }>>(baseUrl(), { params })
   },
 
   detail(id: number) {
-    return request.Get<Service.ResponseResult<EmailLog>>(`${BASE_URL}/${id}`)
+    return request.Get<Service.ResponseResult<EmailLog>>(`${baseUrl()}/${id}`)
   },
 
   stats() {
-    return request.Get<Service.ResponseResult<EmailLogStats>>(`${BASE_URL}/stats`)
+    return request.Get<Service.ResponseResult<EmailLogStats>>(`${baseUrl()}/stats`)
   },
 
   templateNames() {
-    return request.Get<Service.ResponseResult<string[]>>(`${BASE_URL}/template-names`)
+    return request.Get<Service.ResponseResult<string[]>>(`${baseUrl()}/template-names`)
   },
 
   clean(before: string) {
-    return request.Post<Service.ResponseResult<{ affected: number }>>(`${BASE_URL}/clean`, { before })
+    return request.Post<Service.ResponseResult<{ affected: number }>>(`${baseUrl()}/clean`, { before })
   },
 }

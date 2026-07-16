@@ -18,16 +18,48 @@ func NewPaymentCallbackController() *PaymentCallbackController {
 	return &PaymentCallbackController{}
 }
 
+// sanitizePaymentCallbackLog 支付回调日志脱敏，避免 sign/金额/交易号等敏感字段完整落盘。
+func sanitizePaymentCallbackLog(params map[string]string) map[string]string {
+	if params == nil {
+		return map[string]string{}
+	}
+	safe := make(map[string]string, 6)
+	safe["out_trade_no"] = params["out_trade_no"]
+	safe["trade_status"] = params["trade_status"]
+	safe["type"] = params["type"]
+	if pid := params["pid"]; pid != "" {
+		if len(pid) <= 2 {
+			safe["pid"] = "**"
+		} else {
+			safe["pid"] = pid[:1] + "***" + pid[len(pid)-1:]
+		}
+	}
+	if tradeNo := params["trade_no"]; tradeNo != "" {
+		if len(tradeNo) <= 4 {
+			safe["trade_no"] = "****"
+		} else {
+			safe["trade_no"] = tradeNo[:2] + "****" + tradeNo[len(tradeNo)-2:]
+		}
+	}
+	if money := params["money"]; money != "" {
+		safe["money"] = "***"
+	}
+	if _, ok := params["sign"]; ok {
+		safe["sign"] = "***"
+	}
+	return safe
+}
+
 // Notify 易支付异步通知回调
 // 易支付服务器会以 GET 或 POST 方式发送回调
 // 成功处理后必须返回纯文本 "SUCCESS"，否则易支付会重复通知
 func (ctrl *PaymentCallbackController) Notify(c *gin.Context) {
 	params := extractCallbackParams(c)
-	log.Printf("[Payment Notify] 收到回调: %v", params)
+	log.Printf("[Payment Notify] 收到回调: %v", sanitizePaymentCallbackLog(params))
 
 	ok, err := services.HandlePaymentNotify(params)
 	if !ok || err != nil {
-		log.Printf("[Payment Notify] 处理失败: %v", err)
+		log.Printf("[Payment Notify] 处理失败: order_no=%s err=%v", params["out_trade_no"], err)
 		c.String(http.StatusOK, "FAIL")
 		return
 	}
@@ -39,7 +71,7 @@ func (ctrl *PaymentCallbackController) Notify(c *gin.Context) {
 // 用户支付完成后浏览器跳转回来，仅做页面跳转，不做到账处理
 func (ctrl *PaymentCallbackController) Return(c *gin.Context) {
 	params := extractCallbackParams(c)
-	log.Printf("[Payment Return] 收到跳转: %v", params)
+	log.Printf("[Payment Return] 收到跳转: %v", sanitizePaymentCallbackLog(params))
 
 	order, err := services.HandlePaymentReturn(params)
 

@@ -153,9 +153,10 @@ func (s *SettingsService) GetIntWithDefault(key string, defaultValue int) int {
 	return result
 }
 
+// getEffectiveGlobalConfig 返回全局配置快照（值拷贝），避免与运行时热更新并发读写。
 func getEffectiveGlobalConfig() *config.Config {
-	if config.GlobalConfig != nil {
-		return config.GlobalConfig
+	if cfg := config.CloneGlobalConfig(); cfg != nil {
+		return cfg
 	}
 	return &config.Config{}
 }
@@ -584,8 +585,8 @@ func GetGlobalRegisterCodeExpireMinutes() int {
 
 func GetGlobalFrontendURL() string {
 	fallback := ""
-	if config.GlobalConfig != nil {
-		fallback = config.GlobalConfig.FrontendURL
+	if cfg := config.CloneGlobalConfig(); cfg != nil {
+		fallback = cfg.FrontendURL
 	}
 	if GlobalSettingsService != nil {
 		return GlobalSettingsService.getRuntimeString("frontend_url", fallback)
@@ -595,8 +596,8 @@ func GetGlobalFrontendURL() string {
 
 func GetGlobalBackendAPIURL() string {
 	fallback := ""
-	if config.GlobalConfig != nil {
-		fallback = config.GlobalConfig.BackendAPIURL
+	if cfg := config.CloneGlobalConfig(); cfg != nil {
+		fallback = cfg.BackendAPIURL
 	}
 	if GlobalSettingsService != nil {
 		return GlobalSettingsService.getRuntimeString("backend_api_url", fallback)
@@ -604,49 +605,59 @@ func GetGlobalBackendAPIURL() string {
 	return getDirectSettingString("backend_api_url", fallback)
 }
 
+// ApplyGlobalRuntimeConfig 将 DB/缓存中的运行时配置合并进全局配置。
+// 在锁外准备好全部新值，再通过 UpdateGlobalConfig 一次性写入，避免并发字段竞态。
 func ApplyGlobalRuntimeConfig() {
-	if config.GlobalConfig == nil {
+	base := config.CloneGlobalConfig()
+	if base == nil {
 		return
 	}
 
 	geetestConfig := GetGlobalGeetestRuntimeConfig()
-	config.GlobalConfig.GeetestEnabled = geetestConfig.Enabled
-	config.GlobalConfig.GeetestID = geetestConfig.CaptchaID
-	config.GlobalConfig.GeetestKey = geetestConfig.CaptchaKey
+	verifyConfig := GetGlobalVerifyConfig()
+	smsConfig := GetGlobalSMSRuntimeConfig()
 
+	// 基于当前快照合并 DB 运行时配置（settings 读取在锁外完成）
+	next := *base
 	if GlobalSettingsService != nil {
-		config.GlobalConfig.AppName = GlobalSettingsService.getRuntimeString("site_name", config.GlobalConfig.AppName)
-		config.GlobalConfig.FrontendURL = GlobalSettingsService.getRuntimeString("frontend_url", config.GlobalConfig.FrontendURL)
-		config.GlobalConfig.BackendAPIURL = GlobalSettingsService.getRuntimeString("backend_api_url", config.GlobalConfig.BackendAPIURL)
-		config.GlobalConfig.SMTPHost = GlobalSettingsService.getRuntimeString("smtp_host", config.GlobalConfig.SMTPHost)
-		config.GlobalConfig.SMTPPort = GlobalSettingsService.getRuntimeString("smtp_port", config.GlobalConfig.SMTPPort)
-		config.GlobalConfig.SMTPUser = GlobalSettingsService.getRuntimeString("smtp_username", config.GlobalConfig.SMTPUser)
-		config.GlobalConfig.SMTPPass = GlobalSettingsService.getRuntimeString("smtp_password", config.GlobalConfig.SMTPPass)
-		config.GlobalConfig.SMTPSSL = GlobalSettingsService.getRuntimeBool("smtp_ssl", config.GlobalConfig.SMTPSSL)
-		config.GlobalConfig.SystemEmail = GlobalSettingsService.getRuntimeString("system_email_address", config.GlobalConfig.SystemEmail)
-		config.GlobalConfig.SystemEmailName = GlobalSettingsService.getRuntimeString("system_email_name", config.GlobalConfig.SystemEmailName)
-		config.GlobalConfig.RegisterCodeExpireMinutes = GlobalSettingsService.getRuntimePositiveInt("register_code_expire_minutes", config.GlobalConfig.RegisterCodeExpireMinutes)
-		config.GlobalConfig.JWTAccessExpire = GlobalSettingsService.getRuntimePositiveInt("jwt_access_expire", config.GlobalConfig.JWTAccessExpire)
-		config.GlobalConfig.JWTRefreshExpire = GlobalSettingsService.getRuntimePositiveInt("jwt_refresh_expire", config.GlobalConfig.JWTRefreshExpire)
-		config.GlobalConfig.LoginMaxFailureCount = GlobalSettingsService.getRuntimePositiveInt("login_max_failure", config.GlobalConfig.LoginMaxFailureCount)
-		config.GlobalConfig.LoginLockDurationMinutes = GlobalSettingsService.getRuntimePositiveInt("login_lock_duration", config.GlobalConfig.LoginLockDurationMinutes)
+		s := GlobalSettingsService
+		next.AppName = s.getRuntimeString("site_name", base.AppName)
+		next.FrontendURL = s.getRuntimeString("frontend_url", base.FrontendURL)
+		next.BackendAPIURL = s.getRuntimeString("backend_api_url", base.BackendAPIURL)
+		next.SMTPHost = s.getRuntimeString("smtp_host", base.SMTPHost)
+		next.SMTPPort = s.getRuntimeString("smtp_port", base.SMTPPort)
+		next.SMTPUser = s.getRuntimeString("smtp_username", base.SMTPUser)
+		next.SMTPPass = s.getRuntimeString("smtp_password", base.SMTPPass)
+		next.SMTPSSL = s.getRuntimeBool("smtp_ssl", base.SMTPSSL)
+		next.SystemEmail = s.getRuntimeString("system_email_address", base.SystemEmail)
+		next.SystemEmailName = s.getRuntimeString("system_email_name", base.SystemEmailName)
+		next.RegisterCodeExpireMinutes = s.getRuntimePositiveInt("register_code_expire_minutes", base.RegisterCodeExpireMinutes)
+		next.JWTAccessExpire = s.getRuntimePositiveInt("jwt_access_expire", base.JWTAccessExpire)
+		next.JWTRefreshExpire = s.getRuntimePositiveInt("jwt_refresh_expire", base.JWTRefreshExpire)
+		next.LoginMaxFailureCount = s.getRuntimePositiveInt("login_max_failure", base.LoginMaxFailureCount)
+		next.LoginLockDurationMinutes = s.getRuntimePositiveInt("login_lock_duration", base.LoginLockDurationMinutes)
 	}
 
-	verifyConfig := GetGlobalVerifyConfig()
-	config.GlobalConfig.EmailVerifyEnabled = verifyConfig.EmailEnabled
-	config.GlobalConfig.SMSVerifyEnabled = verifyConfig.SMSEnabled
+	next.GeetestEnabled = geetestConfig.Enabled
+	next.GeetestID = geetestConfig.CaptchaID
+	next.GeetestKey = geetestConfig.CaptchaKey
+	next.EmailVerifyEnabled = verifyConfig.EmailEnabled
+	next.SMSVerifyEnabled = verifyConfig.SMSEnabled
+	next.SMSProvider = smsConfig.Provider
+	next.SMSAccessKey = smsConfig.AccessKey
+	next.SMSSecretKey = smsConfig.SecretKey
+	next.SMSSignName = smsConfig.SignName
+	next.SMSTemplateCode = smsConfig.TemplateCode
+	next.SMSTemplateCodeEN = smsConfig.TemplateCodeEN
+	next.SMSRegion = smsConfig.Region
+	next.SMSEndpoint = smsConfig.Endpoint
+	next.SMSSdkAppID = smsConfig.SdkAppID
+	next.SMSBodyFormat = smsConfig.BodyFormat
 
-	smsConfig := GetGlobalSMSRuntimeConfig()
-	config.GlobalConfig.SMSProvider = smsConfig.Provider
-	config.GlobalConfig.SMSAccessKey = smsConfig.AccessKey
-	config.GlobalConfig.SMSSecretKey = smsConfig.SecretKey
-	config.GlobalConfig.SMSSignName = smsConfig.SignName
-	config.GlobalConfig.SMSTemplateCode = smsConfig.TemplateCode
-	config.GlobalConfig.SMSTemplateCodeEN = smsConfig.TemplateCodeEN
-	config.GlobalConfig.SMSRegion = smsConfig.Region
-	config.GlobalConfig.SMSEndpoint = smsConfig.Endpoint
-	config.GlobalConfig.SMSSdkAppID = smsConfig.SdkAppID
-	config.GlobalConfig.SMSBodyFormat = smsConfig.BodyFormat
+	// 写锁内整体替换字段（保持指针稳定，兼容仍直接读 GlobalConfig 的旧代码）
+	config.UpdateGlobalConfig(func(cfg *config.Config) {
+		*cfg = next
+	})
 }
 
 // GetPublicAppConfig returns public app config consumed by frontend bootstrap.
@@ -655,8 +666,8 @@ func (s *SettingsService) GetPublicAppConfig() *PublicAppConfig {
 	verifyConfig := s.GetVerifyConfig()
 
 	adminAPIPath := "/admin"
-	if config.GlobalConfig != nil {
-		adminAPIPath = config.NormalizeAdminAPIPath(config.GlobalConfig.AdminAPIPath)
+	if cfg := config.CloneGlobalConfig(); cfg != nil {
+		adminAPIPath = config.NormalizeAdminAPIPath(cfg.AdminAPIPath)
 	}
 
 	return &PublicAppConfig{

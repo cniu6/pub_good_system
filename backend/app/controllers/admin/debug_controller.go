@@ -10,8 +10,8 @@ import (
 	"runtime/pprof"
 	"runtime/trace"
 	"sort"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -326,8 +326,20 @@ func extractWaitDuration(state string) (time.Duration, bool) {
 	}
 }
 
+// ensureAdminDebugAllowed 校验 debug/pprof 是否允许访问：生产永久关闭，非生产看 ENABLE_ADMIN_DEBUG。
+func ensureAdminDebugAllowed(c *gin.Context) bool {
+	if !config.IsAdminDebugOpsEnabled() {
+		utils.Fail(c, 403, "调试接口已禁用（生产或 ENABLE_ADMIN_DEBUG=false）")
+		return false
+	}
+	return true
+}
+
 // GetGoroutineStats 获取协程统计信息
 func (ctrl *DebugController) GetGoroutineStats(c *gin.Context) {
+	if !ensureAdminDebugAllowed(c) {
+		return
+	}
 	includeStacks := c.Query("stacks") == "true"
 	minWaitMinutes, _ := strconv.Atoi(c.DefaultQuery("min_wait_minutes", "0"))
 	if minWaitMinutes < 0 {
@@ -421,6 +433,9 @@ func (ctrl *DebugController) GetGoroutineStats(c *gin.Context) {
 
 // ForceGC 强制执行垃圾回收
 func (ctrl *DebugController) ForceGC(c *gin.Context) {
+	if !ensureAdminDebugAllowed(c) {
+		return
+	}
 	beforeGoroutines := runtime.NumGoroutine()
 	runtime.GC()
 	time.Sleep(100 * time.Millisecond)
@@ -537,6 +552,9 @@ func buildTraceTextSummary(seconds int) (string, error) {
 }
 
 func writeNamedProfile(c *gin.Context, profileName string) {
+	if !ensureAdminDebugAllowed(c) {
+		return
+	}
 	debug := c.DefaultQuery("debug", "0")
 	debugLevel, _ := strconv.Atoi(debug)
 
@@ -561,6 +579,9 @@ func writeNamedProfile(c *gin.Context, profileName string) {
 
 // GetPprofProfile CPU profile
 func (ctrl *DebugController) GetPprofProfile(c *gin.Context) {
+	if !ensureAdminDebugAllowed(c) {
+		return
+	}
 	secondsStr := c.DefaultQuery("seconds", "30")
 	seconds, err := strconv.Atoi(secondsStr)
 	if err != nil || seconds < 1 || seconds > 120 {
@@ -595,6 +616,9 @@ func (ctrl *DebugController) GetPprofHeap(c *gin.Context) {
 
 // GetPprofGoroutine Goroutine profile
 func (ctrl *DebugController) GetPprofGoroutine(c *gin.Context) {
+	if !ensureAdminDebugAllowed(c) {
+		return
+	}
 	debugLevel, _ := strconv.Atoi(c.DefaultQuery("debug", "0"))
 	minWaitMinutes, _ := strconv.Atoi(c.DefaultQuery("min_wait_minutes", "0"))
 	if minWaitMinutes < 0 {
@@ -647,6 +671,9 @@ func (ctrl *DebugController) GetPprofThreadCreate(c *gin.Context) {
 
 // GetPprofTrace Execution trace
 func (ctrl *DebugController) GetPprofTrace(c *gin.Context) {
+	if !ensureAdminDebugAllowed(c) {
+		return
+	}
 	secondsStr := c.DefaultQuery("seconds", "5")
 	seconds, err := strconv.Atoi(secondsStr)
 	if err != nil || seconds < 1 || seconds > 30 {
@@ -674,9 +701,10 @@ func (ctrl *DebugController) GetPprofTrace(c *gin.Context) {
 	c.Data(200, "application/octet-stream", buf.Bytes())
 }
 
-// RegisterRoutes 注册调试路由
+// RegisterRoutes 注册调试路由。
+// 生产环境不注册；非生产由 ENABLE_ADMIN_DEBUG / EnableAdminDebugOps 控制，默认开发可开。
 func (ctrl *DebugController) RegisterRoutes(group *gin.RouterGroup) {
-	if config.IsProductionMode() {
+	if !config.IsAdminDebugOpsEnabled() {
 		return
 	}
 
@@ -684,7 +712,7 @@ func (ctrl *DebugController) RegisterRoutes(group *gin.RouterGroup) {
 	{
 		debug.GET("/goroutines/stats", ctrl.GetGoroutineStats)
 		debug.POST("/gc", ctrl.ForceGC)
-		
+
 		// pprof endpoints
 		pprof := debug.Group("/pprof")
 		{

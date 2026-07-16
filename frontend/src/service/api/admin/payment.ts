@@ -41,36 +41,36 @@ export interface PaymentStats {
 // 管理端支付 API
 // ========================================
 
-const BASE_URL = `${getAdminApiBase()}/payment`
+function baseUrl() { return `${getAdminApiBase()}/payment` }
 
 export const adminPaymentApi = {
   /** 订单列表 */
   listOrders(params: { page?: number, page_size?: number, status?: number, user_id?: number, keyword?: string }) {
-    return request.Get<Service.ResponseResult<PaymentOrderListResponse>>(`${BASE_URL}/orders`, { params })
+    return request.Get<Service.ResponseResult<PaymentOrderListResponse>>(`${baseUrl()}/orders`, { params })
   },
 
   /** 订单详情 */
   orderDetail(id: number) {
-    return request.Get<Service.ResponseResult<PaymentOrder>>(`${BASE_URL}/orders/${id}`)
+    return request.Get<Service.ResponseResult<PaymentOrder>>(`${baseUrl()}/orders/${id}`)
   },
 
   /** 手动补单 */
   completeOrder(id: number, data?: { memo?: string }) {
-    return request.Post<Service.ResponseResult<{ message: string }>>(`${BASE_URL}/orders/${id}/complete`, data || {})
+    return request.Post<Service.ResponseResult<{ message: string }>>(`${baseUrl()}/orders/${id}/complete`, data || {})
   },
 
   /** 取消订单 */
   cancelOrder(id: number) {
-    return request.Post<Service.ResponseResult<{ message: string }>>(`${BASE_URL}/orders/${id}/cancel`)
+    return request.Post<Service.ResponseResult<{ message: string }>>(`${baseUrl()}/orders/${id}/cancel`)
   },
 
   /** 删除订单 */
   deleteOrder(id: number) {
-    return request.Delete<Service.ResponseResult<{ message: string }>>(`${BASE_URL}/orders/${id}`)
+    return request.Delete<Service.ResponseResult<{ message: string }>>(`${baseUrl()}/orders/${id}`)
   },
 
   /** 支付统计 */
   getStats() {
-    return request.Get<Service.ResponseResult<PaymentStats>>(`${BASE_URL}/stats`)
+    return request.Get<Service.ResponseResult<PaymentStats>>(`${baseUrl()}/stats`)
   },
 }

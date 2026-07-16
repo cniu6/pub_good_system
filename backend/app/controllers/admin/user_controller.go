@@ -1,12 +1,14 @@
 package admin
 
 import (
+	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/pkg/config"
 	"fst/backend/utils"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -357,6 +359,7 @@ func (c *UserController) BatchGetSimpleInfo(ctx *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/admin/users/{id}/login-as [post]
 func (c *UserController) LoginToUser(ctx *gin.Context) {
+	// 生产环境一律禁止代登录，避免账号接管能力外泄
 	if config.IsProductionMode() {
 		utils.Fail(ctx, 403, "生产环境已禁用该功能")
 		return
@@ -373,9 +376,36 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 		utils.Fail(ctx, 404, "用户不存在")
 		return
 	}
+	// 不允许对管理员账号执行代登录，降低横向提权风险
+	if strings.EqualFold(strings.TrimSpace(user.Role), "admin") {
+		utils.Fail(ctx, 403, "禁止代登录管理员账号")
+		return
+	}
+	if user.Status != 1 {
+		utils.Fail(ctx, 403, "目标用户未启用，无法代登录")
+		return
+	}
 
-	accessTTL := time.Duration(config.GlobalConfig.JWTAccessExpire) * time.Second
-	refreshTTL := time.Duration(config.GlobalConfig.JWTRefreshExpire) * time.Second
+	cfg := config.CloneGlobalConfig()
+	// 代登录仅签发短时 access token（最长 15 分钟），并缩短 refresh 生命周期
+	accessTTL := 15 * time.Minute
+	if cfg != nil && cfg.JWTAccessExpire > 0 {
+		configured := time.Duration(cfg.JWTAccessExpire) * time.Second
+		if configured < accessTTL {
+			accessTTL = configured
+		}
+	}
+	refreshTTL := 30 * time.Minute
+	if cfg != nil && cfg.JWTRefreshExpire > 0 {
+		configured := time.Duration(cfg.JWTRefreshExpire) * time.Second
+		if configured < refreshTTL {
+			refreshTTL = configured
+		}
+	}
+	if refreshTTL < accessTTL {
+		refreshTTL = accessTTL
+	}
+
 	token, err := utils.GenerateTokenForGuardWithTTL(user.ID, user.Role, utils.UserAuthGuard, accessTTL)
 	if err != nil {
 		utils.Fail(ctx, 500, "生成 token 失败")
@@ -391,6 +421,44 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 	userAgent := ctx.GetHeader("User-Agent")
 	expiresAt := time.Now().Add(accessTTL).Unix()
 	refreshExpiresAt := time.Now().Add(refreshTTL).Unix()
+
+	// 审计：操作管理员 + 目标用户（不落 token 明文）
+	var adminID uint64
+	var adminName string
+	if uid, ok := ctx.Get("userID"); ok {
+		switch v := uid.(type) {
+		case uint64:
+			adminID = v
+		case int:
+			adminID = uint64(v)
+		case int64:
+			adminID = uint64(v)
+		}
+	}
+	if uname, ok := ctx.Get("username"); ok {
+		if s, ok2 := uname.(string); ok2 {
+			adminName = s
+		}
+	}
+	log.Printf("[SECURITY AUDIT] admin impersonation | admin_id=%d admin=%s target_user_id=%d target=%s ip=%s ttl=%s",
+		adminID, adminName, user.ID, user.Username, clientIP, accessTTL)
+	reqBody := fmt.Sprintf(`{"target_user_id":%d,"target_username":%q,"access_ttl_sec":%d}`, user.ID, user.Username, int(accessTTL.Seconds()))
+	respBody := `{"result":"ok","impersonation":true}`
+	_ = models.CreateOperationLog(&models.OperationLog{
+		UserID:       adminID,
+		Username:     adminName,
+		Module:       "admin_user",
+		Action:       "login_as",
+		Method:       ctx.Request.Method,
+		Path:         ctx.FullPath(),
+		IP:           clientIP,
+		UserAgent:    userAgent,
+		RequestBody:  &reqBody,
+		ResponseBody: &respBody,
+		StatusCode:   200,
+		Duration:     0,
+	})
+
 	if err := models.CreateUserSession(user.ID, utils.UserAuthGuard, utils.HashToken(token), utils.HashToken(refreshToken), clientIP, userAgent, "Admin Impersonation", expiresAt, refreshExpiresAt); err != nil {
 		utils.Fail(ctx, 500, "创建登录会话失败")
 		return

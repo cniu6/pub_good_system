@@ -4,7 +4,7 @@
 import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
-const BASE_URL = `${getAdminApiBase()}/payment/gateways`
+function baseUrl() { return `${getAdminApiBase()}/payment/gateways` }
 
 /** 支付通道 */
 export interface PayGateway {
@@ -57,25 +57,25 @@ interface PayGatewayListResponse {
 
 /** 获取支付通道列表 */
 export function fetchPayGateways(params?: { page?: number, page_size?: number, keyword?: string }) {
-  return request.Get<Service.ResponseResult<PayGatewayListResponse>>(BASE_URL, { params })
+  return request.Get<Service.ResponseResult<PayGatewayListResponse>>(baseUrl(), { params })
 }
 
 /** 获取支付通道详情 */
 export function fetchPayGatewayDetail(id: number) {
-  return request.Get<Service.ResponseResult<PayGateway>>(`${BASE_URL}/${id}`)
+  return request.Get<Service.ResponseResult<PayGateway>>(`${baseUrl()}/${id}`)
 }
 
 /** 创建支付通道 */
 export function createPayGateway(data: PayGatewayCreateRequest) {
-  return request.Post<Service.ResponseResult<PayGateway>>(BASE_URL, data)
+  return request.Post<Service.ResponseResult<PayGateway>>(baseUrl(), data)
 }
 
 /** 更新支付通道 */
 export function updatePayGateway(id: number, data: PayGatewayUpdateRequest) {
-  return request.Put<Service.ResponseResult<PayGateway>>(`${BASE_URL}/${id}`, data)
+  return request.Put<Service.ResponseResult<PayGateway>>(`${baseUrl()}/${id}`, data)
 }
 
 /** 删除支付通道 */
 export function deletePayGateway(id: number) {
-  return request.Delete<Service.ResponseResult<null>>(`${BASE_URL}/${id}`)
+  return request.Delete<Service.ResponseResult<null>>(`${baseUrl()}/${id}`)
 }

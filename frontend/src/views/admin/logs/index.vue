@@ -104,9 +104,6 @@ const showDetail = ref(false)
 const detailLoading = ref(false)
 const detailData = ref<any | null>(null)
 
-// 获取管理端路径前缀
-const adminPath = import.meta.env.VITE_ADMIN_BASE_PATH || '/system-mgr'
-
 const query = reactive({
   page: 1,
   page_size: 20,
@@ -127,10 +124,10 @@ const methodColors: Record<string, 'info' | 'success' | 'warning' | 'error'> = {
   DELETE: 'error',
 }
 
-// 跳转到用户详情页
+// 跳转到用户详情页（admin hash 路由内部路径）
 function goToUserDetail(userId: number) {
   if (userId) {
-    router.push(`${adminPath}/users/${userId}`)
+    router.push(`/users/${userId}`)
   }
 }
 

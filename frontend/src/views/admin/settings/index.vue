@@ -851,7 +851,8 @@
   import OperationLogs from '@/views/admin/logs/index.vue'
   import type { ServerMonitoringStatusResponse, SettingDTO, SettingType } from '@/service/api/admin/settings'
   import { useSettingsStore } from '@/store/settings'
-  import { local, parseBooleanSetting } from '@/utils'
+  // authStorage 读取当前活跃作用域 token，避免双窗口/隔离登录时误用 local 中的用户态 token
+  import { authStorage, parseBooleanSetting } from '@/utils'
 
   const message = useMessage()
   const settingsStore = useSettingsStore()
@@ -2086,7 +2087,7 @@ async function captureCPUProfile() {
   message.info(t('adminSettings.cpuProfileStarting', { seconds: pprofConfig.value.cpuSeconds }))
   try {
     const url = adminDebugApi.cpuProfile(pprofConfig.value.cpuSeconds)
-    const token = local.get('accessToken')
+    const token = authStorage.get('accessToken')
     const res = await fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` },
     })
@@ -2115,7 +2116,7 @@ async function captureHeapProfile() {
   pprofResults.value.heapStats = null
   try {
     const url = adminDebugApi.heapProfile()
-    const token = local.get('accessToken')
+    const token = authStorage.get('accessToken')
     const res = await fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` },
     })
@@ -2151,7 +2152,7 @@ async function captureGoroutineProfile() {
   pprofResults.value.goroutineCount = 0
   try {
     const url = adminDebugApi.goroutineProfile(0)
-    const token = local.get('accessToken')
+    const token = authStorage.get('accessToken')
     const res = await fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` },
     })
@@ -2180,7 +2181,7 @@ async function captureAllocsProfile() {
   pprofResults.value.allocsText = ''
   try {
     const url = adminDebugApi.allocsProfile()
-    const token = local.get('accessToken')
+    const token = authStorage.get('accessToken')
     const res = await fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` },
     })
@@ -2208,7 +2209,7 @@ async function captureBlockProfile() {
   pprofResults.value.blockText = ''
   try {
     const url = adminDebugApi.blockProfile()
-    const token = local.get('accessToken')
+    const token = authStorage.get('accessToken')
     const res = await fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` },
     })
@@ -2236,7 +2237,7 @@ async function captureMutexProfile() {
   pprofResults.value.mutexText = ''
   try {
     const url = adminDebugApi.mutexProfile()
-    const token = local.get('accessToken')
+    const token = authStorage.get('accessToken')
     const res = await fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` },
     })
@@ -2263,7 +2264,7 @@ async function loadRuntimeStacks() {
   runtimeStackText.value = ''
   try {
     const url = adminDebugApi.goroutineProfile(stackFilterMinWaitMinutes.value)
-    const token = local.get('accessToken')
+    const token = authStorage.get('accessToken')
     const res = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`,

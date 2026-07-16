@@ -17,6 +17,7 @@ async function setupApp(app: AppInstance<Element>, mode: AppRouteMode) {
   installPinia(app)
 
   // 2. 加载运行时配置（在安装其他模块之前）
+  // loadConfig 会注入 admin_api_path，管理端 API 前缀与后端 ADMIN_API_PATH 对齐
   const settingsStore = useSettingsStore()
   await settingsStore.loadConfig()
 

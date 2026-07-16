@@ -249,14 +249,58 @@ func TestValidatePaymentNotifyBinding(t *testing.T) {
 
 	t.Run("匹配参数通过", func(t *testing.T) {
 		err := validatePaymentNotifyBinding(
-			&models.PaymentOrder{TradeNo: "TN123", PaymentType: "alipay"},
-			&models.PayGateway{PID: "1001"},
+			&models.PaymentOrder{
+				GatewayID:      7,
+				TradeNo:        "TN123",
+				PaymentChannel: "epay",
+				PaymentType:    "alipay",
+			},
+			&models.PayGateway{ID: 7, Type: "epay", PayType: "alipay", PID: "1001"},
 			"1001",
 			"alipay",
 			"TN123",
 		)
 		if err != nil {
 			t.Fatalf("expected binding validation to pass, got %v", err)
+		}
+	})
+
+	t.Run("跨网关ID必须拒绝", func(t *testing.T) {
+		err := validatePaymentNotifyBinding(
+			&models.PaymentOrder{GatewayID: 1, PaymentChannel: "epay", PaymentType: "alipay"},
+			&models.PayGateway{ID: 2, Type: "epay", PayType: "alipay", PID: "1001"},
+			"1001",
+			"alipay",
+			"",
+		)
+		if err == nil || err.Error() != "支付通道不匹配" {
+			t.Fatalf("expected gateway id mismatch, got %v", err)
+		}
+	})
+
+	t.Run("支付方式不匹配必须拒绝", func(t *testing.T) {
+		err := validatePaymentNotifyBinding(
+			&models.PaymentOrder{GatewayID: 1, PaymentChannel: "epay", PaymentType: "alipay"},
+			&models.PayGateway{ID: 1, Type: "epay", PayType: "wxpay", PID: "1001"},
+			"1001",
+			"",
+			"",
+		)
+		if err == nil || err.Error() != "支付方式不匹配" {
+			t.Fatalf("expected pay type mismatch, got %v", err)
+		}
+	})
+
+	t.Run("标准回调type与订单不一致必须拒绝", func(t *testing.T) {
+		err := validatePaymentNotifyBinding(
+			&models.PaymentOrder{PaymentType: "alipay"},
+			nil,
+			"",
+			"wxpay",
+			"",
+		)
+		if err == nil || err.Error() != "回调支付类型不匹配" {
+			t.Fatalf("expected callback type mismatch, got %v", err)
 		}
 	})
 

@@ -5,7 +5,7 @@ import { i18n } from '@/modules/i18n'
 import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
-const BASE_URL = `${getAdminApiBase()}/realname`
+function baseUrl() { return `${getAdminApiBase()}/realname` }
 
 // 获取证件类型选项（支持 i18n）
 export function getCertificateTypeOptions() {
@@ -70,11 +70,11 @@ export const adminRealnameApi = {
     status?: RealnameStatus
     user_id?: number
   }) {
-    return request.Get<Service.ResponseResult<RealnameListResponse>>(BASE_URL, { params })
+    return request.Get<Service.ResponseResult<RealnameListResponse>>(baseUrl(), { params })
   },
 
   detail(id: number) {
-    return request.Get<Service.ResponseResult<RealnameDetailResponse>>(`${BASE_URL}/${id}`)
+    return request.Get<Service.ResponseResult<RealnameDetailResponse>>(`${baseUrl()}/${id}`)
   },
 
   review(data: {
@@ -83,7 +83,7 @@ export const adminRealnameApi = {
     reject_reason?: string
   }) {
     return request.Post<Service.ResponseResult<{}>>(
-      `${BASE_URL}/review`,
+      `${baseUrl()}/review`,
       data,
     )
   },

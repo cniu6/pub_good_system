@@ -11,22 +11,24 @@ func ensureJWTConfig(jwtSecret string) {
 	if jwtSecret == "" {
 		jwtSecret = "fst-secret-key-change-in-production"
 	}
-	if config.GlobalConfig == nil {
+	if config.GetGlobalConfig() == nil {
 		// 最小配置：仅 JWT 相关，足够 GenerateToken/ParseToken
-		config.GlobalConfig = &config.Config{
+		config.SetGlobalConfig(&config.Config{
 			JWTSecret:      jwtSecret,
 			AdminJWTSecret: jwtSecret,
 			AppMode:        "debug",
 			Environment:    "development",
-		}
+		})
 		log.Println("  - 已初始化 JWT GlobalConfig（草稿栈）")
 		return
 	}
-	// 若现网 config 已存在但密钥为空，则补齐
-	if config.GlobalConfig.JWTSecret == "" {
-		config.GlobalConfig.JWTSecret = jwtSecret
-	}
-	if config.GlobalConfig.AdminJWTSecret == "" {
-		config.GlobalConfig.AdminJWTSecret = config.GlobalConfig.JWTSecret
-	}
+	// 若现网 config 已存在但密钥为空，则补齐（写锁内更新）
+	config.UpdateGlobalConfig(func(cfg *config.Config) {
+		if cfg.JWTSecret == "" {
+			cfg.JWTSecret = jwtSecret
+		}
+		if cfg.AdminJWTSecret == "" {
+			cfg.AdminJWTSecret = cfg.JWTSecret
+		}
+	})
 }

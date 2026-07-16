@@ -3,7 +3,7 @@ import { adminMoneyLogApi, adminScoreLogApi } from './user'
 import { getAdminApiBase } from './base'
 
 // 余额/积分“仅写日志”接口（后端新增）
-const USERS_BASE_URL = `${getAdminApiBase()}/users`
+function usersBaseUrl() { return `${getAdminApiBase()}/users` }
 
 interface MoneyChangeResponse {
   message: string
@@ -21,15 +21,15 @@ interface MoneyOperateResponse {
 }
 
 export function updateUserMoney(userId: number, data: { money: number, memo?: string }) {
-  return request.Put<Service.ResponseResult<MoneyChangeResponse>>(`${USERS_BASE_URL}/${userId}/money`, data)
+  return request.Put<Service.ResponseResult<MoneyChangeResponse>>(`${usersBaseUrl()}/${userId}/money`, data)
 }
 
 export function updateUserScore(userId: number, data: { score: number, memo?: string }) {
-  return request.Put<Service.ResponseResult<ScoreChangeResponse>>(`${USERS_BASE_URL}/${userId}/score`, data)
+  return request.Put<Service.ResponseResult<ScoreChangeResponse>>(`${usersBaseUrl()}/${userId}/score`, data)
 }
 
 export function addMoneyLog(userId: number, data: { money: number, memo?: string }) {
-  return request.Post<Service.ResponseResult<MoneyChangeResponse>>(`${USERS_BASE_URL}/${userId}/money/log`, data)
+  return request.Post<Service.ResponseResult<MoneyChangeResponse>>(`${usersBaseUrl()}/${userId}/money/log`, data)
 }
 
 export interface MoneyOperationPayload {
@@ -42,7 +42,7 @@ export interface MoneyOperationPayload {
 }
 
 export function operateUserMoney(userId: number, data: MoneyOperationPayload) {
-  return request.Post<Service.ResponseResult<MoneyOperateResponse>>(`${USERS_BASE_URL}/${userId}/money/operate`, data)
+  return request.Post<Service.ResponseResult<MoneyOperateResponse>>(`${usersBaseUrl()}/${userId}/money/operate`, data)
 }
 
 /** 后端生成订单号和交易号 */
@@ -51,7 +51,7 @@ export function generateNos() {
 }
 
 export function addScoreLog(userId: number, data: { score: number, memo?: string }) {
-  return request.Post<Service.ResponseResult<ScoreChangeResponse>>(`${USERS_BASE_URL}/${userId}/score/log`, data)
+  return request.Post<Service.ResponseResult<ScoreChangeResponse>>(`${usersBaseUrl()}/${userId}/score/log`, data)
 }
 
 export function fetchAllMoneyLogs(params: { page?: number, page_size?: number, keyword?: string, user_id?: number }) {
@@ -98,32 +98,32 @@ export interface WithdrawStats {
   paid_amount: number
 }
 
-const WITHDRAW_URL = `${getAdminApiBase()}/withdraw`
+function withdrawUrl() { return `${getAdminApiBase()}/withdraw` }
 
 function createIdempotencyKey(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 export function fetchWithdrawRecords(params: { page?: number, page_size?: number, keyword?: string, user_id?: number, status?: number }) {
-  return request.Get<Service.ResponseResult<{ list: WithdrawRecord[], total: number, page: number, page_size: number }>>(WITHDRAW_URL, { params })
+  return request.Get<Service.ResponseResult<{ list: WithdrawRecord[], total: number, page: number, page_size: number }>>(withdrawUrl(), { params })
 }
 
 export function fetchWithdrawStats(params: { keyword?: string, user_id?: number, status?: number }) {
-  return request.Get<Service.ResponseResult<WithdrawStats>>(`${WITHDRAW_URL}/stats`, { params })
+  return request.Get<Service.ResponseResult<WithdrawStats>>(`${withdrawUrl()}/stats`, { params })
 }
 
 export function fetchWithdrawDetail(id: number) {
-  return request.Get<Service.ResponseResult<WithdrawRecord>>(`${WITHDRAW_URL}/${id}`)
+  return request.Get<Service.ResponseResult<WithdrawRecord>>(`${withdrawUrl()}/${id}`)
 }
 
 export function reviewWithdraw(id: number, data: { status: 1 | 2, review_remark?: string }) {
-  return request.Post<Service.ResponseResult<{ message: string }>>(`${WITHDRAW_URL}/${id}/review`, data, {
+  return request.Post<Service.ResponseResult<{ message: string }>>(`${withdrawUrl()}/${id}/review`, data, {
     headers: { 'X-Idempotency-Key': createIdempotencyKey(`withdraw-review-${id}`) },
   })
 }
 
 export function payWithdraw(id: number, data?: { transfer_remark?: string }) {
-  return request.Post<Service.ResponseResult<{ message: string }>>(`${WITHDRAW_URL}/${id}/pay`, data || {}, {
+  return request.Post<Service.ResponseResult<{ message: string }>>(`${withdrawUrl()}/${id}/pay`, data || {}, {
     headers: { 'X-Idempotency-Key': createIdempotencyKey(`withdraw-pay-${id}`) },
   })
 }

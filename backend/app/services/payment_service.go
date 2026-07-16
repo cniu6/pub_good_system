@@ -197,6 +197,7 @@ func settleThirdPartyPaidOrderTx(tx *sql.Tx, orderNo, tradeNo, paymentType, mone
 		log.Printf("[Payment] 订单状态不允许处理: source=%s, order_no=%s, status=%d", source, orderNo, order.Status)
 		return order, nil, false, errors.New("订单状态不允许处理回调")
 	}
+	// 事务内再次校验：支付方式 + 交易号（网关/PID 已在外层 HandlePaymentNotify / 查单完成）
 	if err := validatePaymentNotifyBinding(order, nil, "", paymentType, tradeNo); err != nil {
 		log.Printf("[Payment] 绑定校验失败: source=%s, order_no=%s, err=%v", source, orderNo, err)
 		return order, nil, false, err
@@ -253,11 +254,12 @@ func HandlePaymentNotify(params map[string]string) (bool, error) {
 
 	// 4. 验证签名（防篡改）
 	if !VerifyEpaySign(params, gateway.Key) {
-		log.Printf("[Payment] 回调签名验证失败: params=%v", params)
+		log.Printf("[Payment] 回调签名验证失败: order_no=%s, trade_status=%s", outTradeNo, tradeStatus)
 		return false, errors.New("签名验证失败")
 	}
-	if err := validatePaymentNotifyBinding(nil, gateway, pid, "", tradeNo); err != nil {
-		log.Printf("[Payment] 回调绑定校验失败: order_no=%s, err=%v", outTradeNo, err)
+	// 5. 订单与通道/商户/支付方式绑定校验（防串单）
+	if err := validatePaymentNotifyBinding(orderForGateway, gateway, pid, callbackType, tradeNo); err != nil {
+		log.Printf("[Payment] 回调绑定校验失败: order_no=%s, gateway_id=%d, err=%v", outTradeNo, orderForGateway.GatewayID, err)
 		return false, err
 	}
 
@@ -387,7 +389,7 @@ func reconcilePendingPaymentOrder(order *models.PaymentOrder) (bool, error) {
 	if queryTradeNo == "" {
 		queryTradeNo = tradeNo
 	}
-	if err := validatePaymentNotifyBinding(order, nil, "", strings.TrimSpace(queryResult.Type), queryTradeNo); err != nil {
+	if err := validatePaymentNotifyBinding(order, gateway, strings.TrimSpace(gateway.PID), strings.TrimSpace(queryResult.Type), queryTradeNo); err != nil {
 		return false, err
 	}
 	if err := validateCallbackMoney(order.PayAmount, queryResult.Money); err != nil {
@@ -548,13 +550,58 @@ func AdminDeleteOrder(orderID uint64) error {
 	return nil
 }
 
+// isNonStandardEpayCallbackType 判断易支付回调 type 是否为非标准值。
+// 标准值（alipay/wxpay 等）必须与订单一致；空串、数字、厂商自定义值不强校验。
+func isNonStandardEpayCallbackType(callbackType string) bool {
+	callbackType = strings.TrimSpace(callbackType)
+	if callbackType == "" {
+		return true
+	}
+	switch strings.ToLower(callbackType) {
+	case "alipay", "wxpay", "qqpay", "bank", "jdpay", "paypal", "usdt":
+		return false
+	default:
+		return true
+	}
+}
+
+// validatePaymentNotifyBinding 校验支付回调/查单结果与本地订单、通道绑定关系，防止串单。
+// 校验项：商户号 PID、订单归属网关 ID、通道类型、支付方式、交易号、标准回调 type。
 func validatePaymentNotifyBinding(order *models.PaymentOrder, gateway *models.PayGateway, pid, callbackType, tradeNo string) error {
-	if gateway != nil && gateway.PID != "" && pid != gateway.PID {
+	pid = strings.TrimSpace(pid)
+	callbackType = strings.TrimSpace(callbackType)
+	tradeNo = models.NormalizeTradeNo(tradeNo)
+
+	if gateway != nil && strings.TrimSpace(gateway.PID) != "" && pid != "" && pid != strings.TrimSpace(gateway.PID) {
 		return errors.New("商户号不匹配")
 	}
+	// 网关已配置商户号时，回调必须带上且一致（避免空 pid 绕过）
+	if gateway != nil && strings.TrimSpace(gateway.PID) != "" && pid == "" {
+		return errors.New("商户号不匹配")
+	}
+
 	if order != nil {
-		if order.TradeNo != "" && order.TradeNo != tradeNo {
+		if order.TradeNo != "" && tradeNo != "" && order.TradeNo != tradeNo {
 			return errors.New("交易号不匹配")
+		}
+		if gateway != nil {
+			if order.GatewayID != 0 && gateway.ID != 0 && order.GatewayID != gateway.ID {
+				return errors.New("支付通道不匹配")
+			}
+			if order.PaymentChannel != "" && gateway.Type != "" &&
+				!strings.EqualFold(order.PaymentChannel, gateway.Type) {
+				return errors.New("支付通道类型不匹配")
+			}
+			if order.PaymentType != "" && gateway.PayType != "" &&
+				!strings.EqualFold(order.PaymentType, gateway.PayType) {
+				return errors.New("支付方式不匹配")
+			}
+		}
+		// 标准支付类型（alipay/wxpay 等）必须与订单一致；数字型自定义 type 放行
+		if order.PaymentType != "" && callbackType != "" && !isNonStandardEpayCallbackType(callbackType) {
+			if !strings.EqualFold(callbackType, order.PaymentType) {
+				return errors.New("回调支付类型不匹配")
+			}
 		}
 	}
 	return nil

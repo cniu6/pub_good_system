@@ -5,18 +5,18 @@
 import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
-const BASE_URL = `${getAdminApiBase()}/logs`
+function baseUrl() { return `${getAdminApiBase()}/logs` }
 
 export const adminLogApi = {
   /**
    * 获取日志列表（分页）
    */
   list(params?: { page?: number; page_size?: number; start_time?: number; end_time?: number }) {
-    return request.Get<Service.ResponseResult<{ list: any[]; total: number; page: number; page_size: number }>>(BASE_URL, { params })
+    return request.Get<Service.ResponseResult<{ list: any[]; total: number; page: number; page_size: number }>>(baseUrl(), { params })
   },
 
   detail(id: number) {
-    return request.Get<Service.ResponseResult<any>>(`${BASE_URL}/${id}`)
+    return request.Get<Service.ResponseResult<any>>(`${baseUrl()}/${id}`)
   },
 
   /**
@@ -24,6 +24,6 @@ export const adminLogApi = {
    * @param before_time 清理此时间戳之前的日志
    */
   clean(before_time: number) {
-    return request.Post<Service.ResponseResult<{ affected: number }>>(`${BASE_URL}/clean`, { before_time })
+    return request.Post<Service.ResponseResult<{ affected: number }>>(`${baseUrl()}/clean`, { before_time })
   },
 }

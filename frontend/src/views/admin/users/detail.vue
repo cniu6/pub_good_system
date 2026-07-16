@@ -26,6 +26,11 @@ const message = useMessage()
 const dialog = useDialog()
 const { t } = useI18n()
 
+/** 返回用户列表：admin 模式使用 hash 内路径 /users（base 已是 VITE_ADMIN_BASE_PATH） */
+function goUserList(query?: Record<string, string | number>) {
+  router.push({ path: '/users', query: query as any })
+}
+
 // 用户ID
 const userId = ref(Number(route.params.id))
 
@@ -580,8 +585,7 @@ function handleWithdrawPageSizeChange(pageSize: number) {
 
 // 返回用户列表
 function handleBack() {
-  const adminBasePath = import.meta.env.VITE_ADMIN_BASE_PATH || '/system-mgr'
-  router.push(`${adminBasePath}/user-management/users`)
+  goUserList()
 }
 
 // 刷新数据
@@ -591,11 +595,7 @@ function handleRefresh() {
 
 // 编辑用户
 function handleEdit() {
-  const adminBasePath = import.meta.env.VITE_ADMIN_BASE_PATH || '/system-mgr'
-  router.push({
-    path: `${adminBasePath}/user-management/users`,
-    query: { edit: userId.value },
-  })
+  goUserList({ edit: userId.value })
 }
 
 // 切换用户状态
@@ -712,8 +712,7 @@ function handleDelete() {
         const response: any = await deleteUser(user.value!.id)
         if (response.isSuccess) {
           message.success(t('adminUsersDetail.deleteSuccess'))
-          const adminBasePath = import.meta.env.VITE_ADMIN_BASE_PATH || '/admin'
-          router.push(`${adminBasePath}/user-management/users`)
+          goUserList()
         }
         else {
           message.error(response.message || t('adminUsersDetail.deleteFailed'))

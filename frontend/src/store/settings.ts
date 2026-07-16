@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { fetchAppConfig, type AppConfig } from '@/service/api/app-config'
+import { getAdminApiPath, setRuntimeAdminApiPath } from '@/service/api/admin/base'
 import { geetestManager } from '@/utils/geetest'
 import { i18n } from '@/modules/i18n'
 
@@ -88,6 +89,9 @@ export const useSettingsStore = defineStore('settings-store', () => {
   // 支持的提现收款方式
   const withdrawAccountTypes = computed(() => config.value?.withdraw_account_types ?? ['bank', 'alipay', 'wechat', 'usdt'])
 
+  // 管理端 REST API 前缀（运行时注入后与后端 ADMIN_API_PATH 一致）
+  const adminApiPath = computed(() => getAdminApiPath())
+
   // ========================================
   // Actions
   // ========================================
@@ -110,6 +114,9 @@ export const useSettingsStore = defineStore('settings-store', () => {
         config.value = response.data
         isLoaded.value = true
 
+        // 管理端 API 前缀：后端 ADMIN_API_PATH 注入前端，请求路径与路由一致
+        setRuntimeAdminApiPath(response.data.admin_api_path)
+
         // 注册极验启用检查函数
         geetestManager.setEnabledChecker(() => geetestEnabled.value)
       }
@@ -117,7 +124,8 @@ export const useSettingsStore = defineStore('settings-store', () => {
     catch (error: unknown) {
       loadError.value = error instanceof Error ? error.message : 'Failed to load app config'
 
-      // 加载失败时使用默认值，不影响应用启动
+      // 加载失败时使用默认值（VITE_ADMIN_API_PATH /admin），不影响应用启动
+      setRuntimeAdminApiPath(import.meta.env.VITE_ADMIN_API_PATH)
       isLoaded.value = true
     }
     finally {
@@ -140,6 +148,8 @@ export const useSettingsStore = defineStore('settings-store', () => {
   function updateConfig(newConfig: Partial<AppConfig>) {
     if (config.value) {
       config.value = { ...config.value, ...newConfig }
+      if (newConfig.admin_api_path !== undefined)
+        setRuntimeAdminApiPath(newConfig.admin_api_path)
     }
   }
 
@@ -170,6 +180,7 @@ export const useSettingsStore = defineStore('settings-store', () => {
     withdrawMinAmount,
     withdrawNotifyText,
     withdrawAccountTypes,
+    adminApiPath,
 
     // Actions
     loadConfig,

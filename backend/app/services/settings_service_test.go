@@ -9,13 +9,13 @@ import (
 
 func TestApplyGlobalRuntimeConfigUsesSQLAndEnvFallback(t *testing.T) {
 	oldSettingsService := GlobalSettingsService
-	oldConfig := config.GlobalConfig
+	oldConfig := config.CloneGlobalConfig()
 	defer func() {
 		GlobalSettingsService = oldSettingsService
-		config.GlobalConfig = oldConfig
+		config.SetGlobalConfig(oldConfig)
 	}()
 
-	config.GlobalConfig = &config.Config{
+	config.SetGlobalConfig(&config.Config{
 		AppName:                   "Env App",
 		FrontendURL:               "https://env.example.com",
 		BackendAPIURL:             "https://api-env.example.com",
@@ -34,7 +34,7 @@ func TestApplyGlobalRuntimeConfigUsesSQLAndEnvFallback(t *testing.T) {
 		EmailVerifyEnabled:        true,
 		SMSVerifyEnabled:          false,
 		SMSProvider:               "console",
-	}
+	})
 
 	GlobalSettingsService = &SettingsService{
 		cache: map[string]*models.SystemSetting{
@@ -60,62 +60,66 @@ func TestApplyGlobalRuntimeConfigUsesSQLAndEnvFallback(t *testing.T) {
 
 	ApplyGlobalRuntimeConfig()
 
-	if config.GlobalConfig.AppName != "DB App" {
-		t.Fatalf("AppName = %q, want %q", config.GlobalConfig.AppName, "DB App")
+	got := config.CloneGlobalConfig()
+	if got == nil {
+		t.Fatal("GlobalConfig is nil after ApplyGlobalRuntimeConfig")
 	}
-	if config.GlobalConfig.FrontendURL != "https://db.example.com" {
-		t.Fatalf("FrontendURL = %q, want %q", config.GlobalConfig.FrontendURL, "https://db.example.com")
+	if got.AppName != "DB App" {
+		t.Fatalf("AppName = %q, want %q", got.AppName, "DB App")
 	}
-	if config.GlobalConfig.BackendAPIURL != "https://api-db.example.com" {
-		t.Fatalf("BackendAPIURL = %q, want %q", config.GlobalConfig.BackendAPIURL, "https://api-db.example.com")
+	if got.FrontendURL != "https://db.example.com" {
+		t.Fatalf("FrontendURL = %q, want %q", got.FrontendURL, "https://db.example.com")
 	}
-	if config.GlobalConfig.SMTPHost != "smtp.env.local" {
-		t.Fatalf("SMTPHost = %q, want env fallback %q", config.GlobalConfig.SMTPHost, "smtp.env.local")
+	if got.BackendAPIURL != "https://api-db.example.com" {
+		t.Fatalf("BackendAPIURL = %q, want %q", got.BackendAPIURL, "https://api-db.example.com")
 	}
-	if !config.GlobalConfig.SMTPSSL {
-		t.Fatalf("SMTPSSL = %v, want true", config.GlobalConfig.SMTPSSL)
+	if got.SMTPHost != "smtp.env.local" {
+		t.Fatalf("SMTPHost = %q, want env fallback %q", got.SMTPHost, "smtp.env.local")
 	}
-	if config.GlobalConfig.SystemEmail != "db-from@example.com" {
-		t.Fatalf("SystemEmail = %q, want %q", config.GlobalConfig.SystemEmail, "db-from@example.com")
+	if !got.SMTPSSL {
+		t.Fatalf("SMTPSSL = %v, want true", got.SMTPSSL)
 	}
-	if config.GlobalConfig.SystemEmailName != "DB Sender" {
-		t.Fatalf("SystemEmailName = %q, want %q", config.GlobalConfig.SystemEmailName, "DB Sender")
+	if got.SystemEmail != "db-from@example.com" {
+		t.Fatalf("SystemEmail = %q, want %q", got.SystemEmail, "db-from@example.com")
 	}
-	if config.GlobalConfig.RegisterCodeExpireMinutes != 90 {
-		t.Fatalf("RegisterCodeExpireMinutes = %d, want 90", config.GlobalConfig.RegisterCodeExpireMinutes)
+	if got.SystemEmailName != "DB Sender" {
+		t.Fatalf("SystemEmailName = %q, want %q", got.SystemEmailName, "DB Sender")
 	}
-	if config.GlobalConfig.JWTAccessExpire != 1800 {
-		t.Fatalf("JWTAccessExpire = %d, want 1800", config.GlobalConfig.JWTAccessExpire)
+	if got.RegisterCodeExpireMinutes != 90 {
+		t.Fatalf("RegisterCodeExpireMinutes = %d, want 90", got.RegisterCodeExpireMinutes)
 	}
-	if config.GlobalConfig.JWTRefreshExpire != 3600 {
-		t.Fatalf("JWTRefreshExpire = %d, want 3600", config.GlobalConfig.JWTRefreshExpire)
+	if got.JWTAccessExpire != 1800 {
+		t.Fatalf("JWTAccessExpire = %d, want 1800", got.JWTAccessExpire)
 	}
-	if config.GlobalConfig.LoginMaxFailureCount != 8 {
-		t.Fatalf("LoginMaxFailureCount = %d, want 8", config.GlobalConfig.LoginMaxFailureCount)
+	if got.JWTRefreshExpire != 3600 {
+		t.Fatalf("JWTRefreshExpire = %d, want 3600", got.JWTRefreshExpire)
 	}
-	if config.GlobalConfig.LoginLockDurationMinutes != 15 {
-		t.Fatalf("LoginLockDurationMinutes = %d, want 15", config.GlobalConfig.LoginLockDurationMinutes)
+	if got.LoginMaxFailureCount != 8 {
+		t.Fatalf("LoginMaxFailureCount = %d, want 8", got.LoginMaxFailureCount)
 	}
-	if config.GlobalConfig.EmailVerifyEnabled {
-		t.Fatalf("EmailVerifyEnabled = %v, want false", config.GlobalConfig.EmailVerifyEnabled)
+	if got.LoginLockDurationMinutes != 15 {
+		t.Fatalf("LoginLockDurationMinutes = %d, want 15", got.LoginLockDurationMinutes)
 	}
-	if !config.GlobalConfig.SMSVerifyEnabled {
-		t.Fatalf("SMSVerifyEnabled = %v, want true", config.GlobalConfig.SMSVerifyEnabled)
+	if got.EmailVerifyEnabled {
+		t.Fatalf("EmailVerifyEnabled = %v, want false", got.EmailVerifyEnabled)
 	}
-	if config.GlobalConfig.SMSProvider != "aliyun" {
-		t.Fatalf("SMSProvider = %q, want %q", config.GlobalConfig.SMSProvider, "aliyun")
+	if !got.SMSVerifyEnabled {
+		t.Fatalf("SMSVerifyEnabled = %v, want true", got.SMSVerifyEnabled)
+	}
+	if got.SMSProvider != "aliyun" {
+		t.Fatalf("SMSProvider = %q, want %q", got.SMSProvider, "aliyun")
 	}
 }
 
 func TestGetGlobalFrontendURLFallsBackWhenDBValueBlank(t *testing.T) {
 	oldSettingsService := GlobalSettingsService
-	oldConfig := config.GlobalConfig
+	oldConfig := config.CloneGlobalConfig()
 	defer func() {
 		GlobalSettingsService = oldSettingsService
-		config.GlobalConfig = oldConfig
+		config.SetGlobalConfig(oldConfig)
 	}()
 
-	config.GlobalConfig = &config.Config{FrontendURL: "https://env.example.com"}
+	config.SetGlobalConfig(&config.Config{FrontendURL: "https://env.example.com"})
 	GlobalSettingsService = &SettingsService{
 		cache: map[string]*models.SystemSetting{
 			"frontend_url": {Key: "frontend_url", Value: "   "},
@@ -131,13 +135,13 @@ func TestGetGlobalFrontendURLFallsBackWhenDBValueBlank(t *testing.T) {
 
 func TestGetGlobalBackendAPIURLFallsBackWhenDBValueBlank(t *testing.T) {
 	oldSettingsService := GlobalSettingsService
-	oldConfig := config.GlobalConfig
+	oldConfig := config.CloneGlobalConfig()
 	defer func() {
 		GlobalSettingsService = oldSettingsService
-		config.GlobalConfig = oldConfig
+		config.SetGlobalConfig(oldConfig)
 	}()
 
-	config.GlobalConfig = &config.Config{BackendAPIURL: "https://api-env.example.com"}
+	config.SetGlobalConfig(&config.Config{BackendAPIURL: "https://api-env.example.com"})
 	GlobalSettingsService = &SettingsService{
 		cache: map[string]*models.SystemSetting{
 			"backend_api_url": {Key: "backend_api_url", Value: "   "},

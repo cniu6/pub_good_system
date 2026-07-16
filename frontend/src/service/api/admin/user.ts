@@ -6,8 +6,8 @@ import { authStorage } from '@/utils'
 import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
-// 管理端 API base 来自 VITE_ADMIN_API_PATH（默认 /admin）
-const BASE_URL = `${getAdminApiBase()}/users`
+// 管理端 API base：运行时 app-config.admin_api_path，回退 VITE_ADMIN_API_PATH（默认 /admin）
+function baseUrl() { return `${getAdminApiBase()}/users` }
 
 export interface AdminUser {
   id: number
@@ -191,12 +191,12 @@ export const adminUserApi = {
     role?: string
     realname_status?: 0 | 1 | 2 | null
   }) {
-    return request.Get<Service.ResponseResult<UserListResponse>>(BASE_URL, { params })
+    return request.Get<Service.ResponseResult<UserListResponse>>(baseUrl(), { params })
   },
 
   // 用户详情
   detail(id: number) {
-    return request.Get<Service.ResponseResult<UserDetailResponse>>(`${BASE_URL}/${id}`)
+    return request.Get<Service.ResponseResult<UserDetailResponse>>(`${baseUrl()}/${id}`)
   },
 
   // 创建用户
@@ -213,27 +213,27 @@ export const adminUserApi = {
     role?: string
     status?: number
   }) {
-    return request.Post<Service.ResponseResult<AdminUser>>(BASE_URL, data)
+    return request.Post<Service.ResponseResult<AdminUser>>(baseUrl(), data)
   },
 
   // 更新用户
   update(id: number, data: AdminUserUpdatePayload) {
-    return request.Put<Service.ResponseResult<null>>(`${BASE_URL}/${id}`, data)
+    return request.Put<Service.ResponseResult<null>>(`${baseUrl()}/${id}`, data)
   },
 
   // 删除用户
   delete(id: number) {
-    return request.Delete<Service.ResponseResult<null>>(`${BASE_URL}/${id}`)
+    return request.Delete<Service.ResponseResult<null>>(`${baseUrl()}/${id}`)
   },
 
   // 更新用户状态
   updateStatus(id: number, status: number) {
-    return request.Put<Service.ResponseResult<null>>(`${BASE_URL}/${id}/status`, { status })
+    return request.Put<Service.ResponseResult<null>>(`${baseUrl()}/${id}/status`, { status })
   },
 
   // 重置用户密码
   resetPassword(id: number, password: string) {
-    return request.Put<Service.ResponseResult<null>>(`${BASE_URL}/${id}/password`, { password })
+    return request.Put<Service.ResponseResult<null>>(`${baseUrl()}/${id}/password`, { password })
   },
 
   // 批量获取用户简要信息
@@ -241,73 +241,73 @@ export const adminUserApi = {
   async batchSimpleInfo(ids: number[]): Promise<Record<number, UserSimpleInfo>> {
     if (!ids.length)
       return {}
-    const res = await request.Post<Service.ResponseResult<UserBatchSimpleInfoResponse>>(`${BASE_URL}/batch-simple`, { ids })
+    const res = await request.Post<Service.ResponseResult<UserBatchSimpleInfoResponse>>(`${baseUrl()}/batch-simple`, { ids })
     return res.isSuccess ? (res.data?.users || {}) : {}
   },
 
   // 按标识查找用户（ID/用户名/邮箱）
   lookup(keyword: string) {
-    return request.Get<Service.ResponseResult<UserDetailResponse>>(`${BASE_URL}/lookup`, { params: { keyword } })
+    return request.Get<Service.ResponseResult<UserDetailResponse>>(`${baseUrl()}/lookup`, { params: { keyword } })
   },
 
   // 管理员登录指定用户（生成该用户的JWT token）
   loginAsUser(id: number) {
-    return request.Post<Service.ResponseResult<LoginAsUserResponse>>(`${BASE_URL}/${id}/login-as`)
+    return request.Post<Service.ResponseResult<LoginAsUserResponse>>(`${baseUrl()}/${id}/login-as`)
   },
 
   // 重置指定用户的 API Key
   resetApiKey(id: number) {
-    return request.Post<Service.ResponseResult<ResetApiKeyResponse>>(`${BASE_URL}/${id}/reset-apikey`)
+    return request.Post<Service.ResponseResult<ResetApiKeyResponse>>(`${baseUrl()}/${id}/reset-apikey`)
   },
 
   // 变更用户余额（增减）
   changeMoney(id: number, data: { money: number, memo?: string }) {
-    return request.Post<Service.ResponseResult<UserMoneyChangeResponse>>(`${BASE_URL}/${id}/money/change`, data)
+    return request.Post<Service.ResponseResult<UserMoneyChangeResponse>>(`${baseUrl()}/${id}/money/change`, data)
   },
 
   // 直接设置用户余额
   setMoney(id: number, data: { money: number, memo?: string }) {
-    return request.Put<Service.ResponseResult<UserMoneyChangeResponse>>(`${BASE_URL}/${id}/money`, data)
+    return request.Put<Service.ResponseResult<UserMoneyChangeResponse>>(`${baseUrl()}/${id}/money`, data)
   },
 
   // 变更用户积分（增减）
   changeScore(id: number, data: { score: number, memo?: string }) {
-    return request.Post<Service.ResponseResult<UserScoreChangeResponse>>(`${BASE_URL}/${id}/score/change`, data)
+    return request.Post<Service.ResponseResult<UserScoreChangeResponse>>(`${baseUrl()}/${id}/score/change`, data)
   },
 
   // 直接设置用户积分
   setScore(id: number, data: { score: number, memo?: string }) {
-    return request.Put<Service.ResponseResult<UserScoreChangeResponse>>(`${BASE_URL}/${id}/score`, data)
+    return request.Put<Service.ResponseResult<UserScoreChangeResponse>>(`${baseUrl()}/${id}/score`, data)
   },
 }
 
 // 余额日志管理 API
-const MONEY_LOGS_URL = `${getAdminApiBase()}/money-logs`
+function moneyLogsUrl() { return `${getAdminApiBase()}/money-logs` }
 
 export const adminMoneyLogApi = {
   list(params: { page?: number, page_size?: number, keyword?: string, user_id?: number }) {
-    return request.Get<Service.ResponseResult<UserMoneyLogListResponse>>(MONEY_LOGS_URL, { params })
+    return request.Get<Service.ResponseResult<UserMoneyLogListResponse>>(moneyLogsUrl(), { params })
   },
   detail(id: number) {
-    return request.Get<Service.ResponseResult<Entity.UserMoneyLog>>(`${MONEY_LOGS_URL}/${id}`)
+    return request.Get<Service.ResponseResult<Entity.UserMoneyLog>>(`${moneyLogsUrl()}/${id}`)
   },
   delete(id: number) {
-    return request.Delete<Service.ResponseResult<{ message: string }>>(`${MONEY_LOGS_URL}/${id}`)
+    return request.Delete<Service.ResponseResult<{ message: string }>>(`${moneyLogsUrl()}/${id}`)
   },
 }
 
 // 积分日志管理 API
-const SCORE_LOGS_URL = `${getAdminApiBase()}/score-logs`
+function scoreLogsUrl() { return `${getAdminApiBase()}/score-logs` }
 
 export const adminScoreLogApi = {
   list(params: { page?: number, page_size?: number, keyword?: string, user_id?: number }) {
-    return request.Get<Service.ResponseResult<UserScoreLogListResponse>>(SCORE_LOGS_URL, { params })
+    return request.Get<Service.ResponseResult<UserScoreLogListResponse>>(scoreLogsUrl(), { params })
   },
   detail(id: number) {
-    return request.Get<Service.ResponseResult<Entity.UserScoreLog>>(`${SCORE_LOGS_URL}/${id}`)
+    return request.Get<Service.ResponseResult<Entity.UserScoreLog>>(`${scoreLogsUrl()}/${id}`)
   },
   delete(id: number) {
-    return request.Delete<Service.ResponseResult<{ message: string }>>(`${SCORE_LOGS_URL}/${id}`)
+    return request.Delete<Service.ResponseResult<{ message: string }>>(`${scoreLogsUrl()}/${id}`)
   },
 }
 

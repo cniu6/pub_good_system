@@ -61,8 +61,14 @@ function go_user() {
 }
 
 function go_admin() {
-  const target = import.meta.env.VITE_ADMIN_BASE_PATH || '/system-mgr'
-  router.push(is_logged_in.value ? target : { path: '/user/login', query: { redirect: target } })
+  // 用户端 history 路由跳转管理端入口页（与 VITE_ADMIN_BASE_PATH / ADMIN_PATH 一致）
+  const target = (import.meta.env.VITE_ADMIN_BASE_PATH || '/system-mgr').replace(/\/+$/, '') || '/system-mgr'
+  // 管理端是独立入口（hash），用 location 跳转更稳妥
+  if (is_logged_in.value) {
+    window.location.href = `${target}/`
+    return
+  }
+  router.push({ path: '/user/login', query: { redirect: target } })
 }
 
 // 鼠标位置跟踪 (用于光晕动画 - 使用 CSS 变量避免 reactive 开销)

@@ -199,11 +199,10 @@ const reviewStatus = ref<1 | 2>(1)
 const rejectReason = ref('')
 const submitting = ref(false)
 
-// 跳转到用户详情页
+// 跳转到用户详情页（admin hash 路由内部路径，不拼接 VITE_ADMIN_BASE_PATH）
 function goToUserDetail(userId: number) {
-  const adminPath = import.meta.env.VITE_ADMIN_BASE_PATH || '/system-mgr'
   if (userId) {
-    router.push(`${adminPath}/users/${userId}`)
+    router.push(`/users/${userId}`)
   }
 }
 

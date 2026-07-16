@@ -35,7 +35,8 @@ const (
 )
 
 func getJWTSecretByGuard(authGuard string) (string, error) {
-	cfg := config.GlobalConfig
+	// 使用快照读取，避免热更新配置时与写路径竞态
+	cfg := config.CloneGlobalConfig()
 	if cfg == nil {
 		return "", fmt.Errorf("JWT config not initialized")
 	}

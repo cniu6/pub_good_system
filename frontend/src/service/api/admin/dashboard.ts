@@ -4,7 +4,7 @@
 import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
-const BASE_URL = `${getAdminApiBase()}/dashboard`
+function baseUrl() { return `${getAdminApiBase()}/dashboard` }
 
 export interface AdminDashboardStatistics {
   total_users: number
@@ -69,6 +69,6 @@ export interface AdminDashboardResponse {
 export const adminDashboardApi = {
   // 获取仪表盘统计数据
   getStatistics() {
-    return request.Get<Service.ResponseResult<AdminDashboardResponse>>(BASE_URL)
+    return request.Get<Service.ResponseResult<AdminDashboardResponse>>(baseUrl())
   },
 }

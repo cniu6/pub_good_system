@@ -4,7 +4,7 @@
 import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
-const BASE_URL = `${getAdminApiBase()}/sms-logs`
+function baseUrl() { return `${getAdminApiBase()}/sms-logs` }
 
 export interface SMSLog {
   id: number
@@ -35,22 +35,22 @@ export interface SMSLogListParams {
 
 export const adminSMSLogApi = {
   list(params?: SMSLogListParams) {
-    return request.Get<Service.ResponseResult<{ list: SMSLog[]; total: number; page: number; page_size: number }>>(BASE_URL, { params })
+    return request.Get<Service.ResponseResult<{ list: SMSLog[]; total: number; page: number; page_size: number }>>(baseUrl(), { params })
   },
 
   detail(id: number) {
-    return request.Get<Service.ResponseResult<SMSLog>>(`${BASE_URL}/${id}`)
+    return request.Get<Service.ResponseResult<SMSLog>>(`${baseUrl()}/${id}`)
   },
 
   stats() {
-    return request.Get<Service.ResponseResult<{ total: number; success: number; fail: number }>>(`${BASE_URL}/stats`)
+    return request.Get<Service.ResponseResult<{ total: number; success: number; fail: number }>>(`${baseUrl()}/stats`)
   },
 
   templateNames() {
-    return request.Get<Service.ResponseResult<string[]>>(`${BASE_URL}/template-names`)
+    return request.Get<Service.ResponseResult<string[]>>(`${baseUrl()}/template-names`)
   },
 
   clean(before: string) {
-    return request.Post<Service.ResponseResult<{ affected: number }>>(`${BASE_URL}/clean`, { before })
+    return request.Post<Service.ResponseResult<{ affected: number }>>(`${baseUrl()}/clean`, { before })
   },
 }

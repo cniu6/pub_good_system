@@ -77,9 +77,14 @@ func SetupRoutes(router *gin.Engine) {
 
 	// ========================================
 	// Swagger 文档
+	// 注解仍写 /api/v1/admin/*；运行时按 ADMIN_API_PATH 改写 doc.json 中的 paths
 	// ========================================
 	if cfg := config.GlobalConfig; cfg != nil && cfg.EnableSwagger {
-		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+		router.GET(
+			"/swagger/*any",
+			middleware.SwaggerAdminPathRewriteMiddleware(),
+			ginSwagger.WrapHandler(swaggerFiles.Handler),
+		)
 	}
 
 	// ========================================

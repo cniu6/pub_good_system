@@ -39,6 +39,12 @@ export interface AppConfig {
   withdraw_min_amount: number
   withdraw_notify_text: string
   withdraw_account_types: string[]
+
+  /**
+   * 管理端 REST API 在 /api/v1 下的前缀（来自后端 ADMIN_API_PATH，默认 /admin）
+   * 前端应注入到 getAdminApiBase()，勿写死 /admin
+   */
+  admin_api_path?: string
 }
 
 /**

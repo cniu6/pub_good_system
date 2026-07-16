@@ -36,6 +36,15 @@ interface ImportMetaEnv {
   readonly VITE_USER_AGREEMENT_URL: string
   /** 后端 API 地址（可在 .env.dev 和 .env.production 中分别覆盖） */
   readonly VITE_API_URL: string
+  /** 管理后台前端页面入口路径（须与根目录 ADMIN_PATH 一致，如 /system-mgr） */
+  readonly VITE_ADMIN_BASE_PATH?: string
+  /** 管理端 REST API 在 /api/v1 下的前缀（须与根目录 ADMIN_API_PATH 一致，如 /admin） */
+  readonly VITE_ADMIN_API_PATH?: string
+  /**
+   * 构建模式：embedded 表示嵌入单二进制，生产 API 走同源（VITE_API_URL 可留空）
+   * 非 embedded 时生产必须配置可访问的 VITE_API_URL
+   */
+  readonly VITE_BUILD_MODE?: 'embedded' | 'external' | string
   /** 后端服务的环境类型 */
   readonly MODE: ServiceEnvType
 }
