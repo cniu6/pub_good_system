@@ -44,3 +44,4 @@ frontend/admin/
 *null*
 Thumbs.db
 Desktop.ini
+.env
