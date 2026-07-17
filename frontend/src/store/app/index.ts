@@ -31,6 +31,8 @@ export const useAppStore = defineStore('app-store', {
       theme: themeConfig as GlobalThemeOverrides,
       primaryColor: themeConfig.common.primaryColor,
       collapsed: false,
+      // 侧边栏展开宽度（可拖拽调整，默认 240，持久化到 localStorage）
+      sidebarWidth: 240,
       grayMode: false,
       colorWeak: false,
       loadFlag: true,
@@ -66,6 +68,7 @@ export const useAppStore = defineStore('app-store', {
       this.theme = themeConfig
       this.primaryColor = '#18a058'
       this.collapsed = false
+      this.sidebarWidth = 240
       this.grayMode = false
       this.colorWeak = false
       this.loadFlag = true
@@ -180,6 +183,16 @@ export const useAppStore = defineStore('app-store', {
     /* 切换侧边栏收缩 */
     toggleCollapse() {
       this.collapsed = !this.collapsed
+    },
+    /**
+     * 设置侧边栏展开宽度（拖拽时动态写入，并经 pinia persist 落盘 localStorage）
+     * @param width 目标宽度，自动限制在 [160, 480]
+     */
+    setSidebarWidth(width: number) {
+      const min = 160
+      const max = 480
+      const next = Math.round(Number(width) || 240)
+      this.sidebarWidth = Math.min(max, Math.max(min, next))
     },
     /* 切换全屏 */
     toggleFullScreen() {

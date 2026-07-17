@@ -20,9 +20,10 @@ import {
   updateAdminUserProfile,
 
 } from '@/service/api/admin/user'
-import type { AdminUser, AdminUserRealnameSummary, UserSimpleInfo } from '@/service/api/admin/user'
+import type { AdminUser, AdminUserRealnameSummary, LoginAsAuthGuard, UserSimpleInfo } from '@/service/api/admin/user'
 import { addScoreLog, fetchWithdrawRecords, generateNos, operateUserMoney } from '@/service/api/admin/finance'
 import type { MoneyOperationPayload, WithdrawRecord } from '@/service/api/admin/finance'
+import { buildAdminEntryUrl } from '@/router/constants'
 
 const route = useRoute()
 const message = useMessage()
@@ -894,22 +895,72 @@ function handleRealnameStatusChange() {
 }
 
 // 以用户身份登录（在新标签页打开，不污染管理员登录态）
+function isAdminRole(role?: string) {
+  return String(role || '').trim().toLowerCase() === 'admin'
+}
+
+async function doLoginAsUser(user: AdminUser, authGuard: LoginAsAuthGuard) {
+  const res: any = await loginAsUser(user.id, { auth_guard: authGuard })
+  if (!(res.isSuccess && res.data?.user && res.data?.token))
+    return
+
+  const targetUrl = authGuard === 'admin'
+    ? `${buildAdminEntryUrl('/dashboard')}?_t=${Date.now()}`
+    : `/user/dashboard?_t=${Date.now()}`
+
+  openLoginAsUserWindow(res.data.user, res.data.token, res.data.refreshToken, res.data.expiresAt, targetUrl)
+  message.success(
+    authGuard === 'admin'
+      ? t('adminUsers.openedAdminConsole')
+      : t('adminUsers.openedUserConsole'),
+  )
+}
+
+function confirmAdminLoginTarget(user: AdminUser) {
+  // 目标是管理员时二次确认：明确进入管理后台还是用户前端
+  const d = dialog.create({
+    type: 'warning',
+    title: t('adminUsers.confirmAdminLoginTitle'),
+    content: t('adminUsers.confirmAdminLoginContent', { username: user.username }),
+    closable: true,
+    maskClosable: true,
+    action: () => h(NSpace, { justify: 'end' }, () => [
+      h(NButton, {
+        size: 'small',
+        onClick: () => d.destroy(),
+      }, () => t('common.cancel')),
+      h(NButton, {
+        size: 'small',
+        type: 'info',
+        onClick: () => {
+          d.destroy()
+          void doLoginAsUser(user, 'user')
+        },
+      }, () => t('adminUsers.loginAsUserFrontend')),
+      h(NButton, {
+        size: 'small',
+        type: 'warning',
+        onClick: () => {
+          d.destroy()
+          void doLoginAsUser(user, 'admin')
+        },
+      }, () => t('adminUsers.loginAsAdminConsole')),
+    ]),
+  })
+}
+
 function handleLoginAsUser(user: AdminUser) {
   dialog.warning({
     title: t('adminUsers.confirmLoginTitle'),
     content: t('adminUsers.confirmLoginContent', { username: user.username }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
-      const res: any = await loginAsUser(user.id)
-      if (res.isSuccess && res.data?.user && res.data?.token) {
-        const targetUrl = `/user/dashboard?_t=${Date.now()}`
-        openLoginAsUserWindow(res.data.user, res.data.token, res.data.refreshToken, res.data.expiresAt, targetUrl)
-        message.success(t('adminUsers.openedUserConsole'))
+    onPositiveClick: () => {
+      if (isAdminRole(user.role)) {
+        confirmAdminLoginTarget(user)
+        return
       }
-      else {
-        message.error(res.message || t('adminUsers.loginFailed'))
-      }
+      void doLoginAsUser(user, 'user')
     },
   })
 }

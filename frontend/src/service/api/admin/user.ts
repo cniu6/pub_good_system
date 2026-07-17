@@ -147,7 +147,13 @@ export function toLoginInfo(user: AdminUser, token: string): Api.Login.Info {
   }
 }
 
-export function openLoginAsUserWindow(user: AdminUser, token: string, refreshToken?: string, expiresAt?: number, targetUrl = '/') {
+export function openLoginAsUserWindow(
+  user: AdminUser,
+  token: string,
+  refreshToken?: string,
+  expiresAt?: number,
+  targetUrl = '/',
+) {
   return authStorage.openSessionWindow({
     accessToken: token,
     refreshToken,
@@ -156,6 +162,8 @@ export function openLoginAsUserWindow(user: AdminUser, token: string, refreshTok
     userInfo: toLoginInfo(user, token),
   }, targetUrl)
 }
+
+export type LoginAsAuthGuard = 'user' | 'admin'
 
 // 用户简要信息类型
 export interface UserSimpleInfo {
@@ -251,8 +259,9 @@ export const adminUserApi = {
   },
 
   // 管理员登录指定用户（生成该用户的JWT token）
-  loginAsUser(id: number) {
-    return request.Post<Service.ResponseResult<LoginAsUserResponse>>(`${baseUrl()}/${id}/login-as`)
+  // auth_guard: user=用户前端，admin=管理后台（仅目标为管理员时可用）
+  loginAsUser(id: number, data?: { auth_guard?: LoginAsAuthGuard }) {
+    return request.Post<Service.ResponseResult<LoginAsUserResponse>>(`${baseUrl()}/${id}/login-as`, data || {})
   },
 
   // 重置指定用户的 API Key
@@ -342,8 +351,8 @@ export function updateAdminUserProfile(userId: number, data: AdminUserUpdatePayl
   return adminUserApi.update(userId, data)
 }
 
-export function loginAsUser(userId: number) {
-  return adminUserApi.loginAsUser(userId)
+export function loginAsUser(userId: number, data?: { auth_guard?: LoginAsAuthGuard }) {
+  return adminUserApi.loginAsUser(userId, data)
 }
 
 export function resetUserApikey(userId: number) {

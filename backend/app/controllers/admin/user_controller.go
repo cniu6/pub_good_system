@@ -350,7 +350,7 @@ func (c *UserController) BatchGetSimpleInfo(ctx *gin.Context) {
 
 // LoginToUser 管理员登录指定用户（生成该用户的 JWT token）
 // @Summary 管理员登录指定用户
-// @Description 管理员可以生成任意用户的 JWT token 进行调试
+// @Description 管理员可代登任意启用用户；目标为管理员时可指定 auth_guard=admin|user 进入对应端
 // @Tags Admin-用户管理
 // @Accept json
 // @Produce json
@@ -376,13 +376,28 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 		utils.Fail(ctx, 404, "用户不存在")
 		return
 	}
-	// 不允许对管理员账号执行代登录，降低横向提权风险
-	if strings.EqualFold(strings.TrimSpace(user.Role), "admin") {
-		utils.Fail(ctx, 403, "禁止代登录管理员账号")
-		return
-	}
 	if user.Status != 1 {
 		utils.Fail(ctx, 403, "目标用户未启用，无法代登录")
+		return
+	}
+
+	// 可选指定进入管理端(admin)或用户端(user)；默认用户端
+	var req struct {
+		AuthGuard string `json:"auth_guard"`
+	}
+	_ = ctx.ShouldBindJSON(&req)
+	authGuard := strings.ToLower(strings.TrimSpace(req.AuthGuard))
+	if authGuard == "" {
+		authGuard = utils.UserAuthGuard
+	}
+	if authGuard != utils.UserAuthGuard && authGuard != utils.AdminAuthGuard {
+		utils.Fail(ctx, 400, "无效的登录端类型")
+		return
+	}
+	isTargetAdmin := strings.EqualFold(strings.TrimSpace(user.Role), "admin")
+	// 只有目标本身是管理员时，才允许签发管理端 token
+	if authGuard == utils.AdminAuthGuard && !isTargetAdmin {
+		utils.Fail(ctx, 403, "目标用户不是管理员，无法进入管理后台")
 		return
 	}
 
@@ -406,12 +421,12 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 		refreshTTL = accessTTL
 	}
 
-	token, err := utils.GenerateTokenForGuardWithTTL(user.ID, user.Role, utils.UserAuthGuard, accessTTL)
+	token, err := utils.GenerateTokenForGuardWithTTL(user.ID, user.Role, authGuard, accessTTL)
 	if err != nil {
 		utils.Fail(ctx, 500, "生成 token 失败")
 		return
 	}
-	refreshToken, err := utils.GenerateRefreshTokenForGuardWithTTL(user.ID, utils.UserAuthGuard, refreshTTL)
+	refreshToken, err := utils.GenerateRefreshTokenForGuardWithTTL(user.ID, authGuard, refreshTTL)
 	if err != nil {
 		utils.Fail(ctx, 500, "生成 refresh token 失败")
 		return
@@ -440,9 +455,9 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 			adminName = s
 		}
 	}
-	log.Printf("[SECURITY AUDIT] admin impersonation | admin_id=%d admin=%s target_user_id=%d target=%s ip=%s ttl=%s",
-		adminID, adminName, user.ID, user.Username, clientIP, accessTTL)
-	reqBody := fmt.Sprintf(`{"target_user_id":%d,"target_username":%q,"access_ttl_sec":%d}`, user.ID, user.Username, int(accessTTL.Seconds()))
+	log.Printf("[SECURITY AUDIT] admin impersonation | admin_id=%d admin=%s target_user_id=%d target=%s auth_guard=%s ip=%s ttl=%s",
+		adminID, adminName, user.ID, user.Username, authGuard, clientIP, accessTTL)
+	reqBody := fmt.Sprintf(`{"target_user_id":%d,"target_username":%q,"auth_guard":%q,"access_ttl_sec":%d}`, user.ID, user.Username, authGuard, int(accessTTL.Seconds()))
 	respBody := `{"result":"ok","impersonation":true}`
 	_ = models.CreateOperationLog(&models.OperationLog{
 		UserID:       adminID,
@@ -459,12 +474,13 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 		Duration:     0,
 	})
 
-	if err := models.CreateUserSession(user.ID, utils.UserAuthGuard, utils.HashToken(token), utils.HashToken(refreshToken), clientIP, userAgent, "Admin Impersonation", expiresAt, refreshExpiresAt); err != nil {
+	if err := models.CreateUserSession(user.ID, authGuard, utils.HashToken(token), utils.HashToken(refreshToken), clientIP, userAgent, "Admin Impersonation", expiresAt, refreshExpiresAt); err != nil {
 		utils.Fail(ctx, 500, "创建登录会话失败")
 		return
 	}
 
 	utils.Success(ctx, gin.H{
+		"auth_guard": authGuard,
 		"user": gin.H{
 			"id":              user.ID,
 			"group_id":        user.GroupId,

@@ -1,4 +1,5 @@
 import BackTop from './common/BackTop.vue'
+import CollapsedFlyoutMenu from './common/CollapsedFlyoutMenu.vue'
 import Setting from './common/Setting.vue'
 import SettingDrawer from './common/SettingDrawer.vue'
 import Logo from './common/Logo.vue'
@@ -17,6 +18,7 @@ export {
   BackTop,
   Breadcrumb,
   CollapaseButton,
+  CollapsedFlyoutMenu,
   FullScreen,
   Logo,
   MobileDrawer,

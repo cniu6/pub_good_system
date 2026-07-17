@@ -4,6 +4,7 @@ import {
   BackTop,
   Breadcrumb,
   CollapaseButton,
+  CollapsedFlyoutMenu,
   FullScreen,
   Logo,
   MobileDrawer,
@@ -40,12 +41,56 @@ watch(() => route.path, () => {
 // 移动端抽屉控制
 const showMobileDrawer = ref(false)
 
-const sidebarWidth = ref(240)
-const sidebarCollapsedWidth = ref(64)
+// 侧边栏宽度：以 store 当前值（含 localStorage 持久化）作为默认参数
+const sidebarWidth = computed({
+  get: () => appStore.sidebarWidth || 240,
+  set: (v: number) => appStore.setSidebarWidth(v),
+})
+const sidebarCollapsedWidth = 64
 
 const hasHorizontalMenu = computed(() => ['horizontal', 'mixed-two-column', 'mixed-sidebar'].includes(layoutMode.value))
 
 const hidenCollapaseButton = computed(() => ['horizontal'].includes(layoutMode.value) || appStore.isMobile)
+
+const showSidebarResize = computed(() => !appStore.isMobile && !appStore.collapsed && !['horizontal'].includes(layoutMode.value))
+
+let resizing = false
+let startX = 0
+let startWidth = 240
+
+function onSidebarResizeMove(e: MouseEvent) {
+  if (!resizing)
+    return
+  const delta = e.clientX - startX
+  appStore.setSidebarWidth(startWidth + delta)
+}
+
+function onSidebarResizeEnd() {
+  if (!resizing)
+    return
+  resizing = false
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  window.removeEventListener('mousemove', onSidebarResizeMove)
+  window.removeEventListener('mouseup', onSidebarResizeEnd)
+}
+
+function onSidebarResizeStart(e: MouseEvent) {
+  if (!showSidebarResize.value)
+    return
+  e.preventDefault()
+  resizing = true
+  startX = e.clientX
+  startWidth = sidebarWidth.value
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  window.addEventListener('mousemove', onSidebarResizeMove)
+  window.addEventListener('mouseup', onSidebarResizeEnd)
+}
+
+onBeforeUnmount(() => {
+  onSidebarResizeEnd()
+})
 </script>
 
 <template>
@@ -120,7 +165,25 @@ const hidenCollapaseButton = computed(() => ['horizontal'].includes(layoutMode.v
 
     <template #sidebar>
       <div class="sidebar-wrapper">
-        <n-menu v-bind="layout.verticalMenuProps" :collapsed-width="sidebarCollapsedWidth" />
+        <!-- 折叠：根级互斥飞出（NDropdown）；展开：原 n-menu -->
+        <CollapsedFlyoutMenu
+          v-if="appStore.collapsed"
+          :menus="currentMenus"
+          :active-key="activeKey"
+          :collapsed-width="sidebarCollapsedWidth"
+        />
+        <n-menu
+          v-else
+          v-bind="layout.verticalMenuProps"
+          :collapsed-width="sidebarCollapsedWidth"
+        />
+        <!-- 右侧拖拽条：动态调整宽度并持久化 -->
+        <div
+          v-if="showSidebarResize"
+          class="sidebar-resize-handle"
+          title="拖动调整侧边栏宽度"
+          @mousedown="onSidebarResizeStart"
+        />
       </div>
     </template>
 
@@ -152,6 +215,7 @@ const hidenCollapaseButton = computed(() => ['horizontal'].includes(layoutMode.v
 
 <style scoped>
 .sidebar-wrapper {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -161,4 +225,19 @@ const hidenCollapaseButton = computed(() => ['horizontal'].includes(layoutMode.v
   flex: 1;
 }
 
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  z-index: 20;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle:active {
+  background: color-mix(in srgb, var(--n-primary-color, #18a058) 35%, transparent);
+}
 </style>
