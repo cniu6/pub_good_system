@@ -91,7 +91,7 @@
       <n-descriptions v-if="realnameInfo" :column="1" label-placement="left" bordered>
         <n-descriptions-item :label="t('realname.realName')">{{ realnameInfo.realName }}</n-descriptions-item>
         <n-descriptions-item :label="t('realname.certificateType')">{{ getCertificateTypeText(realnameInfo.certificateType) }}</n-descriptions-item>
-        <n-descriptions-item :label="t('realname.certificateNo')">{{ realnameInfo.certificateNo }}</n-descriptions-item>
+        <n-descriptions-item :label="t('realname.certificateNo')">{{ maskCertificateNo(realnameInfo.certificateNo) }}</n-descriptions-item>
         <n-descriptions-item :label="t('realname.certificateFront')">
           <n-image v-if="realnameInfo.certificateFront" :src="realnameInfo.certificateFront" width="200" height="130" object-fit="cover" />
           <span v-else>-</span>

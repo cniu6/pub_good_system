@@ -41,7 +41,12 @@ const {
         </n-space>
       </n-form-item>
       <n-form-item :label="t('adminSettings.geetestCaptchaId')">
-        <n-input v-model:value="securityForm.geetest_captcha_id" :placeholder="t('adminSettings.geetestCaptchaIdPlaceholder')" />
+        <n-input
+          v-model:value="securityForm.geetest_captcha_id"
+          type="password"
+          show-password-on="click"
+          :placeholder="t('adminSettings.geetestCaptchaIdPlaceholder')"
+        />
       </n-form-item>
       <n-form-item :label="t('adminSettings.geetestCaptchaKey')">
         <n-input

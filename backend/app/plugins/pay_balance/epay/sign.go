@@ -69,7 +69,17 @@ func VerifySign(params map[string]string, key string) bool {
 	if strings.EqualFold(sign, expectedGeneric) {
 		return true
 	}
-	log.Printf("[Epay] 签名不匹配: received=%s, expected_notify=%s, expected_generic=%s, params=%v",
-		sign, expectedNotify, expectedGeneric, params)
+	// 仅记订单号等非敏感字段，避免 sign/密钥相关参数完整落盘
+	safeOrder := params["out_trade_no"]
+	log.Printf("[Epay] 签名不匹配: order_no=%s, received_sign_len=%d, expected_notify_prefix=%s..., expected_generic_prefix=%s...",
+		safeOrder, len(sign), trimSignPrefix(expectedNotify), trimSignPrefix(expectedGeneric))
 	return false
+}
+
+// trimSignPrefix 日志里只保留签名前几位，降低泄露风险
+func trimSignPrefix(sign string) string {
+	if len(sign) <= 6 {
+		return "***"
+	}
+	return sign[:6]
 }

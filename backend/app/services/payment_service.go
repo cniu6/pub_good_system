@@ -43,6 +43,12 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 	if req.Amount <= 0 {
 		return nil, NewClientError("充值金额必须大于 0")
 	}
+	// 入参金额先按「分」规范化，后续手续费/落库全部对齐分精度
+	normalizedAmount, normErr := utils.NormalizeYuan(req.Amount)
+	if normErr != nil || normalizedAmount <= 0 {
+		return nil, NewClientError("充值金额非法")
+	}
+	req.Amount = normalizedAmount
 
 	// 2. 获取支付通道
 	gateway, err := models.GetPayGatewayByID(req.GatewayID)
@@ -596,7 +602,7 @@ func validatePaymentNotifyBinding(order *models.PaymentOrder, gateway *models.Pa
 }
 
 // validateCallbackMoney 支付回调/查单金额必须提供且与订单应付金额一致。
-// 容差 0.001 仅用于浮点误差，不是业务宽限；abs(diff) > 0.001 一律拒绝。
+// 按「分」整数比较，避免 float 容差误放行或误拒。
 func validateCallbackMoney(expected float64, moneyStr string) error {
 	moneyStr = strings.TrimSpace(moneyStr)
 	if moneyStr == "" {
@@ -606,7 +612,15 @@ func validateCallbackMoney(expected float64, moneyStr string) error {
 	if err != nil {
 		return errors.New("回调金额格式非法")
 	}
-	if abs(callbackMoney-expected) > 0.001 {
+	expectedFen, err := utils.YuanToFen(expected)
+	if err != nil {
+		return errors.New("订单金额非法")
+	}
+	callbackFen, err := utils.YuanToFen(callbackMoney)
+	if err != nil {
+		return errors.New("回调金额非法")
+	}
+	if expectedFen != callbackFen {
 		return errors.New("回调金额与订单金额不一致")
 	}
 	return nil

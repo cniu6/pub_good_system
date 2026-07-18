@@ -7,6 +7,8 @@ import SettingsTab from './components/SettingsTab.vue'
 import SecurityTab from './components/SecurityTab.vue'
 import MoneyScoreTab from './components/MoneyScoreTab.vue'
 import RealnameTab from './components/RealnameTab.vue'
+import OperationLogsTab from './components/OperationLogsTab.vue'
+import ApiLogsTab from './components/ApiLogsTab.vue'
 import { useI18n } from 'vue-i18n'
 import NovaIcon from '@/components/common/NovaIcon.vue'
 
@@ -257,6 +259,12 @@ onActivated(() => {
         </n-tab-pane>
         <n-tab-pane name="api" :tab="t('userCenter.apiTab')">
           <ApiTab />
+        </n-tab-pane>
+        <n-tab-pane name="apiLogs" :tab="t('userCenter.apiLogsTab')">
+          <ApiLogsTab />
+        </n-tab-pane>
+        <n-tab-pane name="operationLogs" :tab="t('userCenter.operationLogsTab')">
+          <OperationLogsTab />
         </n-tab-pane>
         <n-tab-pane name="moneyScore" :tab="t('userCenter.moneyScoreTab')">
           <MoneyScoreTab />

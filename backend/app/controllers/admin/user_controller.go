@@ -253,11 +253,13 @@ func (c *UserController) UpdateStatus(ctx *gin.Context) {
 		return
 	}
 
+	// 注意：不能对 uint8 使用 binding:"required"。
+	// go-playground/validator 对数值 required = 非零值，会导致 status=0（禁用）永远绑定失败。
 	var req struct {
-		Status uint8 `json:"status" binding:"required"`
+		Status uint8 `json:"status" binding:"oneof=0 1"`
 	}
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		utils.Fail(ctx, 400, "参数错误")
+		utils.Fail(ctx, 400, "参数错误: status 只能为 0（禁用）或 1（启用）")
 		return
 	}
 
@@ -339,13 +341,17 @@ func (c *UserController) BatchGetSimpleInfo(ctx *gin.Context) {
 		return
 	}
 
-	// 去重
+	// 去重，并限制批量上限，防止超大 IN 查询拖垮数据库
+	const maxBatchUserIDs = 200
 	uniqueIDs := make(map[uint64]bool)
 	var deduplicatedIDs []uint64
 	for _, id := range req.IDs {
 		if id > 0 && !uniqueIDs[id] {
 			uniqueIDs[id] = true
 			deduplicatedIDs = append(deduplicatedIDs, id)
+			if len(deduplicatedIDs) >= maxBatchUserIDs {
+				break
+			}
 		}
 	}
 
@@ -480,6 +486,7 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 		Path:         ctx.FullPath(),
 		IP:           clientIP,
 		UserAgent:    userAgent,
+		HandlerName:  "admin.(*UserController).LoginToUser",
 		RequestBody:  &reqBody,
 		ResponseBody: &respBody,
 		StatusCode:   200,
@@ -520,7 +527,6 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 			"create_time":     user.CreateTime,
 			"language":        user.Language,
 			"country":         user.Country,
-			"token":           user.Token,
 			"realname":        services.BuildLoginRealnameSummaryForAPI(user.ID),
 		},
 		"token":            token,

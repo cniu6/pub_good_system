@@ -239,10 +239,44 @@ func GetAllSettings() ([]SystemSetting, error) {
 }
 
 // GetPublicSettings 获取所有公开配置（前端可访问）
+// 二次过滤：即使 DB 中敏感 key 被误标 is_public=1，也不返回其值
 func GetPublicSettings() ([]SystemSetting, error) {
 	var settings []SystemSetting
 	err := db.DB.Select(&settings, "SELECT * FROM system_settings WHERE is_public = 1 ORDER BY category, sort_order")
-	return settings, err
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]SystemSetting, 0, len(settings))
+	for _, s := range settings {
+		if isPublicSettingKeyForbidden(s.Key) {
+			continue
+		}
+		filtered = append(filtered, s)
+	}
+	return filtered, nil
+}
+
+// isPublicSettingKeyForbidden 公开接口层禁止下发的配置 key（关键词匹配）
+func isPublicSettingKeyForbidden(key string) bool {
+	key = strings.ToLower(strings.TrimSpace(key))
+	if key == "" {
+		return true
+	}
+	forbiddenExact := map[string]struct{}{
+		"geetest_captcha_key": {},
+		"smtp_password":       {},
+		"sms_access_key":      {},
+		"sms_secret_key":      {},
+	}
+	if _, ok := forbiddenExact[key]; ok {
+		return true
+	}
+	for _, frag := range []string{"password", "passwd", "secret", "private_key", "api_key", "apikey", "access_key", "token", "credential"} {
+		if strings.Contains(key, frag) {
+			return true
+		}
+	}
+	return false
 }
 
 // UpdateSetting 更新配置值

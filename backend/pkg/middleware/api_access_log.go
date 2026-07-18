@@ -21,10 +21,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const maxAPILogReadableBodyBytes int64 = 64 * 1024
-const maxAPILogStoredTextLength = 4000
-const maxAPILogStoredHeadersLength = 8000
-const maxAPILogHeaderValueLength = 500
+// API 访问日志 body 截断与操作日志共用常量（见 log_sanitize.go）：
+// MEDIUMTEXT ≈ 16MB，实际存库上限 maxLogStoredBodyBytes = 64KB，并标记「已截断」。
 const apiAccessLogCleanupInterval = 30 * time.Second
 
 var apiAccessLogRequestSeq atomic.Uint64
@@ -69,7 +67,7 @@ func shouldReadRequestBody(c *gin.Context) bool {
 	if c.Request.Body == nil {
 		return false
 	}
-	if c.Request.ContentLength > maxAPILogReadableBodyBytes {
+	if c.Request.ContentLength > int64(maxLogReadableBodyBytes) {
 		return false
 	}
 	contentType := strings.ToLower(c.GetHeader("Content-Type"))
@@ -148,22 +146,22 @@ func sanitizeRequestHeaders(headers map[string][]string) *string {
 			continue
 		}
 		if len(items) == 1 {
-			payload[key] = truncateForLog(items[0], maxAPILogHeaderValueLength)
+			payload[key] = truncateForLog(items[0], maxLogHeaderValueLength)
 			continue
 		}
 		values := make([]string, 0, len(items))
 		for _, item := range items {
-			values = append(values, truncateForLog(item, maxAPILogHeaderValueLength))
+			values = append(values, truncateForLog(item, maxLogHeaderValueLength))
 		}
 		payload[key] = values
 	}
 	masked := maskSensitiveValues(payload)
 	data, err := json.Marshal(masked)
 	if err != nil {
-		fallback := truncateForLog("[request headers omitted: marshal failed]", maxAPILogStoredHeadersLength)
+		fallback := truncateForLog("[request headers omitted: marshal failed]", maxLogStoredHeadersLength)
 		return &fallback
 	}
-	value := truncateForLog(string(data), maxAPILogStoredHeadersLength)
+	value := truncateForLog(string(data), maxLogStoredHeadersLength)
 	return &value
 }
 
@@ -314,7 +312,7 @@ func sanitizeResponseBodyByType(raw, contentType, transport string, statusCode i
 		return "[websocket upgrade handshake established; frame messages are not captured in HTTP access logs]"
 	}
 	if trimmedType == "" || strings.Contains(trimmedType, "json") || strings.Contains(trimmedType, "text") || strings.Contains(trimmedType, "xml") || strings.Contains(trimmedType, "javascript") || strings.Contains(trimmedType, "x-www-form-urlencoded") || trimmedType == "text/event-stream" || transport == "sse" || transport == "stream" {
-		return sanitizeLogBody(raw, maxAPILogStoredTextLength)
+		return sanitizeLogBody(raw, maxLogStoredBodyBytes)
 	}
 	if raw == "" {
 		return ""
@@ -359,12 +357,12 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 			contentType := strings.ToLower(c.GetHeader("Content-Type"))
 			if strings.Contains(contentType, "multipart/form-data") || strings.Contains(contentType, "application/octet-stream") {
 				requestBody = "[request body omitted: multipart/binary content]"
-			} else if c.Request.ContentLength > maxAPILogReadableBodyBytes {
+			} else if c.Request.ContentLength > int64(maxLogReadableBodyBytes) {
 				requestBody = "[request body omitted: too large]"
 			}
 		}
 
-		blw := newResponseWriter(c.Writer, maxAPILogStoredTextLength)
+		blw := newResponseWriter(c.Writer, maxLogStoredBodyBytes)
 		c.Writer = blw
 		c.Next()
 
@@ -373,7 +371,7 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 		responseContentType := truncateForLog(normalizeContentType(blw.Header().Get("Content-Type")), 255)
 		transport := resolveAPITransport(c, requestBody, responseContentType)
 		responseBody := sanitizeResponseBodyByType(blw.body.String(), responseContentType, transport, c.Writer.Status())
-		requestBody = sanitizeLogBody(requestBody, maxAPILogStoredTextLength)
+		requestBody = sanitizeLogBody(requestBody, maxLogStoredBodyBytes)
 		requestHeaders := sanitizeRequestHeaders(c.Request.Header)
 		pathParams := sanitizePathParams(c.Params)
 

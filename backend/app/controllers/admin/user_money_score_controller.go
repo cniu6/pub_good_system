@@ -396,15 +396,16 @@ func (ctrl *UserMoneyScoreController) GenerateNos(c *gin.Context) {
 // RegisterRoutes 注册管理员余额/积分路由
 func (ctrl *UserMoneyScoreController) RegisterRoutes(adminGroup *gin.RouterGroup) {
 	// 用户余额/积分操作（挂在 users/:id 下）
+	// 资金/积分变更均要求幂等键，防止网络重试或双击导致重复加减款
 	users := adminGroup.Group("/users")
 	{
-		users.POST("/:id/money/change", ctrl.ChangeMoney)
-		users.PUT("/:id/money", ctrl.SetMoney)
-		users.POST("/:id/money/log", ctrl.AddMoneyLog)
+		users.POST("/:id/money/change", middleware.RequireIdempotency("admin_money_change", 10*time.Minute), ctrl.ChangeMoney)
+		users.PUT("/:id/money", middleware.RequireIdempotency("admin_money_set", 10*time.Minute), ctrl.SetMoney)
+		users.POST("/:id/money/log", middleware.RequireIdempotency("admin_money_log", 10*time.Minute), ctrl.AddMoneyLog)
 		users.POST("/:id/money/operate", middleware.RequireIdempotency("admin_money_operate", 10*time.Minute), ctrl.OperateMoney)
-		users.POST("/:id/score/change", ctrl.ChangeScore)
-		users.PUT("/:id/score", ctrl.SetScore)
-		users.POST("/:id/score/log", ctrl.AddScoreLog)
+		users.POST("/:id/score/change", middleware.RequireIdempotency("admin_score_change", 10*time.Minute), ctrl.ChangeScore)
+		users.PUT("/:id/score", middleware.RequireIdempotency("admin_score_set", 10*time.Minute), ctrl.SetScore)
+		users.POST("/:id/score/log", middleware.RequireIdempotency("admin_score_log", 10*time.Minute), ctrl.AddScoreLog)
 	}
 
 	// 生成订单号/交易号

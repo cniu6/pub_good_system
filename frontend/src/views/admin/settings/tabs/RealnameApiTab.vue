@@ -37,6 +37,8 @@ const {
       <n-form-item :label="t('adminSettings.realnameApiAppKey')">
         <n-input
           v-model:value="realnameApiForm.realname_api_app_key"
+          type="password"
+          show-password-on="click"
           :placeholder="t('adminSettings.realnameApiAppKeyPlaceholder')"
         />
       </n-form-item>

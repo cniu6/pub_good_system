@@ -43,6 +43,11 @@ export function useSettingsActions() {
     loading.value = true
     try {
       const response = await adminApi.settings.list()
+      // 必须先判断业务成功，避免失败响应误写入表单（如密钥被空串覆盖）
+      if (!response.isSuccess) {
+        message.error(response.message || t('adminSettings.loadSettingsFailed'))
+        return
+      }
       if (response.data?.categories) {
         for (const category of response.data.categories) {
           for (const item of category.items) {

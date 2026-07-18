@@ -68,18 +68,30 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
         next({ path: '/403', replace: true })
       }
       else {
+        // 管理端未登录：回用户登录页，并带上回跳（含管理入口完整路径）
         next({ path: '/user/login', query: { redirect: to.fullPath } })
       }
       return
     }
 
-    if (to.name !== 'login' && to.name !== 'register' && to.meta.requiresAuth !== false && to.meta.requiresAuth === true && !isLogin) {
-      const redirect = to.name === '404' ? undefined : to.fullPath
-      next({ path: '/user/login', query: { redirect } })
+    // 未登录：用户业务路径与显式 requiresAuth 路由一律拦到登录
+    // 注意：动态路由尚未挂载时 meta.requiresAuth 可能为空，故额外用 /user/* 前缀兜底
+    const isUserAuthArea = mode === 'user'
+      && to.path.startsWith('/user/')
+      && to.path !== '/user/login'
+      && to.path !== '/user/register'
+    if (!isLogin && (to.meta.requiresAuth === true || isUserAuthArea)) {
+      const redirect = to.name === '404' || to.name === 'notFoundCatchAll' ? undefined : to.fullPath
+      next({ path: '/user/login', query: redirect ? { redirect } : undefined })
       return
     }
 
-    if (!routeStore.isInitAuthRoute && to.name !== 'login') {
+    // 仅已登录（或明确放行的公开页）才初始化动态路由，避免未登录刷用户路由
+    if (!routeStore.isInitAuthRoute && to.name !== 'login' && to.name !== 'register') {
+      if (!isLogin && mode === 'user') {
+        next()
+        return
+      }
       try {
         await routeStore.initAuthRoute(mode)
         next({

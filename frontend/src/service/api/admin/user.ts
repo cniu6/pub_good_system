@@ -9,6 +9,11 @@ import { getAdminApiBase } from './base'
 // 管理端 API base：运行时 app-config.admin_api_path，回退 VITE_ADMIN_API_PATH（默认 /admin）
 function baseUrl() { return `${getAdminApiBase()}/users` }
 
+/** 生成幂等键：后端资金/积分写接口强制要求 X-Idempotency-Key */
+function createIdempotencyKey(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 export interface AdminUser {
   id: number
   group_id: number
@@ -106,9 +111,10 @@ interface AdminUserUpdatePayload {
   status?: number
 }
 
+/** 与后端对齐：仅 admin / user；历史 super 一律归一为 admin */
 export function normalizeAdminUserRole(role?: string): Entity.RoleType {
   if (role === 'admin' || role === 'super') {
-    return role
+    return 'admin'
   }
   return 'user'
 }
@@ -271,22 +277,30 @@ export const adminUserApi = {
 
   // 变更用户余额（增减）
   changeMoney(id: number, data: { money: number, memo?: string }) {
-    return request.Post<Service.ResponseResult<UserMoneyChangeResponse>>(`${baseUrl()}/${id}/money/change`, data)
+    return request.Post<Service.ResponseResult<UserMoneyChangeResponse>>(`${baseUrl()}/${id}/money/change`, data, {
+      headers: { 'X-Idempotency-Key': createIdempotencyKey(`money-change-${id}`) },
+    })
   },
 
   // 直接设置用户余额
   setMoney(id: number, data: { money: number, memo?: string }) {
-    return request.Put<Service.ResponseResult<UserMoneyChangeResponse>>(`${baseUrl()}/${id}/money`, data)
+    return request.Put<Service.ResponseResult<UserMoneyChangeResponse>>(`${baseUrl()}/${id}/money`, data, {
+      headers: { 'X-Idempotency-Key': createIdempotencyKey(`money-set-${id}`) },
+    })
   },
 
   // 变更用户积分（增减）
   changeScore(id: number, data: { score: number, memo?: string }) {
-    return request.Post<Service.ResponseResult<UserScoreChangeResponse>>(`${baseUrl()}/${id}/score/change`, data)
+    return request.Post<Service.ResponseResult<UserScoreChangeResponse>>(`${baseUrl()}/${id}/score/change`, data, {
+      headers: { 'X-Idempotency-Key': createIdempotencyKey(`score-change-${id}`) },
+    })
   },
 
   // 直接设置用户积分
   setScore(id: number, data: { score: number, memo?: string }) {
-    return request.Put<Service.ResponseResult<UserScoreChangeResponse>>(`${baseUrl()}/${id}/score`, data)
+    return request.Put<Service.ResponseResult<UserScoreChangeResponse>>(`${baseUrl()}/${id}/score`, data, {
+      headers: { 'X-Idempotency-Key': createIdempotencyKey(`score-set-${id}`) },
+    })
   },
 }
 

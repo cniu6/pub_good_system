@@ -27,14 +27,15 @@ func registerAdminRoutes(v1 *gin.RouterGroup) {
 		users.Use(middleware.SimpleLogMiddleware("用户管理"))
 		{
 			users.GET("", adminUserCtrl.List)
+			// 静态路径必须写在 /:id 之前，避免被参数路由吞掉（Gin 虽优先静态，显式顺序更清晰）
+			users.GET("/lookup", adminUserCtrl.LookupUser)
+			users.POST("/batch-simple", adminUserCtrl.BatchGetSimpleInfo)
 			users.GET("/:id", adminUserCtrl.Detail)
 			users.POST("", adminUserCtrl.Create)
-			users.POST("/batch-simple", adminUserCtrl.BatchGetSimpleInfo)
 			users.PUT("/:id", adminUserCtrl.Update)
 			users.DELETE("/:id", adminUserCtrl.Delete)
 			users.PUT("/:id/status", adminUserCtrl.UpdateStatus)
 			users.PUT("/:id/password", adminUserCtrl.ResetPassword)
-			users.GET("/lookup", adminUserCtrl.LookupUser)
 			users.POST("/:id/login-as", adminUserCtrl.LoginToUser)
 			users.POST("/:id/reset-apikey", adminUserCtrl.ResetApiKey)
 		}

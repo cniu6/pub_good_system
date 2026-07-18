@@ -2,8 +2,10 @@ package models
 
 import (
 	"database/sql"
+	"fmt"
 	"fst/backend/pkg/db"
 	"log"
+	"math"
 	"time"
 )
 
@@ -11,9 +13,9 @@ import (
 type UserMoneyLog struct {
 	ID         uint64  `db:"id" json:"id"`
 	UserID     uint64  `db:"user_id" json:"user_id"`
-	Money      float64 `db:"money" json:"money"`       // 变更金额（正=充值，负=扣款）
-	Before     float64 `db:"before" json:"before"`      // 变更前余额
-	After      float64 `db:"after" json:"after"`        // 变更后余额
+	Money      float64 `db:"money" json:"money"`   // 变更金额（元；落库前已按分规范化）
+	Before     float64 `db:"before" json:"before"` // 变更前余额（元）
+	After      float64 `db:"after" json:"after"`   // 变更后余额（元）
 	Memo       string  `db:"memo" json:"memo"`          // 备注
 	CreateTime int64   `db:"create_time" json:"create_time"`
 }
@@ -123,18 +125,37 @@ func DeleteUserMoneyLog(id uint64) error {
 	return err
 }
 
-// UpdateUserMoney 直接更新用户余额字段
+// UpdateUserMoney 直接更新用户余额字段（写入前按分规范化）
 func UpdateUserMoney(userID uint64, newMoney float64) error {
+	normalized, err := normalizeMoneyYuan(newMoney)
+	if err != nil {
+		return err
+	}
 	now := time.Now().Unix()
-	_, err := db.DB.Exec("UPDATE users SET money = ?, update_time = ? WHERE id = ?", newMoney, now, userID)
+	_, err = db.DB.Exec("UPDATE users SET money = ?, update_time = ? WHERE id = ?", normalized, now, userID)
 	return err
 }
 
-// UpdateUserMoneyTx 在事务中更新用户余额字段
+// UpdateUserMoneyTx 在事务中更新用户余额字段（写入前按分规范化）
 func UpdateUserMoneyTx(tx *sql.Tx, userID uint64, newMoney float64) error {
+	normalized, err := normalizeMoneyYuan(newMoney)
+	if err != nil {
+		return err
+	}
 	now := time.Now().Unix()
-	_, err := tx.Exec("UPDATE users SET money = ?, update_time = ? WHERE id = ?", newMoney, now, userID)
+	_, err = tx.Exec("UPDATE users SET money = ?, update_time = ? WHERE id = ?", normalized, now, userID)
 	return err
+}
+
+// normalizeMoneyYuan 余额落库前统一规范到分精度（避免 float 脏值写入 DECIMAL）
+func normalizeMoneyYuan(yuan float64) (float64, error) {
+	// 延迟引入 utils 会循环依赖风险：models 不应依赖 utils。
+	// 这里本地做与 utils.YuanToFen 一致的四舍五入到分。
+	if math.IsNaN(yuan) || math.IsInf(yuan, 0) {
+		return 0, fmt.Errorf("金额非法")
+	}
+	fen := int64(math.Round(yuan * 100))
+	return float64(fen) / 100.0, nil
 }
 
 // CreateUserMoneyLogTx 在事务中创建余额变动记录

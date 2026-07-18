@@ -207,25 +207,29 @@ export function useUserFinance(options: {
   async function handleBalanceOperation() {
     if (!options.selectedUser.value)
       return
+    // 防重复提交
+    if (options.submitting.value)
+      return
+
+    const isOrder = ['order_only', 'balance_order', 'log_order', 'both'].includes(balanceForm.operation)
+    const needsAmount = balanceForm.operation !== 'order_only'
+
+    // 校验放在加锁前，避免校验失败也占用 submitting
+    if (needsAmount && balanceForm.amount === null) {
+      message.warning(t('adminUsers.amountRequired'))
+      return
+    }
+    if (needsAmount && Number(balanceForm.amount) === 0) {
+      message.warning(t('adminUsers.amountCannotBeZero'))
+      return
+    }
+    if (isOrder && !balanceForm.orderNo) {
+      message.warning(t('adminUsers.orderNoRequired'))
+      return
+    }
 
     try {
       options.submitting.value = true
-
-      const isOrder = ['order_only', 'balance_order', 'log_order', 'both'].includes(balanceForm.operation)
-      const needsAmount = balanceForm.operation !== 'order_only'
-
-      if (needsAmount && balanceForm.amount === null) {
-        message.warning(t('adminUsers.amountRequired'))
-        return
-      }
-      if (needsAmount && Number(balanceForm.amount) === 0) {
-        message.warning(t('adminUsers.amountCannotBeZero'))
-        return
-      }
-      if (isOrder && !balanceForm.orderNo) {
-        message.warning(t('adminUsers.orderNoRequired'))
-        return
-      }
 
       const response: any = await operateUserMoney(options.selectedUser.value.id, {
         money: Number(balanceForm.amount || 0),
@@ -291,14 +295,16 @@ export function useUserFinance(options: {
   async function handleScoreOperation() {
     if (!options.selectedUser.value)
       return
+    if (options.submitting.value)
+      return
+
+    if (Number(scoreForm.amount) === 0) {
+      message.warning(t('adminUsers.scoreCannotBeZero'))
+      return
+    }
 
     try {
       options.submitting.value = true
-
-      if (Number(scoreForm.amount) === 0) {
-        message.warning(t('adminUsers.scoreCannotBeZero'))
-        return
-      }
 
       if (scoreForm.operation === 'modify') {
         const response: any = await adminUserApi.changeScore(options.selectedUser.value.id, {

@@ -33,7 +33,19 @@ function bindAddFormRef(inst: unknown) {
 const customColumns: DataTableColumns<SettingDTO> = [
   { title: t('adminSettings.columnKey'), key: 'key' },
   { title: t('adminSettings.columnLabel'), key: 'label' },
-  { title: t('adminSettings.columnValue'), key: 'value', ellipsis: { tooltip: true } },
+  {
+    title: t('adminSettings.columnValue'),
+    key: 'value',
+    ellipsis: { tooltip: true },
+    // 密码类型在列表里默认遮罩，避免明文铺开
+    render: (row) => {
+      if (row.type === 'password' || /password|secret|apikey|api_key|_key$/i.test(row.key || '')) {
+        const raw = String(row.value || '')
+        return raw ? '••••••••' : '-'
+      }
+      return row.value
+    },
+  },
   { title: t('adminSettings.columnType'), key: 'type', width: 80 },
   {
     title: t('adminSettings.columnPublic'),
@@ -123,7 +135,12 @@ const {
           <n-input v-model:value="addForm.key" :placeholder="t('adminSettings.configKeyPlaceholder')" />
         </n-form-item>
         <n-form-item :label="t('adminSettings.configValue')" path="value">
-          <n-input v-model:value="addForm.value" :placeholder="t('adminSettings.configValuePlaceholder')" />
+          <n-input
+            v-model:value="addForm.value"
+            :type="addForm.type === 'password' ? 'password' : 'text'"
+            :show-password-on="addForm.type === 'password' ? 'click' : undefined"
+            :placeholder="t('adminSettings.configValuePlaceholder')"
+          />
         </n-form-item>
         <n-form-item :label="t('adminSettings.configLabel')" path="label">
           <n-input v-model:value="addForm.label" :placeholder="t('adminSettings.configLabelPlaceholder')" />
@@ -153,7 +170,12 @@ const {
           <n-input v-model:value="editForm.key" disabled />
         </n-form-item>
         <n-form-item :label="t('adminSettings.configValue')">
-          <n-input v-model:value="editForm.value" :placeholder="t('adminSettings.configValuePlaceholder')" />
+          <n-input
+            v-model:value="editForm.value"
+            :type="editForm.type === 'password' || /password|secret|apikey|api_key|_key$/i.test(editForm.key || '') ? 'password' : 'text'"
+            :show-password-on="editForm.type === 'password' || /password|secret|apikey|api_key|_key$/i.test(editForm.key || '') ? 'click' : undefined"
+            :placeholder="t('adminSettings.configValuePlaceholder')"
+          />
         </n-form-item>
         <n-form-item :label="t('adminSettings.configLabel')">
           <n-input v-model:value="editForm.label" :placeholder="t('adminSettings.configLabelPlaceholder')" />

@@ -43,6 +43,11 @@ export interface PaymentStats {
 
 function baseUrl() { return `${getAdminApiBase()}/payment` }
 
+/** 补单/取消订单写接口需要幂等键 */
+function createIdempotencyKey(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 export const adminPaymentApi = {
   /** 订单列表 */
   listOrders(params: { page?: number, page_size?: number, status?: number, user_id?: number, keyword?: string }) {
@@ -56,12 +61,16 @@ export const adminPaymentApi = {
 
   /** 手动补单 */
   completeOrder(id: number, data?: { memo?: string }) {
-    return request.Post<Service.ResponseResult<{ message: string }>>(`${baseUrl()}/orders/${id}/complete`, data || {})
+    return request.Post<Service.ResponseResult<{ message: string }>>(`${baseUrl()}/orders/${id}/complete`, data || {}, {
+      headers: { 'X-Idempotency-Key': createIdempotencyKey(`payment-complete-${id}`) },
+    })
   },
 
   /** 取消订单 */
   cancelOrder(id: number) {
-    return request.Post<Service.ResponseResult<{ message: string }>>(`${baseUrl()}/orders/${id}/cancel`)
+    return request.Post<Service.ResponseResult<{ message: string }>>(`${baseUrl()}/orders/${id}/cancel`, {}, {
+      headers: { 'X-Idempotency-Key': createIdempotencyKey(`payment-cancel-${id}`) },
+    })
   },
 
   /** 删除订单 */

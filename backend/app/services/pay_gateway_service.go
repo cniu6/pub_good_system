@@ -3,7 +3,9 @@ package services
 import (
 	"errors"
 	"fst/backend/app/models"
+	"fst/backend/utils"
 	"log"
+	"math"
 )
 
 // PayGatewayCreateRequest 创建支付通道请求
@@ -213,27 +215,39 @@ func GetPayGatewayListForUser() ([]models.PayGateway, error) {
 	return gateways, nil
 }
 
-// CalculateFee 计算手续费
-// 返回: 手续费金额, 实际支付金额（用户掏的钱）, 到账金额
+// CalculateFee 计算手续费（内部按「分」整数算，避免 float 误差）
+// 返回: 手续费金额, 实际支付金额（用户掏的钱）, 到账金额 —— 均为规范化后的「元」
 func CalculateFee(amount float64, feeRate int, feeMode string) (fee float64, payAmount float64, creditAmount float64) {
-	if feeRate <= 0 {
+	amountFen, err := utils.YuanToFen(amount)
+	if err != nil || amountFen <= 0 {
+		// 非法或非正金额：原样返回，由上层校验拦截
 		return 0, amount, amount
 	}
-
-	rate := float64(feeRate) / 100.0
-
-	if feeMode == models.FeeModAdd {
-		// 加收模式：用户多付手续费，到账金额 = 充值金额
-		fee = amount * rate
-		payAmount = amount + fee
-		creditAmount = amount
-	} else {
-		// 包含模式（默认）：到账金额 = 充值金额 - 手续费
-		fee = amount * rate
-		payAmount = amount
-		creditAmount = amount - fee
+	if feeRate <= 0 {
+		yuan := utils.FenToYuan(amountFen)
+		return 0, yuan, yuan
 	}
 
-	return fee, payAmount, creditAmount
+	// feeFen = Round(amountFen * feeRate / 100)，feeRate 表示百分比（1 = 1%）
+	feeFen := int64(math.Round(float64(amountFen) * float64(feeRate) / 100.0))
+	if feeFen < 0 {
+		feeFen = 0
+	}
+
+	var payFen, creditFen int64
+	if feeMode == models.FeeModAdd {
+		// 加收模式：用户多付手续费，到账金额 = 充值金额
+		payFen = amountFen + feeFen
+		creditFen = amountFen
+	} else {
+		// 包含模式（默认）：到账金额 = 充值金额 - 手续费
+		payFen = amountFen
+		creditFen = amountFen - feeFen
+		if creditFen < 0 {
+			creditFen = 0
+		}
+	}
+
+	return utils.FenToYuan(feeFen), utils.FenToYuan(payFen), utils.FenToYuan(creditFen)
 }
 

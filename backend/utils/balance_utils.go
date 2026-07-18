@@ -8,6 +8,7 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/pkg/db"
 	"log"
+	"math"
 )
 
 // ========================================
@@ -39,9 +40,10 @@ const (
 // ========================================
 
 // BalanceReq 统一余额操作请求
+// Amount 入参仍为「元」（API 兼容）；内部一律转「分」int64 再加减。
 type BalanceReq struct {
 	UserID   uint64            // 用户ID（必填）
-	Amount   float64           // 变动金额：正数=加款，负数=扣款
+	Amount   float64           // 变动金额（元）：正数=加款，负数=扣款
 	Memo     string            // 单语言备注（当 MemoI18n 为空时使用）
 	MemoI18n map[string]string // 多语言备注，如 {"zhCN":"在线充值","enUS":"Online Recharge"}
 
@@ -51,11 +53,11 @@ type BalanceReq struct {
 	OrderStatus int    // 目标订单状态（如 models.PaymentStatusPaid）
 }
 
-// BalanceResult 余额操作结果
+// BalanceResult 余额操作结果（对外仍返回「元」，已按分规范化）
 type BalanceResult struct {
 	MoneyLog    *models.UserMoneyLog // 创建的余额变动记录（如有）
-	BeforeMoney float64              // 变动前余额
-	AfterMoney  float64              // 变动后余额
+	BeforeMoney float64              // 变动前余额（元）
+	AfterMoney  float64              // 变动后余额（元）
 }
 
 // ========================================
@@ -139,9 +141,20 @@ func ExecuteBalanceOp(req *BalanceReq, opType BalanceOpType) (*BalanceResult, er
 
 // ExecuteBalanceOpTx 在已有事务中执行余额操作
 // 用于嵌入到更大的事务流程中（如支付回调）
+// 内部计算全部按「分」整数进行，落库前再转回「元」，兼容现有 DECIMAL(10,2) 字段。
 func ExecuteBalanceOpTx(tx *sql.Tx, req *BalanceReq, opType BalanceOpType) (*BalanceResult, error) {
 	if req.UserID == 0 {
 		return nil, errors.New("用户ID不能为空")
+	}
+	// 拒绝 NaN/Inf，避免脏浮点写入余额字段或绕过上下限判断
+	if math.IsNaN(req.Amount) || math.IsInf(req.Amount, 0) {
+		return nil, errors.New("金额非法")
+	}
+
+	// 变动金额先规范到「分」，后续加减只用 int64
+	amountFen, err := YuanToFen(req.Amount)
+	if err != nil {
+		return nil, err
 	}
 
 	memo := BuildMemo(req.Memo, req.MemoI18n)
@@ -152,37 +165,45 @@ func ExecuteBalanceOpTx(tx *sql.Tx, req *BalanceReq, opType BalanceOpType) (*Bal
 	needLog := opType == OpLogOnly || opType == OpChangeAndLog || opType == OpOrderAndLog || opType == OpFull
 	needOrder := opType == OpOrderOnly || opType == OpChangeAndOrder || opType == OpOrderAndLog || opType == OpFull
 
-	// ---- 1. 锁定用户余额行 ----
+	// ---- 1. 锁定用户余额行（读出元 → 转分） ----
 	if needBalance || needLog {
-		beforeMoney, err := models.GetUserMoneyForUpdate(tx, req.UserID)
+		beforeMoneyYuan, err := models.GetUserMoneyForUpdate(tx, req.UserID)
 		if err != nil {
 			return nil, errors.New("用户不存在")
 		}
-		result.BeforeMoney = beforeMoney
-		afterMoney := beforeMoney + req.Amount
+		beforeFen, err := YuanToFen(beforeMoneyYuan)
+		if err != nil {
+			return nil, fmt.Errorf("用户余额非法: %w", err)
+		}
+		afterFen := beforeFen + amountFen
 
-		// 边界校验
-		if req.Amount < 0 && afterMoney < 0 {
+		// 边界校验（按分）
+		if amountFen < 0 && afterFen < 0 {
 			return nil, errors.New("扣款金额超出用户余额")
 		}
-		if req.Amount > 0 && afterMoney > 999999999999 {
+		if amountFen > 0 && afterFen > MoneyMaxFen {
 			return nil, errors.New("充值金额超出上限")
 		}
 
-		// ---- 2. 修改余额 ----
+		beforeYuan := FenToYuan(beforeFen)
+		afterYuan := FenToYuan(afterFen)
+		amountYuan := FenToYuan(amountFen)
+		result.BeforeMoney = beforeYuan
+
+		// ---- 2. 修改余额（写回规范化后的元） ----
 		if needBalance {
-			if err := models.UpdateUserMoneyTx(tx, req.UserID, afterMoney); err != nil {
+			if err := models.UpdateUserMoneyTx(tx, req.UserID, afterYuan); err != nil {
 				return nil, fmt.Errorf("更新用户余额失败: %w", err)
 			}
-			result.AfterMoney = afterMoney
+			result.AfterMoney = afterYuan
 		} else {
 			// 不实际修改余额，仅在日志中记录计算值
-			result.AfterMoney = afterMoney
+			result.AfterMoney = afterYuan
 		}
 
-		// ---- 3. 创建余额变动记录 ----
+		// ---- 3. 创建余额变动记录（金额字段也按分规范化） ----
 		if needLog {
-			logEntry, err := models.CreateUserMoneyLogTx(tx, req.UserID, req.Amount, result.BeforeMoney, result.AfterMoney, memo)
+			logEntry, err := models.CreateUserMoneyLogTx(tx, req.UserID, amountYuan, result.BeforeMoney, result.AfterMoney, memo)
 			if err != nil {
 				return nil, fmt.Errorf("创建余额变动记录失败: %w", err)
 			}
@@ -200,8 +221,8 @@ func ExecuteBalanceOpTx(tx *sql.Tx, req *BalanceReq, opType BalanceOpType) (*Bal
 		}
 	}
 
-	log.Printf("[BalanceOp] op=%d user=%d amount=%.2f before=%.2f after=%.2f order=%s memo=%s",
-		opType, req.UserID, req.Amount, result.BeforeMoney, result.AfterMoney, req.OrderNo, memo)
+	log.Printf("[BalanceOp] op=%d user=%d amountFen=%d amount=%.2f before=%.2f after=%.2f order=%s memo=%s",
+		opType, req.UserID, amountFen, FenToYuan(amountFen), result.BeforeMoney, result.AfterMoney, req.OrderNo, memo)
 
 	return result, nil
 }

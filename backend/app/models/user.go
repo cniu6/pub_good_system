@@ -19,7 +19,7 @@ type User struct {
 	BackGround    string  `db:"back_ground" json:"back_ground"`
 	Gender        uint8   `db:"gender" json:"gender"`
 	Birthday      *int64  `db:"birthday" json:"birthday"`
-	Money         float64 `db:"money" json:"money"`
+	Money         float64 `db:"money" json:"money"` // 余额（元，DECIMAL；业务加减一律经 utils 按「分」整数计算）
 	Score         int64   `db:"score" json:"score"`
 	Level         uint64  `db:"level" json:"level"`
 	Role          string  `db:"role" json:"role"` // 'user' or 'admin'
@@ -50,7 +50,8 @@ type User struct {
 	// Requested additions
 	Language string `db:"language" json:"language"`
 	Country  string `db:"country" json:"country"`
-	Token    string `db:"token" json:"token"`
+	// Token 为历史兼容字段，可能含敏感值，禁止随 JSON 响应下发
+	Token string `db:"token" json:"-"`
 }
 
 func (u *User) TableName() string {

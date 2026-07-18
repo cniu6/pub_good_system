@@ -44,7 +44,12 @@ const {
         />
       </n-form-item>
       <n-form-item :label="t('adminSettings.smsAccessKey')">
-        <n-input v-model:value="smsForm.sms_access_key" :placeholder="smsAccessKeyPlaceholder" />
+        <n-input
+          v-model:value="smsForm.sms_access_key"
+          type="password"
+          show-password-on="click"
+          :placeholder="smsAccessKeyPlaceholder"
+        />
       </n-form-item>
       <n-form-item :label="t('adminSettings.smsSecretKey')">
         <n-input

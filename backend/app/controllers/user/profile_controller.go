@@ -544,6 +544,12 @@ func (ctrl *ProfileController) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/money-logs", ctrl.GetMoneyLogs)
 	group.GET("/score-logs", ctrl.GetScoreLogs)
 
+	// 本人操作日志 / API 访问日志（强制按当前 user_id 过滤）
+	group.GET("/logs", ctrl.ListMyOperationLogs)
+	group.GET("/logs/:id", ctrl.GetMyOperationLogDetail)
+	group.GET("/api-logs", ctrl.ListMyAPILogs)
+	group.GET("/api-logs/:id", ctrl.GetMyAPILogDetail)
+
 	// 仪表盘
 	group.GET("/dashboard", ctrl.GetDashboard)
 }

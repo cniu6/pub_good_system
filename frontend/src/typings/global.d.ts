@@ -1,6 +1,7 @@
 /* 存放数据库实体表类型， 具体内容在 ./entities */
 declare namespace Entity {
-  type RoleType = 'super' | 'admin' | 'user'
+  /** 与后端 users.role 对齐：仅 admin / user（已移除历史 super） */
+  type RoleType = 'admin' | 'user'
 }
 
 /* 各类接口返回的数据类型， 具体内容在 ./api */

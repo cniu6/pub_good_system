@@ -334,6 +334,11 @@ func (ctrl *SettingsController) UpdateMeta(c *gin.Context) {
 	if req.IsPublic != nil {
 		effectiveIsPublic = *req.IsPublic
 	}
+	// 敏感配置禁止公开：避免 smtp_password / sms_secret_key 等经 /public/settings 外泄
+	if effectiveIsPublic && isSensitiveSettingKey(key) {
+		utils.Fail(c, 400, "敏感配置不允许设为公开")
+		return
+	}
 
 	effectiveIsEditable := existingSetting.IsEditable
 	if req.IsEditable != nil {
@@ -480,6 +485,11 @@ func (ctrl *SettingsController) Create(c *gin.Context) {
 	isPublic := false
 	if req.IsPublic != nil {
 		isPublic = *req.IsPublic
+	}
+	// 新建时同样禁止敏感 key 公开；自定义 key 名命中敏感名单也拦截
+	if isPublic && isSensitiveSettingKey(req.Key) {
+		utils.Fail(c, 400, "敏感配置不允许设为公开")
+		return
 	}
 
 	isEditable := true

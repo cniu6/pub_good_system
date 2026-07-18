@@ -3,9 +3,11 @@ package admin
 import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
+	"fst/backend/pkg/middleware"
 	"fst/backend/utils"
 	"log"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -321,11 +323,11 @@ func (ctrl *PaymentController) DeleteGateway(c *gin.Context) {
 func (ctrl *PaymentController) RegisterPaymentRoutes(group *gin.RouterGroup) {
 	payment := group.Group("/payment")
 	{
-		// 订单管理
+		// 订单管理（补单/取消属于资金相关写操作，强制幂等键防双击）
 		payment.GET("/orders", ctrl.ListOrders)
 		payment.GET("/orders/:id", ctrl.OrderDetail)
-		payment.POST("/orders/:id/complete", ctrl.CompleteOrder)
-		payment.POST("/orders/:id/cancel", ctrl.CancelOrder)
+		payment.POST("/orders/:id/complete", middleware.RequireIdempotency("admin_payment_complete", 10*time.Minute), ctrl.CompleteOrder)
+		payment.POST("/orders/:id/cancel", middleware.RequireIdempotency("admin_payment_cancel", 10*time.Minute), ctrl.CancelOrder)
 		payment.DELETE("/orders/:id", ctrl.DeleteOrder)
 		payment.GET("/stats", ctrl.GetStats)
 

@@ -60,17 +60,19 @@
             <n-descriptions-item :label="t('adminLogs.action')">{{ detailData.action || '-' }}</n-descriptions-item>
             <n-descriptions-item :label="t('adminLogs.method')">{{ detailData.method || '-' }}</n-descriptions-item>
             <n-descriptions-item :label="t('adminLogs.path')">{{ detailData.path || '-' }}</n-descriptions-item>
+            <n-descriptions-item :label="t('adminLogs.handlerName')" :span="2">{{ detailData.handler_name || '-' }}</n-descriptions-item>
             <n-descriptions-item :label="t('adminLogs.ip')">{{ detailData.ip || '-' }}</n-descriptions-item>
             <n-descriptions-item :label="t('adminLogs.duration')">{{ detailData.duration || 0 }}</n-descriptions-item>
-            <n-descriptions-item :label="t('adminLogs.time')" :span="2">{{ detailData.create_time ? new Date(detailData.create_time * 1000).toLocaleString() : '-' }}</n-descriptions-item>
+            <n-descriptions-item :label="t('adminLogs.statusCode')">{{ detailData.status_code || '-' }}</n-descriptions-item>
+            <n-descriptions-item :label="t('adminLogs.time')">{{ detailData.create_time ? new Date(detailData.create_time * 1000).toLocaleString() : '-' }}</n-descriptions-item>
           </n-descriptions>
 
           <n-card size="small" embedded :title="t('adminLogs.requestBody')">
-            <div class="payload-block">{{ formattedRequestBody || '-' }}</div>
+            <NCode :code="formattedRequestBody || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
           </n-card>
 
           <n-card size="small" embedded :title="t('adminLogs.responseBody')">
-            <div class="payload-block dark">{{ formattedResponseBody || '-' }}</div>
+            <NCode :code="formattedResponseBody || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
           </n-card>
         </n-space>
         <n-text v-else depth="3">{{ t('adminLogs.noDetailData') }}</n-text>
@@ -82,7 +84,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NTag, NButton, useMessage, NDescriptions, NDescriptionsItem, NCard, NText, NSpace, NModal } from 'naive-ui'
+import { NTag, NButton, useMessage, NDescriptions, NDescriptionsItem, NCard, NText, NSpace, NModal, NCode } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
@@ -393,21 +395,5 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.payload-block {
-  max-height: 260px;
-  overflow-y: auto;
-  padding: 12px;
-  border-radius: 10px;
-  background: rgb(250 250 252);
-  font-family: Consolas, 'Courier New', monospace;
-  font-size: 12px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.payload-block.dark {
-  background: rgb(17 24 39);
-  color: rgb(229 231 235);
-}
+/* payload 展示已改为 NCode，与 API 日志详情一致 */
 </style>

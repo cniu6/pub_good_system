@@ -11,6 +11,25 @@ import { useTabStore } from './tab'
 
 type LoginInfoPayload = Api.Login.Info & { expiresAt?: number }
 
+/**
+ * 校验登录后 redirect 是否为安全的站内相对路径。
+ * 拒绝 //evil.com、http(s)://、反斜杠等协议相对/绝对外链，防止 open redirect。
+ */
+function isSafeInternalRedirect(path: string): boolean {
+  if (!path || typeof path !== 'string')
+    return false
+  const trimmed = path.trim()
+  if (!trimmed.startsWith('/'))
+    return false
+  if (trimmed.startsWith('//') || trimmed.startsWith('/\\'))
+    return false
+  if (trimmed.includes('://'))
+    return false
+  if (/[\x00-\x1F\x7F]/.test(trimmed))
+    return false
+  return true
+}
+
 interface AuthStatus {
   userInfo: Api.Login.Info | null
   token: string
@@ -58,10 +77,13 @@ export const useAuthStore = defineStore('auth-store', {
       tabStore.clearAllTabs()
       // 重置当前存储库
       this.$reset()
-      // 始终重定向到首页
-      router.push({
-        path: '/',
-      })
+      // 管理端与用户端退出落地不同：管理端 hash 入口无用户首页路由
+      const routeMode = getRuntimeRouteMode()
+      if (routeMode === 'admin') {
+        router.replace({ path: '/user/login' })
+        return
+      }
+      router.replace({ path: '/user/login' })
     },
     clearAuthStorage() {
       authStorage.clearActive()
@@ -93,7 +115,9 @@ export const useAuthStore = defineStore('auth-store', {
 
     /* 处理登录返回的数据 */
     async handleLoginInfo(data: LoginInfoPayload) {
-      const roles: Entity.RoleType[] = Array.isArray(data.role) && data.role.length ? data.role : ['user']
+      // 与后端对齐：仅 admin/user；历史 super 视为 admin
+      const rawRoles: string[] = Array.isArray(data.role) && data.role.length ? data.role as string[] : ['user']
+      const roles: Entity.RoleType[] = rawRoles.map((r) => (r === 'admin' || r === 'super' ? 'admin' : 'user'))
       const userInfo: LoginInfoPayload = { ...data, role: roles }
 
       // 将token和userInfo保存下来
@@ -117,10 +141,11 @@ export const useAuthStore = defineStore('auth-store', {
       const routeMode = getRuntimeRouteMode()
       await routeStore.initAuthRoute(routeMode)
 
-      // 进行重定向跳转
+      // 进行重定向跳转（仅允许站内相对路径，防 open redirect）
       const route = unref(router.currentRoute)
       const query = route.query as { redirect: string }
-      const redirectPath = query.redirect || '/'
+      const rawRedirect = typeof query.redirect === 'string' ? query.redirect : ''
+      const redirectPath = isSafeInternalRedirect(rawRedirect) ? rawRedirect : '/'
 
       // 如果重定向路径是根路径，且用户是管理员，可以重定向到管理端
       // 否则重定向到主页
@@ -148,9 +173,10 @@ export const useAuthStore = defineStore('auth-store', {
     },
 
     applyRefreshedLoginInfo(data: LoginInfoPayload) {
-      const roles: Entity.RoleType[] = Array.isArray(data.role) && data.role.length
-        ? data.role
-        : (this.userInfo?.role || ['user'])
+      const rawRoles: string[] = Array.isArray(data.role) && data.role.length
+        ? data.role as string[]
+        : ((this.userInfo?.role || ['user']) as string[])
+      const roles: Entity.RoleType[] = rawRoles.map((r) => (r === 'admin' || r === 'super' ? 'admin' : 'user'))
       const nextUserInfo: LoginInfoPayload = {
         ...(this.userInfo || {} as LoginInfoPayload),
         ...data,

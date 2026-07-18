@@ -42,6 +42,7 @@ export function useAdminSettings() {
     { label: t('adminSettings.typeNumber'), value: 'number' },
     { label: t('adminSettings.typeBoolean'), value: 'boolean' },
     { label: t('adminSettings.typeJSON'), value: 'json' },
+    { label: t('adminSettings.typePassword'), value: 'password' },
   ]
 
   const smsProviderNeedsSignName = computed(() => state.smsForm.sms_provider !== 'console')

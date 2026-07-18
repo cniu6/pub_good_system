@@ -48,12 +48,15 @@ func (s *UserService) GetList(query *UserListQuery) (*UserListResult, error) {
 	var users []AdminUserListItem
 	var total int64
 
-	// 默认分页参数
+	// 默认分页参数；上限防止无界查询拖垮库
 	if query.Page <= 0 {
 		query.Page = 1
 	}
 	if query.PageSize <= 0 {
 		query.PageSize = 20
+	}
+	if query.PageSize > 100 {
+		query.PageSize = 100
 	}
 
 	// 构建查询条件
@@ -179,18 +182,19 @@ func (s *UserService) GetByEmail(email string) (*models.User, error) {
 
 // UserCreateRequest 创建用户请求
 type UserCreateRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Nickname string `json:"nickname"`
-	Mobile   string `json:"mobile"`
-	Language string `json:"language"`
-	Country  string `json:"country"`
+	Username    string `json:"username" binding:"required"`
+	Password    string `json:"password" binding:"required"`
+	Email       string `json:"email" binding:"required,email"`
+	Nickname    string `json:"nickname"`
+	Mobile      string `json:"mobile"`
+	Language    string `json:"language"`
+	Country     string `json:"country"`
 	AdminRemark string `json:"admin_remark"`
-	Level    uint64 `json:"level"`
-	Role     string `json:"role"`
-	Status   uint8  `json:"status"`
-	GroupID  uint64 `json:"group_id"`
+	Level       uint64 `json:"level"`
+	Role        string `json:"role"`
+	// Status 用指针区分「未传」与「显式禁用」：未传默认启用；显式 0 才创建为禁用账号
+	Status  *uint8 `json:"status"`
+	GroupID uint64 `json:"group_id"`
 }
 
 // Create 创建用户
@@ -208,23 +212,36 @@ func (s *UserService) Create(req *UserCreateRequest) (*models.User, error) {
 	}
 
 	user := &models.User{
-		Username: req.Username,
-		Email:    req.Email,
-		Nickname: req.Nickname,
-		Mobile:   req.Mobile,
-		Language: req.Language,
-		Country:  req.Country,
+		Username:    req.Username,
+		Email:       req.Email,
+		Nickname:    req.Nickname,
+		Mobile:      req.Mobile,
+		Language:    req.Language,
+		Country:     req.Country,
 		AdminRemark: req.AdminRemark,
-		Level:    req.Level,
-		Role:     req.Role,
-		Status:   req.Status,
-		GroupId:  req.GroupID,
-		Password: req.Password, // 调用方需要先加密
+		Level:       req.Level,
+		Role:        req.Role,
+		GroupId:     req.GroupID,
+		Password:    req.Password, // 调用方需要先加密
+	}
+
+	// 未传 status 时默认启用，避免 API 漏传字段时静默创建出禁用账号
+	if req.Status == nil {
+		user.Status = 1
+	} else if *req.Status > 1 {
+		return nil, NewClientError("用户状态只能为 0（禁用）或 1（启用）")
+	} else {
+		user.Status = *req.Status
 	}
 
 	if user.Role == "" {
 		user.Role = "user"
 	}
+	normalizedRole, errRole := normalizeUserRole(user.Role)
+	if errRole != nil {
+		return nil, errRole
+	}
+	user.Role = normalizedRole
 	if user.Language == "" {
 		user.Language = "zh-CN"
 	}
@@ -327,7 +344,11 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 		user.Level = *req.Level
 	}
 	if req.Role != nil {
-		user.Role = *req.Role
+		normalizedRole, errRole := normalizeUserRole(*req.Role)
+		if errRole != nil {
+			return errRole
+		}
+		user.Role = normalizedRole
 	}
 	if req.Status != nil {
 		user.Status = *req.Status
@@ -375,9 +396,28 @@ func (s *UserService) UpdateStatus(user_id uint64, status uint8) error {
 	return nil
 }
 
-// UpdatePassword 更新用户密码
+// UpdatePassword 更新用户密码，并撤销全部登录会话（防旧 token 继续使用）
 func (s *UserService) UpdatePassword(user_id uint64, hashed_password string) error {
-	return models.UpdatePassword(user_id, hashed_password)
+	if err := models.UpdatePassword(user_id, hashed_password); err != nil {
+		return err
+	}
+	revokeAllGuardSessions(user_id)
+	return nil
+}
+
+// normalizeUserRole 规范化并校验角色，仅允许 user / admin
+func normalizeUserRole(role string) (string, error) {
+	r := strings.ToLower(strings.TrimSpace(role))
+	if r == "user" || r == "admin" {
+		return r, nil
+	}
+	return "", NewClientError("无效的用户角色，仅支持 user 或 admin")
+}
+
+// validateUserRole 仅允许系统内置角色，防止任意字符串写入导致鉴权语义混乱
+func validateUserRole(role string) error {
+	_, err := normalizeUserRole(role)
+	return err
 }
 
 // Delete 软删除用户（同时禁用账号状态，并撤销其所有会话）

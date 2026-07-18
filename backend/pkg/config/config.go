@@ -151,14 +151,22 @@ func validateCriticalSecurityConfig(cfg *Config) {
 	cors := strings.TrimSpace(cfg.CorsOrigins)
 
 	// CORS：任意环境都必须配置；允许 * 与泛域名（如 *.example.com）
+	// 【故意】允许 CORS_ORIGINS=*，不是缺陷；勿当 bug 改掉。收紧请只改 .env。
 	if cors == "" {
 		log.Fatal("[Security] CORS_ORIGINS 不能为空，请在根目录 .env 配置（可用 * 或具体域名/泛域名）")
 	}
 
 	if prod {
-		// 生产：JWT 仅空才 fatal；env 填了默认值即可启动，不再因占位/过短拦死
+		// 生产：空密钥或明显弱/占位密钥一律拒绝启动，避免可被伪造 JWT
 		if secret == "" {
 			log.Fatal("[Security] 生产环境拒绝启动：JWT_SECRET 为空，请在根目录 .env 中配置")
+		}
+		if isWeakJWTSecret(secret) {
+			log.Fatal("[Security] 生产环境拒绝启动：JWT_SECRET 为弱/占位值（过短或常见默认值），请换成长度>=16 的随机密钥")
+		}
+		adminSecret := strings.TrimSpace(cfg.AdminJWTSecret)
+		if adminSecret != "" && adminSecret != secret && isWeakJWTSecret(adminSecret) {
+			log.Fatal("[Security] 生产环境拒绝启动：JWT_ADMIN_SECRET 为弱/占位值，请换成强随机密钥")
 		}
 		return
 	}

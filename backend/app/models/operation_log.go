@@ -7,6 +7,7 @@ import (
 )
 
 // OperationLog 操作日志模型
+// request_body / response_body 列为 MEDIUMTEXT（约 16MB），写入前由中间件截断到 64KB。
 type OperationLog struct {
 	ID           uint64  `db:"id" json:"id"`
 	UserID       uint64  `db:"user_id" json:"user_id"`
@@ -17,6 +18,7 @@ type OperationLog struct {
 	Path         string  `db:"path" json:"path"`
 	IP           string  `db:"ip" json:"ip"`
 	UserAgent    string  `db:"user_agent" json:"user_agent"`
+	HandlerName  string  `db:"handler_name" json:"handler_name"` // Gin handler / controller 方法名
 	RequestBody  *string `db:"request_body" json:"request_body,omitempty"`
 	ResponseBody *string `db:"response_body" json:"response_body,omitempty"`
 	StatusCode   int     `db:"status_code" json:"status_code"`
@@ -40,8 +42,9 @@ func InitOperationLogsTable() {
 			path VARCHAR(255) NOT NULL DEFAULT '' COMMENT '请求路径',
 			ip VARCHAR(45) NOT NULL DEFAULT '' COMMENT 'IP地址',
 			user_agent TEXT COMMENT '浏览器UA',
-			request_body MEDIUMTEXT COMMENT '请求体',
-			response_body MEDIUMTEXT COMMENT '响应体',
+			handler_name VARCHAR(255) NOT NULL DEFAULT '' COMMENT '处理函数/Handler名',
+			request_body MEDIUMTEXT COMMENT '请求体(脱敏，写入前截断)',
+			response_body MEDIUMTEXT COMMENT '响应体(脱敏，写入前截断)',
 			status_code INT NOT NULL DEFAULT 0 COMMENT '状态码',
 			duration INT NOT NULL DEFAULT 0 COMMENT '耗时(ms)',
 			create_time BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间',
@@ -50,7 +53,8 @@ func InitOperationLogsTable() {
 			INDEX idx_module_create_time (module, create_time),
 			INDEX idx_action_create_time (action, create_time),
 			INDEX idx_method_create_time (method, create_time),
-			INDEX idx_ip_create_time (ip, create_time)
+			INDEX idx_ip_create_time (ip, create_time),
+			INDEX idx_handler_create_time (handler_name, create_time)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 
 		_, err := db.DB.Exec(schema)
@@ -74,8 +78,9 @@ func InitOperationLogsTable() {
 		{"path", "ALTER TABLE operation_logs ADD COLUMN path VARCHAR(255) NOT NULL DEFAULT '' COMMENT '请求路径' AFTER method"},
 		{"ip", "ALTER TABLE operation_logs ADD COLUMN ip VARCHAR(45) NOT NULL DEFAULT '' COMMENT 'IP地址' AFTER path"},
 		{"user_agent", "ALTER TABLE operation_logs ADD COLUMN user_agent TEXT COMMENT '浏览器UA' AFTER ip"},
-		{"request_body", "ALTER TABLE operation_logs ADD COLUMN request_body MEDIUMTEXT COMMENT '请求体' AFTER user_agent"},
-		{"response_body", "ALTER TABLE operation_logs ADD COLUMN response_body MEDIUMTEXT COMMENT '响应体' AFTER request_body"},
+		{"handler_name", "ALTER TABLE operation_logs ADD COLUMN handler_name VARCHAR(255) NOT NULL DEFAULT '' COMMENT '处理函数/Handler名' AFTER user_agent"},
+		{"request_body", "ALTER TABLE operation_logs ADD COLUMN request_body MEDIUMTEXT COMMENT '请求体(脱敏，写入前截断)' AFTER handler_name"},
+		{"response_body", "ALTER TABLE operation_logs ADD COLUMN response_body MEDIUMTEXT COMMENT '响应体(脱敏，写入前截断)' AFTER request_body"},
 		{"status_code", "ALTER TABLE operation_logs ADD COLUMN status_code INT NOT NULL DEFAULT 0 COMMENT '状态码' AFTER response_body"},
 		{"duration", "ALTER TABLE operation_logs ADD COLUMN duration INT NOT NULL DEFAULT 0 COMMENT '耗时(ms)' AFTER status_code"},
 		{"create_time", "ALTER TABLE operation_logs ADD COLUMN create_time BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间' AFTER duration"},
@@ -96,12 +101,13 @@ func InitOperationLogsTable() {
 	}
 
 	indexRepairs := map[string]string{
-		"idx_create_time_id":     "ALTER TABLE operation_logs ADD INDEX idx_create_time_id (create_time, id)",
-		"idx_user_create_time":   "ALTER TABLE operation_logs ADD INDEX idx_user_create_time (user_id, create_time)",
-		"idx_module_create_time": "ALTER TABLE operation_logs ADD INDEX idx_module_create_time (module, create_time)",
-		"idx_action_create_time": "ALTER TABLE operation_logs ADD INDEX idx_action_create_time (action, create_time)",
-		"idx_method_create_time": "ALTER TABLE operation_logs ADD INDEX idx_method_create_time (method, create_time)",
-		"idx_ip_create_time":     "ALTER TABLE operation_logs ADD INDEX idx_ip_create_time (ip, create_time)",
+		"idx_create_time_id":       "ALTER TABLE operation_logs ADD INDEX idx_create_time_id (create_time, id)",
+		"idx_user_create_time":     "ALTER TABLE operation_logs ADD INDEX idx_user_create_time (user_id, create_time)",
+		"idx_module_create_time":   "ALTER TABLE operation_logs ADD INDEX idx_module_create_time (module, create_time)",
+		"idx_action_create_time":   "ALTER TABLE operation_logs ADD INDEX idx_action_create_time (action, create_time)",
+		"idx_method_create_time":   "ALTER TABLE operation_logs ADD INDEX idx_method_create_time (method, create_time)",
+		"idx_ip_create_time":       "ALTER TABLE operation_logs ADD INDEX idx_ip_create_time (ip, create_time)",
+		"idx_handler_create_time":  "ALTER TABLE operation_logs ADD INDEX idx_handler_create_time (handler_name, create_time)",
 	}
 
 	for indexName, alterSQL := range indexRepairs {
@@ -114,9 +120,9 @@ func InitOperationLogsTable() {
 // CreateOperationLog 创建操作日志
 func CreateOperationLog(log *OperationLog) error {
 	query := `INSERT INTO operation_logs (user_id, username, module, action, method, path, ip,
-			  user_agent, request_body, response_body, status_code, duration, create_time)
+			  user_agent, handler_name, request_body, response_body, status_code, duration, create_time)
 			  VALUES (:user_id, :username, :module, :action, :method, :path, :ip,
-			  :user_agent, :request_body, :response_body, :status_code, :duration, :create_time)`
+			  :user_agent, :handler_name, :request_body, :response_body, :status_code, :duration, :create_time)`
 
 	now := time.Now().Unix()
 	log.CreateTime = &now

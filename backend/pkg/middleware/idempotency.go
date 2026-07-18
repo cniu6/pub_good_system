@@ -10,6 +10,7 @@ import (
 	"fst/backend/pkg/db"
 	"fst/backend/utils"
 	"io"
+	"log"
 	"strings"
 	"time"
 
@@ -17,6 +18,13 @@ import (
 	"github.com/go-sql-driver/mysql"
 )
 
+// staleProcessingSeconds processing 状态超过该秒数视为僵死锁，允许同 key 重新占坑
+const staleProcessingSeconds int64 = 120
+
+// RequireIdempotency 幂等中间件：
+//  1. 请求进入时以 status=processing 占坑（防并发双花）
+//  2. 业务成功（utils.Success / SuccessMsg）后标记 completed，同 key 不可再跑
+//  3. 业务失败则删除占坑，同 key 可重试
 func RequireIdempotency(scope string, ttl time.Duration) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.Method != "POST" && c.Request.Method != "PUT" && c.Request.Method != "PATCH" {
@@ -73,14 +81,25 @@ func RequireIdempotency(scope string, ttl time.Duration) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+		// 清理卡住的 processing（例如进程崩溃），避免永久占坑
+		staleBefore := now - staleProcessingSeconds
+		if err := models.DeleteStaleProcessingIdempotencyKeyTx(tx, idemKey, userID, scope, staleBefore); err != nil {
+			_ = tx.Rollback()
+			utils.Fail(c, 500, "幂等校验失败")
+			c.Abort()
+			return
+		}
 
 		item, err := models.GetActiveIdempotencyKeyTx(tx, idemKey, userID, scope, now)
 		if err == nil && item != nil {
 			_ = tx.Rollback()
 			if item.RequestHash != requestHash {
 				utils.Fail(c, 409, "幂等键已被其他请求占用")
-			} else {
+			} else if item.Status == models.IdempotencyStatusCompleted {
 				utils.Fail(c, 409, "请勿重复提交")
+			} else {
+				// 仍在 processing 且未过僵死窗口
+				utils.Fail(c, 409, "请求处理中，请稍后再试")
 			}
 			c.Abort()
 			return
@@ -116,6 +135,9 @@ func RequireIdempotency(scope string, ttl time.Duration) gin.HandlerFunc {
 		c.Set("idempotencyKey", idemKey)
 		c.Set("idempotencyScope", scope)
 		c.Set("idempotencyRequestHash", requestHash)
+		c.Set("idempotencyUserID", userID)
+		// 默认未成功；只有 utils.Success / SuccessMsg 会置 true
+		c.Set(utils.CtxBizOK, false)
 
 		if len(bodyBytes) > 0 {
 			var bodyMap map[string]any
@@ -125,6 +147,22 @@ func RequireIdempotency(scope string, ttl time.Duration) gin.HandlerFunc {
 		}
 
 		c.Next()
+
+		// 业务结束后：成功→completed；失败→释放 key 允许同 key 重试
+		finalizeIdempotency(c, idemKey, userID, scope)
 	}
 }
 
+func finalizeIdempotency(c *gin.Context, idemKey string, userID uint64, scope string) {
+	bizOK, _ := c.Get(utils.CtxBizOK)
+	ok, _ := bizOK.(bool)
+	if ok {
+		if err := models.MarkIdempotencyCompleted(idemKey, userID, scope); err != nil {
+			log.Printf("[Idempotency] mark completed failed key=%s user=%d scope=%s err=%v", idemKey, userID, scope, err)
+		}
+		return
+	}
+	if err := models.DeleteIdempotencyKey(idemKey, userID, scope); err != nil {
+		log.Printf("[Idempotency] release failed key=%s user=%d scope=%s err=%v", idemKey, userID, scope, err)
+	}
+}

@@ -234,8 +234,24 @@ func (ctrl *SettingsController) resolveSettingValueForAdmin(setting models.Syste
 }
 
 func isSensitiveSettingKey(key string) bool {
-	_, ok := sensitiveSettingKeys[key]
-	return ok
+	key = strings.TrimSpace(strings.ToLower(key))
+	if key == "" {
+		return false
+	}
+	if _, ok := sensitiveSettingKeys[key]; ok {
+		return true
+	}
+	// 自定义配置名命中敏感关键词时，同样禁止公开，防止误标 is_public 外泄
+	sensitiveFragments := []string{
+		"password", "passwd", "secret", "private_key", "api_key", "apikey",
+		"access_key", "token", "credential",
+	}
+	for _, frag := range sensitiveFragments {
+		if strings.Contains(key, frag) {
+			return true
+		}
+	}
+	return false
 }
 
 func (ctrl *SettingsController) maskSensitiveSettingValue(value string) string {

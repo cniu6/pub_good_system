@@ -63,10 +63,18 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 	if req.Amount <= 0 {
 		return nil, NewClientError("提现金额必须大于0")
 	}
+	// 提现金额先按分规范化
+	if normalized, err := utils.NormalizeYuan(req.Amount); err != nil || normalized <= 0 {
+		return nil, NewClientError("提现金额非法")
+	} else {
+		req.Amount = normalized
+	}
 	if GlobalSettingsService != nil {
 		minAmount := parseJSONFloatWithDefault(GlobalSettingsService.GetWithDefault("withdraw_min_amount", "10"), 10)
-		if req.Amount < minAmount {
-			return nil, NewClientError(fmt.Sprintf("提现金额不能低于 %.2f", minAmount))
+		minFen := utils.MustYuanToFen(minAmount)
+		reqFen := utils.MustYuanToFen(req.Amount)
+		if reqFen < minFen {
+			return nil, NewClientError(fmt.Sprintf("提现金额不能低于 %.2f", utils.FenToYuan(minFen)))
 		}
 	}
 
@@ -131,7 +139,18 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 	if user.Status != 1 {
 		return nil, NewClientError("当前用户状态不可提现")
 	}
-	if user.Money < req.Amount {
+	// 余额与提现金额均按「分」比较，避免 float 误判不足/充足
+	userFen, fenErr := utils.YuanToFen(user.Money)
+	if fenErr != nil {
+		return nil, NewClientError("账户余额异常")
+	}
+	reqFen, fenErr := utils.YuanToFen(req.Amount)
+	if fenErr != nil || reqFen <= 0 {
+		return nil, NewClientError("提现金额必须大于0")
+	}
+	// 写回规范化后的元，后续扣款/落库一致
+	req.Amount = utils.FenToYuan(reqFen)
+	if userFen < reqFen {
 		return nil, NewClientError("账户余额不足")
 	}
 

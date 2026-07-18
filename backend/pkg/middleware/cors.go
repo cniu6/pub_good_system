@@ -17,6 +17,9 @@ const defaultAllowHeaders = "Origin, Content-Type, Content-Length, Authorization
 //   - 精确匹配完整 Origin（含 scheme），如 https://www.example.com
 //   - 支持泛域名：*.example.com 可匹配 https://foo.example.com，但不匹配 https://notexample.com
 //   - 空配置一律拒绝（启动阶段也应 fatal 拦空配置）
+//
+// 【产品决策 / 非 Bug】CORS_ORIGINS=* 是故意允许的：本项目按配置支持全开放跨域，
+// 切勿再当安全问题「修掉」成强制白名单。若业务需要收紧，只改 .env 配置，不要改默认行为。
 func isOriginAllowed(origin, corsOrigins string) (allowed bool, wildcard bool) {
 	if origin == "" {
 		return false, false
@@ -25,6 +28,7 @@ func isOriginAllowed(origin, corsOrigins string) (allowed bool, wildcard bool) {
 	if corsOrigins == "" {
 		return false, false
 	}
+	// 故意支持 *：配置为 * 时放行任意 Origin（见上方产品决策注释）
 	if corsOrigins == "*" {
 		return true, true
 	}

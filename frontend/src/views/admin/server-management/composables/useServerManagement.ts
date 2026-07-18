@@ -205,6 +205,10 @@ export function useServerManagement() {
   async function loadRuntimeConfig() {
     try {
       const res = await adminApi.settings.list()
+      if (!res.isSuccess) {
+        message.error(res.message || t('adminServer.loadRuntimeFailed'))
+        return
+      }
       const categories = res.data?.categories || []
       for (const category of categories) {
         for (const item of category.items) {
@@ -314,6 +318,10 @@ export function useServerManagement() {
     monitoringLoading.value = true
     try {
       const res = await adminApi.server.monitoring()
+      if (!res.isSuccess) {
+        message.error(res.message || t('adminSettings.loadMonitoringFailed'))
+        return
+      }
       monitoring.value = res.data || null
     }
     catch {
@@ -328,6 +336,10 @@ export function useServerManagement() {
     operationsLoading.value = true
     try {
       const res = await adminApi.server.operations()
+      if (!res.isSuccess) {
+        message.error(res.message || t('adminServer.loadOperationsFailed'))
+        return
+      }
       operations.value = res.data || null
     }
     catch {

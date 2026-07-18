@@ -35,7 +35,9 @@ export function generateNos() {
 }
 
 export function addScoreLog(userId: number, data: { score: number, memo?: string }) {
-  return request.Post<Service.ResponseResult<ScoreChangeResponse>>(`${usersBaseUrl()}/${userId}/score/log`, data)
+  return request.Post<Service.ResponseResult<ScoreChangeResponse>>(`${usersBaseUrl()}/${userId}/score/log`, data, {
+    headers: { 'X-Idempotency-Key': createIdempotencyKey(`score-log-${userId}`) },
+  })
 }
 
 export function fetchAllMoneyLogs(params: { page?: number, page_size?: number, keyword?: string, user_id?: number }) {

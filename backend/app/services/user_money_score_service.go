@@ -5,6 +5,7 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/pkg/db"
 	"fst/backend/utils"
+	"math"
 	"strings"
 	"time"
 )
@@ -53,13 +54,26 @@ func ChangeUserMoneyI18n(userID uint64, amount float64, memoI18n map[string]stri
 }
 
 // SetUserMoney 直接设置用户余额（管理员用，同时记录日志）
-// 内部先计算差值再通过 ExecuteBalanceOp(OpChangeAndLog) 处理
+// 内部先按「分」计算差值，再通过 ExecuteBalanceOp(OpChangeAndLog) 处理
 func SetUserMoney(userID uint64, newMoney float64, memo string) (*models.UserMoneyLog, error) {
 	memo = utils.Clean_XSS(memo)
 
 	if newMoney < 0 {
 		return nil, errors.New("余额不能为负数")
 	}
+	// 拒绝非法浮点，避免管理员误传 NaN/Inf 污染余额
+	if math.IsNaN(newMoney) || math.IsInf(newMoney, 0) {
+		return nil, errors.New("金额非法")
+	}
+
+	newFen, err := utils.YuanToFen(newMoney)
+	if err != nil {
+		return nil, err
+	}
+	if newFen > utils.MoneyMaxFen {
+		return nil, errors.New("余额超出上限")
+	}
+	newMoney = utils.FenToYuan(newFen)
 
 	tx, err := db.DB.Begin()
 	if err != nil {
@@ -71,8 +85,13 @@ func SetUserMoney(userID uint64, newMoney float64, memo string) (*models.UserMon
 	if err != nil {
 		return nil, errors.New("用户不存在")
 	}
+	beforeFen, err := utils.YuanToFen(beforeMoney)
+	if err != nil {
+		return nil, errors.New("用户余额非法")
+	}
 
-	amount := newMoney - beforeMoney
+	// 差值按分计算，再转回元交给统一入口
+	amount := utils.FenToYuan(newFen - beforeFen)
 
 	result, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
 		UserID: userID,
