@@ -280,10 +280,6 @@ type RealnameAPIRuntimeConfig struct {
 	Endpoint  string // 可选，自定义API地址
 }
 
-func parseBoolSetting(val string) bool {
-	return parseBoolSettingWithFallback(val, false)
-}
-
 func parseBoolSettingWithFallback(val string, fallback bool) bool {
 	switch strings.ToLower(strings.TrimSpace(val)) {
 	case "1", "true":

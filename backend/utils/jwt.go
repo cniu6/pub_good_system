@@ -75,10 +75,6 @@ func jwtSigningKey(token *jwt.Token) (interface{}, error) {
 	return []byte(secret), nil
 }
 
-func GenerateToken(userID uint64, role string) (string, error) {
-	return GenerateTokenWithTTL(userID, role, 24*time.Hour)
-}
-
 func GenerateTokenWithTTL(userID uint64, role string, ttl time.Duration) (string, error) {
 	return GenerateTokenForGuardWithTTL(userID, role, UserAuthGuard, ttl)
 }
@@ -175,11 +171,6 @@ func HashToken(token string) string {
 	return hex.EncodeToString(h[:])
 }
 
-// GenerateRefreshToken 生成Refresh Token (7天有效期)
-func GenerateRefreshToken(userID uint64, username string) (string, error) {
-	return GenerateRefreshTokenWithTTL(userID, 7*24*time.Hour)
-}
-
 func GenerateRefreshTokenWithTTL(userID uint64, ttl time.Duration) (string, error) {
 	return GenerateRefreshTokenForGuardWithTTL(userID, UserAuthGuard, ttl)
 }
@@ -241,29 +232,6 @@ func ParseRefreshTokenForGuard(tokenString, expectedGuard string) (*RefreshClaim
 		return nil, fmt.Errorf("unexpected auth guard: %s", authGuard)
 	}
 	claims.AuthGuard = authGuard
-	return claims, nil
-}
-
-// ParseRefreshTokenLegacy keeps compatibility for older callers.
-func ParseRefreshTokenLegacy(tokenString string) (*RefreshClaims, error) {
-	claims := &RefreshClaims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, jwtSigningKey)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if !token.Valid {
-		return nil, jwt.ErrSignatureInvalid
-	}
-	if claims.TokenType != "" {
-		if claims.TokenType != refreshTokenType {
-			return nil, fmt.Errorf("unexpected token type: %s", claims.TokenType)
-		}
-	} else if claims.Role != "" {
-		return nil, fmt.Errorf("unexpected token type")
-	}
-
 	return claims, nil
 }
 

@@ -43,6 +43,7 @@ export const adminApi = {
   debug: createLazyModule(() => import('./debug').then(m => m.adminDebugApi)),
   settings: createLazyModule(() => import('./settings').then(m => m.adminSettingsApi)),
   server: createLazyModule(() => import('./server').then(m => m.adminServerApi)),
+  autoJob: createLazyModule(() => import('./auto-job').then(m => m.adminAutoJobApi)),
   dashboard: createLazyModule(() => import('./dashboard').then(m => m.adminDashboardApi)),
   realname: createLazyModule(() => import('./realname').then(m => m.adminRealnameApi)),
   finance: createLazyModule(() => import('./finance')),

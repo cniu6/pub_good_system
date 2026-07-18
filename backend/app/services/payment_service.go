@@ -113,49 +113,31 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 		return nil, errors.New("创建订单失败，请稍后重试")
 	}
 
-	// 10. 根据通道类型发起支付
-	var payURL string
-	if gateway.Type == "epay" {
-		// 使用通道自身的配置构建易支付请求
-		epayConfig := &EpayConfig{
-			Enabled:      true,
-			ApiURL:       strings.TrimRight(gateway.ApiURL, "/"),
-			PID:          gateway.PID,
-			Key:          gateway.Key,
-			PaymentTypes: []string{gateway.PayType},
-		}
-
-		// 防御性校验：确保支付方式在通道允许范围内
-		if !ValidatePaymentType(epayConfig, order.PaymentType) {
-			models.UpdatePaymentOrderStatus(order.OrderNo, models.PaymentStatusFailed, "")
-			return nil, NewClientError("支付方式不受该通道支持")
-		}
-
-		// 使用回调地址：优先通道自定义，否则用全局
-		gwNotifyURL := notifyURL
-		if gateway.NotifyURL != "" {
-			gwNotifyURL = gateway.NotifyURL
-		}
-
-		// 先尝试 API 支付（mapi）
-		apiPayURL, tradeNo, apiErr := EpayAPIPay(epayConfig, order, gwNotifyURL, returnURL)
-		if apiErr != nil {
-			log.Printf("[Payment] API支付失败，回退到跳转支付: %v", apiErr)
-			// 回退到跳转模式
-			payURL, err = BuildEpaySubmitURL(epayConfig, order, gwNotifyURL, returnURL)
-			if err != nil {
-				log.Printf("[Payment] 构造支付链接失败: %v", err)
-				models.UpdatePaymentOrderStatus(order.OrderNo, models.PaymentStatusFailed, "")
-				return nil, errors.New("生成支付链接失败，请检查支付配置")
-			}
-		} else {
-			payURL = apiPayURL
-			order.TradeNo = models.NormalizeTradeNo(tradeNo)
-		}
-	} else {
+	// 10. 根据通道类型发起支付（由 pay_balance 插件注册的 PaymentChannel 分发）
+	channel, ok := GetPaymentChannel(gateway.Type)
+	if !ok {
 		models.UpdatePaymentOrderStatus(order.OrderNo, models.PaymentStatusFailed, "")
 		return nil, NewClientError("不支持的支付通道类型")
 	}
+
+	if !channel.ValidatePayType(gateway, order.PaymentType) {
+		models.UpdatePaymentOrderStatus(order.OrderNo, models.PaymentStatusFailed, "")
+		return nil, NewClientError("支付方式不受该通道支持")
+	}
+
+	// 使用回调地址：优先通道自定义，否则用全局
+	gwNotifyURL := notifyURL
+	if gateway.NotifyURL != "" {
+		gwNotifyURL = gateway.NotifyURL
+	}
+
+	payURL, tradeNoFromRemote, createErr := channel.CreatePay(gateway, order, gwNotifyURL, returnURL)
+	if createErr != nil {
+		log.Printf("[Payment] 创建远程支付失败: type=%s, err=%v", gateway.Type, createErr)
+		models.UpdatePaymentOrderStatus(order.OrderNo, models.PaymentStatusFailed, "")
+		return nil, errors.New("生成支付链接失败，请检查支付配置")
+	}
+	order.TradeNo = models.NormalizeTradeNo(tradeNoFromRemote)
 
 	// 11. 保存支付链接到订单
 	order.PayURL = payURL
@@ -253,7 +235,11 @@ func HandlePaymentNotify(params map[string]string) (bool, error) {
 	}
 
 	// 4. 验证签名（防篡改）
-	if !VerifyEpaySign(params, gateway.Key) {
+	notifyChannel, ok := GetPaymentChannel(gateway.Type)
+	if !ok {
+		return false, errors.New("不支持的支付通道类型")
+	}
+	if !notifyChannel.VerifyNotify(params, gateway.Key) {
 		log.Printf("[Payment] 回调签名验证失败: order_no=%s, trade_status=%s", outTradeNo, tradeStatus)
 		return false, errors.New("签名验证失败")
 	}
@@ -314,7 +300,11 @@ func HandlePaymentReturn(params map[string]string) (*models.PaymentOrder, error)
 		return nil, errors.New("支付通道不存在")
 	}
 
-	if !VerifyEpaySign(params, gateway.Key) {
+	returnChannel, ok := GetPaymentChannel(gateway.Type)
+	if !ok {
+		return nil, errors.New("不支持的支付通道类型")
+	}
+	if !returnChannel.VerifyNotify(params, gateway.Key) {
 		return nil, errors.New("签名验证失败")
 	}
 
@@ -349,7 +339,11 @@ func reconcilePendingPaymentOrder(order *models.PaymentOrder) (bool, error) {
 	if order.Status != models.PaymentStatusPending {
 		return false, nil
 	}
-	if order.GatewayID == 0 || order.PaymentChannel != "epay" {
+	if order.GatewayID == 0 {
+		return false, nil
+	}
+	channel, ok := GetPaymentChannel(order.PaymentChannel)
+	if !ok {
 		return false, nil
 	}
 
@@ -364,13 +358,7 @@ func reconcilePendingPaymentOrder(order *models.PaymentOrder) (bool, error) {
 		return false, fmt.Errorf("获取支付通道失败: %w", err)
 	}
 
-	queryResult, err := QueryEpayOrder(&EpayConfig{
-		Enabled:      true,
-		ApiURL:       strings.TrimRight(gateway.ApiURL, "/"),
-		PID:          gateway.PID,
-		Key:          gateway.Key,
-		PaymentTypes: []string{gateway.PayType},
-	}, orderNo, tradeNo)
+	queryResult, err := channel.QueryOrder(gateway, orderNo, tradeNo)
 	if err != nil {
 		return false, err
 	}

@@ -14,20 +14,44 @@ FST (Full Stack Template) 是一个基于 Go (Gin) 和 Vue 3 (Naive UI) 构建�
 
 ```text
 fst/
-├── main.go / main_embedded.go   # 统一程序入口（开发 / 嵌入前端）
-├── backend/                     # 后端 Go 源码
-│   ├── app/                     # controllers / models / services / plugins
-│   ├── pkg/                     # config / db / middleware / pluginregistry
-│   ├── routes/                  # API 路由
-│   ├── utils/ · internal/ · docs/
+├── main.go / main_embedded.go   # 入口薄壳（开发 / 嵌入前端）
+├── backend/
+│   ├── cmd/server/              # 进程薄壳：前端托管 + Listen
+│   ├── internal/
+│   │   ├── appinit/             # 启动编排
+│   │   ├── migrate/             # 数据库自迁移
+│   │   └── task/                # 自动任务管理器（SQL + 内存调度）
+│   ├── app/                     # 业务 MVC + plugins
+│   ├── pkg/                     # config / db / middleware
+│   ├── routes/                  # public / user / admin
+│   ├── tests/README.md          # 测试放置说明
 │   └── 留档.md
-├── frontend/                    # Vue3 源码 + 留档.md
-├── doc/                         # 知识库文档
-├── tools/                       # 运维小工具（注册管理员/重置密码）
-├── build/                       # 构建产物
-├── .env.example                 # 环境变量模板（本地 .env 勿提交）
+├── frontend/
+├── doc/
+├── tools/                       # 运维/诊断/集成脚本（非服务入口）
+├── build/
+├── .env.example
 ├── dev.bat / build.bat / test.bat
 └── README.md
+```
+
+**分层**：`pkg` = 零件；`internal` = 开机骨架；`app` = 业务 API；运维脚本只放 `tools/`。
+
+### 自动任务
+
+- 表：`auto_job_definitions` / `auto_job_runs`
+- 核心：`backend/internal/task`
+- 管理 API：`/api/v1/{ADMIN_API_PATH}/auto-jobs/*`（启动时空表会导入默认任务）
+
+### 测试放哪
+
+| 类型 | 位置 |
+|------|------|
+| 单元测试 `*_test.go` | **必须**与源码同包目录（Go 规范），如 `backend/app/services/*_test.go` |
+| 运维/集成脚本 | 根目录 `tools/`（见 `tools/留档.md`） |
+
+```bash
+go test ./backend/app/services/ ./backend/utils/ ./backend/pkg/... -count=1
 ```
 
 ## 快速开始

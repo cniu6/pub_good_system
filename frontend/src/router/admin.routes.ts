@@ -172,6 +172,15 @@ export function getAdminRoutes(): RouteRecordRaw[] {
                 icon: 'icon-park-outline:server',
               },
             },
+            {
+              path: 'auto-jobs',
+              name: 'admin-auto-jobs',
+              component: () => import('@/views/admin/auto-jobs/index.vue'),
+              meta: {
+                title: 'route.autoJobManager',
+                icon: 'icon-park-outline:timer',
+              },
+            },
           ],
         },
         {

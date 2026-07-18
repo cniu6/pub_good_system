@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// 创建HTTP服务器
 func NewHTTPServer(addr string, handler http.Handler) *http.Server {
 	readHeaderTimeout := 5 * time.Second
 	readTimeout := 5 * time.Second

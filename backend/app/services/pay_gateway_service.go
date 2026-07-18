@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fst/backend/app/models"
+	"log"
 )
 
 // PayGatewayCreateRequest 创建支付通道请求
@@ -97,13 +98,11 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 	if err != nil {
 		return nil, errors.New("检查在途订单失败: " + err.Error())
 	}
-	hasPendingOrders := pendingCount > 0
-	if hasPendingOrders {
-		if req.PID != nil && *req.PID != gw.PID {
-			return nil, errors.New("存在待支付订单时不允许修改商户PID")
-		}
-		if req.Key != nil && *req.Key != gw.Key {
-			return nil, errors.New("存在待支付订单时不允许修改商户密钥")
+	// 允许在存在待支付订单时修改 PID/密钥：运维纠错（密钥填错）时不能被卡死。
+	// 风险：旧待支付单的回调验签可能失败，需管理员自行处理（取消旧单或补单）。
+	if pendingCount > 0 {
+		if (req.PID != nil && *req.PID != gw.PID) || (req.Key != nil && *req.Key != gw.Key) {
+			log.Printf("[PayGateway] 存在 %d 笔待支付订单，仍修改通道敏感配置: gateway_id=%d", pendingCount, id)
 		}
 	}
 

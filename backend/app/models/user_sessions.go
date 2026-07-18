@@ -220,12 +220,12 @@ func RevokeAllUserSessionsWithGuard(userID uint64, authGuard, currentTokenHash s
 	return err
 }
 
-// CleanupExpiredSessions 清理过期会话
-func CleanupExpiredSessions() error {
+// CleanupExpiredSessions 清理过期会话，返回删除行数
+func CleanupExpiredSessions() (int64, error) {
 	now := time.Now().Unix()
 	tx, err := db.DB.Begin()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer func() {
 		if err != nil {
@@ -233,15 +233,20 @@ func CleanupExpiredSessions() error {
 		}
 	}()
 
-	if _, err = tx.Exec(
+	res, err := tx.Exec(
 		"DELETE FROM user_sessions WHERE is_active = 0 OR (refresh_expires_at > 0 AND refresh_expires_at <= ?) OR (refresh_expires_at = 0 AND expires_at <= ?)",
 		now, now,
-	); err != nil {
-		return err
+	)
+	if err != nil {
+		return 0, err
 	}
+	aff, _ := res.RowsAffected()
 
 	err = tx.Commit()
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return aff, nil
 }
 
 // GetUserLoginCount 获取用户登录次数
@@ -256,4 +261,3 @@ func GetUserLoginCount(userID uint64) (int64, error) {
 	}
 	return count, nil
 }
-

@@ -98,36 +98,6 @@ func ValidateURL(rawURL string) bool {
 	return true
 }
 
-// ValidateEmail 验证邮箱格式
-func ValidateEmail(email string) bool {
-	pattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
-	regex := regexp.MustCompile(pattern)
-	return regex.MatchString(email)
-}
-
-// IsEmail 判断字符串是否为邮箱格式
-func IsEmail(str string) bool {
-	return ValidateEmail(str)
-}
-
-// IsDigit 判断字符串是否只包含数字
-func IsDigit(str string) bool {
-	if str == "" {
-		return false
-	}
-	for _, c := range str {
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-	return true
-}
-
-// ValidatePort 检测端口合法性(返回true表示合法，false表示不合法)
-func ValidatePort(port int) bool {
-	return port >= 1 && port <= 65535
-}
-
 // SanitizeQueryParams 清理查询参数中的 "null"/"undefined" 字符串值
 // 前端可能将 JavaScript 的 null/undefined 序列化为字符串 "null"/"undefined"
 // 导致后端 ParseUint 等解析失败

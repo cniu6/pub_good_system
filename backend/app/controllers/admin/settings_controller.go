@@ -6,6 +6,7 @@ import (
 	"fst/backend/app/models"
 	sms_plugin "fst/backend/app/plugins/sms"
 	"fst/backend/app/services"
+	"fst/backend/internal/task"
 	"fst/backend/pkg/config"
 	"fst/backend/pkg/db"
 	"fst/backend/pkg/middleware"
@@ -842,32 +843,6 @@ func currentGlobalConfig() *config.Config {
 	return &config.Config{}
 }
 
-func parseBoolSettingValue(v string, fallback bool) bool {
-	v = strings.ToLower(strings.TrimSpace(v))
-	if v == "" {
-		return fallback
-	}
-	if v == "1" || v == "true" {
-		return true
-	}
-	if v == "0" || v == "false" {
-		return false
-	}
-	return fallback
-}
-
-func parsePositiveIntSetting(v string, fallback int) int {
-	v = strings.TrimSpace(v)
-	if v == "" {
-		return fallback
-	}
-	num, err := strconv.Atoi(v)
-	if err != nil || num <= 0 {
-		return fallback
-	}
-	return num
-}
-
 func (ctrl *SettingsController) refreshRuntimeConfig() {
 	services.ReloadGlobalRuntimeConfig()
 
@@ -1042,8 +1017,21 @@ func (ctrl *SettingsController) GetServerMonitoringStatus(c *gin.Context) {
 
 func (ctrl *SettingsController) GetServerOperationsStatus(c *gin.Context) {
 	apiLogConfig := services.GetGlobalAPILogRuntimeConfig()
+	defs, _ := task.ListDefinitions("", "", nil)
+	taskItems := make([]gin.H, 0, len(defs))
+	for _, d := range defs {
+		taskItems = append(taskItems, gin.H{
+			"key":           d.JobCode,
+			"label":         d.Name,
+			"running":       d.LastStatus == task.StatusRunning,
+			"interval_secs": d.IntervalSeconds,
+			"last_status":   d.LastStatus,
+			"last_message":  d.LastError,
+			"scheduled":     d.Enabled == 1,
+		})
+	}
 	utils.Success(c, gin.H{
-		"tasks":       services.GetBackgroundTaskStatusList(),
+		"tasks":       taskItems,
 		"rate_limits": middleware.GetDynamicRateLimitSnapshots(),
 		"api_log": gin.H{
 			"enabled":    apiLogConfig.Enabled,
@@ -1069,20 +1057,29 @@ func (ctrl *SettingsController) RunBackgroundTask(c *gin.Context) {
 	}
 
 	taskKey := strings.TrimSpace(req.Key)
+	switch taskKey {
+	case "cleanup":
+		taskKey = "cleanup_sessions_codes"
+	case "order_maintenance":
+		taskKey = "cleanup_expired_orders"
+	}
 	adminID, _ := c.Get("userID")
 	log.Printf("[SECURITY AUDIT] run-background-task | admin_id=%v | key=%s | ip=%s", adminID, taskKey, c.ClientIP())
 
-	message, err := services.RunBackgroundTaskNow(taskKey)
+	run, err := task.Trigger(taskKey, task.RunOptions{
+		Trigger: task.TriggerManual,
+		Force:   true,
+	})
 	if err != nil {
-		// 不把内部错误细节直接回给前端
 		log.Printf("[SECURITY AUDIT] run-background-task failed | key=%s | err=%v", taskKey, err)
 		utils.Fail(c, 400, err.Error())
 		return
 	}
-
-	utils.Success(c, gin.H{
-		"message": message,
-	})
+	msg := "OK"
+	if run != nil && run.Message != "" {
+		msg = run.Message
+	}
+	utils.Success(c, gin.H{"message": msg})
 }
 
 func firstNonEmpty(values ...string) string {

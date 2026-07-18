@@ -34,16 +34,16 @@ var (
 		"database/sql.",
 		"github.com/go-sql-driver/mysql.",
 		"os/signal.",
-		"fst/backend/app/services.StartCleanupTask.",
-		"fst/backend/app/services.StartExpiredOrderTask.",
+		"fst/backend/internal/task.",
+		"fst/backend/app/services.StartBackgroundTasks.",
 		"fst/backend/pkg/middleware.(*RateLimiter).cleanupRoutine",
 	}
 	knownSystemGoroutineCreatorPatterns = []string{
 		"database/sql.OpenDB",
 		"os/signal.Notify",
 		"github.com/go-sql-driver/mysql.(*mysqlConn).startWatcher",
-		"fst/backend/app/services.StartCleanupTask.",
-		"fst/backend/app/services.StartExpiredOrderTask.",
+		"fst/backend/internal/task.",
+		"fst/backend/app/services.StartBackgroundTasks.",
 		"fst/backend/pkg/middleware.NewRateLimiter",
 	}
 )
@@ -269,28 +269,6 @@ func isPotentialLeakRuntimeGoroutine(stack parsedRuntimeGoroutine) bool {
 	}
 
 	return !isKnownSystemGoroutine(stack)
-}
-
-func collectGoroutineTrackingStats() (int, int) {
-	profileText, err := captureGoroutineProfileText(2)
-	if err != nil {
-		return runtime.NumGoroutine(), 0
-	}
-
-	stacks := parseRuntimeGoroutineBlocks(profileText)
-	trackedCount := len(stacks)
-	potentialLeaks := 0
-	for _, stack := range stacks {
-		if isPotentialLeakRuntimeGoroutine(stack) {
-			potentialLeaks++
-		}
-	}
-
-	if trackedCount == 0 {
-		trackedCount = runtime.NumGoroutine()
-	}
-
-	return trackedCount, potentialLeaks
 }
 
 func isPotentialLeakState(state string) bool {

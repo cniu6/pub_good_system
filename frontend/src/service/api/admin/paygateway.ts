@@ -60,11 +60,6 @@ export function fetchPayGateways(params?: { page?: number, page_size?: number, k
   return request.Get<Service.ResponseResult<PayGatewayListResponse>>(baseUrl(), { params })
 }
 
-/** 获取支付通道详情 */
-export function fetchPayGatewayDetail(id: number) {
-  return request.Get<Service.ResponseResult<PayGateway>>(`${baseUrl()}/${id}`)
-}
-
 /** 创建支付通道 */
 export function createPayGateway(data: PayGatewayCreateRequest) {
   return request.Post<Service.ResponseResult<PayGateway>>(baseUrl(), data)

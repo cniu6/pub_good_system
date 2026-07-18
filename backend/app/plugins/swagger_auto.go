@@ -16,7 +16,6 @@ import (
 
 var (
 	swaggerOnce     sync.Once
-	swaggerLastGen  int64
 	swaggerLockFile string
 )
 
@@ -176,7 +175,7 @@ func runSwagInit(backendDir string) error {
 
 	args := []string{
 		"init",
-		"-g", "cmd/main.go",
+		"-g", "../main.go",
 		"-o", "docs",
 		"--parseDependency",
 		"--parseInternal",
@@ -189,40 +188,5 @@ func runSwagInit(backendDir string) error {
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
-}
-
-// GetSwaggerStatus 获取 Swagger 状态
-func GetSwaggerStatus() map[string]interface{} {
-	projectDir, backendDir := getProjectPaths()
-	if projectDir == "" {
-		return map[string]interface{}{"error": "无法获取项目路径"}
-	}
-
-	pluginsDir := filepath.Join(backendDir, "app", "plugins")
-	pluginsModTime := time.Unix(getDirModTime(pluginsDir), 0)
-
-	lockContent, _ := os.ReadFile(swaggerLockFile)
-	lockTime := strings.TrimSpace(string(lockContent))
-
-	// 统计插件数量
-	pluginCount := 0
-	entries, _ := os.ReadDir(pluginsDir)
-	for _, e := range entries {
-		if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
-			pluginFile := filepath.Join(pluginsDir, e.Name(), "plugin.go")
-			if _, err := os.Stat(pluginFile); err == nil {
-				pluginCount++
-			}
-		}
-	}
-
-	return map[string]interface{}{
-		"plugins_dir":     pluginsDir,
-		"plugins_mod":     pluginsModTime.Format(time.RFC3339),
-		"last_gen":        lockTime,
-		"need_update":     needSwaggerUpdate(projectDir, backendDir),
-		"plugin_count":    pluginCount,
-		"swagger_enabled": os.Getenv("GO_ENV") != "production",
-	}
 }
 

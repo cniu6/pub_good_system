@@ -21,14 +21,6 @@ type RateLimitConfig struct {
 	CleanupInterval time.Duration
 }
 
-// DefaultRateLimitConfig 默认限流配置
-var DefaultRateLimitConfig = RateLimitConfig{
-	Rate:            100, // 每秒100个请求
-	Burst:           200, // 突发上限200
-	KeyFunc:         DefaultKeyFunc,
-	CleanupInterval: time.Minute,
-}
-
 // DefaultKeyFunc 默认的限流键生成函数（基于IP）
 func DefaultKeyFunc(c *gin.Context) string {
 	return c.ClientIP()
@@ -140,11 +132,6 @@ func (rl *RateLimiter) Allow(key string) bool {
 	return true
 }
 
-// RateLimitMiddleware 限流中间件（使用默认配置）
-func RateLimitMiddleware() gin.HandlerFunc {
-	return RateLimitMiddlewareWithConfig(DefaultRateLimitConfig)
-}
-
 // RateLimitMiddlewareWithConfig 使用自定义配置的限流中间件
 func RateLimitMiddlewareWithConfig(config RateLimitConfig) gin.HandlerFunc {
 	limiter := NewRateLimiter(config)
@@ -174,40 +161,16 @@ func StrictRateLimitMiddleware() gin.HandlerFunc {
 	return RateLimitMiddlewareWithConfig(config)
 }
 
-// IPRateLimitMiddleware 基于IP的限流中间件
-func IPRateLimitMiddleware(rate, burst int) gin.HandlerFunc {
-	config := RateLimitConfig{
-		Rate:            rate,
-		Burst:           burst,
-		KeyFunc:         DefaultKeyFunc,
-		CleanupInterval: time.Minute,
-	}
-	return RateLimitMiddlewareWithConfig(config)
-}
-
 // UserRateLimitMiddleware 基于用户ID的限流中间件
 func UserRateLimitMiddleware(rate, burst int) gin.HandlerFunc {
 	config := RateLimitConfig{
-		Rate: rate,
+		Rate:  rate,
 		Burst: burst,
 		KeyFunc: func(c *gin.Context) string {
 			if uid, exists := c.Get("userID"); exists {
 				return "user:" + strconv.FormatUint(uid.(uint64), 10)
 			}
 			return "ip:" + c.ClientIP()
-		},
-		CleanupInterval: time.Minute,
-	}
-	return RateLimitMiddlewareWithConfig(config)
-}
-
-// PathRateLimitMiddleware 基于路径的限流中间件
-func PathRateLimitMiddleware(rate, burst int) gin.HandlerFunc {
-	config := RateLimitConfig{
-		Rate: rate,
-		Burst: burst,
-		KeyFunc: func(c *gin.Context) string {
-			return "path:" + c.Request.URL.Path + ":" + c.ClientIP()
 		},
 		CleanupInterval: time.Minute,
 	}

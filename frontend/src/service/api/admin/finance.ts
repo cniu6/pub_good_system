@@ -2,13 +2,7 @@ import { request } from '@/service/http'
 import { adminMoneyLogApi, adminScoreLogApi } from './user'
 import { getAdminApiBase } from './base'
 
-// 余额/积分“仅写日志”接口（后端新增）
 function usersBaseUrl() { return `${getAdminApiBase()}/users` }
-
-interface MoneyChangeResponse {
-  message: string
-  log: Entity.UserMoneyLog
-}
 
 interface ScoreChangeResponse {
   message: string
@@ -18,18 +12,6 @@ interface ScoreChangeResponse {
 interface MoneyOperateResponse {
   message: string
   result: unknown
-}
-
-export function updateUserMoney(userId: number, data: { money: number, memo?: string }) {
-  return request.Put<Service.ResponseResult<MoneyChangeResponse>>(`${usersBaseUrl()}/${userId}/money`, data)
-}
-
-export function updateUserScore(userId: number, data: { score: number, memo?: string }) {
-  return request.Put<Service.ResponseResult<ScoreChangeResponse>>(`${usersBaseUrl()}/${userId}/score`, data)
-}
-
-export function addMoneyLog(userId: number, data: { money: number, memo?: string }) {
-  return request.Post<Service.ResponseResult<MoneyChangeResponse>>(`${usersBaseUrl()}/${userId}/money/log`, data)
 }
 
 export interface MoneyOperationPayload {
@@ -60,14 +42,6 @@ export function fetchAllMoneyLogs(params: { page?: number, page_size?: number, k
 
 export function fetchAllScoreLogs(params: { page?: number, page_size?: number, keyword?: string, user_id?: number }) {
   return adminScoreLogApi.list(params)
-}
-
-export function deleteMoneyRecord(id: number) {
-  return adminMoneyLogApi.delete(id)
-}
-
-export function deleteScoreRecord(id: number) {
-  return adminScoreLogApi.delete(id)
 }
 
 export interface WithdrawRecord {

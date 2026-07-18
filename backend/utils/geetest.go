@@ -1,5 +1,6 @@
 package utils
 
+// geetest 验证码验证工具
 import (
 	"crypto/hmac"
 	"crypto/sha256"
@@ -10,6 +11,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type GeetestValidateRequest struct {
@@ -25,6 +28,31 @@ type GeetestValidateResponse struct {
 	Reason string `json:"reason"`
 }
 
+// ValidateGeetestFromHeaders 从请求头提取极验参数并校验。
+// enabled=false 时直接通过；失败返回 error。
+func ValidateGeetestFromHeaders(c *gin.Context, captchaID, captchaKey string, enabled bool) error {
+	if !enabled {
+		return nil
+	}
+
+	req := GeetestValidateRequest{
+		LotNumber:     c.GetHeader("X-Geetest-Lot-Number"),
+		CaptchaOutput: c.GetHeader("X-Geetest-Captcha-Output"),
+		PassToken:     c.GetHeader("X-Geetest-Pass-Token"),
+		GenTime:       c.GetHeader("X-Geetest-Gen-Time"),
+		CaptchaID:     c.GetHeader("X-Geetest-Captcha-Id"),
+	}
+
+	valid, err := ValidateGeetest(captchaID, captchaKey, req)
+	if err != nil {
+		return err
+	}
+	if !valid {
+		return errors.New("captcha validation failed")
+	}
+	return nil
+}
+
 func ValidateGeetest(captchaID, captchaKey string, req GeetestValidateRequest) (bool, error) {
 	if req.CaptchaID != captchaID {
 		return false, errors.New("captcha_id mismatch")
@@ -36,7 +64,7 @@ func ValidateGeetest(captchaID, captchaKey string, req GeetestValidateRequest) (
 	signToken := hex.EncodeToString(h.Sum(nil))
 
 	// Prepare request
-	apiURL := "https://gcaptcha4.geetest.com/validate"
+	apiURL := "https://gcaptcha4.geetest.com/validate" //geetest 验证地址,所以机器必须要连外网
 	params := url.Values{}
 	params.Set("lot_number", req.LotNumber)
 	params.Set("captcha_output", req.CaptchaOutput)
@@ -64,4 +92,3 @@ func ValidateGeetest(captchaID, captchaKey string, req GeetestValidateRequest) (
 
 	return false, errors.New(result.Reason)
 }
-

@@ -342,9 +342,12 @@ async function loadList() {
       list.value = res.data?.list || []
       pagination.itemCount = res.data?.total || 0
     }
-  } catch {
-    message.error(t('adminPayGateways.fetchListFailed'))
-  } finally {
+    // 业务失败：全局拦截器已提示
+  }
+  catch {
+    // 网络异常：alova onError 已提示
+  }
+  finally {
     loading.value = false
   }
 }
@@ -381,7 +384,8 @@ function handleEdit(row: PayGateway) {
 async function handleSubmit() {
   try {
     await formRef.value?.validate()
-  } catch {
+  }
+  catch {
     return
   }
 
@@ -393,22 +397,22 @@ async function handleSubmit() {
         message.success(t('adminUsers.updateSuccess'))
         showModal.value = false
         loadList()
-      } else {
-        message.error(res.message || t('adminUsers.updateFailed'))
       }
-    } else {
+      // 业务失败：全局拦截器已展示 API message，避免双 toast
+    }
+    else {
       const res = await createPayGateway(form)
       if (res.isSuccess) {
         message.success(t('adminUsers.createSuccess'))
         showModal.value = false
         loadList()
-      } else {
-        message.error(res.message || t('adminUsers.createFailed'))
       }
     }
-  } catch {
-    message.error(t('adminUsers.operationFailed'))
-  } finally {
+  }
+  catch {
+    // 网络异常：alova onError 已提示
+  }
+  finally {
     submitting.value = false
   }
 }
@@ -425,11 +429,11 @@ function handleDelete(row: PayGateway) {
         if (res.isSuccess) {
           message.success(t('adminUsers.deleteSuccess'))
           loadList()
-        } else {
-          message.error(res.message || t('adminUsers.deleteFailed'))
         }
-      } catch {
-        message.error(t('adminUsers.deleteFailed'))
+        // 业务失败（如存在待支付订单）：全局已提示
+      }
+      catch {
+        // 网络异常：alova onError 已提示
       }
     },
   })

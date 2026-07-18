@@ -1,11 +1,11 @@
 # API 路由定义与分发规则 (Routes)
 
-> 路径：`backend/routes/routes.go`  
-> **最后更新**：2026-07-16
+> 路径：`backend/routes/`（`routes.go` 汇总，`public.go` / `user.go` / `admin.go` / `legacy.go` 分文件）  
+> **最后更新**：2026-07-17
 
 ## 简介
 
-`SetupRoutes` 为全站 API 注册入口：公共、用户、系统、管理端、插件。
+`SetupRoutes` 为全站 API 注册入口：公共、用户、系统、管理端；插件路由在 `appinit.SetupHTTP` 里挂载。
 
 ## 路由树（当前）
 

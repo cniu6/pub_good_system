@@ -33,13 +33,6 @@ func (m *Manager) Register(p Plugin) {
 	m.pm.Register(p)
 }
 
-// RegisterWithConfig 注册带配置的插件
-func (m *Manager) RegisterWithConfig(p Plugin, config PluginConfig) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.pm.RegisterWithConfig(p, config)
-}
-
 // LoadAll 加载所有插件
 // 按优先级和依赖关系排序后依次初始化
 func (m *Manager) LoadAll() error {
@@ -260,53 +253,6 @@ func (m *Manager) topologicalSort(plugins []Plugin) []string {
 	}
 
 	return result
-}
-
-// GetPlugin 获取插件
-func (m *Manager) GetPlugin(name string) (Plugin, bool) {
-	return m.pm.GetPlugin(name)
-}
-
-// GetPlugins 获取所有插件
-func (m *Manager) GetPlugins() map[string]Plugin {
-	return m.pm.GetPlugins()
-}
-
-// GetPluginInfos 获取插件信息列表
-func (m *Manager) GetPluginInfos() []PluginInfo {
-	infos := m.pm.GetPluginInfos()
-
-	// 更新状态
-	for i := range infos {
-		if err, ok := m.errors[infos[i].Name]; ok {
-			infos[i].Status = "error: " + err.Error()
-		} else if m.initialized {
-			infos[i].Status = "active"
-		} else {
-			infos[i].Status = "inactive"
-		}
-	}
-
-	return infos
-}
-
-// GetErrors 获取插件错误
-func (m *Manager) GetErrors() map[string]error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	result := make(map[string]error)
-	for k, v := range m.errors {
-		result[k] = v
-	}
-	return result
-}
-
-// IsInitialized 检查是否已初始化
-func (m *Manager) IsInitialized() bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.initialized
 }
 
 // Count 获取插件数量

@@ -29,7 +29,13 @@ func NewPlugin() plugins.Plugin {
 			"1.0.0",
 			"示例插件，展示插件系统的完整功能",
 		),
-		config: make(map[string]interface{}),
+		// 内置一份示例配置，方便 echo 接口演示；外部 Configure 有内容时会覆盖
+		config: map[string]interface{}{
+			"env":         "dev",
+			"feature_x":   true,
+			"greeting":    "hello from demo",
+			"max_retries": 3,
+		},
 	}
 
 	// 设置优先级（可选）
@@ -38,11 +44,13 @@ func NewPlugin() plugins.Plugin {
 	return p
 }
 
-// Configure 接收配置
+// Configure 接收配置（外部有非空配置才覆盖内置示例）
 func (p *DemoPlugin) Configure(config map[string]interface{}) error {
-	if config != nil {
+	if len(config) > 0 {
 		p.config = config
 		log.Printf("[DemoPlugin] 配置已加载: %v", config)
+	} else {
+		log.Printf("[DemoPlugin] 未下发配置，使用内置示例: %v", p.config)
 	}
 	return nil
 }
@@ -135,4 +143,3 @@ func (p *DemoPlugin) echoHandler(c *gin.Context) {
 		"config": p.config,
 	})
 }
-

@@ -200,17 +200,25 @@ func DeleteVerificationCodesByContact(contact string, codeType string) error {
 }
 
 // SoftDeleteExpiredCodes 软删除已过期的验证码
-func SoftDeleteExpiredCodes() error {
-	_, err := db.DB.Exec("UPDATE verification_codes SET is_deleted = 1 WHERE expires_at <= NOW() AND is_deleted = 0")
-	return err
+func SoftDeleteExpiredCodes() (int64, error) {
+	res, err := db.DB.Exec("UPDATE verification_codes SET is_deleted = 1 WHERE expires_at <= NOW() AND is_deleted = 0")
+	if err != nil {
+		return 0, err
+	}
+	aff, _ := res.RowsAffected()
+	return aff, nil
 }
 
 // CleanupOldVerificationCodes 清理7天前的已删除或已使用记录（硬删除）
-func CleanupOldVerificationCodes() error {
-	_, err := db.DB.Exec(
+func CleanupOldVerificationCodes() (int64, error) {
+	res, err := db.DB.Exec(
 		"DELETE FROM verification_codes WHERE (is_deleted = 1 OR is_used = 1) AND updated_at < DATE_SUB(NOW(), INTERVAL 7 DAY)",
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	aff, _ := res.RowsAffected()
+	return aff, nil
 }
 
 // VerifyCode 验证验证码是否正确（改进版：直接匹配代码）
@@ -231,4 +239,3 @@ func VerifyCode(contact, code, codeType string) (bool, uint64, error) {
 
 	return true, vc.ID, nil
 }
-

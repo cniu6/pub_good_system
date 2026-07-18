@@ -56,7 +56,6 @@ export const adminEmailTemplateApi = {
 
 // Backward-compatible exports.
 export const fetchEmailTemplateList = () => adminEmailTemplateApi.list()
-export const fetchEmailTemplateDetail = (id: number) => adminEmailTemplateApi.detail(id)
 export const fetchUpdateEmailTemplate = (id: number, data: Parameters<typeof adminEmailTemplateApi.update>[1]) => adminEmailTemplateApi.update(id, data)
 export const fetchPreviewEmailTemplate = (id: number, data: Parameters<typeof adminEmailTemplateApi.preview>[1]) => adminEmailTemplateApi.preview(id, data)
 export const fetchResetEmailTemplate = (id: number) => adminEmailTemplateApi.reset(id)

@@ -93,10 +93,6 @@ func (p *BasePlugin) Dependencies() []string {
 	return p.dependencies
 }
 
-func (p *BasePlugin) SetDependencies(deps []string) {
-	p.dependencies = deps
-}
-
 func (p *BasePlugin) Configure(config map[string]interface{}) error {
 	return nil // 默认不做任何事
 }
@@ -117,24 +113,13 @@ func (p *BasePlugin) Shutdown() error {
 	return nil // 默认不做任何事
 }
 
-// PluginInfo 插件信息（用于展示）
-type PluginInfo struct {
-	Name         string   `json:"name"`
-	Version      string   `json:"version"`
-	Description  string   `json:"description"`
-	Priority     int      `json:"priority"`
-	Dependencies []string `json:"dependencies"`
-	Status       string   `json:"status"` // "active", "inactive", "error"
-}
-
 // PluginConfig 插件配置
 type PluginConfig map[string]interface{}
 
 // PluginManager manages all registered plugins
 type PluginManager struct {
-	plugins    map[string]Plugin
-	configs    map[string]PluginConfig
-	init_order []string // 初始化顺序
+	plugins map[string]Plugin
+	configs map[string]PluginConfig
 }
 
 // NewPluginManager creates a new plugin manager
@@ -148,45 +133,6 @@ func NewPluginManager() *PluginManager {
 // Register registers a plugin
 func (pm *PluginManager) Register(p Plugin) {
 	pm.plugins[p.Name()] = p
-}
-
-// RegisterWithConfig registers a plugin with configuration
-func (pm *PluginManager) RegisterWithConfig(p Plugin, config PluginConfig) {
-	pm.plugins[p.Name()] = p
-	pm.configs[p.Name()] = config
-}
-
-// GetPlugin gets a plugin by name
-func (pm *PluginManager) GetPlugin(name string) (Plugin, bool) {
-	p, ok := pm.plugins[name]
-	return p, ok
-}
-
-// GetPlugins returns all registered plugins
-func (pm *PluginManager) GetPlugins() map[string]Plugin {
-	return pm.plugins
-}
-
-// GetPluginInfos returns plugin information list
-func (pm *PluginManager) GetPluginInfos() []PluginInfo {
-	var infos []PluginInfo
-	for _, p := range pm.plugins {
-		info := PluginInfo{
-			Name:         p.Name(),
-			Version:      p.Version(),
-			Description:  p.Description(),
-			Priority:     p.Priority(),
-			Dependencies: p.Dependencies(),
-			Status:       "active",
-		}
-		infos = append(infos, info)
-	}
-	return infos
-}
-
-// SetConfig sets configuration for a plugin
-func (pm *PluginManager) SetConfig(name string, config PluginConfig) {
-	pm.configs[name] = config
 }
 
 // GetConfig gets configuration for a plugin

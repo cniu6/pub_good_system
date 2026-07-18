@@ -126,20 +126,9 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 
 	// 极验验证
 	geetestConfig := services.GetGlobalGeetestRuntimeConfig()
-	if geetestConfig.Enabled {
-		geetestReq := utils.GeetestValidateRequest{
-			LotNumber:     c.GetHeader("X-Geetest-Lot-Number"),
-			CaptchaOutput: c.GetHeader("X-Geetest-Captcha-Output"),
-			PassToken:     c.GetHeader("X-Geetest-Pass-Token"),
-			GenTime:       c.GetHeader("X-Geetest-Gen-Time"),
-			CaptchaID:     c.GetHeader("X-Geetest-Captcha-Id"),
-		}
-
-		valid, err := utils.ValidateGeetest(geetestConfig.CaptchaID, geetestConfig.CaptchaKey, geetestReq)
-		if err != nil || !valid {
-			utils.Fail(c, 403, "Captcha validation failed")
-			return
-		}
+	if err := utils.ValidateGeetestFromHeaders(c, geetestConfig.CaptchaID, geetestConfig.CaptchaKey, geetestConfig.Enabled); err != nil {
+		utils.Fail(c, 403, "Captcha validation failed")
+		return
 	}
 
 	// 获取客户端IP
@@ -224,20 +213,9 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 
 	// 极验验证
 	geetestConfig := services.GetGlobalGeetestRuntimeConfig()
-	if geetestConfig.Enabled {
-		geetestReq := utils.GeetestValidateRequest{
-			LotNumber:     c.GetHeader("X-Geetest-Lot-Number"),
-			CaptchaOutput: c.GetHeader("X-Geetest-Captcha-Output"),
-			PassToken:     c.GetHeader("X-Geetest-Pass-Token"),
-			GenTime:       c.GetHeader("X-Geetest-Gen-Time"),
-			CaptchaID:     c.GetHeader("X-Geetest-Captcha-Id"),
-		}
-
-		valid, err := utils.ValidateGeetest(geetestConfig.CaptchaID, geetestConfig.CaptchaKey, geetestReq)
-		if err != nil || !valid {
-			utils.Fail(c, 403, "Captcha validation failed")
-			return
-		}
+	if err := utils.ValidateGeetestFromHeaders(c, geetestConfig.CaptchaID, geetestConfig.CaptchaKey, geetestConfig.Enabled); err != nil {
+		utils.Fail(c, 403, "Captcha validation failed")
+		return
 	}
 
 	consumed, err := models.ConsumeVerificationCode(req.Email, req.Code, "register")
