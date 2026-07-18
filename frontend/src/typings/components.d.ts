@@ -10,7 +10,6 @@ declare module 'vue' {
   export interface GlobalComponents {
     AppLoading: typeof import('./../components/common/AppLoading.vue')['default']
     CommonWrapper: typeof import('./../components/common/CommonWrapper.vue')['default']
-    CopyText: typeof import('./../components/custom/CopyText.vue')['default']
     DarkModeSwitch: typeof import('./../components/common/DarkModeSwitch.vue')['default']
     ErrorTip: typeof import('./../components/common/ErrorTip.vue')['default']
     GeetestCaptcha: typeof import('./../components/common/GeetestCaptcha.vue')['default']
@@ -64,6 +63,9 @@ declare module 'vue' {
     NCascader: typeof import('naive-ui')['NCascader']
     NCheckbox: typeof import('naive-ui')['NCheckbox']
     NCheckboxGroup: typeof import('naive-ui')['NCheckboxGroup']
+    NCode: typeof import('naive-ui')['NCode']
+    NCollapse: typeof import('naive-ui')['NCollapse']
+    NCollapseItem: typeof import('naive-ui')['NCollapseItem']
     NColorPicker: typeof import('naive-ui')['NColorPicker']
     NConfigProvider: typeof import('naive-ui')['NConfigProvider']
     NDataTable: typeof import('naive-ui')['NDataTable']

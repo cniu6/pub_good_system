@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/pkg/db"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -267,6 +268,18 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 	previousStatus := user.Status
 	previousRole := user.Role
 
+	newRole := previousRole
+	if req.Role != nil {
+		newRole = *req.Role
+	}
+	var newStatus *uint8
+	if req.Status != nil {
+		newStatus = req.Status
+	}
+	if err := ensureAdminPrivilegeSafe(user, newRole, newStatus, false); err != nil {
+		return err
+	}
+
 	// 检查邮箱是否被其他用户使用
 	if req.Email != nil && *req.Email != user.Email {
 		existing, _ := models.GetUserByEmail(*req.Email)
@@ -344,6 +357,14 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 
 // UpdateStatus 更新用户状态。禁用时顺手撤销其所有活跃会话，避免旧 token 仍被使用。
 func (s *UserService) UpdateStatus(user_id uint64, status uint8) error {
+	user, err := models.GetUserByID(user_id)
+	if err != nil {
+		return NewClientError("用户不存在")
+	}
+	if err := ensureAdminPrivilegeSafe(user, user.Role, &status, false); err != nil {
+		return err
+	}
+
 	now := time.Now().Unix()
 	if _, err := db.DB.Exec("UPDATE users SET status = ?, update_time = ? WHERE id = ?", status, now, user_id); err != nil {
 		return err
@@ -361,11 +382,62 @@ func (s *UserService) UpdatePassword(user_id uint64, hashed_password string) err
 
 // Delete 软删除用户（同时禁用账号状态，并撤销其所有会话）
 func (s *UserService) Delete(user_id uint64) error {
+	user, err := models.GetUserByID(user_id)
+	if err != nil {
+		return NewClientError("用户不存在")
+	}
+	if err := ensureAdminPrivilegeSafe(user, user.Role, nil, true); err != nil {
+		return err
+	}
+
 	now := time.Now().Unix()
 	if _, err := db.DB.Exec("UPDATE users SET delete_time = ?, status = 0, update_time = ? WHERE id = ?", now, now, user_id); err != nil {
 		return err
 	}
 	revokeAllGuardSessions(user_id)
+	return nil
+}
+
+// countActiveAdmins 统计启用中且未删除的管理员数量
+func countActiveAdmins() (int, error) {
+	var count int
+	err := db.DB.Get(&count, `
+		SELECT COUNT(*) FROM users
+		WHERE LOWER(role) = 'admin'
+		  AND status = 1
+		  AND delete_time IS NULL
+	`)
+	return count, err
+}
+
+// ensureAdminPrivilegeSafe 防止误删/禁用/降级「最后一个启用中的管理员」导致系统锁死
+func ensureAdminPrivilegeSafe(target *models.User, newRole string, newStatus *uint8, deleting bool) error {
+	if target == nil || !strings.EqualFold(strings.TrimSpace(target.Role), "admin") {
+		return nil
+	}
+	if target.Status != 1 {
+		// 目标本身已不是启用管理员，不影响「最后一个管理员」
+		return nil
+	}
+
+	willLoseAdmin := deleting
+	if newStatus != nil && *newStatus == 0 {
+		willLoseAdmin = true
+	}
+	if newRole != "" && !strings.EqualFold(strings.TrimSpace(newRole), "admin") {
+		willLoseAdmin = true
+	}
+	if !willLoseAdmin {
+		return nil
+	}
+
+	count, err := countActiveAdmins()
+	if err != nil {
+		return fmt.Errorf("检查管理员数量失败: %w", err)
+	}
+	if count <= 1 {
+		return NewClientError("不能删除、禁用或降级最后一个启用中的管理员")
+	}
 	return nil
 }
 

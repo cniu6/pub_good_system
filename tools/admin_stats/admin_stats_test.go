@@ -1,4 +1,6 @@
-package main
+//go:build integration
+
+package admin_stats
 
 import (
 	"fst/backend/app/models"

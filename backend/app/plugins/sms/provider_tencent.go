@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
-	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/errors"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
 	tencentSms "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/sms/v20210111"
 )
@@ -82,11 +81,7 @@ func (p *TencentProvider) SendCode(phone, code string, expireMinutes int, templa
 
 	resp, err := client.SendSms(request)
 	if err != nil {
-		if _, ok := err.(*errors.TencentCloudSDKError); ok {
-			p.log(phone, templateName, lang, templateCode, 0, err.Error(), "", "")
-		} else {
-			p.log(phone, templateName, lang, templateCode, 0, err.Error(), "", "")
-		}
+		p.log(phone, templateName, lang, templateCode, 0, err.Error(), "", "")
 		return err
 	}
 
@@ -95,7 +90,7 @@ func (p *TencentProvider) SendCode(phone, code string, expireMinutes int, templa
 
 	if resp.Response != nil && resp.Response.RequestId != nil {
 		requestId := *resp.Response.RequestId
-		if resp.Response.SendStatusSet != nil && len(resp.Response.SendStatusSet) > 0 {
+		if len(resp.Response.SendStatusSet) > 0 {
 			status := resp.Response.SendStatusSet[0]
 			if status.Code != nil && *status.Code == "Ok" {
 				p.log(phone, templateName, lang, templateCode, 1, "", requestId, respStr)

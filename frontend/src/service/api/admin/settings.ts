@@ -224,13 +224,6 @@ export function restartBackend() {
   return request.Post<Service.ResponseResult<any>>(`${getAdminApiBase()}/settings/restart-backend`)
 }
 
-/**
- * 获取本项目服务器监控状态
- */
-export function fetchServerMonitoringStatus() {
-  return request.Get<Service.ResponseResult<ServerMonitoringStatusResponse>>(`${getAdminApiBase()}/settings/server-monitoring`)
-}
-
 // 导出管理端配置 API 对象（用于懒加载模式）
 export const adminSettingsApi = {
   list: fetchSettings,
@@ -242,5 +235,4 @@ export const adminSettingsApi = {
   create: createSetting,
   delete: deleteSetting,
   restartBackend,
-  serverMonitoring: fetchServerMonitoringStatus,
 }

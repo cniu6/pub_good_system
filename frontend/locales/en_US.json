@@ -3,8 +3,11 @@
     "cancel": "Cancel",
     "confirm": "Confirm",
     "all": "All",
-    "close": "Closure",
+    "close": "Close",
     "reload": "Refresh",
+    "refresh": "Refresh",
+    "back": "Back",
+    "save": "Save",
     "choose": "Choose",
     "showFields": "Visible Fields",
     "visibleFields": "Visible Fields",
@@ -23,7 +26,9 @@
     "delete": "Delete",
     "confirmDelete": "Confirm Delete",
     "add": "Add",
-    "reset": "Reset"
+    "reset": "Reset",
+    "show": "Show",
+    "hide": "Hide"
   },
   "home": {
     "nav": {
@@ -1299,6 +1304,8 @@
     },
     "tasks": {
       "title": "Background Tasks",
+      "movedHint": "Background task list and Run Now have moved to Auto Jobs. Manage them there.",
+      "goToAutoJobs": "Go to Auto Jobs",
       "name": "Task",
       "status": "Status",
       "interval": "Interval",

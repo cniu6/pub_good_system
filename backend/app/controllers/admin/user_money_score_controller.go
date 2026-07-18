@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
+	"fst/backend/pkg/middleware"
 	"fst/backend/utils"
 	"log"
 	"math/big"
@@ -400,7 +401,7 @@ func (ctrl *UserMoneyScoreController) RegisterRoutes(adminGroup *gin.RouterGroup
 		users.POST("/:id/money/change", ctrl.ChangeMoney)
 		users.PUT("/:id/money", ctrl.SetMoney)
 		users.POST("/:id/money/log", ctrl.AddMoneyLog)
-		users.POST("/:id/money/operate", ctrl.OperateMoney)
+		users.POST("/:id/money/operate", middleware.RequireIdempotency("admin_money_operate", 10*time.Minute), ctrl.OperateMoney)
 		users.POST("/:id/score/change", ctrl.ChangeScore)
 		users.PUT("/:id/score", ctrl.SetScore)
 		users.POST("/:id/score/log", ctrl.AddScoreLog)

@@ -20,7 +20,7 @@ type EmailTemplateController struct {
 // NewEmailTemplateController 创建邮件模板控制器
 func NewEmailTemplateController() *EmailTemplateController {
 	return &EmailTemplateController{
-		email_svc: services.NewEmailService(),
+		email_svc: services.GetEmailService(),
 	}
 }
 

@@ -28,17 +28,6 @@ export const staticRoutes: AppRoute.RowRoute[] = [
     id: 101,
     pid: 1,
   },
-  {
-    name: 'monitor',
-    path: '/user/dashboard/monitor',
-    title: 'route.monitor',
-    requiresAuth: true,
-    icon: 'icon-park-outline:anchor',
-    menuType: 'page',
-    componentPath: '/user/dashboard/monitor/index.vue',
-    id: 102,
-    pid: 1,
-  },
 
   // ----------------------------------------
   // 我的账户（分组目录）

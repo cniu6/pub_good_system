@@ -24,7 +24,9 @@ export interface MoneyOperationPayload {
 }
 
 export function operateUserMoney(userId: number, data: MoneyOperationPayload) {
-  return request.Post<Service.ResponseResult<MoneyOperateResponse>>(`${usersBaseUrl()}/${userId}/money/operate`, data)
+  return request.Post<Service.ResponseResult<MoneyOperateResponse>>(`${usersBaseUrl()}/${userId}/money/operate`, data, {
+    headers: { 'X-Idempotency-Key': createIdempotencyKey(`money-operate-${userId}`) },
+  })
 }
 
 /** 后端生成订单号和交易号 */

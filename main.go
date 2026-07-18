@@ -10,10 +10,10 @@ import (
 	// 运行 gen-swagger.bat 会自动扫描并更新此区域
 	// ========================================
 	// @plugins-start
-	_ "fst/backend/app/plugins/demo"
 	_ "fst/backend/app/plugins/pay_balance"
 	_ "fst/backend/app/plugins/sms"
 	// @plugins-end
+	// demo 插件需 -tags demo（见 main_demo_plugins.go）
 )
 
 // @title FST Platform API

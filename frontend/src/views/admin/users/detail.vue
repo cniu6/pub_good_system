@@ -16,9 +16,22 @@ import {
 
 } from '@/service/api/admin/user'
 import type { AdminUser, AdminUserRealnameSummary, UserSimpleInfo } from '@/service/api/admin/user'
-import { fetchAllPayOrders } from '@/service/api/admin/order'
+import { adminPaymentApi } from '@/service/api/admin/payment'
 import { fetchAllMoneyLogs, fetchAllScoreLogs, fetchWithdrawRecords } from '@/service/api/admin/finance'
 import type { WithdrawRecord } from '@/service/api/admin/finance'
+import WithdrawDetailModal from './components/WithdrawDetailModal.vue'
+import {
+  formatCurrency,
+  formatLanguage,
+  formatRechargeRetentionRatio,
+  formatTime,
+  getAdminDisplayName as resolveAdminDisplayName,
+  getRealnameStatusText,
+  getRealnameStatusType,
+  getWithdrawStatusMeta,
+  maskAccountNo,
+  maskCertificateNo,
+} from './utils/userDisplay'
 
 const route = useRoute()
 const router = useRouter()
@@ -26,9 +39,25 @@ const message = useMessage()
 const dialog = useDialog()
 const { t } = useI18n()
 
-/** 返回用户列表：admin 模式使用 hash 内路径 /users（base 已是 VITE_ADMIN_BASE_PATH） */
-function goUserList(query?: Record<string, string | number>) {
-  router.push({ path: '/users', query: query as any })
+import { setPendingUserEditId } from './utils/pendingEdit'
+
+/** API Key 默认脱敏，点击后再完整展示，降低屏幕偷看/录屏风险 */
+const showApiKey = ref(false)
+
+function maskedApiKey(key?: string) {
+  const value = String(key || '').trim()
+  if (!value)
+    return '-'
+  if (showApiKey.value)
+    return value
+  if (value.length <= 8)
+    return '*'.repeat(value.length)
+  return `${value.slice(0, 4)}${'*'.repeat(Math.min(value.length - 8, 16))}${value.slice(-4)}`
+}
+
+/** 返回用户列表（hash 路由用 name） */
+function goUserList() {
+  router.push({ name: 'admin-users' })
 }
 
 // 用户ID
@@ -49,25 +78,9 @@ const defaultAvatar = 'https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpe
 const withdrawDetail = ref<WithdrawRecord | null>(null)
 const adminUserMap = ref<Record<number, UserSimpleInfo>>({})
 
-function formatLanguage(language?: string) {
-  if (!language)
-    return '-'
-  if (language === 'zh-CN')
-    return t('adminUsersDetail.chinese')
-  if (language === 'en-US')
-    return t('adminUsersDetail.english')
-  return language
-}
-
-function formatCurrency(value?: number | null) {
-  return Number(value || 0).toFixed(2)
-}
-
-function formatRechargeRetentionRatio(currentUser?: AdminUser | null) {
-  const totalPaid = Number(currentUser?.total_paid_amount || 0)
-  if (totalPaid <= 0)
-    return '-'
-  return `${(Number(currentUser?.balance_paid_ratio || 0) * 100).toFixed(2)}%`
+/** 绑定当前页 adminUserMap 的展示名 */
+function getAdminDisplayName(adminId?: number | null) {
+  return resolveAdminDisplayName(adminId, adminUserMap.value)
 }
 
 // 重置密码相关
@@ -334,61 +347,6 @@ async function fetchUserData() {
   }
 }
 
-function getRealnameStatusText(status?: number) {
-  const map: Record<number, string> = {
-    0: t('adminUsersDetail.pendingReview'),
-    1: t('adminUsersDetail.approved'),
-    2: t('adminUsersDetail.rejected'),
-  }
-  return status !== undefined ? map[status] || t('adminUsersDetail.unknown') : t('adminUsersDetail.notVerified')
-}
-
-function getRealnameStatusType(status?: number): 'default' | 'warning' | 'success' | 'error' {
-  const map: Record<number, 'warning' | 'success' | 'error'> = {
-    0: 'warning',
-    1: 'success',
-    2: 'error',
-  }
-  return status !== undefined ? map[status] || 'default' : 'default'
-}
-
-function maskCertificateNo(no?: string) {
-  if (!no)
-    return '-'
-  if (no.length < 8)
-    return no
-  return `${no.slice(0, 4)}****${no.slice(-4)}`
-}
-
-function maskAccountNo(accountNo?: string) {
-  if (!accountNo)
-    return '-'
-  if (accountNo.length <= 8)
-    return accountNo
-  return `${accountNo.slice(0, 4)}****${accountNo.slice(-4)}`
-}
-
-function formatTime(ts?: number | null) {
-  return ts ? new Date(ts * 1000).toLocaleString() : '-'
-}
-
-function getWithdrawStatusMeta(status?: number): { type: 'warning' | 'info' | 'error' | 'success', label: string } {
-  const map: Record<number, { type: 'warning' | 'info' | 'error' | 'success', label: string }> = {
-    0: { type: 'warning', label: t('adminUsersDetail.pendingReview') },
-    1: { type: 'info', label: t('adminUsersDetail.pendingTransfer') },
-    2: { type: 'error', label: t('adminUsersDetail.rejected') },
-    3: { type: 'success', label: t('adminUsersDetail.transferred') },
-  }
-  return status !== undefined ? map[status] || { type: 'info', label: t('adminUsersDetail.unknown') } : { type: 'info', label: t('adminUsersDetail.unknown') }
-}
-
-function getAdminDisplayName(adminId?: number | null) {
-  if (!adminId)
-    return '-'
-  const admin = adminUserMap.value[adminId]
-  return admin?.nickname || admin?.username || t('adminUsersDetail.adminPrefix', { id: adminId })
-}
-
 // 获取订单数据
 async function fetchOrderData() {
   if (!userId.value)
@@ -396,7 +354,7 @@ async function fetchOrderData() {
 
   orderLoading.value = true
   try {
-    const response: any = await fetchAllPayOrders({
+    const response: any = await adminPaymentApi.listOrders({
       page: orderPagination.page,
       page_size: orderPagination.pageSize,
       user_id: userId.value,
@@ -593,9 +551,10 @@ function handleRefresh() {
   fetchUserData()
 }
 
-// 编辑用户
+// 编辑用户：先记下待编辑 id，再回列表（不用 ?edit=，否则 fullPath 变化会重建页面把弹窗冲掉）
 function handleEdit() {
-  goUserList({ edit: userId.value })
+  setPendingUserEditId(userId.value)
+  goUserList()
 }
 
 // 切换用户状态
@@ -638,6 +597,7 @@ function handleResetApikey() {
       const res: any = await resetUserApikey(user.value!.id)
       if (res.isSuccess) {
         message.success(t('adminUsersDetail.apiKeyResetSuccess'))
+        showApiKey.value = true
         fetchUserData()
       }
       else {
@@ -882,9 +842,19 @@ onMounted(() => {
                   {{ formatRechargeRetentionRatio(user) }}
                 </n-descriptions-item>
                 <n-descriptions-item :label="t('adminUsersDetail.apiKey')" :span="2">
-                  <n-text code>
-                    {{ user?.apikey || '-' }}
-                  </n-text>
+                  <n-space align="center">
+                    <n-text code>
+                      {{ maskedApiKey(user?.apikey) }}
+                    </n-text>
+                    <n-button
+                      v-if="user?.apikey"
+                      size="tiny"
+                      quaternary
+                      @click="showApiKey = !showApiKey"
+                    >
+                      {{ showApiKey ? t('common.hide') : t('common.show') }}
+                    </n-button>
+                  </n-space>
                 </n-descriptions-item>
               </n-descriptions>
             </n-card>
@@ -1023,62 +993,11 @@ onMounted(() => {
       </template>
     </n-modal>
 
-    <n-modal v-model:show="showWithdrawDetailModal" preset="card" :title="t('adminUsersDetail.withdrawDetailTitle')" style="width: 620px;">
-      <template v-if="withdrawDetail">
-        <n-descriptions :column="1" bordered label-placement="left">
-          <n-descriptions-item :label="t('adminUsersDetail.applyId')">
-            {{ withdrawDetail.id }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminUsersDetail.userId')">
-            {{ withdrawDetail.user_id }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminUsersDetail.withdrawAmount')">
-            ¥{{ Number(withdrawDetail.amount).toFixed(2) }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminUsersDetail.status')">
-            <NTag :type="getWithdrawStatusMeta(withdrawDetail.status).type">
-              {{ getWithdrawStatusMeta(withdrawDetail.status).label }}
-            </NTag>
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminUsersDetail.withdrawMethod')">
-            {{ withdrawDetail.account_type }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminUsersDetail.accountName')">
-            {{ withdrawDetail.account_name }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminUsersDetail.accountNo')">
-            {{ withdrawDetail.account_no }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminUsersDetail.payee')">
-            {{ withdrawDetail.real_name }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminUsersDetail.userRemark')">
-            {{ withdrawDetail.remark || '-' }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminUsersDetail.reviewRemark')">
-            {{ withdrawDetail.review_remark || '-' }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminUsersDetail.transferRemark')">
-            {{ withdrawDetail.transfer_remark || '-' }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminUsersDetail.applyTime')">
-            {{ formatTime(withdrawDetail.create_time) }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminUsersDetail.reviewTime')">
-            {{ formatTime(withdrawDetail.reviewed_at) }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminUsersDetail.reviewer')">
-            {{ getAdminDisplayName(withdrawDetail.reviewed_by) }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminUsersDetail.transferTime')">
-            {{ formatTime(withdrawDetail.paid_at) }}
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('adminUsersDetail.payer')">
-            {{ getAdminDisplayName(withdrawDetail.paid_by) }}
-          </n-descriptions-item>
-        </n-descriptions>
-      </template>
-    </n-modal>
+    <WithdrawDetailModal
+      v-model:show="showWithdrawDetailModal"
+      :detail="withdrawDetail"
+      :admin-user-map="adminUserMap"
+    />
   </div>
 </template>
 

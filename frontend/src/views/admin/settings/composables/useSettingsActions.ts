@@ -1,0 +1,606 @@
+/**
+ * 管理端设置：load / save / toggle 动作
+ */
+import { useI18n } from 'vue-i18n'
+import { useMessage } from 'naive-ui'
+import { adminApi } from '@/service/api/admin'
+import type { SettingDTO, SettingType } from '@/service/api/admin/settings'
+import { useSettingsStore } from '@/store/settings'
+import { parseBooleanSetting } from '@/utils'
+import {
+  addForm,
+  addFormRef,
+  adding,
+  basicForm,
+  customSettings,
+  editForm,
+  emailForm,
+  loading,
+  paymentForm,
+  realnameApiForm,
+  restartingBackend,
+  savingBasic,
+  savingEdit,
+  savingEmail,
+  savingPayment,
+  savingRealnameApi,
+  savingSecurity,
+  savingSms,
+  securityForm,
+  showAddModal,
+  showEditModal,
+  smsForm,
+  switchLoading,
+  testingEmail,
+} from './settingsState'
+
+export function useSettingsActions() {
+  const message = useMessage()
+  const settingsStore = useSettingsStore()
+  const { t } = useI18n()
+
+  async function loadSettings() {
+    loading.value = true
+    try {
+      const response = await adminApi.settings.list()
+      if (response.data?.categories) {
+        for (const category of response.data.categories) {
+          for (const item of category.items) {
+            if (item.key === 'site_name') basicForm.site_name = String(item.value || '')
+            if (item.key === 'site_desc') basicForm.site_desc = String(item.value || '')
+            if (item.key === 'site_logo') basicForm.site_logo = String(item.value || '')
+            if (item.key === 'copyright') basicForm.copyright = String(item.value || '')
+            if (item.key === 'icp') basicForm.icp = String(item.value || '')
+            if (item.key === 'version') basicForm.version = String(item.value || '')
+            if (item.key === 'default_lang') basicForm.default_lang = String(item.value || 'zhCN')
+            if (item.key === 'allow_register') basicForm.allow_register = parseBooleanSetting(item.value)
+            if (item.key === 'allow_delete_account') securityForm.allow_delete_account = parseBooleanSetting(item.value)
+            if (item.key === 'frontend_url') basicForm.frontend_url = String(item.value || '')
+            if (item.key === 'backend_api_url') basicForm.backend_api_url = String(item.value || '')
+
+            if (item.key === 'email_verify_enabled') emailForm.email_verify_enabled = parseBooleanSetting(item.value)
+            if (item.key === 'smtp_host') emailForm.smtp_host = String(item.value || '')
+            if (item.key === 'smtp_port') emailForm.smtp_port = Number(item.value) || 587
+            if (item.key === 'smtp_username') emailForm.smtp_username = String(item.value || '')
+            if (item.key === 'smtp_password') emailForm.smtp_password = String(item.value || '')
+            if (item.key === 'smtp_ssl') emailForm.smtp_ssl = parseBooleanSetting(item.value)
+            if (item.key === 'system_email_name') emailForm.system_email_name = String(item.value || '')
+
+            if (item.key === 'sms_verify_enabled') smsForm.sms_verify_enabled = parseBooleanSetting(item.value)
+            if (item.key === 'sms_provider') smsForm.sms_provider = String(item.value || 'console')
+            if (item.key === 'sms_access_key') smsForm.sms_access_key = String(item.value || '')
+            if (item.key === 'sms_secret_key') smsForm.sms_secret_key = String(item.value || '')
+            if (item.key === 'sms_sign_name') smsForm.sms_sign_name = String(item.value || '')
+            if (item.key === 'sms_template_code') smsForm.sms_template_code = String(item.value || '')
+            if (item.key === 'sms_template_code_en') smsForm.sms_template_code_en = String(item.value || '')
+            if (item.key === 'sms_region') smsForm.sms_region = String(item.value || '')
+            if (item.key === 'sms_sdk_app_id') smsForm.sms_sdk_app_id = String(item.value || '')
+            if (item.key === 'sms_endpoint') smsForm.sms_endpoint = String(item.value || '')
+            if (item.key === 'sms_body_format') smsForm.sms_body_format = String(item.value || 'json')
+
+            if (item.key === 'geetest_enabled') securityForm.geetest_enabled = parseBooleanSetting(item.value)
+            if (item.key === 'geetest_captcha_id') securityForm.geetest_captcha_id = String(item.value || '')
+            if (item.key === 'geetest_captcha_key') securityForm.geetest_captcha_key = String(item.value || '')
+            if (item.key === 'jwt_access_expire') securityForm.jwt_access_expire = Number(item.value) || 7200
+            if (item.key === 'jwt_refresh_expire') securityForm.jwt_refresh_expire = Number(item.value) || 604800
+            if (item.key === 'login_max_failure') securityForm.login_max_failure = Number(item.value) || 5
+            if (item.key === 'login_lock_duration') securityForm.login_lock_duration = Number(item.value) || 10
+            if (item.key === 'realname_enabled') securityForm.realname_enabled = parseBooleanSetting(item.value)
+            if (item.key === 'realname_review_required') securityForm.realname_review_required = parseBooleanSetting(item.value)
+            if (item.key === 'realname_notify_text') securityForm.realname_notify_text = String(item.value || t('adminSettings.realnameNotifyTextDefault'))
+
+            if (item.key === 'realname_api_enabled') realnameApiForm.realname_api_enabled = parseBooleanSetting(item.value)
+            if (item.key === 'realname_api_provider') realnameApiForm.realname_api_provider = String(item.value || 'aliyun')
+            if (item.key === 'realname_api_app_key') realnameApiForm.realname_api_app_key = String(item.value || '')
+            if (item.key === 'realname_api_app_secret') realnameApiForm.realname_api_app_secret = String(item.value || '')
+            if (item.key === 'realname_api_endpoint') realnameApiForm.realname_api_endpoint = String(item.value || '')
+
+            if (item.key === 'payment_enabled') paymentForm.payment_enabled = parseBooleanSetting(item.value)
+            if (item.key === 'payment_order_expire_minutes') paymentForm.payment_order_expire_minutes = Number(item.value) || 30
+            if (item.key === 'withdraw_enabled') paymentForm.withdraw_enabled = parseBooleanSetting(item.value)
+            if (item.key === 'withdraw_min_amount') paymentForm.withdraw_min_amount = Number(item.value) || 10
+            if (item.key === 'withdraw_notify_text') paymentForm.withdraw_notify_text = String(item.value || t('adminSettings.withdrawNotifyTextDefault'))
+            if (item.key === 'withdraw_account_types') paymentForm.withdraw_account_types_text = typeof item.value === 'string' ? item.value : JSON.stringify(item.value || ['bank', 'alipay', 'wechat', 'usdt'])
+          }
+          if (category.category === 'custom')
+            customSettings.value = category.items
+        }
+      }
+    }
+    catch {
+      message.error(t('adminSettings.loadSettingsFailed'))
+    }
+    finally {
+      loading.value = false
+    }
+  }
+
+  /** 开关类：乐观更新 + 失败回滚 */
+  async function toggleSetting(
+    key: keyof typeof switchLoading,
+    getPrev: () => boolean,
+    setVal: (v: boolean) => void,
+    nextValue: boolean,
+    onSuccess?: () => void,
+    successKey?: string,
+    failKey?: string,
+  ) {
+    const prev = getPrev()
+    setVal(nextValue)
+    switchLoading[key] = true
+    try {
+      const res = await adminApi.settings.update(key, String(nextValue))
+      if (res.isSuccess) {
+        onSuccess?.()
+        message.success(res.message || (successKey ? t(successKey) : 'OK'))
+      }
+      else {
+        setVal(prev)
+        message.error(res.message || (failKey ? t(failKey) : t('adminSettings.updateFailed')))
+      }
+    }
+    catch {
+      setVal(prev)
+      message.error(t('adminSettings.updateFailed'))
+    }
+    finally {
+      switchLoading[key] = false
+    }
+  }
+
+  async function handleUpdateAllowRegister(nextValue: boolean) {
+    await toggleSetting(
+      'allow_register',
+      () => basicForm.allow_register,
+      v => { basicForm.allow_register = v },
+      nextValue,
+      () => settingsStore.updateConfig({ allow_register: nextValue }),
+      'adminSettings.registerSwitchUpdated',
+      'adminSettings.registerSwitchUpdateFailed',
+    )
+  }
+
+  async function handleUpdateAllowDeleteAccount(nextValue: boolean) {
+    await toggleSetting(
+      'allow_delete_account',
+      () => securityForm.allow_delete_account,
+      v => { securityForm.allow_delete_account = v },
+      nextValue,
+      () => settingsStore.updateConfig({ allow_delete_account: nextValue }),
+      'adminSettings.deleteAccountSwitchUpdated',
+      'adminSettings.deleteAccountSwitchUpdateFailed',
+    )
+  }
+
+  async function handleUpdateSmtpSSL(nextValue: boolean) {
+    await toggleSetting(
+      'smtp_ssl',
+      () => emailForm.smtp_ssl,
+      v => { emailForm.smtp_ssl = v },
+      nextValue,
+      undefined,
+      'adminSettings.smtpSslUpdated',
+      'adminSettings.smtpSslUpdateFailed',
+    )
+  }
+
+  async function handleUpdateEmailVerifyEnabled(nextValue: boolean) {
+    await toggleSetting(
+      'email_verify_enabled',
+      () => emailForm.email_verify_enabled,
+      v => { emailForm.email_verify_enabled = v },
+      nextValue,
+      () => settingsStore.updateConfig({ email_verify_enabled: nextValue }),
+      'adminSettings.emailVerifySwitchUpdated',
+      'adminSettings.emailVerifySwitchUpdateFailed',
+    )
+  }
+
+  async function handleUpdateSmsVerifyEnabled(nextValue: boolean) {
+    await toggleSetting(
+      'sms_verify_enabled',
+      () => smsForm.sms_verify_enabled,
+      v => { smsForm.sms_verify_enabled = v },
+      nextValue,
+      () => settingsStore.updateConfig({ sms_verify_enabled: nextValue }),
+      'adminSettings.smsVerifySwitchUpdated',
+      'adminSettings.smsVerifySwitchUpdateFailed',
+    )
+  }
+
+  async function handleUpdateGeetestEnabled(nextValue: boolean) {
+    await toggleSetting(
+      'geetest_enabled',
+      () => securityForm.geetest_enabled,
+      v => { securityForm.geetest_enabled = v },
+      nextValue,
+      () => settingsStore.updateConfig({ geetest_enabled: nextValue }),
+      'adminSettings.geetestSwitchUpdated',
+      'adminSettings.geetestSwitchUpdateFailed',
+    )
+  }
+
+  async function handleUpdateRealnameEnabled(nextValue: boolean) {
+    await toggleSetting(
+      'realname_enabled',
+      () => securityForm.realname_enabled,
+      v => { securityForm.realname_enabled = v },
+      nextValue,
+      undefined,
+      'adminSettings.realnameSwitchUpdated',
+      'adminSettings.realnameSwitchUpdateFailed',
+    )
+  }
+
+  async function handleUpdateRealnameReviewRequired(nextValue: boolean) {
+    await toggleSetting(
+      'realname_review_required',
+      () => securityForm.realname_review_required,
+      v => { securityForm.realname_review_required = v },
+      nextValue,
+      undefined,
+      'adminSettings.realnameReviewSwitchUpdated',
+      'adminSettings.realnameReviewSwitchUpdateFailed',
+    )
+  }
+
+  async function handleUpdateRealnameApiEnabled(nextValue: boolean) {
+    await toggleSetting(
+      'realname_api_enabled',
+      () => realnameApiForm.realname_api_enabled,
+      v => { realnameApiForm.realname_api_enabled = v },
+      nextValue,
+      undefined,
+      'adminSettings.realnameApiSwitchUpdated',
+      'adminSettings.realnameApiSwitchUpdateFailed',
+    )
+  }
+
+  async function handleUpdatePaymentEnabled(nextValue: boolean) {
+    await toggleSetting(
+      'payment_enabled',
+      () => paymentForm.payment_enabled,
+      v => { paymentForm.payment_enabled = v },
+      nextValue,
+      undefined,
+      'adminSettings.paymentSwitchUpdated',
+      'adminSettings.paymentSwitchUpdateFailed',
+    )
+  }
+
+  async function handleUpdateWithdrawEnabled(nextValue: boolean) {
+    await toggleSetting(
+      'withdraw_enabled',
+      () => paymentForm.withdraw_enabled,
+      v => { paymentForm.withdraw_enabled = v },
+      nextValue,
+      () => settingsStore.updateConfig({ withdraw_enabled: nextValue }),
+      'adminSettings.withdrawSwitchUpdated',
+      'adminSettings.withdrawSwitchUpdateFailed',
+    )
+  }
+
+  async function handleSaveSms() {
+    savingSms.value = true
+    try {
+      const res = await adminApi.settings.batchUpdate({
+        sms_provider: smsForm.sms_provider,
+        sms_access_key: smsForm.sms_access_key,
+        sms_secret_key: smsForm.sms_secret_key,
+        sms_sign_name: smsForm.sms_sign_name,
+        sms_template_code: smsForm.sms_template_code,
+        sms_template_code_en: smsForm.sms_template_code_en,
+        sms_region: smsForm.sms_region,
+        sms_sdk_app_id: smsForm.sms_sdk_app_id,
+        sms_endpoint: smsForm.sms_endpoint,
+        sms_body_format: smsForm.sms_body_format,
+      })
+      if (res.isSuccess) message.success(res.message || t('adminSettings.smsSettingsSaved'))
+      else message.error(res.message || t('adminSettings.smsSettingsSaveFailed'))
+    }
+    catch {
+      message.error(t('adminSettings.saveFailed'))
+    }
+    finally {
+      savingSms.value = false
+    }
+  }
+
+  async function handleSaveRealnameApi() {
+    savingRealnameApi.value = true
+    try {
+      const res = await adminApi.settings.batchUpdate({
+        realname_api_provider: realnameApiForm.realname_api_provider,
+        realname_api_app_key: realnameApiForm.realname_api_app_key,
+        realname_api_app_secret: realnameApiForm.realname_api_app_secret,
+        realname_api_endpoint: realnameApiForm.realname_api_endpoint,
+      })
+      if (res.isSuccess) message.success(res.message || t('adminSettings.realnameApiSaveSuccess'))
+      else message.error(res.message || t('adminSettings.realnameApiSaveFailed'))
+    }
+    catch {
+      message.error(t('adminSettings.saveFailed'))
+    }
+    finally {
+      savingRealnameApi.value = false
+    }
+  }
+
+  async function handleSavePayment() {
+    savingPayment.value = true
+    try {
+      const parsedAccountTypes = JSON.parse(paymentForm.withdraw_account_types_text || '[]')
+      if (!Array.isArray(parsedAccountTypes) || parsedAccountTypes.length === 0 || parsedAccountTypes.some(item => typeof item !== 'string' || !item.trim()))
+        throw new Error(t('adminSettings.invalidAccountTypes'))
+      const res = await adminApi.settings.batchUpdate({
+        payment_order_expire_minutes: String(paymentForm.payment_order_expire_minutes),
+        withdraw_min_amount: String(paymentForm.withdraw_min_amount),
+        withdraw_notify_text: paymentForm.withdraw_notify_text,
+        withdraw_account_types: paymentForm.withdraw_account_types_text,
+      })
+      if (res.isSuccess) {
+        settingsStore.updateConfig({
+          withdraw_min_amount: paymentForm.withdraw_min_amount,
+          withdraw_notify_text: paymentForm.withdraw_notify_text,
+          withdraw_account_types: parsedAccountTypes,
+        })
+        message.success(res.message || t('adminSettings.paymentSettingsSaved'))
+      }
+      else {
+        message.error(res.message || t('adminSettings.paymentSettingsSaveFailed'))
+      }
+    }
+    catch {
+      message.error(t('adminSettings.saveFailed'))
+    }
+    finally {
+      savingPayment.value = false
+    }
+  }
+
+  async function handleSaveBasic() {
+    savingBasic.value = true
+    try {
+      const frontendUrl = basicForm.frontend_url.trim().replace(/\/+$/, '')
+      const backendApiUrl = basicForm.backend_api_url.trim().replace(/\/+$/, '')
+      basicForm.frontend_url = frontendUrl
+      basicForm.backend_api_url = backendApiUrl
+      const res = await adminApi.settings.batchUpdate({
+        site_name: basicForm.site_name,
+        site_desc: basicForm.site_desc,
+        site_logo: basicForm.site_logo,
+        copyright: basicForm.copyright,
+        icp: basicForm.icp,
+        version: basicForm.version,
+        default_lang: basicForm.default_lang,
+        frontend_url: frontendUrl,
+        backend_api_url: backendApiUrl,
+      })
+      if (res.isSuccess) {
+        settingsStore.updateConfig({
+          site_name: basicForm.site_name,
+          site_desc: basicForm.site_desc,
+          site_logo: basicForm.site_logo,
+          copyright: basicForm.copyright,
+          icp: basicForm.icp,
+          version: basicForm.version,
+          default_lang: basicForm.default_lang,
+        })
+        message.success(res.message || t('adminSettings.basicSettingsSaved'))
+      }
+      else {
+        message.error(res.message || t('adminSettings.basicSettingsSaveFailed'))
+      }
+    }
+    catch {
+      message.error(t('adminSettings.saveFailed'))
+    }
+    finally {
+      savingBasic.value = false
+    }
+  }
+
+  async function handleSaveEmail() {
+    savingEmail.value = true
+    try {
+      const res = await adminApi.settings.batchUpdate({
+        smtp_host: emailForm.smtp_host,
+        smtp_port: String(emailForm.smtp_port),
+        smtp_username: emailForm.smtp_username,
+        smtp_password: emailForm.smtp_password,
+        system_email_name: emailForm.system_email_name,
+      })
+      if (res.isSuccess) message.success(res.message || t('adminSettings.emailSettingsSaved'))
+      else message.error(res.message || t('adminSettings.emailSettingsSaveFailed'))
+    }
+    catch {
+      message.error(t('adminSettings.saveFailed'))
+    }
+    finally {
+      savingEmail.value = false
+    }
+  }
+
+  async function handleTestEmail() {
+    testingEmail.value = true
+    try {
+      const res = await adminApi.emailTemplate.sendTest({ to: emailForm.smtp_username })
+      if (res.isSuccess) message.success(res.data?.message || t('adminSettings.testEmailSent'))
+      else message.error(res.message || t('adminSettings.testEmailFailed'))
+    }
+    catch (error: any) {
+      message.error(error?.message || t('adminSettings.testEmailFailed'))
+    }
+    finally {
+      testingEmail.value = false
+    }
+  }
+
+  async function handleSaveSecurity() {
+    savingSecurity.value = true
+    try {
+      const res = await adminApi.settings.batchUpdate({
+        geetest_captcha_id: securityForm.geetest_captcha_id,
+        geetest_captcha_key: securityForm.geetest_captcha_key,
+        jwt_access_expire: String(securityForm.jwt_access_expire),
+        jwt_refresh_expire: String(securityForm.jwt_refresh_expire),
+        login_max_failure: String(securityForm.login_max_failure),
+        login_lock_duration: String(securityForm.login_lock_duration),
+        realname_notify_text: securityForm.realname_notify_text,
+      })
+      if (res.isSuccess) {
+        settingsStore.updateConfig({ geetest_captcha_id: securityForm.geetest_captcha_id })
+        message.success(res.message || t('adminSettings.securitySettingsSaved'))
+      }
+      else {
+        message.error(res.message || t('adminSettings.securitySettingsSaveFailed'))
+      }
+    }
+    catch {
+      message.error(t('adminSettings.saveFailed'))
+    }
+    finally {
+      savingSecurity.value = false
+    }
+  }
+
+  async function handleRestartBackend() {
+    restartingBackend.value = true
+    try {
+      const res = await adminApi.settings.restartBackend()
+      if (res.isSuccess) message.success(res.message || t('adminSettings.restartBackendRequested'))
+      else message.error(res.message || t('adminSettings.restartBackendFailed'))
+    }
+    catch {
+      message.error(t('adminSettings.restartFailed'))
+    }
+    finally {
+      restartingBackend.value = false
+    }
+  }
+
+  async function handleAddSetting() {
+    try {
+      await addFormRef.value?.validate()
+    }
+    catch {
+      return
+    }
+    adding.value = true
+    try {
+      const res = await adminApi.settings.create({
+        key: addForm.key,
+        value: addForm.value,
+        type: addForm.type as SettingType,
+        category: 'custom',
+        label: addForm.label,
+        description: addForm.description,
+        is_public: addForm.is_public,
+        is_editable: true,
+      })
+      if (res.isSuccess) {
+        message.success(res.message || t('adminSettings.configItemAdded'))
+        showAddModal.value = false
+        addForm.key = ''
+        addForm.value = ''
+        addForm.label = ''
+        addForm.type = 'string'
+        addForm.description = ''
+        addForm.is_public = false
+        await loadSettings()
+      }
+      else {
+        message.error(res.message || t('adminSettings.configItemAddFailed'))
+      }
+    }
+    catch {
+      message.error(t('adminSettings.addFailed'))
+    }
+    finally {
+      adding.value = false
+    }
+  }
+
+  async function handleDeleteSetting(key: string) {
+    try {
+      const res = await adminApi.settings.delete(key)
+      if (res.isSuccess) {
+        message.success(res.message || t('adminSettings.configItemDeleted'))
+        await loadSettings()
+      }
+      else {
+        message.error(res.message || t('adminSettings.configItemDeleteFailed'))
+      }
+    }
+    catch (error: any) {
+      message.error(t('adminSettings.deleteFailed') + (error.message || ''))
+    }
+  }
+
+  function handleEditSetting(row: SettingDTO) {
+    editForm.key = row.key
+    editForm.value = row.value == null ? '' : String(row.value)
+    editForm.label = row.label || ''
+    editForm.type = row.type
+    editForm.description = row.description || ''
+    editForm.is_public = Boolean(row.is_public)
+    showEditModal.value = true
+  }
+
+  async function handleSaveSettingEdit() {
+    if (!editForm.key) return
+    savingEdit.value = true
+    try {
+      const res = await adminApi.settings.updateMeta(editForm.key, {
+        value: editForm.value,
+        type: editForm.type,
+        category: 'custom',
+        label: editForm.label,
+        description: editForm.description,
+        is_public: editForm.is_public,
+        is_editable: true,
+      })
+      if (res.isSuccess) {
+        message.success(res.message || t('adminSettings.configItemUpdated'))
+        showEditModal.value = false
+        await loadSettings()
+      }
+      else {
+        message.error(res.message || t('adminSettings.configItemUpdateFailed'))
+      }
+    }
+    catch {
+      message.error(t('adminSettings.editFailed'))
+    }
+    finally {
+      savingEdit.value = false
+    }
+  }
+
+  return {
+    loadSettings,
+    handleUpdateAllowRegister,
+    handleUpdateAllowDeleteAccount,
+    handleUpdateSmtpSSL,
+    handleUpdateEmailVerifyEnabled,
+    handleUpdateSmsVerifyEnabled,
+    handleUpdateGeetestEnabled,
+    handleUpdateRealnameEnabled,
+    handleUpdateRealnameReviewRequired,
+    handleUpdateRealnameApiEnabled,
+    handleUpdatePaymentEnabled,
+    handleUpdateWithdrawEnabled,
+    handleSaveBasic,
+    handleSaveEmail,
+    handleTestEmail,
+    handleSaveSms,
+    handleSaveSecurity,
+    handleRestartBackend,
+    handleSaveRealnameApi,
+    handleSavePayment,
+    handleAddSetting,
+    handleDeleteSetting,
+    handleEditSetting,
+    handleSaveSettingEdit,
+  }
+}

@@ -25,7 +25,7 @@ async function loadAdminRoutesDynamic() {
   }
 }
 
-const ADMIN_PUBLIC_PATHS = new Set(['/login', '/user/login', '/403', '/404', '/500', '/loading', '/public'])
+const ADMIN_PUBLIC_PATHS = new Set(['/login', '/user/login', '/403', '/404', '/500', '/loading'])
 
 function isAdminRoutePath(path: string, mode: AppRouteMode, adminPath: string) {
   if (mode === 'admin')

@@ -7,15 +7,29 @@ import (
 	"fst/backend/utils"
 	"log"
 	"strings"
+	"sync"
 	"time"
 )
 
 // EmailService 邮件服务
 type EmailService struct{}
 
-// NewEmailService 创建邮件服务实例
+var (
+	emailServiceOnce sync.Once
+	emailServiceInst *EmailService
+)
+
+// NewEmailService 创建邮件服务实例（测试或显式新建可用）
 func NewEmailService() *EmailService {
 	return &EmailService{}
+}
+
+// GetEmailService 返回包级单例，避免控制器重复 new
+func GetEmailService() *EmailService {
+	emailServiceOnce.Do(func() {
+		emailServiceInst = NewEmailService()
+	})
+	return emailServiceInst
 }
 
 // SendResult 发送结果

@@ -2,7 +2,7 @@
  * 管理端 API 统一导出（异步按需加载）
  *
  * 每个子模块只在首次调用时才会动态 import()，
- * 避免进入管理���时一次性同步加载全部 API 模块造成卡顿。
+ * 避免进入管理端时一次性同步加载全部 API 模块造成卡顿。
  *
  * 使用方式（与同步版本完全一致）：
  *   import { adminApi } from '@/service/api/admin'
@@ -46,7 +46,5 @@ export const adminApi = {
   autoJob: createLazyModule(() => import('./auto-job').then(m => m.adminAutoJobApi)),
   dashboard: createLazyModule(() => import('./dashboard').then(m => m.adminDashboardApi)),
   realname: createLazyModule(() => import('./realname').then(m => m.adminRealnameApi)),
-  finance: createLazyModule(() => import('./finance')),
   payment: createLazyModule(() => import('./payment').then(m => m.adminPaymentApi)),
-  paygateway: createLazyModule(() => import('./paygateway')),
 }

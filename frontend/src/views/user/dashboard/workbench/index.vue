@@ -2,7 +2,6 @@
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/store'
 import { fetchDashboard } from '@/service'
-import Chart from './components/chart.vue'
 
 const authStore = useAuthStore()
 const { t } = useI18n()
@@ -67,11 +66,6 @@ onMounted(() => {
       <!-- 左侧主要内容区 -->
       <n-gi span="3 m:2">
         <n-space vertical :size="16">
-          <!-- 图表区域 -->
-          <n-card style="--n-padding-left: 0;">
-            <Chart />
-          </n-card>
-
           <!-- 统计卡片区域 -->
           <n-grid
             :x-gap="16"

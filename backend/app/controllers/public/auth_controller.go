@@ -27,7 +27,7 @@ type AuthController struct {
 func NewAuthController() *AuthController {
 	return &AuthController{
 		auth_svc:  services.NewAuthService(),
-		email_svc: services.NewEmailService(),
+		email_svc: services.GetEmailService(),
 	}
 }
 

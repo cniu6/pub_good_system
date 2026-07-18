@@ -19,23 +19,6 @@ type UserController struct {
 	userService *services.UserService
 }
 
-type AdminUserRealnameSummary struct {
-	HasVerification bool    `json:"has_verification"`
-	ID              uint64  `json:"id,omitempty"`
-	Status          uint8   `json:"status,omitempty"`
-	RealName        string  `json:"real_name,omitempty"`
-	CertificateType uint8   `json:"certificate_type,omitempty"`
-	CertificateNo   string  `json:"certificate_no,omitempty"`
-	SubmittedAt     *int64  `json:"submitted_at,omitempty"`
-	ReviewedAt      *int64  `json:"reviewed_at,omitempty"`
-	RejectReason    string  `json:"reject_reason,omitempty"`
-}
-
-type AdminUserDetailResponse struct {
-	User     *services.AdminUserListItem `json:"user"`
-	Realname AdminUserRealnameSummary    `json:"realname"`
-}
-
 func NewUserController() *UserController {
 	return &UserController{
 		userService: services.NewUserService(),
@@ -218,7 +201,32 @@ func (c *UserController) Delete(ctx *gin.Context) {
 		return
 	}
 
+	// 禁止管理员删除自己，避免当前会话立刻失效且误操作难恢复
+	if operatorID, ok := ctx.Get("userID"); ok {
+		switch v := operatorID.(type) {
+		case uint64:
+			if v == id {
+				utils.Fail(ctx, 400, "不能删除当前登录的管理员账号")
+				return
+			}
+		case int:
+			if uint64(v) == id {
+				utils.Fail(ctx, 400, "不能删除当前登录的管理员账号")
+				return
+			}
+		case int64:
+			if uint64(v) == id {
+				utils.Fail(ctx, 400, "不能删除当前登录的管理员账号")
+				return
+			}
+		}
+	}
+
 	if err := c.userService.Delete(id); err != nil {
+		if services.IsClientError(err) {
+			utils.Fail(ctx, 400, err.Error())
+			return
+		}
 		log.Printf("[ADMIN USER] delete user failed for user_id=%d: %v", id, err)
 		utils.Fail(ctx, 500, "删除用户失败")
 		return
@@ -254,6 +262,10 @@ func (c *UserController) UpdateStatus(ctx *gin.Context) {
 	}
 
 	if err := c.userService.UpdateStatus(id, req.Status); err != nil {
+		if services.IsClientError(err) {
+			utils.Fail(ctx, 400, err.Error())
+			return
+		}
 		log.Printf("[ADMIN USER] update status failed for user_id=%d: %v", id, err)
 		utils.Fail(ctx, 500, "更新用户状态失败")
 		return

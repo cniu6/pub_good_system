@@ -9,8 +9,8 @@ import (
 
 	// ========================================
 	// 插件自动导入区域（与非 embedded 入口保持一致）
+	// demo 插件需 -tags demo（见 main_demo_plugins.go）
 	// ========================================
-	_ "fst/backend/app/plugins/demo"
 	_ "fst/backend/app/plugins/pay_balance"
 	_ "fst/backend/app/plugins/sms"
 )

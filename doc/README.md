@@ -307,7 +307,7 @@ fetchRegister(data) // 使用封装好的API
 | 认证中间件 | `backend/internal/middleware/auth.go` |
 | CORS中间件 | `backend/internal/middleware/cors.go` |
 | 配置管理 | `backend/internal/config/config.go` |
-| 数据库初始化 | `backend/internal/db/mysql.go` |
+| 数据库初始化 | `backend/pkg/db/mysql.go` |
 | 路由定义 | `backend/routes/routes.go` |
 | 插件接口 | `backend/app/plugins/interface.go` |
 | 前端请求封装 | `frontend/src/service/request.ts` |

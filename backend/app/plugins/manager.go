@@ -9,9 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Manager 插件管理器（增强版）
+// Manager 插件管理器：注册、依赖解析、加载、路由与关闭
 type Manager struct {
-	pm          *PluginManager
+	plugins     map[string]Plugin
+	configs     map[string]PluginConfig
 	mu          sync.RWMutex
 	initialized bool
 	shutdown    bool
@@ -21,8 +22,9 @@ type Manager struct {
 // NewManager 创建插件管理器
 func NewManager() *Manager {
 	return &Manager{
-		pm:     NewPluginManager(),
-		errors: make(map[string]error),
+		plugins: make(map[string]Plugin),
+		configs: make(map[string]PluginConfig),
+		errors:  make(map[string]error),
 	}
 }
 
@@ -30,11 +32,18 @@ func NewManager() *Manager {
 func (m *Manager) Register(p Plugin) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.pm.Register(p)
+	m.plugins[p.Name()] = p
 }
 
-// LoadAll 加载所有插件
-// 按优先级和依赖关系排序后依次初始化
+// pluginConfig 取插件配置，无则返回空 map
+func (m *Manager) pluginConfig(name string) PluginConfig {
+	if config, ok := m.configs[name]; ok {
+		return config
+	}
+	return make(PluginConfig)
+}
+
+// LoadAll 加载所有插件（按优先级与依赖排序后依次初始化）
 func (m *Manager) LoadAll() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -43,34 +52,28 @@ func (m *Manager) LoadAll() error {
 		return fmt.Errorf("插件已经初始化")
 	}
 
-	// 解析依赖
 	if err := m.resolveDependencies(); err != nil {
 		return err
 	}
 
-	// 按优先级排序
 	sorted_plugins := m.sortByPriority()
 
-	// 依次初始化
 	for _, name := range sorted_plugins {
-		p := m.pm.plugins[name]
+		p := m.plugins[name]
 
-		// 1. 配置
-		config := m.pm.GetConfig(name)
+		config := m.pluginConfig(name)
 		if err := p.Configure(config); err != nil {
 			m.errors[name] = fmt.Errorf("配置失败: %v", err)
 			log.Printf("[Plugin] %s 配置失败: %v", name, err)
 			continue
 		}
 
-		// 2. 初始化
 		if err := p.Init(); err != nil {
 			m.errors[name] = fmt.Errorf("初始化失败: %v", err)
 			log.Printf("[Plugin] %s 初始化失败: %v", name, err)
 			continue
 		}
 
-		// 3. 数据库迁移
 		if err := p.Migrate(); err != nil {
 			m.errors[name] = fmt.Errorf("迁移失败: %v", err)
 			log.Printf("[Plugin] %s 迁移失败: %v", name, err)
@@ -92,9 +95,8 @@ func (m *Manager) RegisterAllRoutes(router *gin.RouterGroup) {
 	sorted_plugins := m.sortByPriority()
 
 	for _, name := range sorted_plugins {
-		p := m.pm.plugins[name]
+		p := m.plugins[name]
 
-		// 跳过初始化失败的插件
 		if _, has_error := m.errors[name]; has_error {
 			continue
 		}
@@ -113,11 +115,10 @@ func (m *Manager) ShutdownAll() error {
 		return nil
 	}
 
-	// 按优先级逆序关闭
 	sorted_plugins := m.sortByPriority()
 	for i := len(sorted_plugins) - 1; i >= 0; i-- {
 		name := sorted_plugins[i]
-		p := m.pm.plugins[name]
+		p := m.plugins[name]
 
 		if err := p.Shutdown(); err != nil {
 			log.Printf("[Plugin] %s 关闭失败: %v", name, err)
@@ -132,20 +133,18 @@ func (m *Manager) ShutdownAll() error {
 
 // resolveDependencies 解析依赖关系
 func (m *Manager) resolveDependencies() error {
-	// 检查依赖是否存在
-	for name, p := range m.pm.plugins {
+	for name, p := range m.plugins {
 		for _, dep := range p.Dependencies() {
-			if !m.pm.HasPlugin(dep) {
+			if _, ok := m.plugins[dep]; !ok {
 				return fmt.Errorf("插件 %s 依赖的 %s 不存在", name, dep)
 			}
 		}
 	}
 
-	// 检查循环依赖
 	visited := make(map[string]bool)
 	visiting := make(map[string]bool)
 
-	for name := range m.pm.plugins {
+	for name := range m.plugins {
 		if err := m.checkCycle(name, visited, visiting); err != nil {
 			return err
 		}
@@ -166,7 +165,7 @@ func (m *Manager) checkCycle(name string, visited, visiting map[string]bool) err
 
 	visiting[name] = true
 
-	p, ok := m.pm.plugins[name]
+	p, ok := m.plugins[name]
 	if !ok {
 		return nil
 	}
@@ -184,38 +183,31 @@ func (m *Manager) checkCycle(name string, visited, visiting map[string]bool) err
 
 // sortByPriority 按优先级和依赖关系排序
 func (m *Manager) sortByPriority() []string {
-	plugins := make([]Plugin, 0, len(m.pm.plugins))
-	for _, p := range m.pm.plugins {
-		plugins = append(plugins, p)
+	list := make([]Plugin, 0, len(m.plugins))
+	for _, p := range m.plugins {
+		list = append(list, p)
 	}
-
-	// 拓扑排序 + 优先级排序
-	result := m.topologicalSort(plugins)
-
-	return result
+	return m.topologicalSort(list)
 }
 
 // topologicalSort 拓扑排序
-func (m *Manager) topologicalSort(plugins []Plugin) []string {
-	// 构建入度表
+func (m *Manager) topologicalSort(list []Plugin) []string {
 	in_degree := make(map[string]int)
 	adj := make(map[string][]string)
 
-	for _, p := range plugins {
+	for _, p := range list {
 		name := p.Name()
 		in_degree[name] = 0
 		adj[name] = []string{}
 	}
 
-	// 构建邻接表
-	for _, p := range plugins {
+	for _, p := range list {
 		for _, dep := range p.Dependencies() {
 			adj[dep] = append(adj[dep], p.Name())
 			in_degree[p.Name()]++
 		}
 	}
 
-	// 按优先级排序的同级节点
 	var queue []string
 	for name, degree := range in_degree {
 		if degree == 0 {
@@ -223,19 +215,16 @@ func (m *Manager) topologicalSort(plugins []Plugin) []string {
 		}
 	}
 
-	// 按优先级排序入度为0的节点
 	sort.Slice(queue, func(i, j int) bool {
-		return m.pm.plugins[queue[i]].Priority() < m.pm.plugins[queue[j]].Priority()
+		return m.plugins[queue[i]].Priority() < m.plugins[queue[j]].Priority()
 	})
 
 	var result []string
 	for len(queue) > 0 {
-		// 取出第一个
 		current := queue[0]
 		queue = queue[1:]
 		result = append(result, current)
 
-		// 更新邻接节点的入度
 		var next_zero []string
 		for _, neighbor := range adj[current] {
 			in_degree[neighbor]--
@@ -244,9 +233,8 @@ func (m *Manager) topologicalSort(plugins []Plugin) []string {
 			}
 		}
 
-		// 按优先级排序新增的入度为0的节点
 		sort.Slice(next_zero, func(i, j int) bool {
-			return m.pm.plugins[next_zero[i]].Priority() < m.pm.plugins[next_zero[j]].Priority()
+			return m.plugins[next_zero[i]].Priority() < m.plugins[next_zero[j]].Priority()
 		})
 
 		queue = append(queue, next_zero...)
@@ -257,6 +245,5 @@ func (m *Manager) topologicalSort(plugins []Plugin) []string {
 
 // Count 获取插件数量
 func (m *Manager) Count() int {
-	return m.pm.Count()
+	return len(m.plugins)
 }
-

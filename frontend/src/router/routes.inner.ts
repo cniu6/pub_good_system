@@ -82,17 +82,6 @@ export const routes: RouteRecordRaw[] = [
       withoutTab: true,
     },
   },
-  {
-    path: '/public',
-    name: 'publicAccess',
-    component: () => import('@/views/_builtin/public-access/index.vue'),
-    meta: {
-      title: 'route.publicAccess',
-      requiresAuth: false,
-      withoutTab: true,
-    },
-  },
-
   // ========================================
   // 错误页面
   // ========================================

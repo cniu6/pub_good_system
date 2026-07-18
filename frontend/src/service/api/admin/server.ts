@@ -45,8 +45,4 @@ export const adminServerApi = {
   operations() {
     return request.Get<Service.ResponseResult<ServerOperationsStatusResponse>>(`${getAdminApiBase()}/settings/server-ops`)
   },
-
-  runTask(key: string) {
-    return request.Post<Service.ResponseResult<{ message: string }>>(`${getAdminApiBase()}/settings/background-tasks/run`, { key })
-  },
 }
