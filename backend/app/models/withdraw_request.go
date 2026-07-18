@@ -65,7 +65,7 @@ func InitWithdrawRequestsTable() {
 		db.EnsureIndex("withdraw_requests", "idx_user_status_create", "ALTER TABLE withdraw_requests ADD INDEX idx_user_status_create (user_id, status, create_time)")
 		db.EnsureIndex("withdraw_requests", "idx_status_create", "ALTER TABLE withdraw_requests ADD INDEX idx_status_create (status, create_time)")
 		if !db.CheckColumnExists("withdraw_requests", "balance_deducted") {
-			if _, err := db.DB.Exec("ALTER TABLE withdraw_requests ADD COLUMN balance_deducted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已预扣余额:0=否,1=是' AFTER status"); err != nil {
+			if _, err := db.Exec("ALTER TABLE withdraw_requests ADD COLUMN balance_deducted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已预扣余额:0=否,1=是' AFTER status"); err != nil {
 				log.Printf("[Init] Failed to add withdraw_requests.balance_deducted: %v", err)
 			} else {
 				log.Printf("[Init] Added withdraw_requests.balance_deducted column")
@@ -101,7 +101,7 @@ func InitWithdrawRequestsTable() {
 		INDEX idx_status_create (status, create_time)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户提现申请表';`
 
-	if _, err := db.DB.Exec(schema); err != nil {
+	if _, err := db.Exec(schema); err != nil {
 		log.Printf("[Init] Failed to create withdraw_requests table: %v", err)
 	} else {
 		log.Println("[Init] Created withdraw_requests table")
@@ -112,7 +112,7 @@ func CreateWithdrawRequest(req *WithdrawRequest) error {
 	now := time.Now().Unix()
 	req.CreateTime = now
 	req.UpdateTime = now
-	result, err := db.DB.Exec(
+	result, err := db.Exec(
 		`INSERT INTO withdraw_requests (user_id, amount, account_type, account_name, account_no, real_name, remark, status, balance_deducted, review_remark, transfer_remark, reviewed_at, reviewed_by, paid_at, paid_by, create_time, update_time, delete_time)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		req.UserID, req.Amount, req.AccountType, req.AccountName, req.AccountNo, req.RealName, req.Remark,
@@ -139,8 +139,8 @@ func GetWithdrawRequestByID(id uint64) (*WithdrawRequest, error) {
 func GetWithdrawRequestByIDForUpdate(tx *sql.Tx, id uint64) (*WithdrawRequest, error) {
 	var item WithdrawRequest
 	err := tx.QueryRow(
-		`SELECT id, user_id, amount, account_type, account_name, account_no, real_name, remark, status, balance_deducted, review_remark, transfer_remark, reviewed_at, reviewed_by, paid_at, paid_by, create_time, update_time, delete_time
-		 FROM withdraw_requests WHERE id = ? AND delete_time IS NULL FOR UPDATE`, id,
+		db.Q(`SELECT id, user_id, amount, account_type, account_name, account_no, real_name, remark, status, balance_deducted, review_remark, transfer_remark, reviewed_at, reviewed_by, paid_at, paid_by, create_time, update_time, delete_time
+		 FROM withdraw_requests WHERE id = ? AND delete_time IS NULL FOR UPDATE`), id,
 	).Scan(
 		&item.ID, &item.UserID, &item.Amount, &item.AccountType, &item.AccountName, &item.AccountNo, &item.RealName,
 		&item.Remark, &item.Status, &item.BalanceDeducted, &item.ReviewRemark, &item.TransferRemark, &item.ReviewedAt, &item.ReviewedBy,

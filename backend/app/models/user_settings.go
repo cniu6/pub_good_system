@@ -32,7 +32,7 @@ func InitUserSettingsTable() {
 		UNIQUE KEY idx_user_id (user_id)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 
-	_, err := db.DB.Exec(schema)
+	_, err := db.Exec(schema)
 	if err != nil {
 		log.Printf("[Init] Failed to create user_settings table: %v", err)
 	} else {
@@ -56,7 +56,7 @@ func SaveUserSettings(settings *UserSettings) error {
 	settings.UpdatedAt = now
 
 	// 尝试更新
-	result, err := db.DB.Exec(
+	result, err := db.Exec(
 		"UPDATE user_settings SET theme = ?, notify_email = ?, updated_at = ? WHERE user_id = ?",
 		settings.Theme, settings.NotifyEmail, now, settings.UserID,
 	)
@@ -68,7 +68,7 @@ func SaveUserSettings(settings *UserSettings) error {
 	if rows == 0 {
 		// 不存在则插入
 		settings.CreatedAt = now
-		_, err = db.DB.Exec(
+		_, err = db.Exec(
 			"INSERT INTO user_settings (user_id, theme, notify_email, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
 			settings.UserID, settings.Theme, settings.NotifyEmail, now, now,
 		)

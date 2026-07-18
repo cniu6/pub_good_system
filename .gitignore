@@ -21,6 +21,12 @@ backend/cmd/main_embedded.go
 .env
 backend/.env
 
+# SQLite 本地数据文件（DB_DRIVER=sqlite 临时库）
+data/
+*.db
+*.db-shm
+*.db-wal
+
 # 日志
 *.log
 npm-debug.log*

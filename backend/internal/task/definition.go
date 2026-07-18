@@ -69,7 +69,7 @@ func CountDefinitions() (total, enabled int64, err error) {
 // InsertDefinition 插入定义。MaxConcurrency 强制写 1（当前仅支持单实例互斥）
 func InsertDefinition(def *JobDefinition) error {
 	def.MaxConcurrency = 1
-	_, err := db.DB.Exec(`
+	_, err := db.Exec(`
 		INSERT INTO auto_job_definitions (
 			job_code, name, description, category, handler_key, cron_expr, interval_seconds, timezone,
 			enabled, timeout_sec, max_concurrency, params_json,
@@ -96,7 +96,7 @@ func dec(s string) string {
 // UpdateDefinitionMeta 覆盖元数据（导入 update 模式用）。MaxConcurrency 强制为 1
 func UpdateDefinitionMeta(def *JobDefinition) error {
 	def.MaxConcurrency = 1
-	_, err := db.DB.Exec(`
+	_, err := db.Exec(`
 		UPDATE auto_job_definitions SET
 			name=?, description=?, category=?, handler_key=?, cron_expr=?, interval_seconds=?, timezone=?,
 			timeout_sec=?, max_concurrency=?, params_json=?, update_time=?
@@ -145,7 +145,7 @@ func UpdateDefinitionFields(jobCode string, req UpdateJobRequest) error {
 		def.ParamsJSON = *req.ParamsJSON
 	}
 	def.UpdateTime = nowUnix()
-	_, err = db.DB.Exec(`
+	_, err = db.Exec(`
 		UPDATE auto_job_definitions SET
 			name=?, description=?, cron_expr=?, interval_seconds=?, timezone=?,
 			enabled=?, timeout_sec=?, params_json=?, update_time=?
@@ -166,7 +166,7 @@ func SetEnabled(jobCode string, enabled bool) error {
 	if enabled {
 		v = 1
 	}
-	res, err := db.DB.Exec(`UPDATE auto_job_definitions SET enabled=?, update_time=? WHERE job_code=?`, v, nowUnix(), jobCode)
+	res, err := db.Exec(`UPDATE auto_job_definitions SET enabled=?, update_time=? WHERE job_code=?`, v, nowUnix(), jobCode)
 	if err != nil {
 		return err
 	}
@@ -180,7 +180,7 @@ func SetEnabled(jobCode string, enabled bool) error {
 
 // MarkDefinitionRunning 把定义标为 running（CAS：已是 running 则失败）
 func MarkDefinitionRunning(jobCode string, startedAt int64) (bool, error) {
-	res, err := db.DB.Exec(`
+	res, err := db.Exec(`
 		UPDATE auto_job_definitions
 		SET last_status=?, last_started_at=?, last_error='', update_time=?
 		WHERE job_code=? AND (last_status IS NULL OR last_status = '' OR last_status <> ?)`,
@@ -213,7 +213,7 @@ func bumpDefinitionAfterRun(jobCode, status string, startedAt, finished int64, e
 	case StatusFailed, StatusTimeout:
 		failInc = 1
 	}
-	_, err := db.DB.Exec(`
+	_, err := db.Exec(`
 		UPDATE auto_job_definitions SET
 			last_status=?, last_started_at=?, last_finished_at=?, last_error=?,
 			lifetime_run_count = lifetime_run_count + 1,

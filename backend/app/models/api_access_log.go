@@ -92,7 +92,7 @@ func InitAPIAccessLogsTable() {
 			INDEX idx_handler_create_time (handler_name, create_time)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='API接口访问日志表';`
 
-		if _, err := db.DB.Exec(schema); err != nil {
+		if _, err := db.Exec(schema); err != nil {
 			log.Printf("[Init] Failed to create api_access_logs table: %v", err)
 		} else {
 			log.Println("[Init] Created api_access_logs table")
@@ -139,7 +139,7 @@ func InitAPIAccessLogsTable() {
 
 	for _, repair := range columnRepairs {
 		if !db.CheckColumnExists("api_access_logs", repair.column) {
-			if _, err := db.DB.Exec(repair.alterSQL); err != nil {
+			if _, err := db.Exec(repair.alterSQL); err != nil {
 				log.Printf("[Init] Failed to add api_access_logs.%s: %v", repair.column, err)
 			} else {
 				log.Printf("[Init] Added api_access_logs.%s", repair.column)
@@ -148,7 +148,7 @@ func InitAPIAccessLogsTable() {
 	}
 
 	if db.CheckColumnExists("api_access_logs", "request_id") {
-		if _, err := db.DB.Exec("UPDATE api_access_logs SET request_id = LOWER(UUID()) WHERE request_id IS NULL OR request_id = ''"); err != nil {
+		if _, err := db.Exec("UPDATE api_access_logs SET request_id = LOWER(UUID()) WHERE request_id IS NULL OR request_id = ''"); err != nil {
 			log.Printf("[Init] Failed to backfill api_access_logs.request_id: %v", err)
 		}
 	}
@@ -313,7 +313,7 @@ func GetAPIAccessLogList(query *APIAccessLogQuery) ([]APIAccessLog, int64, error
 }
 
 func DeleteAPIAccessLogsBefore(beforeTime int64) (int64, error) {
-	result, err := db.DB.Exec("DELETE FROM api_access_logs WHERE create_time < ?", beforeTime)
+	result, err := db.Exec("DELETE FROM api_access_logs WHERE create_time < ?", beforeTime)
 	if err != nil {
 		return 0, err
 	}
@@ -340,7 +340,7 @@ func CleanExcessAPIAccessLogs(maxCount int) (int64, error) {
 		return 0, err
 	}
 
-	result, err := db.DB.Exec(
+	result, err := db.Exec(
 		"DELETE FROM api_access_logs WHERE create_time < ? OR (create_time = ? AND id < ?)",
 		cutoff.CreateTime,
 		cutoff.CreateTime,

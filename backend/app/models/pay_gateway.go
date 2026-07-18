@@ -73,7 +73,7 @@ func InitPayGatewaysTable() {
 		INDEX idx_status_sort_id (status, sort_order, id)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='支付通道表';`
 
-	_, err := db.DB.Exec(schema)
+	_, err := db.Exec(schema)
 	if err != nil {
 		log.Printf("[Init] Failed to create pay_gateways table: %v", err)
 	} else {
@@ -87,7 +87,7 @@ func CreatePayGateway(gw *PayGateway) error {
 	gw.CreateTime = now
 	gw.UpdateTime = now
 
-	result, err := db.DB.Exec(
+	result, err := db.Exec(
 		"INSERT INTO pay_gateways (name, type, pay_type, description, status, api_url, pid, `key`, logo_url, sort_order, min_amount, max_amount, fee_rate, fee_mode, min_level, notify_url, create_time, update_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		gw.Name, gw.Type, gw.PayType, gw.Description, gw.Status,
 		gw.ApiURL, gw.PID, gw.Key, gw.LogoURL, gw.SortOrder,
@@ -115,7 +115,7 @@ func GetPayGatewayByID(id uint64) (*PayGateway, error) {
 // UpdatePayGateway 更新支付通道
 func UpdatePayGateway(gw *PayGateway) error {
 	gw.UpdateTime = time.Now().Unix()
-	_, err := db.DB.Exec(
+	_, err := db.Exec(
 		"UPDATE pay_gateways SET name=?, type=?, pay_type=?, description=?, status=?, api_url=?, pid=?, `key`=?, logo_url=?, sort_order=?, min_amount=?, max_amount=?, fee_rate=?, fee_mode=?, min_level=?, notify_url=?, update_time=? WHERE id=?",
 		gw.Name, gw.Type, gw.PayType, gw.Description, gw.Status,
 		gw.ApiURL, gw.PID, gw.Key, gw.LogoURL, gw.SortOrder,
@@ -127,7 +127,7 @@ func UpdatePayGateway(gw *PayGateway) error {
 
 // DeletePayGateway 删除支付通道
 func DeletePayGateway(id uint64) error {
-	_, err := db.DB.Exec("DELETE FROM pay_gateways WHERE id = ?", id)
+	_, err := db.Exec("DELETE FROM pay_gateways WHERE id = ?", id)
 	return err
 }
 

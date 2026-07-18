@@ -15,7 +15,7 @@ func InsertRun(run *JobRun) (uint64, error) {
 	renumberMu.Lock()
 	defer renumberMu.Unlock()
 
-	res, err := db.DB.Exec(`
+	res, err := db.Exec(`
 		INSERT INTO auto_job_runs (
 			run_uid, job_code, category, trigger_type, status, started_at, finished_at, duration_ms,
 			message, detail_json, error_text, keep_forever, operator
@@ -154,7 +154,7 @@ func deleteOldestRuns(limit int64, statuses []string) (int64, error) {
 		args = append(args, s)
 	}
 	args = append(args, limit)
-	res, err := db.DB.Exec(`
+	res, err := db.Exec(`
 		DELETE FROM auto_job_runs
 		WHERE id IN (
 			SELECT id FROM (
@@ -182,6 +182,10 @@ var renumberMu sync.Mutex
 // 注意：不能「保留巨大旧 id 的同时让新行从 1 起」——InnoDB 要求自增 ≥ MAX(id)+1。
 // 正常路径跑完才 INSERT runs，故无需检查 runs.status=running。
 func MaybeRenumberRunIDsIfNearLimit() (did bool, newCount int64, err error) {
+	// SQLite 无 CREATE TABLE LIKE / RENAME TABLE 多表语法；本地临时库跳过重编号（id 也远不到上限）
+	if db.IsSQLite() {
+		return false, 0, nil
+	}
 	ai, maxID, err := runsIDWatermark()
 	if err != nil {
 		return false, 0, err
@@ -205,13 +209,13 @@ func MaybeRenumberRunIDsIfNearLimit() (did bool, newCount int64, err error) {
 	const tmp = "auto_job_runs__renum"
 	const old = "auto_job_runs__old"
 
-	_, _ = db.DB.Exec(`DROP TABLE IF EXISTS ` + tmp)
-	_, _ = db.DB.Exec(`DROP TABLE IF EXISTS ` + old)
+	_, _ = db.Exec(`DROP TABLE IF EXISTS ` + tmp)
+	_, _ = db.Exec(`DROP TABLE IF EXISTS ` + old)
 
-	if _, err := db.DB.Exec(`CREATE TABLE ` + tmp + ` LIKE auto_job_runs`); err != nil {
+	if _, err := db.Exec(`CREATE TABLE ` + tmp + ` LIKE auto_job_runs`); err != nil {
 		return false, 0, fmt.Errorf("创建重编号临时表失败: %w", err)
 	}
-	res, err := db.DB.Exec(`
+	res, err := db.Exec(`
 		INSERT INTO ` + tmp + ` (
 			run_uid, job_code, category, trigger_type, status, started_at, finished_at, duration_ms,
 			message, detail_json, error_text, keep_forever, operator
@@ -222,16 +226,16 @@ func MaybeRenumberRunIDsIfNearLimit() (did bool, newCount int64, err error) {
 		FROM auto_job_runs
 		ORDER BY started_at ASC, id ASC`)
 	if err != nil {
-		_, _ = db.DB.Exec(`DROP TABLE IF EXISTS ` + tmp)
+		_, _ = db.Exec(`DROP TABLE IF EXISTS ` + tmp)
 		return false, 0, fmt.Errorf("重编号拷贝失败: %w", err)
 	}
 	copied, _ := res.RowsAffected()
 
-	if _, err := db.DB.Exec(`RENAME TABLE auto_job_runs TO ` + old + `, ` + tmp + ` TO auto_job_runs`); err != nil {
-		_, _ = db.DB.Exec(`DROP TABLE IF EXISTS ` + tmp)
+	if _, err := db.Exec(`RENAME TABLE auto_job_runs TO ` + old + `, ` + tmp + ` TO auto_job_runs`); err != nil {
+		_, _ = db.Exec(`DROP TABLE IF EXISTS ` + tmp)
 		return false, 0, fmt.Errorf("重编号换表失败: %w", err)
 	}
-	_, _ = db.DB.Exec(`DROP TABLE IF EXISTS ` + old)
+	_, _ = db.Exec(`DROP TABLE IF EXISTS ` + old)
 
 	log.Printf("[AutoJob] 执行记录 id 已重编号：保留 %d 条，新自增从 %d 起（原水位 ai=%d max_id=%d）",
 		copied, copied+1, ai, maxID)
@@ -282,7 +286,7 @@ func CleanRuns(req CleanRunsRequest) (int64, error) {
 		where += ` AND job_code=?`
 		args = append(args, req.JobCode)
 	}
-	res, err := db.DB.Exec(`DELETE FROM auto_job_runs `+where, args...)
+	res, err := db.Exec(`DELETE FROM auto_job_runs `+where, args...)
 	if err != nil {
 		return 0, err
 	}
@@ -306,7 +310,7 @@ func MarkKeepForever(ids []uint64, keep bool) (int64, error) {
 		ph[i] = "?"
 		args = append(args, id)
 	}
-	res, err := db.DB.Exec(`UPDATE auto_job_runs SET keep_forever=? WHERE id IN (`+strings.Join(ph, ",")+`)`, args...)
+	res, err := db.Exec(`UPDATE auto_job_runs SET keep_forever=? WHERE id IN (`+strings.Join(ph, ",")+`)`, args...)
 	if err != nil {
 		return 0, err
 	}
@@ -317,16 +321,17 @@ func MarkKeepForever(ids []uint64, keep bool) (int64, error) {
 // RepairBadRunUIDs 修复长度不是 36 的旧 run_uid（曾用 jobCode+nano 超长被截断）
 func RepairBadRunUIDs() (int64, error) {
 	var ids []uint64
-	if err := db.DB.Select(&ids, `
+	// db.Q：SQLite 下 CHAR_LENGTH → LENGTH；Select 不会自动适配，必须显式包一层
+	if err := db.DB.Select(&ids, db.Q(`
 		SELECT id FROM auto_job_runs
 		WHERE run_uid = '' OR CHAR_LENGTH(run_uid) <> 36
 		ORDER BY id ASC
-		LIMIT 5000`); err != nil {
+		LIMIT 5000`)); err != nil {
 		return 0, err
 	}
 	var aff int64
 	for _, id := range ids {
-		res, err := db.DB.Exec(`UPDATE auto_job_runs SET run_uid=? WHERE id=?`, newRunUID(), id)
+		res, err := db.Exec(`UPDATE auto_job_runs SET run_uid=? WHERE id=?`, newRunUID(), id)
 		if err != nil {
 			return aff, err
 		}

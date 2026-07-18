@@ -129,7 +129,7 @@ func InitPaymentOrdersTable() {
 		INDEX idx_create_time (create_time)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='支付订单表';`
 
-	_, err := db.DB.Exec(schema)
+	_, err := db.Exec(schema)
 	if err != nil {
 		log.Printf("[Init] Failed to create payment_orders table: %v", err)
 	} else {
@@ -153,7 +153,7 @@ func CreatePaymentOrder(order *PaymentOrder) error {
 	order.CreateTime = now
 	order.UpdateTime = now
 
-	result, err := db.DB.Exec(
+	result, err := db.Exec(
 		`INSERT INTO payment_orders (order_no, user_id, gateway_id, trade_no, payment_channel, payment_type, amount, fee, pay_amount, subject, status, notify_count, pay_url, paid_at, expire_at, client_ip, extra, create_time, update_time)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		order.OrderNo, order.UserID, order.GatewayID, order.TradeNo, order.PaymentChannel, order.PaymentType,
@@ -194,7 +194,7 @@ func GetPaymentOrderByID(id uint64) (*PaymentOrder, error) {
 func GetPaymentOrderByIDForUpdate(tx *sql.Tx, id uint64) (*PaymentOrder, error) {
 	var order PaymentOrder
 	err := tx.QueryRow(
-		"SELECT id, order_no, user_id, gateway_id, trade_no, payment_channel, payment_type, amount, fee, pay_amount, subject, status, notify_count, COALESCE(pay_url,''), paid_at, expire_at, client_ip, COALESCE(extra,''), create_time, update_time FROM payment_orders WHERE id = ? FOR UPDATE",
+		db.Q("SELECT id, order_no, user_id, gateway_id, trade_no, payment_channel, payment_type, amount, fee, pay_amount, subject, status, notify_count, COALESCE(pay_url,''), paid_at, expire_at, client_ip, COALESCE(extra,''), create_time, update_time FROM payment_orders WHERE id = ? FOR UPDATE"),
 		id,
 	).Scan(
 		&order.ID, &order.OrderNo, &order.UserID, &order.GatewayID, &order.TradeNo,
@@ -213,7 +213,7 @@ func GetPaymentOrderByIDForUpdate(tx *sql.Tx, id uint64) (*PaymentOrder, error) 
 func GetPaymentOrderForUpdate(tx *sql.Tx, orderNo string) (*PaymentOrder, error) {
 	var order PaymentOrder
 	err := tx.QueryRow(
-		"SELECT id, order_no, user_id, gateway_id, trade_no, payment_channel, payment_type, amount, fee, pay_amount, subject, status, notify_count, COALESCE(pay_url,''), paid_at, expire_at, client_ip, COALESCE(extra,''), create_time, update_time FROM payment_orders WHERE order_no = ? FOR UPDATE",
+		db.Q("SELECT id, order_no, user_id, gateway_id, trade_no, payment_channel, payment_type, amount, fee, pay_amount, subject, status, notify_count, COALESCE(pay_url,''), paid_at, expire_at, client_ip, COALESCE(extra,''), create_time, update_time FROM payment_orders WHERE order_no = ? FOR UPDATE"),
 		orderNo,
 	).Scan(
 		&order.ID, &order.OrderNo, &order.UserID, &order.GatewayID, &order.TradeNo,
@@ -248,7 +248,7 @@ func canTransitionPaymentStatus(fromStatus, toStatus int) bool {
 // 仅当 tradeNo 非空时才更新 trade_no 字段，避免覆盖已保存的第三方交易号
 func UpdatePaymentOrderStatusTx(tx *sql.Tx, orderNo string, status int, tradeNo string) error {
 	var currentStatus int
-	if err := tx.QueryRow("SELECT status FROM payment_orders WHERE order_no = ? FOR UPDATE", orderNo).Scan(&currentStatus); err != nil {
+	if err := tx.QueryRow(db.Q("SELECT status FROM payment_orders WHERE order_no = ? FOR UPDATE"), orderNo).Scan(&currentStatus); err != nil {
 		return err
 	}
 	if !canTransitionPaymentStatus(currentStatus, status) {
@@ -279,7 +279,7 @@ func UpdatePaymentOrderPaymentInfo(orderNo, tradeNo, payURL string) error {
 	tradeNo = NormalizeTradeNo(tradeNo)
 	now := time.Now().Unix()
 	if tradeNo != "" {
-		_, err := db.DB.Exec(
+		_, err := db.Exec(
 			"UPDATE payment_orders SET trade_no = ?, pay_url = ?, update_time = ? WHERE order_no = ?",
 			tradeNo,
 			payURL,
@@ -288,7 +288,7 @@ func UpdatePaymentOrderPaymentInfo(orderNo, tradeNo, payURL string) error {
 		)
 		return err
 	}
-	_, err := db.DB.Exec(
+	_, err := db.Exec(
 		"UPDATE payment_orders SET pay_url = ?, update_time = ? WHERE order_no = ?",
 		payURL,
 		now,
@@ -315,7 +315,7 @@ func UpdatePaymentOrderStatus(orderNo string, status int, tradeNo string) error 
 
 // IncrementNotifyCount 增加通知次数
 func IncrementNotifyCount(orderNo string) {
-	db.DB.Exec("UPDATE payment_orders SET notify_count = notify_count + 1, update_time = ? WHERE order_no = ?", time.Now().Unix(), orderNo)
+	db.Exec("UPDATE payment_orders SET notify_count = notify_count + 1, update_time = ? WHERE order_no = ?", time.Now().Unix(), orderNo)
 }
 
 // GetPaymentOrderList 分页获取订单列表
@@ -365,7 +365,7 @@ func GetPaymentOrderList(userID uint64, page, pageSize int, status int, keyword 
 // CancelExpiredOrders 取消过期未支付的订单
 func CancelExpiredOrders() (int64, error) {
 	now := time.Now().Unix()
-	result, err := db.DB.Exec(
+	result, err := db.Exec(
 		"UPDATE payment_orders SET status = ?, update_time = ? WHERE status = ? AND expire_at > 0 AND expire_at < ?",
 		PaymentStatusCanceled, now, PaymentStatusPending, now,
 	)
@@ -417,7 +417,7 @@ func GetPaymentStats() (*PaymentStats, error) {
 
 // DeletePaymentOrder 删除订单（仅管理员）
 func DeletePaymentOrder(id uint64) error {
-	_, err := db.DB.Exec("DELETE FROM payment_orders WHERE id = ?", id)
+	_, err := db.Exec("DELETE FROM payment_orders WHERE id = ?", id)
 	return err
 }
 

@@ -193,7 +193,8 @@ func migrateCoreSchemas() {
 	}
 
 	for _, schema := range schemas {
-		if _, err := db.DB.Exec(schema); err != nil {
+		// 走 db.Exec：SQLite 下自动把 MySQL DDL 适配成可执行语句
+		if _, err := db.Exec(schema); err != nil {
 			log.Fatalf("[Migrate] 执行建表 SQL 失败: %v", err)
 		}
 	}
@@ -232,14 +233,14 @@ func migrateCoreSchemas() {
 		for _, r := range repairs {
 			if !db.CheckColumnExists("users", r.Column) {
 				log.Printf("[Migrate] users 补列 %s ...", r.Column)
-				if _, err := db.DB.Exec(r.AlterSQL); err != nil {
+				if _, err := db.Exec(r.AlterSQL); err != nil {
 					log.Printf("[Migrate] users 补列 %s 失败: %v", r.Column, err)
 				}
 			}
 		}
 
 		if db.CheckColumnExists("users", "admin_remark") {
-			if _, err := db.DB.Exec("UPDATE users SET admin_remark = '' WHERE admin_remark IS NULL"); err != nil {
+			if _, err := db.Exec("UPDATE users SET admin_remark = '' WHERE admin_remark IS NULL"); err != nil {
 				log.Printf("[Migrate] 规范化 users.admin_remark 失败: %v", err)
 			}
 		}
@@ -257,9 +258,9 @@ func migrateCoreSchemas() {
 
 	if db.CheckTableExists("verification_codes") {
 		if db.CheckColumnExists("verification_codes", "email") && !db.CheckColumnExists("verification_codes", "contact") {
-			if _, err := db.DB.Exec("ALTER TABLE verification_codes CHANGE COLUMN email contact VARCHAR(255) NOT NULL COMMENT '联系方式(邮箱或手机号)'"); err != nil {
+			if _, err := db.Exec("ALTER TABLE verification_codes CHANGE COLUMN email contact VARCHAR(255) NOT NULL COMMENT '联系方式(邮箱或手机号)'"); err != nil {
 				log.Printf("[Migrate] verification_codes.email→contact 失败: %v", err)
-			} else {
+			} else if !db.IsSQLite() {
 				log.Println("[Migrate] 已重命名 verification_codes.email → contact")
 			}
 		}

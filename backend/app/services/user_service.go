@@ -387,7 +387,7 @@ func (s *UserService) UpdateStatus(user_id uint64, status uint8) error {
 	}
 
 	now := time.Now().Unix()
-	if _, err := db.DB.Exec("UPDATE users SET status = ?, update_time = ? WHERE id = ?", status, now, user_id); err != nil {
+	if _, err := db.Exec("UPDATE users SET status = ?, update_time = ? WHERE id = ?", status, now, user_id); err != nil {
 		return err
 	}
 	if status == 0 {
@@ -431,7 +431,7 @@ func (s *UserService) Delete(user_id uint64) error {
 	}
 
 	now := time.Now().Unix()
-	if _, err := db.DB.Exec("UPDATE users SET delete_time = ?, status = 0, update_time = ? WHERE id = ?", now, now, user_id); err != nil {
+	if _, err := db.Exec("UPDATE users SET delete_time = ?, status = 0, update_time = ? WHERE id = ?", now, now, user_id); err != nil {
 		return err
 	}
 	revokeAllGuardSessions(user_id)
@@ -493,7 +493,7 @@ func (s *UserService) BatchDelete(user_ids []uint64) error {
 	if err != nil {
 		return err
 	}
-	if _, err = db.DB.Exec(query, args...); err != nil {
+	if _, err = db.Exec(query, args...); err != nil {
 		return err
 	}
 	for _, uid := range user_ids {
@@ -514,7 +514,7 @@ func (s *UserService) BatchUpdateStatus(user_ids []uint64, status uint8) error {
 	if err != nil {
 		return err
 	}
-	if _, err = db.DB.Exec(query, args...); err != nil {
+	if _, err = db.Exec(query, args...); err != nil {
 		return err
 	}
 	if status == 0 {
@@ -539,7 +539,7 @@ func revokeAllGuardSessions(user_id uint64) {
 // UpdateLoginInfo 更新登录信息
 func (s *UserService) UpdateLoginInfo(user_id uint64, ip string) error {
 	now := time.Now().Unix()
-	_, err := db.DB.Exec("UPDATE users SET last_login_time = ?, last_login_ip = ?, login_failure = 0, update_time = ? WHERE id = ?",
+	_, err := db.Exec("UPDATE users SET last_login_time = ?, last_login_ip = ?, login_failure = 0, update_time = ? WHERE id = ?",
 		now, ip, now, user_id)
 	return err
 }
@@ -547,7 +547,7 @@ func (s *UserService) UpdateLoginInfo(user_id uint64, ip string) error {
 // IncrementLoginFailure 增加登录失败次数
 func (s *UserService) IncrementLoginFailure(user_id uint64) error {
 	now := time.Now().Unix()
-	_, err := db.DB.Exec("UPDATE users SET login_failure = login_failure + 1, update_time = ? WHERE id = ?", now, user_id)
+	_, err := db.Exec("UPDATE users SET login_failure = login_failure + 1, update_time = ? WHERE id = ?", now, user_id)
 	return err
 }
 
@@ -567,7 +567,7 @@ func (s *UserService) IncrementLoginFailureWithLock(user_id uint64, max_failures
 	defer tx.Rollback()
 
 	var currentFailure int
-	if err := tx.QueryRow("SELECT login_failure FROM users WHERE id = ? FOR UPDATE", user_id).Scan(&currentFailure); err != nil {
+	if err := tx.QueryRow(db.Q("SELECT login_failure FROM users WHERE id = ? FOR UPDATE"), user_id).Scan(&currentFailure); err != nil {
 		return err
 	}
 
@@ -588,7 +588,7 @@ func (s *UserService) IncrementLoginFailureWithLock(user_id uint64, max_failures
 
 // ClearLockUntil 清除账户锁定
 func (s *UserService) ClearLockUntil(user_id uint64) error {
-	_, err := db.DB.Exec("UPDATE users SET lock_until = NULL, login_failure = 0 WHERE id = ?", user_id)
+	_, err := db.Exec("UPDATE users SET lock_until = NULL, login_failure = 0 WHERE id = ?", user_id)
 	return err
 }
 

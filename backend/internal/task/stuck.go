@@ -39,7 +39,7 @@ func MarkStuckRuns(globalStuckSec int) (int64, error) {
 			continue
 		}
 		errMsg := fmt.Sprintf("definition stuck after %ds", limit)
-		res, err := db.DB.Exec(`
+		res, err := db.Exec(`
 			UPDATE auto_job_definitions SET
 				last_status=?, last_finished_at=?, last_error=?,
 				lifetime_fail_count = lifetime_fail_count + 1, update_time=?

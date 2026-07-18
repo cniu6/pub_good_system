@@ -27,7 +27,7 @@ func InitVerificationCodeTable() {
 			INDEX idx_is_deleted (is_deleted)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 
-		_, err := db.DB.Exec(schema)
+		_, err := db.Exec(schema)
 		if err != nil {
 			log.Printf("[Init] Failed to create verification_codes table: %v", err)
 		} else {
@@ -44,7 +44,7 @@ func InitVerificationCodeTable() {
 func repairVerificationCodeTable() {
 	// 兼容旧表：早期字段名使用 email，但现在验证码同时服务邮箱与手机号。
 	if db.CheckColumnExists("verification_codes", "email") && !db.CheckColumnExists("verification_codes", "contact") {
-		if _, err := db.DB.Exec("ALTER TABLE verification_codes CHANGE COLUMN email contact VARCHAR(255) NOT NULL COMMENT '联系方式(邮箱或手机号)'"); err != nil {
+		if _, err := db.Exec("ALTER TABLE verification_codes CHANGE COLUMN email contact VARCHAR(255) NOT NULL COMMENT '联系方式(邮箱或手机号)'"); err != nil {
 			log.Printf("[Init] Failed to rename verification_codes.email to contact: %v", err)
 		} else {
 			log.Printf("[Init] Renamed verification_codes.email to contact")
@@ -55,7 +55,7 @@ func repairVerificationCodeTable() {
 	wrongColumns := []string{"type", "expire_at"}
 	for _, col := range wrongColumns {
 		if db.CheckColumnExists("verification_codes", col) {
-			_, err := db.DB.Exec("ALTER TABLE verification_codes DROP COLUMN " + col)
+			_, err := db.Exec("ALTER TABLE verification_codes DROP COLUMN " + col)
 			if err != nil {
 				log.Printf("[Init] Failed to drop old '%s' column: %v", col, err)
 			} else {
@@ -77,7 +77,7 @@ func repairVerificationCodeTable() {
 
 	for col, alterSQL := range requiredColumns {
 		if !db.CheckColumnExists("verification_codes", col) {
-			_, err := db.DB.Exec(alterSQL)
+			_, err := db.Exec(alterSQL)
 			if err != nil {
 				log.Printf("[Init] Failed to add column %s: %v", col, err)
 			} else {
@@ -113,7 +113,7 @@ type VerificationCode struct {
 // contact 既可以是邮箱，也可以是手机号。
 func CreateVerificationCode(contact, code, codeType string, expiresAt time.Time) error {
 	// 先将该联系方式该类型的旧验证码标记为软删除
-	_, err := db.DB.Exec(
+	_, err := db.Exec(
 		"UPDATE verification_codes SET is_deleted = 1 WHERE contact = ? AND code_type = ? AND is_deleted = 0 AND is_used = 0",
 		contact, codeType,
 	)
@@ -123,7 +123,7 @@ func CreateVerificationCode(contact, code, codeType string, expiresAt time.Time)
 
 	query := `INSERT INTO verification_codes (contact, code, code_type, expires_at, is_used, is_deleted) 
 			  VALUES (?, ?, ?, ?, 0, 0)`
-	_, err = db.DB.Exec(query, contact, code, codeType, expiresAt)
+	_, err = db.Exec(query, contact, code, codeType, expiresAt)
 	return err
 }
 
@@ -142,9 +142,9 @@ func HasRecentVerificationCode(contact, codeType string, since time.Time) (bool,
 // GetValidVerificationCode 获取有效的验证码（未使用、未过期、未软删除）。
 func GetValidVerificationCode(contact, codeType string) (*VerificationCode, error) {
 	var vc VerificationCode
-	query := `SELECT * FROM verification_codes 
+	query := db.Q(`SELECT * FROM verification_codes 
 			  WHERE contact = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND expires_at > NOW()
-			  ORDER BY created_at DESC LIMIT 1`
+			  ORDER BY created_at DESC LIMIT 1`)
 	err := db.DB.Get(&vc, query, contact, codeType)
 	if err != nil {
 		return nil, err
@@ -154,12 +154,12 @@ func GetValidVerificationCode(contact, codeType string) (*VerificationCode, erro
 
 // MarkVerificationCodeAsUsed 标记验证码为已使用
 func MarkVerificationCodeAsUsed(id uint64) error {
-	_, err := db.DB.Exec("UPDATE verification_codes SET is_used = 1 WHERE id = ?", id)
+	_, err := db.Exec("UPDATE verification_codes SET is_used = 1 WHERE id = ?", id)
 	return err
 }
 
 func ConsumeVerificationCode(contact, code, codeType string) (bool, error) {
-	result, err := db.DB.Exec(
+	result, err := db.Exec(
 		`UPDATE verification_codes
 		 SET is_used = 1
 		 WHERE id = (
@@ -183,7 +183,7 @@ func ConsumeVerificationCode(contact, code, codeType string) (bool, error) {
 
 // MarkVerificationCodeAsDeleted 软删除验证码
 func MarkVerificationCodeAsDeleted(id uint64) error {
-	_, err := db.DB.Exec("UPDATE verification_codes SET is_deleted = 1 WHERE id = ?", id)
+	_, err := db.Exec("UPDATE verification_codes SET is_deleted = 1 WHERE id = ?", id)
 	return err
 }
 
@@ -195,13 +195,13 @@ func DeleteVerificationCodesByContact(contact string, codeType string) error {
 		query += ` AND code_type = ?`
 		args = append(args, codeType)
 	}
-	_, err := db.DB.Exec(query, args...)
+	_, err := db.Exec(query, args...)
 	return err
 }
 
 // SoftDeleteExpiredCodes 软删除已过期的验证码
 func SoftDeleteExpiredCodes() (int64, error) {
-	res, err := db.DB.Exec("UPDATE verification_codes SET is_deleted = 1 WHERE expires_at <= NOW() AND is_deleted = 0")
+	res, err := db.Exec("UPDATE verification_codes SET is_deleted = 1 WHERE expires_at <= NOW() AND is_deleted = 0")
 	if err != nil {
 		return 0, err
 	}
@@ -211,7 +211,7 @@ func SoftDeleteExpiredCodes() (int64, error) {
 
 // CleanupOldVerificationCodes 清理7天前的已删除或已使用记录（硬删除）
 func CleanupOldVerificationCodes() (int64, error) {
-	res, err := db.DB.Exec(
+	res, err := db.Exec(
 		"DELETE FROM verification_codes WHERE (is_deleted = 1 OR is_used = 1) AND updated_at < DATE_SUB(NOW(), INTERVAL 7 DAY)",
 	)
 	if err != nil {

@@ -116,7 +116,9 @@ func RequireIdempotency(scope string, ttl time.Duration) gin.HandlerFunc {
 		if err != nil {
 			_ = tx.Rollback()
 			var mysqlErr *mysql.MySQLError
-			if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
+			// MySQL 1062 / SQLite UNIQUE：同 key 并发写入视为重复提交
+			if (errors.As(err, &mysqlErr) && mysqlErr.Number == 1062) ||
+				strings.Contains(strings.ToLower(err.Error()), "unique constraint failed") {
 				utils.Fail(c, 409, "请勿重复提交")
 			} else {
 				utils.Fail(c, 500, "幂等校验失败")

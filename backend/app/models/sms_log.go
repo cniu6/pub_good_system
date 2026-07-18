@@ -44,7 +44,7 @@ func InitSMSTable() {
 			INDEX idx_status (status),
 			INDEX idx_created_at (created_at)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
-		_, err := db.DB.Exec(schema)
+		_, err := db.Exec(schema)
 		if err != nil {
 			log.Printf("[Init] Failed to create sms_logs table: %v", err)
 		} else {
@@ -57,7 +57,7 @@ func InitSMSTable() {
 func CreateSMSLog(log *SMSLog) error {
 	query := `INSERT INTO sms_logs (phone, provider, template_code, template_name, lang, content, status, error_msg, request_id, response)
 			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := db.DB.Exec(query,
+	_, err := db.Exec(query,
 		log.Phone, log.Provider, log.TemplateCode, log.TemplateName,
 		log.Lang, log.Content, log.Status, log.ErrorMsg,
 		log.RequestID, log.Response,
@@ -152,7 +152,7 @@ func GetSMSLogByID(id uint64) (*SMSLog, error) {
 
 // DeleteSMSLogsBefore 删除指定时间之前的短信日志
 func DeleteSMSLogsBefore(before string) (int64, error) {
-	result, err := db.DB.Exec("DELETE FROM sms_logs WHERE created_at < ?", before)
+	result, err := db.Exec("DELETE FROM sms_logs WHERE created_at < ?", before)
 	if err != nil {
 		return 0, err
 	}

@@ -48,7 +48,7 @@ func InitUserSessionsTable() {
 			INDEX idx_user_active_login (user_id, auth_guard, is_active, login_at)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 
-		_, err := db.DB.Exec(schema)
+		_, err := db.Exec(schema)
 		if err != nil {
 			log.Printf("[Init] Failed to create user_sessions table: %v", err)
 		} else {
@@ -64,7 +64,7 @@ func InitUserSessionsTable() {
 
 	for column, alterSQL := range repairs {
 		if !db.CheckColumnExists("user_sessions", column) {
-			if _, err := db.DB.Exec(alterSQL); err != nil {
+			if _, err := db.Exec(alterSQL); err != nil {
 				log.Printf("[Init] Failed to add user_sessions.%s: %v", column, err)
 			} else {
 				log.Printf("[Init] Added user_sessions.%s", column)
@@ -90,7 +90,7 @@ func CreateUserSession(userID uint64, authGuard, tokenHash, refreshTokenHash, ip
 	if authGuard == "" {
 		authGuard = "user"
 	}
-	_, err := db.DB.Exec(
+	_, err := db.Exec(
 		`INSERT INTO user_sessions (user_id, auth_guard, token_hash, refresh_token_hash, ip, user_agent, device, is_active, login_at, expires_at, refresh_expires_at, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
 		userID, authGuard, tokenHash, refreshTokenHash, ip, userAgent, device, now, expiresAt, refreshExpiresAt, now,
@@ -137,7 +137,7 @@ func RotateUserSessionTokens(userID uint64, authGuard, currentRefreshTokenHash, 
 	if authGuard == "" {
 		authGuard = "user"
 	}
-	result, err := db.DB.Exec(
+	result, err := db.Exec(
 		`UPDATE user_sessions
 		 SET token_hash = ?, refresh_token_hash = ?, ip = ?, user_agent = ?, device = ?, expires_at = ?, refresh_expires_at = ?, login_at = ?
 		 WHERE user_id = ? AND auth_guard = ? AND refresh_token_hash = ? AND is_active = 1 AND refresh_expires_at > ?`,
@@ -190,7 +190,7 @@ func RevokeUserSessionWithGuard(userID uint64, authGuard, sessionID string) erro
 	if authGuard == "" {
 		authGuard = "user"
 	}
-	_, err := db.DB.Exec(
+	_, err := db.Exec(
 		"UPDATE user_sessions SET is_active = 0 WHERE id = ? AND user_id = ? AND auth_guard = ?",
 		sessionID, userID, authGuard,
 	)
@@ -207,13 +207,13 @@ func RevokeAllUserSessionsWithGuard(userID uint64, authGuard, currentTokenHash s
 		authGuard = "user"
 	}
 	if currentTokenHash != "" {
-		_, err := db.DB.Exec(
+		_, err := db.Exec(
 			"UPDATE user_sessions SET is_active = 0 WHERE user_id = ? AND auth_guard = ? AND token_hash != ?",
 			userID, authGuard, currentTokenHash,
 		)
 		return err
 	}
-	_, err := db.DB.Exec(
+	_, err := db.Exec(
 		"UPDATE user_sessions SET is_active = 0 WHERE user_id = ? AND auth_guard = ?",
 		userID, authGuard,
 	)

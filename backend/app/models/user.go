@@ -207,7 +207,7 @@ func GetUserByID(id uint64) (*User, error) {
 // UpdatePassword updates the user's password
 func UpdatePassword(userID uint64, hashedPassword string) error {
 	now := time.Now().Unix()
-	_, err := db.DB.Exec("UPDATE users SET password = ?, update_time = ? WHERE id = ?", hashedPassword, now, userID)
+	_, err := db.Exec("UPDATE users SET password = ?, update_time = ? WHERE id = ?", hashedPassword, now, userID)
 	if err != nil {
 		return err
 	}
@@ -220,7 +220,7 @@ func UpdatePassword(userID uint64, hashedPassword string) error {
 // UpdateLoginInfo 更新用户登录信息（成功登录后调用）
 func UpdateLoginInfo(userID uint64, loginIP string) error {
 	now := time.Now().Unix()
-	_, err := db.DB.Exec(
+	_, err := db.Exec(
 		"UPDATE users SET last_login_time = ?, last_login_ip = ?, login_failure = 0, lock_until = NULL, update_time = ? WHERE id = ?",
 		now, loginIP, now, userID,
 	)
@@ -231,7 +231,7 @@ func UpdateLoginInfo(userID uint64, loginIP string) error {
 func ResetUserApiKey(userID uint64) (string, error) {
 	newKey := generateApiKey()
 	now := time.Now().Unix()
-	_, err := db.DB.Exec("UPDATE users SET apikey = ?, update_time = ? WHERE id = ?", newKey, now, userID)
+	_, err := db.Exec("UPDATE users SET apikey = ?, update_time = ? WHERE id = ?", newKey, now, userID)
 	if err != nil {
 		return "", err
 	}
@@ -249,7 +249,7 @@ func generateApiKey() string {
 func IncrementLoginFailure(userID uint64, maxFailureCount int, lockDurationMinutes int) error {
 	now := time.Now().Unix()
 	// 先增加失败次数
-	_, err := db.DB.Exec("UPDATE users SET login_failure = login_failure + 1, update_time = ? WHERE id = ?", now, userID)
+	_, err := db.Exec("UPDATE users SET login_failure = login_failure + 1, update_time = ? WHERE id = ?", now, userID)
 	if err != nil {
 		return err
 	}
@@ -264,7 +264,7 @@ func IncrementLoginFailure(userID uint64, maxFailureCount int, lockDurationMinut
 	// 如果达到最大失败次数，设置锁定时间
 	if int(user.LoginFailure) >= maxFailureCount {
 		lockUntil := now + int64(lockDurationMinutes*60)
-		_, err = db.DB.Exec("UPDATE users SET lock_until = ?, update_time = ? WHERE id = ?", lockUntil, now, userID)
+		_, err = db.Exec("UPDATE users SET lock_until = ?, update_time = ? WHERE id = ?", lockUntil, now, userID)
 		return err
 	}
 

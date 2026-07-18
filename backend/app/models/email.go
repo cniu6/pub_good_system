@@ -35,7 +35,7 @@ type EmailTemplate struct {
 // CreateEmailLog 记录邮件发送日志
 func CreateEmailLog(to, subject, content, tplName string, status int, errorMsg string) error {
 	query := `INSERT INTO email_logs (to_email, subject, content, template_name, status, error_msg) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := db.DB.Exec(query, to, subject, content, tplName, status, errorMsg)
+	_, err := db.Exec(query, to, subject, content, tplName, status, errorMsg)
 	return err
 }
 
@@ -116,7 +116,7 @@ func GetEmailLogByID(id uint64) (*EmailLog, error) {
 
 // DeleteEmailLogsBefore 删除指定时间之前的邮件日志
 func DeleteEmailLogsBefore(before string) (int64, error) {
-	result, err := db.DB.Exec("DELETE FROM email_logs WHERE created_at < ?", before)
+	result, err := db.Exec("DELETE FROM email_logs WHERE created_at < ?", before)
 	if err != nil {
 		return 0, err
 	}
@@ -175,7 +175,7 @@ func GetEmailTemplate(name, lang string) (*EmailTemplate, error) {
 // UpdateEmailTemplateContent 更新模板内容
 func UpdateEmailTemplateContent(name, lang, content string) error {
 	query := `UPDATE email_templates SET content = ? WHERE name = ? AND lang = ?`
-	_, err := db.DB.Exec(query, content, name, lang)
+	_, err := db.Exec(query, content, name, lang)
 	return err
 }
 

@@ -38,13 +38,13 @@ func InitIdempotencyKeysTable() {
 		INDEX idx_expire_at (expire_at)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='接口幂等键表'`
 
-	if _, err := db.DB.Exec(schema); err != nil {
+	if _, err := db.Exec(schema); err != nil {
 		log.Printf("[Init] Failed to create idempotency_keys table: %v", err)
 	}
 
 	// 兼容旧表：补 status 列。已有行视为 completed（旧逻辑等于「占坑即锁定」）
 	if !db.CheckColumnExists("idempotency_keys", "status") {
-		if _, err := db.DB.Exec(
+		if _, err := db.Exec(
 			"ALTER TABLE idempotency_keys ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'completed' COMMENT 'processing=处理中 completed=已成功' AFTER request_hash",
 		); err != nil {
 			log.Printf("[Init] Failed to add idempotency_keys.status: %v", err)
@@ -56,7 +56,7 @@ func InitIdempotencyKeysTable() {
 
 func CleanupExpiredIdempotencyKeys() (int64, error) {
 	now := time.Now().Unix()
-	result, err := db.DB.Exec("DELETE FROM idempotency_keys WHERE expire_at > 0 AND expire_at <= ?", now)
+	result, err := db.Exec("DELETE FROM idempotency_keys WHERE expire_at > 0 AND expire_at <= ?", now)
 	if err != nil {
 		log.Printf("[Idempotency] cleanup failed: %v", err)
 		return 0, err
@@ -99,7 +99,7 @@ func GetActiveIdempotencyKeyTx(tx *sql.Tx, idemKey string, userID uint64, scope 
 
 // DeleteIdempotencyKey 释放幂等键（业务失败时调用，允许同 key 重试）
 func DeleteIdempotencyKey(idemKey string, userID uint64, scope string) error {
-	_, err := db.DB.Exec(
+	_, err := db.Exec(
 		"DELETE FROM idempotency_keys WHERE idem_key = ? AND user_id = ? AND scope = ?",
 		idemKey, userID, scope,
 	)
@@ -108,7 +108,7 @@ func DeleteIdempotencyKey(idemKey string, userID uint64, scope string) error {
 
 // MarkIdempotencyCompleted 业务成功后标记为 completed（真正锁定，禁止同 key 重放）
 func MarkIdempotencyCompleted(idemKey string, userID uint64, scope string) error {
-	_, err := db.DB.Exec(
+	_, err := db.Exec(
 		"UPDATE idempotency_keys SET status = ? WHERE idem_key = ? AND user_id = ? AND scope = ?",
 		IdempotencyStatusCompleted, idemKey, userID, scope,
 	)

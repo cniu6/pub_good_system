@@ -94,7 +94,7 @@ func InitSystemSettingsTable() {
 			INDEX idx_is_public (is_public)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统配置表';`
 
-		_, err := db.DB.Exec(schema)
+		_, err := db.Exec(schema)
 		if err != nil {
 			log.Fatalf("Error creating system_settings table: %v", err)
 		}
@@ -187,7 +187,7 @@ func initDefaultSettings() {
 
 		if err == sql.ErrNoRows {
 			// 不存在，插入默认值
-			_, err := db.DB.Exec(`
+			_, err := db.Exec(`
 				INSERT INTO system_settings (setting_key, setting_value, setting_type, category, label, description, is_public, is_editable, sort_order)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				setting.Key, setting.Value, setting.Type, setting.Category, setting.Label, setting.Description, setting.IsPublic, setting.IsEditable, setting.SortOrder)
@@ -200,7 +200,7 @@ func initDefaultSettings() {
 			log.Printf("[Init] Error checking setting %s: %v", setting.Key, err)
 		} else {
 			if existing.Type != setting.Type || existing.Category != setting.Category || existing.Label != setting.Label || existing.Description != setting.Description || existing.IsPublic != setting.IsPublic || existing.IsEditable != setting.IsEditable || existing.SortOrder != setting.SortOrder {
-				_, err := db.DB.Exec(`
+				_, err := db.Exec(`
 					UPDATE system_settings
 					SET setting_type = ?, category = ?, label = ?, description = ?, is_public = ?, is_editable = ?, sort_order = ?, updated_at = NOW()
 					WHERE setting_key = ?`,
@@ -281,13 +281,13 @@ func isPublicSettingKeyForbidden(key string) bool {
 
 // UpdateSetting 更新配置值
 func UpdateSetting(key string, value string) error {
-	_, err := db.DB.Exec("UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?", value, key)
+	_, err := db.Exec("UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?", value, key)
 	return err
 }
 
 // UpdateSettingWithMeta 更新配置值和元数据
 func UpdateSettingWithMeta(setting *SystemSetting) error {
-	_, err := db.DB.Exec(`
+	_, err := db.Exec(`
 		UPDATE system_settings 
 		SET setting_value = ?, setting_type = ?, category = ?, label = ?, description = ?, is_public = ?, is_editable = ?, sort_order = ?, updated_at = NOW()
 		WHERE setting_key = ?`,
@@ -297,7 +297,7 @@ func UpdateSettingWithMeta(setting *SystemSetting) error {
 
 // CreateSetting 创建新配置
 func CreateSetting(setting *SystemSetting) error {
-	_, err := db.DB.Exec(`
+	_, err := db.Exec(`
 		INSERT INTO system_settings (setting_key, setting_value, setting_type, category, label, description, is_public, is_editable, sort_order)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		setting.Key, setting.Value, setting.Type, setting.Category, setting.Label, setting.Description, setting.IsPublic, setting.IsEditable, setting.SortOrder)
@@ -306,7 +306,7 @@ func CreateSetting(setting *SystemSetting) error {
 
 // DeleteSetting 删除配置
 func DeleteSetting(key string) error {
-	_, err := db.DB.Exec("DELETE FROM system_settings WHERE setting_key = ?", key)
+	_, err := db.Exec("DELETE FROM system_settings WHERE setting_key = ?", key)
 	return err
 }
 
@@ -319,7 +319,7 @@ func BatchUpdateSettings(settings map[string]string) error {
 	defer tx.Rollback()
 
 	for key, value := range settings {
-		_, err := tx.Exec("UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?", value, key)
+		_, err := tx.Exec(db.Q("UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?"), value, key)
 		if err != nil {
 			return err
 		}

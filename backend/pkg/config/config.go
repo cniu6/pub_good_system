@@ -456,6 +456,10 @@ func parsePositiveIntValue(raw string, fallback int) int {
 }
 
 func buildDSN() string {
+	driver := strings.ToLower(strings.TrimSpace(getEnv("DB_DRIVER", "mysql")))
+	if driver == "sqlite" || driver == "sqlite3" {
+		return buildSQLiteDSN()
+	}
 	user := getEnv("DB_USER", "root")
 	pass := getEnv("DB_PASSWORD", "")
 	host := getEnv("DB_HOST", "127.0.0.1")
@@ -463,6 +467,33 @@ func buildDSN() string {
 	name := getEnv("DB_NAME", "fst_platform")
 
 	return user + ":" + pass + "@tcp(" + host + ":" + port + ")/" + name + "?charset=utf8mb4&parseTime=True&loc=Local"
+}
+
+// buildSQLiteDSN 组装 SQLite DSN（modernc.org/sqlite）。
+// 优先级：DB_PATH > 看起来像路径的 DB_NAME > 默认 data/fst.db
+// Windows 下会转成绝对路径 + file: URI，避免相对路径/反斜杠踩坑。
+func buildSQLiteDSN() string {
+	path := strings.TrimSpace(getEnv("DB_PATH", ""))
+	if path == "" {
+		name := strings.TrimSpace(getEnv("DB_NAME", ""))
+		switch {
+		case name == "" || name == "fst_platform":
+			path = filepath.Join("data", "fst.db")
+		case strings.HasSuffix(strings.ToLower(name), ".db"),
+			strings.ContainsAny(name, `/\`):
+			path = name
+		default:
+			path = filepath.Join("data", name+".db")
+		}
+	}
+
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		abs = path
+	}
+	// modernc：file:路径?_pragma=...；路径统一用斜杠
+	absSlash := filepath.ToSlash(abs)
+	return "file:" + absSlash + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_txlock=immediate"
 }
 
 type jsonDotEnv struct {

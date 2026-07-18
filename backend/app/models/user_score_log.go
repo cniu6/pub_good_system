@@ -38,7 +38,7 @@ func InitUserScoreLogsTable() {
 		INDEX idx_user_create_time (user_id, create_time)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 
-	_, err := db.DB.Exec(schema)
+	_, err := db.Exec(schema)
 	if err != nil {
 		log.Printf("[Init] Failed to create user_score_logs table: %v", err)
 	} else {
@@ -49,7 +49,7 @@ func InitUserScoreLogsTable() {
 // CreateUserScoreLog 创建积分变动记录
 func CreateUserScoreLog(userID uint64, score, before, after int64, memo string) (*UserScoreLog, error) {
 	now := time.Now().Unix()
-	result, err := db.DB.Exec(
+	result, err := db.Exec(
 		"INSERT INTO user_score_logs (user_id, score, `before`, `after`, memo, create_time) VALUES (?, ?, ?, ?, ?, ?)",
 		userID, score, before, after, memo, now,
 	)
@@ -118,14 +118,14 @@ func GetUserScoreLogList(onlyUserID uint64, page, pageSize int, keyword string) 
 
 // DeleteUserScoreLog 删除积分变动记录
 func DeleteUserScoreLog(id uint64) error {
-	_, err := db.DB.Exec("DELETE FROM user_score_logs WHERE id = ?", id)
+	_, err := db.Exec("DELETE FROM user_score_logs WHERE id = ?", id)
 	return err
 }
 
 // UpdateUserScore 直接更新用户积分字段
 func UpdateUserScore(userID uint64, newScore int64) error {
 	now := time.Now().Unix()
-	_, err := db.DB.Exec("UPDATE users SET score = ?, update_time = ? WHERE id = ?", newScore, now, userID)
+	_, err := db.Exec("UPDATE users SET score = ?, update_time = ? WHERE id = ?", newScore, now, userID)
 	return err
 }
 
@@ -161,7 +161,8 @@ func CreateUserScoreLogTx(tx *sql.Tx, userID uint64, score, before, after int64,
 // GetUserScoreForUpdate 在事务中锁定并读取用户积分（SELECT ... FOR UPDATE）
 func GetUserScoreForUpdate(tx *sql.Tx, userID uint64) (int64, error) {
 	var score int64
-	err := tx.QueryRow("SELECT score FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE", userID).Scan(&score)
+	// db.Q：SQLite 下自动剥掉 FOR UPDATE
+	err := tx.QueryRow(db.Q("SELECT score FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE"), userID).Scan(&score)
 	return score, err
 }
 

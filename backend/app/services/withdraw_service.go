@@ -130,7 +130,7 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 		Status uint8   `db:"status"`
 		Money  float64 `db:"money"`
 	}
-	if err := tx.QueryRow("SELECT status, money FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE", userID).Scan(&user.Status, &user.Money); err != nil {
+	if err := tx.QueryRow(db.Q("SELECT status, money FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE"), userID).Scan(&user.Status, &user.Money); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, NewClientError("用户不存在")
 		}
@@ -155,7 +155,7 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 	}
 
 	var pendingCount int
-	if err := tx.QueryRow("SELECT COUNT(*) FROM withdraw_requests WHERE user_id = ? AND status IN (?, ?) AND delete_time IS NULL FOR UPDATE", userID, models.WithdrawStatusPending, models.WithdrawStatusApproved).Scan(&pendingCount); err != nil {
+	if err := tx.QueryRow(db.Q("SELECT COUNT(*) FROM withdraw_requests WHERE user_id = ? AND status IN (?, ?) AND delete_time IS NULL FOR UPDATE"), userID, models.WithdrawStatusPending, models.WithdrawStatusApproved).Scan(&pendingCount); err != nil {
 		return nil, err
 	}
 	if pendingCount > 0 {

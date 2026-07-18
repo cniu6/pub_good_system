@@ -88,7 +88,7 @@ func InitAPIAccessLogAggregateTables() {
   }
 
   for _, schema := range schemas {
-    if _, err := db.DB.Exec(schema); err != nil {
+    if _, err := db.Exec(schema); err != nil {
       log.Printf("[Init] Failed to create API access log aggregate table: %v", err)
     }
   }
@@ -97,6 +97,7 @@ func InitAPIAccessLogAggregateTables() {
 }
 
 func backfillAPIAccessLogAggregateIfNeeded() {
+  // 日报查询统一经 db.Q 适配；SQLite 也需要回填已有日志，避免切换或重启后统计为空。
   if !db.CheckTableExists("api_access_logs") || !db.CheckTableExists("api_access_log_stats") {
     return
   }
@@ -169,7 +170,7 @@ func rebuildAPIAccessLogAggregate(tx *sqlx.Tx) error {
   }
 
   var dailyRows []apiAccessLogAggregateDailyRow
-  if err := tx.Select(&dailyRows, `SELECT CAST(DATE_FORMAT(FROM_UNIXTIME(create_time), '%Y%m%d') AS UNSIGNED) AS day_key, COUNT(*) AS total_count FROM api_access_logs GROUP BY day_key ORDER BY day_key ASC`); err != nil {
+  if err := tx.Select(&dailyRows, db.Q(`SELECT CAST(DATE_FORMAT(FROM_UNIXTIME(create_time), '%Y%m%d') AS UNSIGNED) AS day_key, COUNT(*) AS total_count FROM api_access_logs GROUP BY day_key ORDER BY day_key ASC`)); err != nil {
     return err
   }
   for _, row := range dailyRows {
@@ -265,7 +266,7 @@ func RecordAPIAccessLogAggregate(item *APIAccessLog) error {
   }
 
   if _, err := tx.Exec(
-    `INSERT INTO api_access_log_stats (stat_key, total_count, success_count, client_error_count, server_error_count, total_duration, updated_at)
+    db.Q(`INSERT INTO api_access_log_stats (stat_key, total_count, success_count, client_error_count, server_error_count, total_duration, updated_at)
     VALUES (?, 1, ?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
       total_count = total_count + 1,
@@ -273,7 +274,7 @@ func RecordAPIAccessLogAggregate(item *APIAccessLog) error {
       client_error_count = client_error_count + ?,
       server_error_count = server_error_count + ?,
       total_duration = total_duration + ?,
-      updated_at = ?`,
+      updated_at = ?`),
     apiAccessLogAggregateGlobalKey,
     successCount,
     clientErrorCount,
@@ -290,11 +291,11 @@ func RecordAPIAccessLogAggregate(item *APIAccessLog) error {
   }
 
   if _, err := tx.Exec(
-    `INSERT INTO api_access_log_daily_stats (day_key, total_count, updated_at)
+    db.Q(`INSERT INTO api_access_log_daily_stats (day_key, total_count, updated_at)
     VALUES (?, 1, ?)
     ON DUPLICATE KEY UPDATE
       total_count = total_count + 1,
-      updated_at = ?`,
+      updated_at = ?`),
     dayKey,
     updatedAt,
     updatedAt,
@@ -303,12 +304,12 @@ func RecordAPIAccessLogAggregate(item *APIAccessLog) error {
   }
 
   if _, err := tx.Exec(
-    `INSERT INTO api_access_log_path_stats (route_path, total_count, total_duration, updated_at)
+    db.Q(`INSERT INTO api_access_log_path_stats (route_path, total_count, total_duration, updated_at)
     VALUES (?, 1, ?, ?)
     ON DUPLICATE KEY UPDATE
       total_count = total_count + 1,
       total_duration = total_duration + ?,
-      updated_at = ?`,
+      updated_at = ?`),
     routePath,
     item.Duration,
     updatedAt,
@@ -319,11 +320,11 @@ func RecordAPIAccessLogAggregate(item *APIAccessLog) error {
   }
 
   if _, err := tx.Exec(
-    `INSERT INTO api_access_log_method_stats (method, total_count, updated_at)
+    db.Q(`INSERT INTO api_access_log_method_stats (method, total_count, updated_at)
     VALUES (?, 1, ?)
     ON DUPLICATE KEY UPDATE
       total_count = total_count + 1,
-      updated_at = ?`,
+      updated_at = ?`),
     method,
     updatedAt,
     updatedAt,
@@ -332,11 +333,11 @@ func RecordAPIAccessLogAggregate(item *APIAccessLog) error {
   }
 
   if _, err := tx.Exec(
-    `INSERT INTO api_access_log_scene_stats (scene, total_count, updated_at)
+    db.Q(`INSERT INTO api_access_log_scene_stats (scene, total_count, updated_at)
     VALUES (?, 1, ?)
     ON DUPLICATE KEY UPDATE
       total_count = total_count + 1,
-      updated_at = ?`,
+      updated_at = ?`),
     scene,
     updatedAt,
     updatedAt,
@@ -346,10 +347,10 @@ func RecordAPIAccessLogAggregate(item *APIAccessLog) error {
 
   if ip != "" {
     if _, err := tx.Exec(
-      `INSERT INTO api_access_log_ip_stats (ip, first_seen_at, last_seen_at)
+      db.Q(`INSERT INTO api_access_log_ip_stats (ip, first_seen_at, last_seen_at)
       VALUES (?, ?, ?)
       ON DUPLICATE KEY UPDATE
-        last_seen_at = CASE WHEN last_seen_at > ? THEN last_seen_at ELSE ? END`,
+        last_seen_at = CASE WHEN last_seen_at > ? THEN last_seen_at ELSE ? END`),
       ip,
       createTime,
       createTime,

@@ -76,13 +76,13 @@ func GetRealnameVerificationByUserID(userID uint64) (*RealnameVerification, erro
 func GetRealnameVerificationByUserIDForUpdate(tx *sql.Tx, userID uint64) (*RealnameVerification, error) {
 	var verification RealnameVerification
 	err := tx.QueryRow(
-		`SELECT id, user_id, real_name, certificate_type, certificate_no, certificate_front, certificate_back,
+		db.Q(`SELECT id, user_id, real_name, certificate_type, certificate_no, certificate_front, certificate_back,
 		        status, reject_reason, submitted_at, reviewed_at, reviewed_by, create_time, update_time, delete_time
 		   FROM user_realname_verifications
 		  WHERE user_id = ? AND delete_time IS NULL
 		  ORDER BY id DESC
 		  LIMIT 1
-		  FOR UPDATE`,
+		  FOR UPDATE`),
 		userID,
 	).Scan(
 		&verification.ID,
@@ -123,11 +123,11 @@ func GetRealnameVerificationByID(id uint64) (*RealnameVerification, error) {
 func GetRealnameVerificationByIDForUpdate(tx *sql.Tx, id uint64) (*RealnameVerification, error) {
 	var verification RealnameVerification
 	err := tx.QueryRow(
-		`SELECT id, user_id, real_name, certificate_type, certificate_no, certificate_front, certificate_back,
+		db.Q(`SELECT id, user_id, real_name, certificate_type, certificate_no, certificate_front, certificate_back,
 		        status, reject_reason, submitted_at, reviewed_at, reviewed_by, create_time, update_time, delete_time
 		   FROM user_realname_verifications
 		  WHERE id = ? AND delete_time IS NULL
-		  FOR UPDATE`,
+		  FOR UPDATE`),
 		id,
 	).Scan(
 		&verification.ID,
@@ -170,7 +170,7 @@ func UpdateRealnameVerificationStatus(id uint64, status uint8, rejectReason stri
 	query := `UPDATE user_realname_verifications
 			  SET status = ?, reject_reason = ?, reviewed_at = ?, reviewed_by = ?, update_time = ?
 			  WHERE id = ? AND delete_time IS NULL`
-	result, err := db.DB.Exec(query, status, rejectReason, now, reviewedBy, now, id)
+	result, err := db.Exec(query, status, rejectReason, now, reviewedBy, now, id)
 	if err != nil {
 		return err
 	}
@@ -210,7 +210,7 @@ func UpdateRealnameVerificationStatusTx(tx *sql.Tx, id uint64, status uint8, rej
 func SoftDeleteRealnameVerification(id uint64) error {
 	now := time.Now().Unix()
 	query := `UPDATE user_realname_verifications SET delete_time = ?, update_time = ? WHERE id = ? AND delete_time IS NULL`
-	_, err := db.DB.Exec(query, now, now, id)
+	_, err := db.Exec(query, now, now, id)
 	return err
 }
 

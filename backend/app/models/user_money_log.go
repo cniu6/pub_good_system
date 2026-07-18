@@ -40,7 +40,7 @@ func InitUserMoneyLogsTable() {
 		INDEX idx_user_create_time (user_id, create_time)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 
-	_, err := db.DB.Exec(schema)
+	_, err := db.Exec(schema)
 	if err != nil {
 		log.Printf("[Init] Failed to create user_money_logs table: %v", err)
 	} else {
@@ -51,7 +51,7 @@ func InitUserMoneyLogsTable() {
 // CreateUserMoneyLog 创建余额变动记录
 func CreateUserMoneyLog(userID uint64, money, before, after float64, memo string) (*UserMoneyLog, error) {
 	now := time.Now().Unix()
-	result, err := db.DB.Exec(
+	result, err := db.Exec(
 		"INSERT INTO user_money_logs (user_id, money, `before`, `after`, memo, create_time) VALUES (?, ?, ?, ?, ?, ?)",
 		userID, money, before, after, memo, now,
 	)
@@ -121,7 +121,7 @@ func GetUserMoneyLogList(onlyUserID uint64, page, pageSize int, keyword string) 
 
 // DeleteUserMoneyLog 删除余额变动记录
 func DeleteUserMoneyLog(id uint64) error {
-	_, err := db.DB.Exec("DELETE FROM user_money_logs WHERE id = ?", id)
+	_, err := db.Exec("DELETE FROM user_money_logs WHERE id = ?", id)
 	return err
 }
 
@@ -132,7 +132,7 @@ func UpdateUserMoney(userID uint64, newMoney float64) error {
 		return err
 	}
 	now := time.Now().Unix()
-	_, err = db.DB.Exec("UPDATE users SET money = ?, update_time = ? WHERE id = ?", normalized, now, userID)
+	_, err = db.Exec("UPDATE users SET money = ?, update_time = ? WHERE id = ?", normalized, now, userID)
 	return err
 }
 
@@ -183,7 +183,8 @@ func CreateUserMoneyLogTx(tx *sql.Tx, userID uint64, money, before, after float6
 // GetUserMoneyForUpdate 在事务中锁定并读取用户余额（SELECT ... FOR UPDATE）
 func GetUserMoneyForUpdate(tx *sql.Tx, userID uint64) (float64, error) {
 	var money float64
-	err := tx.QueryRow("SELECT money FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE", userID).Scan(&money)
+	// db.Q：SQLite 下自动剥掉 FOR UPDATE
+	err := tx.QueryRow(db.Q("SELECT money FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE"), userID).Scan(&money)
 	return money, err
 }
 

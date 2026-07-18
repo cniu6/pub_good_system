@@ -127,7 +127,7 @@ func (ctrl *EmailTemplateController) Update(c *gin.Context) {
 		status = *req.Status
 	}
 
-	if _, err := db.DB.Exec(update_query, req.Subject, req.Content, req.Description, status, id); err != nil {
+	if _, err := db.Exec(update_query, req.Subject, req.Content, req.Description, status, id); err != nil {
 		utils.Fail(c, 500, "Failed to update template")
 		return
 	}
@@ -281,7 +281,7 @@ func (ctrl *EmailTemplateController) Reset(c *gin.Context) {
 	if templates, ok := default_templates[template.Name]; ok {
 		if default_tpl, ok := templates[template.Lang]; ok {
 			update_query := "UPDATE email_templates SET subject = ?, content = ? WHERE id = ?"
-			if _, err := db.DB.Exec(update_query, default_tpl.Subject, default_tpl.Content, id); err != nil {
+			if _, err := db.Exec(update_query, default_tpl.Subject, default_tpl.Content, id); err != nil {
 				utils.Fail(c, 500, "Failed to reset template")
 				return
 			}

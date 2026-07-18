@@ -57,7 +57,7 @@ func InitOperationLogsTable() {
 			INDEX idx_handler_create_time (handler_name, create_time)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 
-		_, err := db.DB.Exec(schema)
+		_, err := db.Exec(schema)
 		if err != nil {
 			log.Printf("[Init] Failed to create operation_logs table: %v", err)
 		} else {
@@ -88,7 +88,7 @@ func InitOperationLogsTable() {
 
 	for _, repair := range columnRepairs {
 		if !db.CheckColumnExists("operation_logs", repair.column) {
-			if _, err := db.DB.Exec(repair.alterSQL); err != nil {
+			if _, err := db.Exec(repair.alterSQL); err != nil {
 				log.Printf("[Init] Failed to add operation_logs.%s: %v", repair.column, err)
 			} else {
 				log.Printf("[Init] Added operation_logs.%s", repair.column)
@@ -97,7 +97,7 @@ func InitOperationLogsTable() {
 	}
 
 	if db.CheckColumnExists("operation_logs", "created_at") && db.CheckColumnExists("operation_logs", "create_time") {
-		_, _ = db.DB.Exec("UPDATE operation_logs SET create_time = UNIX_TIMESTAMP(created_at) WHERE create_time = 0 AND created_at IS NOT NULL")
+		_, _ = db.Exec("UPDATE operation_logs SET create_time = UNIX_TIMESTAMP(created_at) WHERE create_time = 0 AND created_at IS NOT NULL")
 	}
 
 	indexRepairs := map[string]string{
@@ -242,7 +242,7 @@ func GetOperationLogList(query *OperationLogQuery) ([]OperationLog, int64, error
 
 // DeleteOperationLogsBefore 删除指定时间之前的日志
 func DeleteOperationLogsBefore(before_time int64) (int64, error) {
-	result, err := db.DB.Exec("DELETE FROM operation_logs WHERE create_time < ?", before_time)
+	result, err := db.Exec("DELETE FROM operation_logs WHERE create_time < ?", before_time)
 	if err != nil {
 		return 0, err
 	}
@@ -274,7 +274,7 @@ func CleanExcessOperationLogs(maxCount int) (int64, error) {
 		return 0, err
 	}
 
-	result, err := db.DB.Exec(
+	result, err := db.Exec(
 		"DELETE FROM operation_logs WHERE create_time < ? OR (create_time = ? AND id < ?)",
 		cutoff.CreateTime,
 		cutoff.CreateTime,
