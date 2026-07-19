@@ -22,6 +22,7 @@ func TestPublicAuthAndSettings(t *testing.T) {
 	g := r.Group("/api/v1/public")
 	public.NewAuthController().RegisterRoutes(g)
 	public.NewSettingsController().RegisterRoutes(g)
+	public.NewGeoController().RegisterRoutes(g)
 	public.NewPaymentCallbackController().RegisterRoutes(g)
 
 	t.Run("app-config可读", func(t *testing.T) {
@@ -37,6 +38,29 @@ func TestPublicAuthAndSettings(t *testing.T) {
 		}
 		if resp["code"] != float64(0) && resp["code"] != float64(200) {
 			t.Fatalf("code=%v body=%s", resp["code"], w.Body.String())
+		}
+	})
+
+	t.Run("phone-country探测可读", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/geo/phone-country?lang=zhCN", nil)
+		r.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+		}
+		var resp map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatal(err)
+		}
+		if resp["code"] != float64(0) && resp["code"] != float64(200) {
+			t.Fatalf("code=%v body=%s", resp["code"], w.Body.String())
+		}
+		data, _ := resp["data"].(map[string]any)
+		if data == nil {
+			t.Fatalf("data empty: %s", w.Body.String())
+		}
+		if data["country_code"] == nil || data["dial_code"] == nil {
+			t.Fatalf("missing country fields: %v", data)
 		}
 	})
 

@@ -30,6 +30,8 @@ func registerAdminRoutes(v1 *gin.RouterGroup) {
 			// 静态路径必须写在 /:id 之前，避免被参数路由吞掉（Gin 虽优先静态，显式顺序更清晰）
 			users.GET("/lookup", adminUserCtrl.LookupUser)
 			users.POST("/batch-simple", adminUserCtrl.BatchGetSimpleInfo)
+			users.GET("/:id/sessions", adminOnlineCtrl.UserSessions)
+			users.POST("/:id/sessions/revoke-all", adminOnlineCtrl.RevokeAllUserSessions)
 			users.GET("/:id", adminUserCtrl.Detail)
 			users.POST("", adminUserCtrl.Create)
 			users.PUT("/:id", adminUserCtrl.Update)
@@ -40,9 +42,17 @@ func registerAdminRoutes(v1 *gin.RouterGroup) {
 			users.POST("/:id/reset-apikey", adminUserCtrl.ResetApiKey)
 		}
 
+		online := adminGroup.Group("/online")
+		{
+			online.GET("/stats", adminOnlineCtrl.Stats)
+			online.GET("/sessions", adminOnlineCtrl.ListSessions)
+			online.DELETE("/sessions/:id", adminOnlineCtrl.RevokeSession)
+		}
+
 		logs := adminGroup.Group("/logs")
 		{
 			logs.GET("", adminLogCtrl.List)
+			logs.GET("/stats", adminLogCtrl.Stats)
 			logs.GET("/:id", adminLogCtrl.Detail)
 			logs.POST("/clean", adminLogCtrl.Clean)
 		}
@@ -64,6 +74,15 @@ func registerAdminRoutes(v1 *gin.RouterGroup) {
 			emailTemplates.PUT("/:id", adminEmailTplCtrl.Update)
 			emailTemplates.POST("/:id/preview", adminEmailTplCtrl.Preview)
 			emailTemplates.POST("/:id/reset", adminEmailTplCtrl.Reset)
+		}
+
+		smsTemplates := adminGroup.Group("/sms-templates")
+		{
+			smsTemplates.GET("", adminSMSTplCtrl.List)
+			smsTemplates.GET("/:id", adminSMSTplCtrl.Detail)
+			smsTemplates.PUT("/:id", adminSMSTplCtrl.Update)
+			smsTemplates.POST("/:id/preview", adminSMSTplCtrl.Preview)
+			smsTemplates.POST("/:id/reset", adminSMSTplCtrl.Reset)
 		}
 
 		emailLogs := adminGroup.Group("/email-logs")

@@ -165,12 +165,11 @@ function generateProxyFromConfig(
     if (typeof serviceUrl === 'string' && serviceUrl.trim()) {
       const proxyPath = `/${proxyPrefix}${serviceName}`
 
-      const isWs = serviceUrl.startsWith('ws://') || serviceUrl.startsWith('wss://')
-      // 生成代理配置
+      // HTTP/WS 目标都开启 ws，便于 Presence 握手经开发代理升级
       proxyConfig[proxyPath] = {
         target: serviceUrl,
         changeOrigin: true,
-        ws: isWs,
+        ws: true,
         rewrite: (path: string): string => path.replace(new RegExp(`^/${proxyPrefix}${serviceName}`), ''),
       }
 

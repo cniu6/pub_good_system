@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { NButton, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
-import { useTableColumnVisibility } from '@/hooks'
+import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import {
   deleteUser,
   fetchAdminUserPage,
@@ -234,6 +234,22 @@ export function useUserList(options?: {
       render: (row: AdminUser) => row.admin_remark || '-',
     },
     {
+      // 「最近登录」用于快速判断用户上次活跃时间，无需进详情页；在线设备详情见详情页「安全」Tab
+      title: t('adminUsers.lastLoginTime'),
+      key: 'last_login_time',
+      width: 180,
+      render: (row: AdminUser) => {
+        if (!row.last_login_time)
+          return '-'
+        try {
+          return new Date(row.last_login_time * 1000).toLocaleString()
+        }
+        catch {
+          return row.last_login_time as any
+        }
+      },
+    },
+    {
       title: t('adminUsers.registerTime'),
       key: 'create_time',
       width: 180,
@@ -308,6 +324,7 @@ export function useUserList(options?: {
     { key: 'status', label: t('adminUsers.status') },
     { key: 'realname_status', label: t('adminUsers.realnameStatus') },
     { key: 'admin_remark', label: t('adminUsers.adminRemark') },
+    { key: 'last_login_time', label: t('adminUsers.lastLoginTime') },
     { key: 'create_time', label: t('adminUsers.registerTime') },
     { key: 'update_time', label: t('adminUsers.updateTime') },
   ]
@@ -328,7 +345,10 @@ export function useUserList(options?: {
     minScrollX: 1280,
   })
 
+  const { begin: beginFetch, isLatest: isLatestFetch } = useRequestGuard()
+
   async function fetchData() {
+    const token = beginFetch()
     loading.value = true
     try {
       const response: any = await fetchAdminUserPage({
@@ -337,14 +357,12 @@ export function useUserList(options?: {
         keyword: searchForm.keyword || undefined,
         realname_status: searchForm.realnameStatus ?? undefined,
       })
+      if (!isLatestFetch(token))
+        return
 
       if (response.isSuccess) {
         const data = response.data
-        if (Array.isArray(data)) {
-          userData.value = data
-          pagination.itemCount = response.total || 0
-        }
-        else if (data && data.list) {
+        if (data && data.list) {
           userData.value = data.list || []
           pagination.itemCount = data.total || response.total || 0
         }
@@ -358,10 +376,12 @@ export function useUserList(options?: {
       }
     }
     catch {
-      message.error(t('adminUsers.fetchListFailed'))
+      if (isLatestFetch(token))
+        message.error(t('adminUsers.fetchListFailed'))
     }
     finally {
-      loading.value = false
+      if (isLatestFetch(token))
+        loading.value = false
     }
   }
 

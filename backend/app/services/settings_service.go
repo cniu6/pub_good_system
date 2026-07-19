@@ -26,6 +26,10 @@ var GlobalSettingsService *SettingsService
 func InitSettingsService() {
 	GlobalSettingsService = NewSettingsService(5 * time.Minute)
 	ReloadGlobalRuntimeConfig()
+	// 注入在线心跳容忍窗口的动态实现，避免 models 包直接依赖 services（防止循环引用）。
+	models.GetOnlineHeartbeatGraceSeconds = func() int64 {
+		return GetGlobalOnlinePresenceRuntimeConfig().GraceSeconds
+	}
 	log.Println("[SettingsService] Initialized with cache TTL: 5m")
 }
 
@@ -220,7 +224,11 @@ type PublicAppConfig struct {
 	GeetestCaptchaId   string `json:"geetest_captcha_id"`
 	EmailVerifyEnabled bool   `json:"email_verify_enabled"`
 	SMSVerifyEnabled   bool   `json:"sms_verify_enabled"`
-	RealnameEnabled    bool   `json:"realname_enabled"`
+	// MobileCNOnly 为 true 时仅允许中国大陆手机号（+86）；false 时允许国际 E.164
+	MobileCNOnly bool `json:"mobile_cn_only"`
+	// MobileIPCountryDetect 国际号模式下是否按 IP/CDN 头预选国家区号
+	MobileIPCountryDetect bool `json:"mobile_ip_country_detect"`
+	RealnameEnabled       bool `json:"realname_enabled"`
 	RealnameNotifyText string `json:"realname_notify_text"`
 	WithdrawEnabled    bool     `json:"withdraw_enabled"`
 	WithdrawMinAmount  float64  `json:"withdraw_min_amount"`
@@ -228,6 +236,8 @@ type PublicAppConfig struct {
 	WithdrawAccountTypes []string `json:"withdraw_account_types"`
 	// AdminAPIPath 管理端 REST API 在 /api/v1 下的前缀（来自 env ADMIN_API_PATH，默认 /admin）
 	AdminAPIPath string `json:"admin_api_path"`
+	// OnlineReportIntervalSeconds 在线心跳上报周期（秒），前端 Presence 心跳按此间隔发送
+	OnlineReportIntervalSeconds int `json:"online_report_interval_seconds"`
 }
 
 // VerifyConfig 验证码功能开关运行时配置
@@ -252,9 +262,33 @@ type SMSRuntimeConfig struct {
 
 // APILogRuntimeConfig API访问日志运行时配置
 type APILogRuntimeConfig struct {
-	Enabled   bool
-	QueryDays int
-	MaxCount  int
+	Enabled              bool
+	QueryDays            int
+	MaxCount             int
+	PerUserLimitEnabled  bool
+	PerUserMaxCount      int
+}
+
+// OperationLogRuntimeConfig 操作日志运行时配置
+type OperationLogRuntimeConfig struct {
+	QueryDays           int
+	MaxCount            int
+	PerUserLimitEnabled bool
+	PerUserMaxCount     int
+}
+
+// SMSLogRuntimeConfig 短信日志运行时配置
+type SMSLogRuntimeConfig struct {
+	MaxCount            int
+	PerUserLimitEnabled bool
+	PerUserMaxCount     int
+}
+
+// EmailLogRuntimeConfig 邮件日志运行时配置
+type EmailLogRuntimeConfig struct {
+	MaxCount            int
+	PerUserLimitEnabled bool
+	PerUserMaxCount     int
 }
 
 // RateLimitRuntimeConfig 全局/管理员限速运行时配置
@@ -269,6 +303,13 @@ type GeetestRuntimeConfig struct {
 	Enabled    bool
 	CaptchaID  string
 	CaptchaKey string
+}
+
+// OnlinePresenceRuntimeConfig 在线状态运行时配置：管理端可配置「上报周期」，
+// 容忍窗口（GraceSeconds）按上报周期的 3 倍换算，容许偶尔丢失 1~2 次心跳而不误判离线。
+type OnlinePresenceRuntimeConfig struct {
+	ReportIntervalSeconds int   // 客户端心跳上报周期（秒），默认 30
+	GraceSeconds          int64 // 判定离线的容忍窗口（秒）
 }
 
 // RealnameAPIRuntimeConfig 实名认证API运行时配置
@@ -465,6 +506,46 @@ func GetGlobalVerifyConfig() VerifyConfig {
 	}
 }
 
+// GetGlobalMobileCNOnly 是否仅允许中国大陆手机号（默认 true）。
+// GetOnlinePresenceRuntimeConfig 计算在线心跳的上报周期与离线容忍窗口。
+func (s *SettingsService) GetOnlinePresenceRuntimeConfig() OnlinePresenceRuntimeConfig {
+	interval := s.getRuntimePositiveInt("online_report_interval_seconds", 30)
+	if interval < 10 {
+		interval = 10
+	}
+	if interval > 300 {
+		interval = 300
+	}
+	grace := int64(interval) * 3
+	if grace < 60 {
+		grace = 60
+	}
+	return OnlinePresenceRuntimeConfig{ReportIntervalSeconds: interval, GraceSeconds: grace}
+}
+
+// GetGlobalOnlinePresenceRuntimeConfig 全局访问入口，服务未初始化时回退默认值（30s 上报 / 90s 容忍）。
+func GetGlobalOnlinePresenceRuntimeConfig() OnlinePresenceRuntimeConfig {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.GetOnlinePresenceRuntimeConfig()
+	}
+	return OnlinePresenceRuntimeConfig{ReportIntervalSeconds: 30, GraceSeconds: 90}
+}
+
+func GetGlobalMobileCNOnly() bool {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.GetBoolWithDefault("mobile_cn_only", true)
+	}
+	return true
+}
+
+// GetGlobalMobileIPCountryDetect 国际号模式下是否按 IP 自动匹配国家（默认 false）。
+func GetGlobalMobileIPCountryDetect() bool {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.GetBoolWithDefault("mobile_ip_country_detect", false)
+	}
+	return false
+}
+
 // GetGlobalSMSRuntimeConfig returns effective SMS config with global cache.
 func GetGlobalSMSRuntimeConfig() SMSRuntimeConfig {
 	if GlobalSettingsService != nil {
@@ -487,9 +568,11 @@ func GetGlobalSMSRuntimeConfig() SMSRuntimeConfig {
 
 func (s *SettingsService) GetAPILogRuntimeConfig() APILogRuntimeConfig {
 	return APILogRuntimeConfig{
-		Enabled:   s.getRuntimeBool("api_access_log_enabled", true),
-		QueryDays: s.getRuntimePositiveInt("api_log_query_days", 7),
-		MaxCount:  s.getRuntimePositiveInt("api_log_max_count", 1000),
+		Enabled:             s.getRuntimeBool("api_access_log_enabled", true),
+		QueryDays:           s.getRuntimePositiveInt("api_log_query_days", 7),
+		MaxCount:            s.getRuntimePositiveInt("api_log_max_count", 1000),
+		PerUserLimitEnabled: s.getRuntimeBool("api_log_per_user_limit_enabled", false),
+		PerUserMaxCount:     s.getRuntimePositiveInt("api_log_per_user_max_count", 1000),
 	}
 }
 
@@ -498,9 +581,70 @@ func GetGlobalAPILogRuntimeConfig() APILogRuntimeConfig {
 		return GlobalSettingsService.GetAPILogRuntimeConfig()
 	}
 	return APILogRuntimeConfig{
-		Enabled:   getDirectSettingBool("api_access_log_enabled", true),
-		QueryDays: getDirectSettingPositiveInt("api_log_query_days", 7),
-		MaxCount:  getDirectSettingPositiveInt("api_log_max_count", 1000),
+		Enabled:             getDirectSettingBool("api_access_log_enabled", true),
+		QueryDays:           getDirectSettingPositiveInt("api_log_query_days", 7),
+		MaxCount:            getDirectSettingPositiveInt("api_log_max_count", 1000),
+		PerUserLimitEnabled: getDirectSettingBool("api_log_per_user_limit_enabled", false),
+		PerUserMaxCount:     getDirectSettingPositiveInt("api_log_per_user_max_count", 1000),
+	}
+}
+
+func (s *SettingsService) GetOperationLogRuntimeConfig() OperationLogRuntimeConfig {
+	return OperationLogRuntimeConfig{
+		QueryDays:           s.getRuntimePositiveInt("operation_log_query_days", 30),
+		MaxCount:            s.getRuntimePositiveInt("operation_log_max_count", 1000),
+		PerUserLimitEnabled: s.getRuntimeBool("operation_log_per_user_limit_enabled", false),
+		PerUserMaxCount:     s.getRuntimePositiveInt("operation_log_per_user_max_count", 1000),
+	}
+}
+
+func GetGlobalOperationLogRuntimeConfig() OperationLogRuntimeConfig {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.GetOperationLogRuntimeConfig()
+	}
+	return OperationLogRuntimeConfig{
+		QueryDays:           getDirectSettingPositiveInt("operation_log_query_days", 30),
+		MaxCount:            getDirectSettingPositiveInt("operation_log_max_count", 1000),
+		PerUserLimitEnabled: getDirectSettingBool("operation_log_per_user_limit_enabled", false),
+		PerUserMaxCount:     getDirectSettingPositiveInt("operation_log_per_user_max_count", 1000),
+	}
+}
+
+func (s *SettingsService) GetSMSLogRuntimeConfig() SMSLogRuntimeConfig {
+	return SMSLogRuntimeConfig{
+		MaxCount:            s.getRuntimePositiveInt("sms_log_max_count", 1000),
+		PerUserLimitEnabled: s.getRuntimeBool("sms_log_per_user_limit_enabled", false),
+		PerUserMaxCount:     s.getRuntimePositiveInt("sms_log_per_user_max_count", 1000),
+	}
+}
+
+func GetGlobalSMSLogRuntimeConfig() SMSLogRuntimeConfig {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.GetSMSLogRuntimeConfig()
+	}
+	return SMSLogRuntimeConfig{
+		MaxCount:            getDirectSettingPositiveInt("sms_log_max_count", 1000),
+		PerUserLimitEnabled: getDirectSettingBool("sms_log_per_user_limit_enabled", false),
+		PerUserMaxCount:     getDirectSettingPositiveInt("sms_log_per_user_max_count", 1000),
+	}
+}
+
+func (s *SettingsService) GetEmailLogRuntimeConfig() EmailLogRuntimeConfig {
+	return EmailLogRuntimeConfig{
+		MaxCount:            s.getRuntimePositiveInt("email_log_max_count", 1000),
+		PerUserLimitEnabled: s.getRuntimeBool("email_log_per_user_limit_enabled", false),
+		PerUserMaxCount:     s.getRuntimePositiveInt("email_log_per_user_max_count", 1000),
+	}
+}
+
+func GetGlobalEmailLogRuntimeConfig() EmailLogRuntimeConfig {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.GetEmailLogRuntimeConfig()
+	}
+	return EmailLogRuntimeConfig{
+		MaxCount:            getDirectSettingPositiveInt("email_log_max_count", 1000),
+		PerUserLimitEnabled: getDirectSettingBool("email_log_per_user_limit_enabled", false),
+		PerUserMaxCount:     getDirectSettingPositiveInt("email_log_per_user_max_count", 1000),
 	}
 }
 
@@ -625,6 +769,12 @@ func ApplyGlobalRuntimeConfig() {
 		next.SMTPUser = s.getRuntimeString("smtp_username", base.SMTPUser)
 		next.SMTPPass = s.getRuntimeString("smtp_password", base.SMTPPass)
 		next.SMTPSSL = s.getRuntimeBool("smtp_ssl", base.SMTPSSL)
+		next.SMTPProxyEnabled = s.getRuntimeBool("smtp_proxy_enabled", base.SMTPProxyEnabled)
+		next.SMTPProxyType = s.getRuntimeString("smtp_proxy_type", base.SMTPProxyType)
+		next.SMTPProxyHost = s.getRuntimeString("smtp_proxy_host", base.SMTPProxyHost)
+		next.SMTPProxyPort = s.getRuntimeString("smtp_proxy_port", base.SMTPProxyPort)
+		next.SMTPProxyUser = s.getRuntimeString("smtp_proxy_username", base.SMTPProxyUser)
+		next.SMTPProxyPass = s.getRuntimeString("smtp_proxy_password", base.SMTPProxyPass)
 		next.SystemEmail = s.getRuntimeString("system_email_address", base.SystemEmail)
 		next.SystemEmailName = s.getRuntimeString("system_email_name", base.SystemEmailName)
 		next.RegisterCodeExpireMinutes = s.getRuntimePositiveInt("register_code_expire_minutes", base.RegisterCodeExpireMinutes)
@@ -680,13 +830,16 @@ func (s *SettingsService) GetPublicAppConfig() *PublicAppConfig {
 		GeetestCaptchaId:   geetestConfig.CaptchaID,
 		EmailVerifyEnabled: verifyConfig.EmailEnabled,
 		SMSVerifyEnabled:   verifyConfig.SMSEnabled,
-		RealnameEnabled:    s.GetBoolWithDefault("realname_enabled", true),
+		MobileCNOnly:          s.GetBoolWithDefault("mobile_cn_only", true),
+		MobileIPCountryDetect: s.GetBoolWithDefault("mobile_ip_country_detect", false),
+		RealnameEnabled:       s.GetBoolWithDefault("realname_enabled", true),
 		RealnameNotifyText: s.GetWithDefault("realname_notify_text", ""),
 		WithdrawEnabled:    s.GetBoolWithDefault("withdraw_enabled", true),
 		WithdrawMinAmount:  parseJSONFloatWithDefault(s.GetWithDefault("withdraw_min_amount", "10"), 10),
 		WithdrawNotifyText: s.GetWithDefault("withdraw_notify_text", ""),
 		WithdrawAccountTypes: parseJSONStringArrayWithDefault(s.GetWithDefault("withdraw_account_types", "[\"bank\",\"alipay\",\"wechat\",\"usdt\"]"), []string{"bank", "alipay", "wechat", "usdt"}),
 		AdminAPIPath:       adminAPIPath,
+		OnlineReportIntervalSeconds: s.GetOnlinePresenceRuntimeConfig().ReportIntervalSeconds,
 	}
 }
 

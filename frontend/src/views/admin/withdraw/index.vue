@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { NButton, NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useTableColumnVisibility } from '@/hooks'
+import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import { fetchWithdrawDetail, fetchWithdrawRecords, fetchWithdrawStats, payWithdraw, reviewWithdraw } from '@/service/api/admin/finance'
 import type { WithdrawRecord, WithdrawStats } from '@/service/api/admin/finance'
 import { adminUserApi } from '@/service/api/admin/user'
@@ -222,7 +222,10 @@ const {
   minScrollX: 1180,
 })
 
+const listFetchGuard = useRequestGuard()
+
 async function fetchData() {
+  const token = listFetchGuard.begin()
   loading.value = true
   try {
     const params = {
@@ -240,6 +243,8 @@ async function fetchData() {
         status: params.status,
       }),
     ])
+    if (!listFetchGuard.isLatest(token))
+      return
     if (res.isSuccess) {
       list.value = res.data?.list || []
       pagination.itemCount = res.data?.total || 0
@@ -254,10 +259,12 @@ async function fetchData() {
     }
   }
   catch {
-    message.error(t('adminWithdraw.fetchListFailed'))
+    if (listFetchGuard.isLatest(token))
+      message.error(t('adminWithdraw.fetchListFailed'))
   }
   finally {
-    loading.value = false
+    if (listFetchGuard.isLatest(token))
+      loading.value = false
   }
 }
 

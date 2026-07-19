@@ -6,10 +6,14 @@ import type { DataTableColumns } from 'naive-ui'
 import { createWithdrawRequest, fetchMyMoneyLogs, fetchMyScoreLogs, fetchMyWithdrawDetail, fetchMyWithdrawRecords } from '@/service/api/user/user-center'
 import { useSettingsStore } from '@/store'
 import { parseMemo } from '@/utils/memo'
+import { useRequestGuard } from '@/hooks'
 
 const message = useMessage()
 const settingsStore = useSettingsStore()
 const { t } = useI18n()
+const moneyFetchGuard = useRequestGuard()
+const scoreFetchGuard = useRequestGuard()
+const withdrawFetchGuard = useRequestGuard()
 
 const activeTab = ref('money')
 
@@ -65,6 +69,7 @@ const moneyColumns: DataTableColumns<Entity.UserMoneyLog> = [
 ]
 
 async function fetchMoneyLogs() {
+  const token = moneyFetchGuard.begin()
   moneyLoading.value = true
   try {
     const res = await fetchMyMoneyLogs({
@@ -72,6 +77,8 @@ async function fetchMoneyLogs() {
       page_size: moneyPagination.pageSize,
       keyword: moneyKeyword.value || undefined,
     })
+    if (!moneyFetchGuard.isLatest(token))
+      return
     if (res.isSuccess) {
       moneyLogs.value = res.data?.list || []
       moneyPagination.itemCount = res.data?.total || 0
@@ -81,10 +88,12 @@ async function fetchMoneyLogs() {
     }
   }
   catch {
-    message.error(t('moneyScore.fetchMoneyFailed'))
+    if (moneyFetchGuard.isLatest(token))
+      message.error(t('moneyScore.fetchMoneyFailed'))
   }
   finally {
-    moneyLoading.value = false
+    if (moneyFetchGuard.isLatest(token))
+      moneyLoading.value = false
   }
 }
 
@@ -140,6 +149,7 @@ const scoreColumns: DataTableColumns<Entity.UserScoreLog> = [
 ]
 
 async function fetchScoreLogs() {
+  const token = scoreFetchGuard.begin()
   scoreLoading.value = true
   try {
     const res = await fetchMyScoreLogs({
@@ -147,6 +157,8 @@ async function fetchScoreLogs() {
       page_size: scorePagination.pageSize,
       keyword: scoreKeyword.value || undefined,
     })
+    if (!scoreFetchGuard.isLatest(token))
+      return
     if (res.isSuccess) {
       scoreLogs.value = res.data?.list || []
       scorePagination.itemCount = res.data?.total || 0
@@ -156,10 +168,12 @@ async function fetchScoreLogs() {
     }
   }
   catch {
-    message.error(t('moneyScore.fetchScoreFailed'))
+    if (scoreFetchGuard.isLatest(token))
+      message.error(t('moneyScore.fetchScoreFailed'))
   }
   finally {
-    scoreLoading.value = false
+    if (scoreFetchGuard.isLatest(token))
+      scoreLoading.value = false
   }
 }
 
@@ -321,12 +335,15 @@ const withdrawColumns: DataTableColumns<Entity.WithdrawRecord> = [
 ]
 
 async function fetchWithdrawLogs() {
+  const token = withdrawFetchGuard.begin()
   withdrawLoading.value = true
   try {
     const res = await fetchMyWithdrawRecords({
       page: withdrawPagination.page,
       page_size: withdrawPagination.pageSize,
     })
+    if (!withdrawFetchGuard.isLatest(token))
+      return
     if (res.isSuccess) {
       withdrawLogs.value = res.data?.list || []
       withdrawPagination.itemCount = res.data?.total || 0
@@ -336,10 +353,12 @@ async function fetchWithdrawLogs() {
     }
   }
   catch {
-    message.error(t('moneyScore.fetchWithdrawFailed'))
+    if (withdrawFetchGuard.isLatest(token))
+      message.error(t('moneyScore.fetchWithdrawFailed'))
   }
   finally {
-    withdrawLoading.value = false
+    if (withdrawFetchGuard.isLatest(token))
+      withdrawLoading.value = false
   }
 }
 

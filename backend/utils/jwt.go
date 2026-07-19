@@ -143,6 +143,45 @@ func ParseTokenForGuard(tokenString, expectedGuard string) (*Claims, error) {
 	return claims, nil
 }
 
+// ParseTokenForGuardIgnoreExpiry 与 ParseTokenForGuard 类似，但不校验过期时间（exp）。
+// 仅用于"token 已过期后，前端仍希望通知后端撤销该会话记录"这种场景：
+// 签名/guard/角色等其它校验都不放宽，只是允许 exp 已过去，避免过期 token 无法定位到具体会话。
+// 绝不能用它来放行任何需要鉴权的正常业务接口。
+func ParseTokenForGuardIgnoreExpiry(tokenString, expectedGuard string) (*Claims, error) {
+	claims := &Claims{}
+	if expectedGuard == "" {
+		expectedGuard = UserAuthGuard
+	}
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	token, err := parser.ParseWithClaims(tokenString, claims, jwtSigningKeyByGuard(expectedGuard))
+	if err != nil {
+		return nil, err
+	}
+	if !token.Valid {
+		return nil, jwt.ErrSignatureInvalid
+	}
+	if claims.TokenType != "" {
+		if claims.TokenType != accessTokenType {
+			return nil, fmt.Errorf("unexpected token type: %s", claims.TokenType)
+		}
+	} else if claims.Role == "" {
+		return nil, fmt.Errorf("unexpected token type")
+	}
+
+	authGuard := claims.AuthGuard
+	if authGuard == "" {
+		authGuard = UserAuthGuard
+	}
+	if authGuard != expectedGuard {
+		return nil, fmt.Errorf("unexpected auth guard: %s", authGuard)
+	}
+	if expectedGuard == AdminAuthGuard && claims.Role != AdminAuthGuard {
+		return nil, fmt.Errorf("admin token requires admin role")
+	}
+	claims.AuthGuard = authGuard
+	return claims, nil
+}
+
 // ParseTokenLegacy keeps compatibility for older callers.
 func ParseTokenLegacy(tokenString string) (*Claims, error) {
 	claims := &Claims{}

@@ -20,6 +20,8 @@ import (
 var (
 	publicAuthCtrl            *public.AuthController            //登录注册
 	publicSettingsCtrl        *public.SettingsController        //系统配置
+	publicGeoCtrl             *public.GeoController             //地理/区号探测
+	publicSessionCtrl         *public.SessionController         //会话强退清理
 	publicPaymentCallbackCtrl *public.PaymentCallbackController //支付回调
 	userProfileCtrl           *user.ProfileController           //用户资料
 	userPaymentCtrl           *user.PaymentController           //用户支付
@@ -30,7 +32,8 @@ var (
 	adminLogCtrl              *admin.LogController    //日志
 	adminAPILogCtrl           *admin.APILogController //API日志
 	adminEmailTplCtrl         *admin.EmailTemplateController
-	adminEmailLogCtrl         *admin.EmailLogController //邮件日志
+	adminSMSTplCtrl           *admin.SMSTemplateController //短信模板
+	adminEmailLogCtrl         *admin.EmailLogController    //邮件日志
 	adminSettingsCtrl         *admin.SettingsController //系统设置
 	adminDebugCtrl            *admin.DebugController    //调试
 	adminMoneyScoreCtrl       *admin.UserMoneyScoreController
@@ -40,11 +43,14 @@ var (
 	adminSMSLogCtrl           *admin.SMSLogController    //短信日志
 	adminDashboardCtrl        *admin.DashboardController //仪表盘
 	adminAutoJobCtrl          *admin.AutoJobController   //自动任务
+	adminOnlineCtrl           *admin.OnlineController    //在线用户
 )
 
 func initControllers() {
 	publicAuthCtrl = public.NewAuthController()
 	publicSettingsCtrl = public.NewSettingsController()
+	publicGeoCtrl = public.NewGeoController()
+	publicSessionCtrl = public.NewSessionController()
 	publicPaymentCallbackCtrl = public.NewPaymentCallbackController()
 	userProfileCtrl = user.NewProfileController()
 	userPaymentCtrl = user.NewPaymentController()
@@ -55,6 +61,7 @@ func initControllers() {
 	adminLogCtrl = admin.NewLogController()
 	adminAPILogCtrl = admin.NewAPILogController()
 	adminEmailTplCtrl = admin.NewEmailTemplateController()
+	adminSMSTplCtrl = admin.NewSMSTemplateController()
 	adminEmailLogCtrl = admin.NewEmailLogController()
 	adminSettingsCtrl = admin.NewSettingsController()
 	adminDebugCtrl = admin.NewDebugController()
@@ -65,6 +72,7 @@ func initControllers() {
 	adminDashboardCtrl = admin.NewDashboardController()
 	adminSMSLogCtrl = admin.NewSMSLogController()
 	adminAutoJobCtrl = admin.NewAutoJobController()
+	adminOnlineCtrl = admin.NewOnlineController()
 }
 
 // SetupRoutes 汇总注册全部 HTTP 路由（详情拆在 public/user/admin 文件）。
@@ -86,6 +94,7 @@ func SetupRoutes(router *gin.Engine) {
 	registerPublicRoutes(v1) //公开接口
 	registerUserRoutes(v1)   //用户接口
 	registerAdminRoutes(v1)  //管理员接口
+	registerWSRoutes(v1)     //WebSocket（自行鉴权，不挂 HTTP AuthMiddleware）
 
 	// 健康检查
 	router.GET("/health", func(c *gin.Context) {

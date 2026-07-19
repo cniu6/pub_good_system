@@ -128,7 +128,7 @@ func (ctrl *SMSLogController) Clean(c *gin.Context) {
 
 // Stats 短信日志统计
 // @Summary 短信发送统计
-// @Description 获取短信发送总数、成功数、失败数
+// @Description 获取短信发送总数、今日、成功数、失败数、热门模板（读独立聚合表）
 // @Tags Admin-短信日志
 // @Accept json
 // @Produce json
@@ -136,17 +136,12 @@ func (ctrl *SMSLogController) Clean(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/admin/sms-logs/stats [get]
 func (ctrl *SMSLogController) Stats(c *gin.Context) {
-	total, success, fail, err := models.GetSMSLogStats()
+	stats, err := models.GetSMSLogStatsDetail()
 	if err != nil {
 		utils.Fail(c, 500, "统计失败")
 		return
 	}
-
-	utils.Success(c, gin.H{
-		"total":   total,
-		"success": success,
-		"fail":    fail,
-	})
+	utils.Success(c, stats)
 }
 
 // TemplateNames 获取模板名列表（用于筛选下拉）

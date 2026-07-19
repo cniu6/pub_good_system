@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, h, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import {
   NAlert,
   NButton,
@@ -29,6 +30,7 @@ import {
 } from '@/service/api/admin/email-template'
 
 const { t } = useI18n()
+const route = useRoute()
 
 // 开发环境日志辅助函数
 function reportEmailTemplateError(message: string, error?: unknown) {
@@ -229,6 +231,16 @@ async function loadData() {
   }
 }
 
+/** 支持从邮件日志「查看模板」带 ?name=xxx 跳转，自动打开首个匹配项 */
+function openByQueryName() {
+  const name = typeof route.query.name === 'string' ? route.query.name.trim() : ''
+  if (!name || templates.value.length === 0)
+    return
+  const matched = templates.value.find(tpl => tpl.name === name)
+  if (matched)
+    handleEdit(matched)
+}
+
 // ---- Send Test ----
 async function handleSendTest() {
   if (!testTo.value.trim()) {
@@ -379,8 +391,9 @@ function toggleFullscreen() {
   isFullscreen.value = !isFullscreen.value
 }
 
-onMounted(() => {
-  loadData()
+onMounted(async () => {
+  await loadData()
+  openByQueryName()
 })
 </script>
 

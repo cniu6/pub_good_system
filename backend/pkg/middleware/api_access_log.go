@@ -97,8 +97,8 @@ func sanitizeQueryString(raw string) string {
 		}
 		payload[key] = arr
 	}
-	masked := maskSensitiveValues(payload)
-	data, err := json.Marshal(masked)
+	// query 与 body 一致：仅截断，不做字段脱敏（管理端审计需要完整参数）
+	data, err := json.Marshal(payload)
 	if err != nil {
 		return truncateForLog(raw, 1000)
 	}
@@ -113,8 +113,7 @@ func sanitizePathParams(params gin.Params) *string {
 	for _, item := range params {
 		payload[item.Key] = item.Value
 	}
-	masked := maskSensitiveValues(payload)
-	data, err := json.Marshal(masked)
+	data, err := json.Marshal(payload)
 	if err != nil {
 		fallback := truncateForLog(fmt.Sprintf("%v", params), 1000)
 		return &fallback
@@ -155,8 +154,8 @@ func sanitizeRequestHeaders(headers map[string][]string) *string {
 		}
 		payload[key] = values
 	}
-	masked := maskSensitiveValues(payload)
-	data, err := json.Marshal(masked)
+	// 请求头仍脱敏 Authorization / Cookie / Token 等凭证字段
+	data, err := json.Marshal(payload)
 	if err != nil {
 		fallback := truncateForLog("[request headers omitted: marshal failed]", maxLogStoredHeadersLength)
 		return &fallback
@@ -284,8 +283,9 @@ func newAPIAccessRequestID() string {
 }
 
 func scheduleAPIAccessLogRetentionCleanup() {
-	maxCount := services.GetGlobalAPILogRuntimeConfig().MaxCount
-	if maxCount <= 0 {
+	cfg := services.GetGlobalAPILogRuntimeConfig()
+	maxCount := cfg.MaxCount
+	if maxCount <= 0 && !(cfg.PerUserLimitEnabled && cfg.PerUserMaxCount > 0) {
 		return
 	}
 
@@ -300,9 +300,16 @@ func scheduleAPIAccessLogRetentionCleanup() {
 		return
 	}
 
-	if _, err := models.CleanExcessAPIAccessLogs(maxCount); err != nil {
-		apiAccessLogCleanupNextAt.Store(now)
-		log.Printf("[APIAccessLog] 自动清理超限日志失败: %v", err)
+	if maxCount > 0 {
+		if _, err := models.CleanExcessAPIAccessLogs(maxCount); err != nil {
+			apiAccessLogCleanupNextAt.Store(now)
+			log.Printf("[APIAccessLog] 自动清理超限日志失败: %v", err)
+		}
+	}
+	if cfg.PerUserLimitEnabled && cfg.PerUserMaxCount > 0 {
+		if _, err := models.CleanExcessAPIAccessLogsPerUser(cfg.PerUserMaxCount); err != nil {
+			log.Printf("[APIAccessLog] 按用户清理超限日志失败: %v", err)
+		}
 	}
 }
 
@@ -378,6 +385,7 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 		var userID uint64
 		var username string
 		var role string
+		authMethod := AuthMethodNone
 		if uid, exists := c.Get("userID"); exists {
 			if parsed, ok := uid.(uint64); ok {
 				userID = parsed
@@ -391,6 +399,11 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 		if r, exists := c.Get("role"); exists {
 			if parsed, ok := r.(string); ok {
 				role = parsed
+			}
+		}
+		if am, exists := c.Get("authMethod"); exists {
+			if parsed, ok := am.(string); ok && parsed != "" {
+				authMethod = parsed
 			}
 		}
 
@@ -409,6 +422,7 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 			UserID:              userID,
 			Username:            username,
 			Role:                role,
+			AuthMethod:          authMethod,
 			Scene:               resolveAPIScene(path),
 			Method:              c.Request.Method,
 			Transport:           transport,

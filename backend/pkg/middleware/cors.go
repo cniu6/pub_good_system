@@ -9,7 +9,52 @@ import (
 
 // 允许的跨域请求头白名单。
 // 仅在放行时返回，避免完全反射客户端请求头带来被滥用的风险。
-const defaultAllowHeaders = "Origin, Content-Type, Content-Length, Authorization, Accept, X-Requested-With, X-Idempotency-Key, X-Geetest-Lot-Number, X-Geetest-Captcha-Output, X-Geetest-Pass-Token, X-Geetest-Gen-Time, X-Geetest-Captcha-Id"
+// X-Api-Key：用户 API Key 鉴权（与 JWT Authorization 并列）。
+const defaultAllowHeaders = "Origin, Content-Type, Content-Length, Authorization, Accept, X-Requested-With, X-Idempotency-Key, X-Api-Key, X-Geetest-Lot-Number, X-Geetest-Captcha-Output, X-Geetest-Pass-Token, X-Geetest-Gen-Time, X-Geetest-Captcha-Id"
+
+// authSensitiveAPIPaths 登录/注册/找回密码等认证接口。
+// 当 AUTH_CORS_ENABLED=true 时走独立白名单，避免第三方页面在 CORS=* 下跨域偷 token。
+var authSensitiveAPIPaths = map[string]struct{}{
+	"/api/v1/public/login":              {},
+	"/api/v1/public/register":           {},
+	"/api/v1/public/send-register-code": {},
+	"/api/v1/public/forgot-password":    {},
+	"/api/v1/public/reset-password":     {},
+	"/api/v1/public/refresh-token":      {},
+}
+
+// IsAuthSensitiveAPIPath 判断是否为需独立 CORS / 禁止 ApiKey 的认证公开接口。
+func IsAuthSensitiveAPIPath(path string) bool {
+	_, ok := authSensitiveAPIPaths[path]
+	return ok
+}
+
+// isAuthPagePath 登录/注册前端页面路径（用于防 iframe 嵌套）。
+func isAuthPagePath(path string) bool {
+	switch path {
+	case "/user/login", "/user/register", "/login", "/register":
+		return true
+	default:
+		return false
+	}
+}
+
+// ApplyAuthPageFrameHeaders 在 AUTH_CORS_ENABLED 时，给登录/注册页加防嵌套头。
+// 其它页面不加，避免影响子站嵌普通业务页。
+func ApplyAuthPageFrameHeaders(c *gin.Context, path string) {
+	if c == nil {
+		return
+	}
+	cfg := config.GlobalConfig
+	if cfg == nil || !cfg.AuthCorsEnabled {
+		return
+	}
+	if !isAuthPagePath(path) {
+		return
+	}
+	c.Header("X-Frame-Options", "DENY")
+	c.Header("Content-Security-Policy", "frame-ancestors 'none'")
+}
 
 // isOriginAllowed 判断请求 Origin 是否在允许白名单内。
 // 规则：
@@ -20,7 +65,9 @@ const defaultAllowHeaders = "Origin, Content-Type, Content-Length, Authorization
 //
 // 【产品决策 / 非 Bug】CORS_ORIGINS=* 是故意允许的：本项目按配置支持全开放跨域，
 // 切勿再当安全问题「修掉」成强制白名单。若业务需要收紧，只改 .env 配置，不要改默认行为。
-func isOriginAllowed(origin, corsOrigins string) (allowed bool, wildcard bool) {
+// 认证接口特例见 AUTH_CORS_ENABLED，与全局 * 无关。
+// IsOriginAllowed 判断 Origin 是否匹配给定白名单，供 HTTP CORS 与 WebSocket 握手共同使用。
+func IsOriginAllowed(origin, corsOrigins string) (allowed bool, wildcard bool) {
 	if origin == "" {
 		return false, false
 	}
@@ -28,7 +75,6 @@ func isOriginAllowed(origin, corsOrigins string) (allowed bool, wildcard bool) {
 	if corsOrigins == "" {
 		return false, false
 	}
-	// 故意支持 *：配置为 * 时放行任意 Origin（见上方产品决策注释）
 	if corsOrigins == "*" {
 		return true, true
 	}
@@ -43,7 +89,6 @@ func isOriginAllowed(origin, corsOrigins string) (allowed bool, wildcard bool) {
 		if pattern == origin {
 			return true, false
 		}
-		// 泛域名：*.example.com 或 https://*.example.com
 		if matchWildcardOrigin(origin, pattern) {
 			return true, false
 		}
@@ -51,35 +96,29 @@ func isOriginAllowed(origin, corsOrigins string) (allowed bool, wildcard bool) {
 	return false, false
 }
 
-// matchWildcardOrigin 支持 *.example.com / https://*.example.com 形式的 Origin 匹配。
-// 要求子域段至少有一段（foo.example.com 通过；example.com 本身不匹配 *.example.com），
-// 且不能把 notexample.com 误匹配成 *.example.com。
+// isOriginAllowed 保留给包内旧调用，避免改变既有 CORS 逻辑。
+func isOriginAllowed(origin, corsOrigins string) (bool, bool) {
+	return IsOriginAllowed(origin, corsOrigins)
+}
+
 func matchWildcardOrigin(origin, pattern string) bool {
-	// 形态 A：pattern 为 *.host（不含 scheme）
 	if strings.HasPrefix(pattern, "*.") {
-		suffix := pattern[1:] // ".example.com"
-		// origin 形如 https://foo.example.com
-		// 去掉 scheme:// 后的 host 部分再比
+		suffix := pattern[1:]
 		host := originHost(origin)
 		if host == "" {
 			return false
 		}
-		// host 必须以 .example.com 结尾，且前面还有子域（不能只是 example.com）
 		if !strings.HasSuffix(host, suffix) {
 			return false
 		}
-		// 子域部分非空：host 长度 > suffix（去掉前导点后的域名长度）
-		// 例如 host=foo.example.com, suffix=.example.com → 前缀 "foo" 非空
 		prefix := host[:len(host)-len(suffix)]
 		return prefix != "" && !strings.Contains(prefix, "/")
 	}
 
-	// 形态 B：pattern 含 scheme，如 https://*.example.com
 	starIdx := strings.Index(pattern, "://*.")
 	if starIdx < 0 {
 		return false
 	}
-	// 要求 origin 与 pattern 的 scheme 一致，且 host 符合 *.domain
 	schemeEnd := strings.Index(origin, "://")
 	if schemeEnd < 0 {
 		return false
@@ -89,35 +128,80 @@ func matchWildcardOrigin(origin, pattern string) bool {
 	if !strings.EqualFold(originScheme, patternScheme) {
 		return false
 	}
-	// 用 *.domain 再匹配 host
-	domainPart := pattern[starIdx+len("://"):] // "*.example.com"
+	domainPart := pattern[starIdx+len("://"):]
 	return matchWildcardOrigin(origin, domainPart)
 }
 
-// originHost 从 Origin 中取出 host（含端口），失败返回空串
 func originHost(origin string) string {
-	// Origin 形如 https://foo.example.com 或 https://foo.example.com:443
 	idx := strings.Index(origin, "://")
 	if idx < 0 {
 		return ""
 	}
 	rest := origin[idx+3:]
-	// 去掉 path（理论上 Origin 不应带 path，防御一下）
 	if slash := strings.Index(rest, "/"); slash >= 0 {
 		rest = rest[:slash]
 	}
 	return rest
 }
 
+func resolveCorsAllowlist(c *gin.Context) string {
+	cfg := config.GlobalConfig
+	if cfg == nil {
+		return ""
+	}
+	if cfg.AuthCorsEnabled && IsAuthSensitiveAPIPath(c.Request.URL.Path) {
+		origins := strings.TrimSpace(cfg.AuthCorsOrigins)
+		if origins != "" {
+			return origins
+		}
+		return deriveSameOriginAllowlist(c, cfg)
+	}
+	return cfg.CorsOrigins
+}
+
+// ResolveWSCorsAllowlist 返回 Presence WebSocket 的 Origin 白名单。
+// 独立开关关闭时沿用全局 CORS；开启且未配置来源时收紧为同源。
+func ResolveWSCorsAllowlist(c *gin.Context) string {
+	cfg := config.CloneGlobalConfig()
+	if cfg == nil {
+		return ""
+	}
+	if !cfg.WSCorsEnabled {
+		return cfg.CorsOrigins
+	}
+	if origins := strings.TrimSpace(cfg.WSCorsOrigins); origins != "" {
+		return origins
+	}
+	return deriveSameOriginAllowlist(c, cfg)
+}
+
+func deriveSameOriginAllowlist(c *gin.Context, cfg *config.Config) string {
+	if cfg != nil {
+		if fu := strings.TrimSpace(cfg.FrontendURL); fu != "" {
+			return strings.TrimRight(fu, "/")
+		}
+	}
+	if c == nil || c.Request == nil {
+		return ""
+	}
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	}
+	if proto := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto")); proto != "" {
+		scheme = strings.TrimSpace(strings.Split(proto, ",")[0])
+	}
+	host := c.Request.Host
+	if host == "" {
+		return ""
+	}
+	return scheme + "://" + host
+}
+
 // CorsMiddleware 处理跨域请求。
-// 关键约束：只有命中白名单且非通配 Origin 时才会附带 Allow-Credentials，
-// 避免 "*" / 任意反射 + 凭证并存这一经典 CSRF 风险。
 func CorsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		corsOrigins := ""
-		if cfg := config.GlobalConfig; cfg != nil {
-			corsOrigins = cfg.CorsOrigins
-		}
+		corsOrigins := resolveCorsAllowlist(c)
 		origin := c.GetHeader("Origin")
 
 		allowed, wildcard := isOriginAllowed(origin, corsOrigins)
@@ -133,7 +217,7 @@ func CorsMiddleware() gin.HandlerFunc {
 
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD")
 		c.Header("Access-Control-Allow-Headers", defaultAllowHeaders)
-		c.Header("Access-Control-Max-Age", "3600") // 预检请求缓存1小时
+		c.Header("Access-Control-Max-Age", "3600")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -143,4 +227,3 @@ func CorsMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
-

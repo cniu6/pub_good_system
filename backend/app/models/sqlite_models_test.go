@@ -41,7 +41,7 @@ func TestModels_UserSettingsSessionsLogsSQLite(t *testing.T) {
 
 	t.Run("会话", func(t *testing.T) {
 		now := time.Now()
-		if err := models.CreateUserSession(u.ID, "user", "tok1", "ref1", "127.0.0.1", "ua", "pc", now.Add(time.Hour).Unix(), now.Add(2*time.Hour).Unix()); err != nil {
+		if err := models.CreateUserSession(u.ID, "user", "tok1", "ref1", "127.0.0.1", "ua", "pc", "web", "", now.Add(time.Hour).Unix(), now.Add(2*time.Hour).Unix()); err != nil {
 			t.Fatalf("CreateUserSession: %v", err)
 		}
 		ok, err := models.IsUserSessionActive(u.ID, "user", "tok1")

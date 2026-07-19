@@ -1,107 +1,56 @@
-<template>
-  <n-card :title="t('adminLogs.title')">
-    <n-space vertical>
-      <n-space align="center">
-        <n-text depth="3">{{ t('adminLogs.totalLogs', { total }) }}</n-text>
-        <n-divider vertical />
-        <n-text depth="3">{{ t('adminLogs.queryDays') }}</n-text>
-        <n-input-number
-          v-model:value="queryDays"
-          :min="1"
-          :max="365"
-          size="small"
-          style="width: 120px"
-        >
-          <template #suffix>{{ t('adminLogs.days') }}</template>
-        </n-input-number>
-        <n-text depth="3">{{ t('adminLogs.logRetentionLimit') }}</n-text>
-        <n-input-number
-          v-model:value="maxCount"
-          :min="20"
-          :max="10000"
-          size="small"
-          style="width: 120px"
-        />
-        <n-text depth="3" style="font-size:12px;color:#999;">{{ t('adminLogs.autoCleanupHint') }}</n-text>
-        <n-button size="small" type="primary" :loading="savingQuerySettings" @click="handleApplyQuerySettings">
-          {{ t('adminLogs.apply') }}
-        </n-button>
-      </n-space>
-
-      <n-space justify="end">
-        <TableColumnSelector
-          v-model="selectedColumnKeys"
-          :options="columnOptions"
-          :visible-count="visibleColumnCount"
-          :total-count="totalColumnCount"
-          :button-label="t('common.showFields')"
-          :title="t('common.visibleFields')"
-          :hint="t('common.columnVisibilityHint')"
-          :reset-label="t('common.restoreDefaultFields')"
-          @reset="resetSelectedColumns"
-        />
-      </n-space>
-
-      <n-data-table
-        remote
-        :columns="visibleColumns"
-        :data="logList"
-        :loading="loading"
-        :pagination="pagination"
-        :scroll-x="tableScrollX"
-        @update:page="handlePageChange"
-      />
-
-      <n-modal v-model:show="showDetail" preset="card" :title="t('adminLogs.detailTitle')" style="width: 860px;" :mask-closable="true">
-        <n-text v-if="detailLoading" depth="3">{{ t('adminLogs.loading') }}</n-text>
-        <n-space v-else-if="detailData" vertical :size="16">
-          <n-descriptions bordered :column="2" label-placement="left">
-            <n-descriptions-item :label="t('adminLogs.module')">{{ detailData.module || '-' }}</n-descriptions-item>
-            <n-descriptions-item :label="t('adminLogs.action')">{{ detailData.action || '-' }}</n-descriptions-item>
-            <n-descriptions-item :label="t('adminLogs.method')">{{ detailData.method || '-' }}</n-descriptions-item>
-            <n-descriptions-item :label="t('adminLogs.path')">{{ detailData.path || '-' }}</n-descriptions-item>
-            <n-descriptions-item :label="t('adminLogs.handlerName')" :span="2">{{ detailData.handler_name || '-' }}</n-descriptions-item>
-            <n-descriptions-item :label="t('adminLogs.ip')">{{ detailData.ip || '-' }}</n-descriptions-item>
-            <n-descriptions-item :label="t('adminLogs.duration')">{{ detailData.duration || 0 }}</n-descriptions-item>
-            <n-descriptions-item :label="t('adminLogs.statusCode')">{{ detailData.status_code || '-' }}</n-descriptions-item>
-            <n-descriptions-item :label="t('adminLogs.time')">{{ detailData.create_time ? new Date(detailData.create_time * 1000).toLocaleString() : '-' }}</n-descriptions-item>
-          </n-descriptions>
-
-          <n-card size="small" embedded :title="t('adminLogs.requestBody')">
-            <NCode :code="formattedRequestBody || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
-          </n-card>
-
-          <n-card size="small" embedded :title="t('adminLogs.responseBody')">
-            <NCode :code="formattedResponseBody || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
-          </n-card>
-        </n-space>
-        <n-text v-else depth="3">{{ t('adminLogs.noDetailData') }}</n-text>
-      </n-modal>
-    </n-space>
-  </n-card>
-</template>
-
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NTag, NButton, useMessage, NDescriptions, NDescriptionsItem, NCard, NText, NSpace, NModal, NCode } from 'naive-ui'
+import {
+  NButton,
+  NCard,
+  NCode,
+  NDataTable,
+  NDescriptions,
+  NDescriptionsItem,
+  NGi,
+  NGrid,
+  NInputNumber,
+  NModal,
+  NSpace,
+  NStatistic,
+  NSwitch,
+  NTag,
+  NText,
+  useMessage,
+} from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useTableColumnVisibility } from '@/hooks'
+import { useEcharts, useTableColumnVisibility } from '@/hooks'
+import type { ECOption } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
+import { adminLogApi, type OperationLogStats } from '@/service/api/admin/log'
 import type { UserSimpleInfo } from '@/service/api/admin/user'
+import { parseBooleanSetting, parseNumberSetting } from '@/utils'
 
 const router = useRouter()
 const message = useMessage()
 const { t } = useI18n()
+
 const loading = ref(false)
+const runtimeLoading = ref(false)
+const runtimeSaving = ref(false)
 const logList = ref<any[]>([])
 const userMap = ref<Record<number, UserSimpleInfo>>({})
 const total = ref(0)
-const queryDays = ref(30)
-const maxCount = ref(500)
-const savingQuerySettings = ref(false)
+const statsData = ref<OperationLogStats>({
+  total_count: 0,
+  today_count: 0,
+  success_count: 0,
+  client_error_count: 0,
+  server_error_count: 0,
+  avg_duration: 0,
+  top_modules: [],
+  top_actions: [],
+  method_stats: [],
+})
+
 const showDetail = ref(false)
 const detailLoading = ref(false)
 const detailData = ref<any | null>(null)
@@ -119,6 +68,13 @@ const pagination = reactive({
   itemCount: 0,
 })
 
+const runtimeForm = reactive({
+  operation_log_query_days: 30,
+  operation_log_max_count: 1000,
+  operation_log_per_user_limit_enabled: false,
+  operation_log_per_user_max_count: 1000,
+})
+
 const methodColors: Record<string, 'info' | 'success' | 'warning' | 'error'> = {
   GET: 'info',
   POST: 'success',
@@ -126,23 +82,25 @@ const methodColors: Record<string, 'info' | 'success' | 'warning' | 'error'> = {
   DELETE: 'error',
 }
 
-// 跳转到用户详情页（admin hash 路由内部路径）
+const topModuleItems = computed(() => (statsData.value.top_modules || []).slice(0, 8))
+const topModuleChartItems = computed(() => [...topModuleItems.value].reverse())
+
 function goToUserDetail(userId: number) {
-  if (userId) {
+  if (userId)
     router.push(`/users/${userId}`)
-  }
 }
 
-// 获取用户显示名称
 function getUserDisplayName(userId: number): string {
   const user = userMap.value[userId]
-  if (!user) return t('adminLogs.userPrefix', { id: userId })
+  if (!user)
+    return t('adminLogs.userPrefix', { id: userId })
   return user.nickname || user.username || t('adminLogs.userPrefix', { id: userId })
 }
 
 function formatPayload(raw?: string) {
   const value = raw?.trim()
-  if (!value) return ''
+  if (!value)
+    return ''
   try {
     return JSON.stringify(JSON.parse(value), null, 2)
   }
@@ -154,6 +112,71 @@ function formatPayload(raw?: string) {
 const formattedRequestBody = computed(() => formatPayload(detailData.value?.request_body))
 const formattedResponseBody = computed(() => formatPayload(detailData.value?.response_body))
 
+function normalizeRuntimeQueryDays(value: unknown) {
+  return Math.min(365, Math.max(1, Math.floor(parseNumberSetting(value, 30))))
+}
+
+function normalizeRuntimeMaxCount(value: unknown) {
+  return Math.min(200000, Math.max(100, Math.floor(parseNumberSetting(value, 1000))))
+}
+
+function normalizePerUserMaxCount(value: unknown) {
+  return Math.min(200000, Math.max(1, Math.floor(parseNumberSetting(value, 1000))))
+}
+
+function applyDateRange(days = runtimeForm.operation_log_query_days) {
+  const now = Math.floor(Date.now() / 1000)
+  const safeDays = Math.max(1, Math.floor(days || 1))
+  query.end_time = now
+  query.start_time = now - safeDays * 24 * 60 * 60
+}
+
+function formatTopModuleAxisLabel(value: string) {
+  const normalized = value || '-'
+  return normalized.length > 28 ? `${normalized.slice(0, 28)}...` : normalized
+}
+
+const topModuleChartOptions = computed<ECOption>(() => ({
+  tooltip: {
+    trigger: 'axis',
+    axisPointer: { type: 'shadow' },
+    confine: true,
+    formatter: (params: any) => {
+      const index = Array.isArray(params) ? (params[0]?.dataIndex ?? 0) : (params?.dataIndex ?? 0)
+      const item = topModuleChartItems.value[index]
+      if (!item)
+        return '-'
+      return [
+        item.module || '-',
+        `${t('adminLogs.requestCount')}: ${item.count}`,
+      ].join('<br/>')
+    },
+  },
+  grid: { left: 16, right: 24, top: 12, bottom: 12, containLabel: true },
+  xAxis: {
+    type: 'value',
+    splitLine: { show: true },
+  },
+  yAxis: {
+    type: 'category',
+    axisTick: { show: false },
+    data: topModuleChartItems.value.map(item => item.module || '-'),
+    axisLabel: {
+      formatter: (value: string) => formatTopModuleAxisLabel(value),
+    },
+  },
+  series: [
+    {
+      type: 'bar',
+      barMaxWidth: 18,
+      label: { show: true, position: 'right' },
+      data: topModuleChartItems.value.map(item => item.count),
+    },
+  ],
+}))
+
+useEcharts('topModuleChartRef', topModuleChartOptions)
+
 const columns: DataTableColumns<any> = [
   { title: 'ID', key: 'id', width: 80 },
   {
@@ -162,7 +185,8 @@ const columns: DataTableColumns<any> = [
     width: 120,
     render(row) {
       const userId = row.user_id
-      if (!userId) return '-'
+      if (!userId)
+        return '-'
       const displayName = getUserDisplayName(userId)
       return h(
         NButton,
@@ -216,40 +240,40 @@ const columns: DataTableColumns<any> = [
   },
 ]
 
- const selectableColumnOptions = [
-   { key: 'id', label: 'ID' },
-   { key: 'user_id', label: t('adminLogs.user') },
-   { key: 'module', label: t('adminLogs.module') },
-   { key: 'action', label: t('adminLogs.action') },
-   { key: 'method', label: t('adminLogs.method') },
-   { key: 'path', label: t('adminLogs.path') },
-   { key: 'ip', label: t('adminLogs.ip') },
-   { key: 'duration', label: t('adminLogs.duration') },
-   { key: 'create_time', label: t('adminLogs.time') },
- ]
+const selectableColumnOptions = [
+  { key: 'id', label: 'ID' },
+  { key: 'user_id', label: t('adminLogs.user') },
+  { key: 'module', label: t('adminLogs.module') },
+  { key: 'action', label: t('adminLogs.action') },
+  { key: 'method', label: t('adminLogs.method') },
+  { key: 'path', label: t('adminLogs.path') },
+  { key: 'ip', label: t('adminLogs.ip') },
+  { key: 'duration', label: t('adminLogs.duration') },
+  { key: 'create_time', label: t('adminLogs.time') },
+]
 
- const {
-   columnOptions,
-   selectedColumnKeys,
-   visibleColumns,
-   visibleColumnCount,
-   totalColumnCount,
-   tableScrollX,
-   resetSelectedColumns,
- } = useTableColumnVisibility({
-   storageKey: 'admin-operation-logs-list',
-   columns,
-   options: selectableColumnOptions,
-   minVisibleCount: 1,
-   minScrollX: 960,
- })
+const {
+  columnOptions,
+  selectedColumnKeys,
+  visibleColumns,
+  visibleColumnCount,
+  totalColumnCount,
+  tableScrollX,
+  resetSelectedColumns,
+} = useTableColumnVisibility({
+  storageKey: 'admin-operation-logs-list',
+  columns,
+  options: selectableColumnOptions,
+  minVisibleCount: 1,
+  minScrollX: 960,
+})
 
 async function handleDetail(id: number) {
   showDetail.value = true
   detailLoading.value = true
   detailData.value = null
   try {
-    const res = await adminApi.log.detail(id)
+    const res = await adminLogApi.detail(id)
     detailData.value = res.data || null
   }
   catch {
@@ -261,10 +285,10 @@ async function handleDetail(id: number) {
   }
 }
 
-// 批量获取日志中的用户信息
 async function fetchUserInfos(logs: any[]) {
   const userIds = [...new Set(logs.map(log => log.user_id).filter(Boolean))]
-  if (userIds.length === 0) return
+  if (userIds.length === 0)
+    return
 
   try {
     userMap.value = await adminApi.user.batchSimpleInfo(userIds)
@@ -278,11 +302,10 @@ async function fetchUserInfos(logs: any[]) {
 async function fetchLogs() {
   loading.value = true
   try {
-    const res = await adminApi.log.list(query)
+    const res = await adminLogApi.list(query)
     logList.value = res.data?.list || []
     total.value = res.data?.total || 0
     pagination.itemCount = res.data?.total || 0
-
     await fetchUserInfos(logList.value)
   }
   catch {
@@ -293,90 +316,70 @@ async function fetchLogs() {
   }
 }
 
-function applyDateRange() {
-  const now = Math.floor(Date.now() / 1000)
-  const safeDays = Math.max(1, Math.floor(queryDays.value || 1))
-  query.end_time = now
-  query.start_time = now - safeDays * 24 * 60 * 60
+async function fetchStats() {
+  try {
+    const res = await adminLogApi.stats()
+    if (res.data)
+      statsData.value = res.data
+  }
+  catch {}
 }
 
-async function loadQuerySettings() {
-  let hasQueryDays = false
-  let hasMaxCount = false
+/** 从系统设置读取运行时配置 */
+async function loadRuntimeConfig() {
+  runtimeLoading.value = true
   try {
     const res = await adminApi.settings.list()
     const categories = res.data?.categories || []
     for (const category of categories) {
       for (const item of category.items) {
-        if (item.key === 'operation_log_query_days') {
-          hasQueryDays = true
-          queryDays.value = Math.max(1, Number(item.value) || 30)
-        }
-        if (item.key === 'operation_log_max_count') {
-          hasMaxCount = true
-          maxCount.value = Math.max(20, Math.min(10000, Number(item.value) || 500))
-        }
+        if (item.key === 'operation_log_query_days')
+          runtimeForm.operation_log_query_days = normalizeRuntimeQueryDays(item.value)
+        if (item.key === 'operation_log_max_count')
+          runtimeForm.operation_log_max_count = normalizeRuntimeMaxCount(item.value)
+        if (item.key === 'operation_log_per_user_limit_enabled')
+          runtimeForm.operation_log_per_user_limit_enabled = parseBooleanSetting(item.value, false)
+        if (item.key === 'operation_log_per_user_max_count')
+          runtimeForm.operation_log_per_user_max_count = normalizePerUserMaxCount(item.value)
       }
     }
-
-    if (!hasQueryDays) {
-      await adminApi.settings.create({
-        key: 'operation_log_query_days',
-        value: String(queryDays.value),
-        type: 'number',
-        category: 'custom',
-        label: t('adminLogs.queryDaysLabel'),
-        description: t('adminLogs.queryDaysDesc'),
-        is_public: false,
-        is_editable: true,
-      })
-    }
-
-    if (!hasMaxCount) {
-      await adminApi.settings.create({
-        key: 'operation_log_max_count',
-        value: String(maxCount.value),
-        type: 'number',
-        category: 'custom',
-        label: t('adminLogs.maxCountLabel'),
-        description: t('adminLogs.maxCountDesc'),
-        is_public: false,
-        is_editable: true,
-      })
-    }
-
   }
   catch {
-    // use defaults
+    message.error(t('adminServer.loadRuntimeFailed'))
+  }
+  finally {
+    applyDateRange(runtimeForm.operation_log_query_days)
+    runtimeLoading.value = false
   }
 }
 
-async function handleApplyQuerySettings() {
-  savingQuerySettings.value = true
+async function handleSaveRuntimeConfig() {
+  runtimeSaving.value = true
   try {
-    queryDays.value = Math.max(1, Math.floor(queryDays.value || 1))
-    maxCount.value = Math.max(20, Math.min(10000, Math.floor(maxCount.value || 500)))
+    runtimeForm.operation_log_query_days = normalizeRuntimeQueryDays(runtimeForm.operation_log_query_days)
+    runtimeForm.operation_log_max_count = normalizeRuntimeMaxCount(runtimeForm.operation_log_max_count)
+    runtimeForm.operation_log_per_user_max_count = normalizePerUserMaxCount(runtimeForm.operation_log_per_user_max_count)
 
     const res = await adminApi.settings.batchUpdate({
-      operation_log_query_days: String(queryDays.value),
-      operation_log_max_count: String(maxCount.value),
+      operation_log_query_days: String(runtimeForm.operation_log_query_days),
+      operation_log_max_count: String(runtimeForm.operation_log_max_count),
+      operation_log_per_user_limit_enabled: String(runtimeForm.operation_log_per_user_limit_enabled),
+      operation_log_per_user_max_count: String(runtimeForm.operation_log_per_user_max_count),
     })
-    if (res.isSuccess) {
-      query.page = 1
-      pagination.page = 1
-      applyDateRange()
-      await fetchLogs()
-      message.success(res.message || t('adminLogs.querySettingsUpdated'))
-    }
-    else {
-      message.error(res.message || t('adminLogs.updateQuerySettingsFailed'))
-    }
+    if (!res.isSuccess)
+      throw new Error(res.message || t('adminServer.saveRuntimeFailed'))
+
+    query.page = 1
+    pagination.page = 1
+    applyDateRange(runtimeForm.operation_log_query_days)
+    await Promise.all([fetchLogs(), fetchStats()])
+    message.success(res.message || t('adminServer.saveRuntimeSuccess'))
   }
-  catch {
-    message.error(t('adminLogs.updateQuerySettingsFailed'))
+  catch (error: any) {
+    message.error(error?.message || t('adminServer.saveRuntimeFailed'))
   }
   finally {
-    savingQuerySettings.value = false
+    runtimeSaving.value = false
   }
 }
 
@@ -387,13 +390,127 @@ function handlePageChange(page: number) {
 }
 
 onMounted(() => {
-  loadQuerySettings().then(() => {
-    applyDateRange()
+  loadRuntimeConfig().finally(() => {
     fetchLogs()
+    fetchStats()
   })
 })
 </script>
 
+<template>
+  <div class="operation-log-page">
+    <NGrid :x-gap="12" :y-gap="12" cols="4" style="margin-bottom: 16px;">
+      <NGi><NCard size="small"><NStatistic :label="t('adminLogs.totalCount')" :value="statsData.total_count" /></NCard></NGi>
+      <NGi><NCard size="small"><NStatistic :label="t('adminLogs.todayCount')" :value="statsData.today_count" /></NCard></NGi>
+      <NGi><NCard size="small"><NStatistic :label="t('adminLogs.clientErrors')"><template #default><NText type="warning">{{ statsData.client_error_count }}</NText></template></NStatistic></NCard></NGi>
+      <NGi><NCard size="small"><NStatistic :label="t('adminLogs.serverErrors')"><template #default><NText type="error">{{ statsData.server_error_count }}</NText></template></NStatistic></NCard></NGi>
+    </NGrid>
+
+    <NText depth="3" style="display: block; margin: -4px 0 12px;">{{ t('adminLogs.statsHint') }}</NText>
+
+    <NGrid :x-gap="12" :y-gap="12" cols="1 s:2 l:2" responsive="screen" style="margin-bottom: 16px;">
+      <NGi>
+        <NCard size="small" :title="t('adminLogs.topModules')">
+          <div ref="topModuleChartRef" class="top-path-chart"></div>
+          <NText v-if="!topModuleItems.length" depth="3" style="display: block; text-align: center;">{{ t('adminLogs.noTopModules') }}</NText>
+        </NCard>
+      </NGi>
+      <NGi>
+        <NCard size="small" :title="t('adminLogs.overview')">
+          <NDescriptions :column="2" bordered size="small" label-placement="left">
+            <NDescriptionsItem :label="t('adminLogs.successCount')">{{ statsData.success_count }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminLogs.avgDuration')">{{ Number(statsData.avg_duration || 0).toFixed(1) }} ms</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminLogs.methodSummary')" :span="2">
+              {{ (statsData.method_stats || []).map(item => `${item.method}:${item.count}`).join(' / ') || '-' }}
+            </NDescriptionsItem>
+          </NDescriptions>
+        </NCard>
+      </NGi>
+    </NGrid>
+
+    <NCard :title="t('adminLogs.title')">
+      <template #header-extra>
+        <NSpace>
+          <TableColumnSelector
+            v-model="selectedColumnKeys"
+            :options="columnOptions"
+            :visible-count="visibleColumnCount"
+            :total-count="totalColumnCount"
+            :button-label="t('common.showFields')"
+            :title="t('common.visibleFields')"
+            :hint="t('common.columnVisibilityHint')"
+            :reset-label="t('common.restoreDefaultFields')"
+            @reset="resetSelectedColumns"
+          />
+          <NButton size="small" type="primary" :loading="loading" @click="fetchLogs">{{ t('adminLogs.refresh') }}</NButton>
+        </NSpace>
+      </template>
+
+      <NCard size="small" embedded style="margin-bottom: 12px;">
+        <NSpace align="center" justify="space-between" :wrap="true">
+          <NSpace align="center" :wrap="true" size="small">
+            <NText strong>{{ t('adminLogs.runtimeConfig') }}</NText>
+            <NText depth="3">{{ t('adminLogs.queryDays') }}</NText>
+            <NInputNumber v-model:value="runtimeForm.operation_log_query_days" :min="1" :max="365" size="small" style="width: 110px;" />
+            <NText depth="3">{{ t('adminLogs.maxCount') }}</NText>
+            <NInputNumber v-model:value="runtimeForm.operation_log_max_count" :min="100" :max="200000" size="small" style="width: 130px;" />
+            <NText depth="3">{{ t('adminLogs.perUserLimitEnabled') }}</NText>
+            <NSwitch v-model:value="runtimeForm.operation_log_per_user_limit_enabled" />
+            <NText depth="3">{{ t('adminLogs.perUserMaxCount') }}</NText>
+            <NInputNumber v-model:value="runtimeForm.operation_log_per_user_max_count" :min="1" :max="200000" size="small" style="width: 130px;" />
+          </NSpace>
+          <NSpace size="small">
+            <NButton size="small" type="primary" :loading="runtimeSaving" @click="handleSaveRuntimeConfig">{{ t('adminServer.runtimeConfig.save') }}</NButton>
+            <NButton size="small" :loading="runtimeLoading" @click="loadRuntimeConfig">{{ t('adminLogs.refresh') }}</NButton>
+          </NSpace>
+        </NSpace>
+        <NText depth="3" style="display: block; margin-top: 8px;">{{ t('adminLogs.runtimeHint') }}</NText>
+      </NCard>
+
+      <NText depth="3" style="display: block; margin-bottom: 12px;">{{ t('adminLogs.totalLogs', { total }) }}</NText>
+
+      <NDataTable
+        remote
+        :columns="visibleColumns"
+        :data="logList"
+        :loading="loading"
+        :pagination="pagination"
+        :scroll-x="tableScrollX"
+        @update:page="handlePageChange"
+      />
+    </NCard>
+
+    <NModal v-model:show="showDetail" preset="card" :title="t('adminLogs.detailTitle')" style="width: 860px;" :mask-closable="true">
+      <NText v-if="detailLoading" depth="3">{{ t('adminLogs.loading') }}</NText>
+      <NSpace v-else-if="detailData" vertical :size="16">
+        <NDescriptions bordered :column="2" label-placement="left">
+          <NDescriptionsItem :label="t('adminLogs.module')">{{ detailData.module || '-' }}</NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.action')">{{ detailData.action || '-' }}</NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.method')">{{ detailData.method || '-' }}</NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.path')">{{ detailData.path || '-' }}</NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.handlerName')" :span="2">{{ detailData.handler_name || '-' }}</NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.ip')">{{ detailData.ip || '-' }}</NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.duration')">{{ detailData.duration || 0 }}</NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.statusCode')">{{ detailData.status_code || '-' }}</NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.time')">{{ detailData.create_time ? new Date(detailData.create_time * 1000).toLocaleString() : '-' }}</NDescriptionsItem>
+        </NDescriptions>
+
+        <NCard size="small" embedded :title="t('adminLogs.requestBody')">
+          <NCode :code="formattedRequestBody || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
+        </NCard>
+
+        <NCard size="small" embedded :title="t('adminLogs.responseBody')">
+          <NCode :code="formattedResponseBody || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
+        </NCard>
+      </NSpace>
+      <NText v-else depth="3">{{ t('adminLogs.noDetailData') }}</NText>
+    </NModal>
+  </div>
+</template>
+
 <style scoped>
-/* payload 展示已改为 NCode，与 API 日志详情一致 */
+.top-path-chart {
+  width: 100%;
+  height: 280px;
+}
 </style>

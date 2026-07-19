@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"fst/backend/utils"
 	"log"
 	"sync"
 )
@@ -117,6 +118,8 @@ func (s *SMSService) Send(phone, content string) error {
 }
 
 func (s *SMSService) SendCode(phone, code string, expireMinutes int, templateParams map[string]string, lang string) error {
+	// 通道侧一般不要前导 +（如 +86138... → 86138...）
+	phone = utils.FormatPhoneForSMS(phone)
 	active, console := s.snapshotProviders()
 	if len(active) == 0 && console == nil {
 		return fmt.Errorf("no SMS provider configured")

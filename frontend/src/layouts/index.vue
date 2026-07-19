@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useAppStore, useRouteStore } from '@/store'
+import { useAppStore, useAuthStore, useRouteStore } from '@/store'
 import {
   BackTop,
   Breadcrumb,
@@ -20,6 +20,7 @@ import { ProLayout, useLayoutMenu } from 'pro-naive-ui'
 
 const route = useRoute()
 const appStore = useAppStore()
+const authStore = useAuthStore()
 const routeStore = useRouteStore()
 
 const { layoutMode } = storeToRefs(useAppStore())
@@ -90,6 +91,13 @@ function onSidebarResizeStart(e: MouseEvent) {
 
 onBeforeUnmount(() => {
   onSidebarResizeEnd()
+})
+
+// 页面刷新后恢复已登录状态时，也要重新建立 Presence 连接 + 重挂自动刷新 token 定时器
+// （否则刷新页面后旧的刷新定时器丢失，access token 到期就只能等 401 时被动刷新）。
+onMounted(() => {
+  authStore.startPresence()
+  authStore.setupAutoRefresh()
 })
 </script>
 

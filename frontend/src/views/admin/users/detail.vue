@@ -17,6 +17,7 @@ import {
 } from '@/service/api/admin/user'
 import type { AdminUser, AdminUserRealnameSummary, UserSimpleInfo } from '@/service/api/admin/user'
 import { adminPaymentApi } from '@/service/api/admin/payment'
+import { adminOnlineApi, type OnlineSession } from '@/service/api/admin/online'
 import { fetchAllMoneyLogs, fetchAllScoreLogs, fetchWithdrawRecords } from '@/service/api/admin/finance'
 import type { WithdrawRecord } from '@/service/api/admin/finance'
 import WithdrawDetailModal from './components/WithdrawDetailModal.vue'
@@ -44,7 +45,7 @@ import { setPendingUserEditId } from './utils/pendingEdit'
 /** API Key 默认脱敏，点击后再完整展示，降低屏幕偷看/录屏风险 */
 const showApiKey = ref(false)
 
-function maskedApiKey(key?: string) {
+function maskedApiKey(key?: string | null) {
   const value = String(key || '').trim()
   if (!value)
     return '-'
@@ -120,6 +121,8 @@ const scorePagination = reactive({
 
 // 提现记录数据
 const withdrawData = ref<WithdrawRecord[]>([])
+const sessionLoading = ref(false)
+const sessionData = ref<OnlineSession[]>([])
 const withdrawPagination = reactive({
   page: 1,
   pageSize: 10,
@@ -321,6 +324,40 @@ const withdrawColumns = [
   },
 ]
 
+const sessionColumns = [
+  { title: 'ID', key: 'id', width: 80 },
+  {
+    title: t('adminUsersDetail.device'),
+    key: 'device',
+    minWidth: 150,
+    render: (row: OnlineSession) => row.device || '-',
+  },
+  { title: t('adminUsersDetail.clientType'), key: 'client_type', width: 100 },
+  { title: 'IP', key: 'ip', width: 140 },
+  {
+    title: t('adminUsersDetail.lastSeenAt'),
+    key: 'last_seen_at',
+    width: 180,
+    render: (row: OnlineSession) => formatTime(row.last_seen_at),
+  },
+  {
+    title: t('adminUsersDetail.onlineStatus'),
+    key: 'is_online',
+    width: 100,
+    render: (row: OnlineSession) => h(NTag, { type: row.is_online ? 'success' : 'default' }, () => row.is_online ? t('adminUsersDetail.online') : t('adminUsersDetail.offline')),
+  },
+  {
+    title: t('adminUsersDetail.actions'),
+    key: 'actions',
+    width: 100,
+    render: (row: OnlineSession) => h(
+      'a',
+      { style: 'color: var(--n-error-color); cursor: pointer;', onClick: () => handleKickSession(row) },
+      t('adminUsersDetail.kick'),
+    ),
+  },
+]
+
 // 获取用户信息
 async function fetchUserData() {
   if (!userId.value)
@@ -473,6 +510,63 @@ async function fetchWithdrawData() {
   }
 }
 
+async function fetchSessionData() {
+  if (!userId.value)
+    return
+  sessionLoading.value = true
+  try {
+    const response = await adminOnlineApi.userSessions(userId.value)
+    if (response.isSuccess)
+      sessionData.value = response.data || []
+    else
+      message.error(response.message || t('adminUsersDetail.fetchSessionsFailed'))
+  }
+  catch {
+    message.error(t('adminUsersDetail.fetchSessionsFailed'))
+  }
+  finally {
+    sessionLoading.value = false
+  }
+}
+
+function handleKickSession(session: OnlineSession) {
+  dialog.warning({
+    title: t('adminUsersDetail.kickSessionTitle'),
+    content: t('adminUsersDetail.kickSessionContent'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      const response = await adminOnlineApi.kick(session.id)
+      if (response.isSuccess) {
+        message.success(t('adminUsersDetail.kickSuccess'))
+        fetchSessionData()
+      }
+      else {
+        message.error(response.message || t('adminUsersDetail.kickFailed'))
+      }
+    },
+  })
+}
+
+function handleRevokeAllSessions() {
+  dialog.warning({
+    title: t('adminUsersDetail.revokeAllSessionsTitle'),
+    content: t('adminUsersDetail.revokeAllSessionsContent'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      const response = await adminOnlineApi.revokeAllUserSessions(userId.value)
+      if (response.isSuccess) {
+        message.success(t('adminUsersDetail.revokeAllSessionsSuccess'))
+        fetchSessionData()
+      }
+      else {
+        message.error(response.message || t('adminUsersDetail.revokeAllSessionsFailed'))
+      }
+    },
+  })
+}
+
 function openWithdrawDetail(row: WithdrawRecord) {
   withdrawDetail.value = row
   showWithdrawDetailModal.value = true
@@ -492,6 +586,9 @@ function handleTabChange(tabName: string) {
       break
     case 'withdraw':
       fetchWithdrawData()
+      break
+    case 'sessions':
+      fetchSessionData()
       break
   }
 }
@@ -971,6 +1068,24 @@ onMounted(() => {
             @update:page-size="handleWithdrawPageSizeChange"
           />
         </n-tab-pane>
+
+        <n-tab-pane name="sessions" :tab="t('adminUsersDetail.loginDevices')">
+          <n-space justify="end" style="margin-bottom: 12px;">
+            <n-button size="small" @click="fetchSessionData">{{ t('common.refresh') }}</n-button>
+            <n-button size="small" type="error" @click="handleRevokeAllSessions">
+              {{ t('adminUsersDetail.revokeAllDevices') }}
+            </n-button>
+          </n-space>
+          <n-data-table
+            :columns="sessionColumns"
+            :data="sessionData"
+            :loading="sessionLoading"
+            :pagination="false"
+            :scroll-x="800"
+            :row-key="(row: OnlineSession) => row.id"
+            :row-class-name="(row: OnlineSession) => row.is_online ? 'online-session-row' : ''"
+          />
+        </n-tab-pane>
       </n-tabs>
     </n-card>
     <!-- 重置密码对话框 -->
@@ -1123,6 +1238,10 @@ onMounted(() => {
   margin-top: 20px;
   display: flex;
   gap: 12px;
+}
+
+:deep(.online-session-row td) {
+  background: color-mix(in srgb, var(--n-success-color) 8%, transparent);
 }
 
 /* 响应式设计 */

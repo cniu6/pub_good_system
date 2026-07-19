@@ -6,6 +6,7 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/pkg/config"
 	"fst/backend/utils"
+	"strings"
 	"time"
 )
 
@@ -76,14 +77,14 @@ type LoginRealnameSummary struct {
 }
 
 type LoginResult struct {
-	ID               uint64   `json:"id"`
-	UserName         string   `json:"userName"`
-	Email            string   `json:"email"`
-	Role             []string `json:"role"`
-	AccessToken      string   `json:"accessToken"`
-	RefreshToken     string   `json:"refreshToken"`
-	ExpiresAt        int64    `json:"expiresAt"`
-	RefreshExpiresAt int64    `json:"-"`
+	ID               uint64               `json:"id"`
+	UserName         string               `json:"userName"`
+	Email            string               `json:"email"`
+	Role             []string             `json:"role"`
+	AccessToken      string               `json:"accessToken"`
+	RefreshToken     string               `json:"refreshToken"`
+	ExpiresAt        int64                `json:"expiresAt"`
+	RefreshExpiresAt int64                `json:"-"`
 	Realname         LoginRealnameSummary `json:"realname,omitempty"`
 }
 
@@ -240,6 +241,11 @@ func (s *AuthService) Register(user *models.User) error {
 	if user.Status == 0 {
 		user.Status = 1
 	}
+	// 注册时自动发放 API Key，避免用户中心显示「暂无」还要点重置
+	if user.Apikey == nil || strings.TrimSpace(*user.Apikey) == "" {
+		key := models.GenerateApiKey()
+		user.Apikey = &key
+	}
 
 	// 创建用户
 	return models.CreateUser(user)
@@ -354,4 +360,3 @@ func (s *AuthService) ValidateToken(token string) (*utils.Claims, error) {
 func (s *AuthService) GetUserInfo(userID uint64) (*models.User, error) {
 	return models.GetUserByID(userID)
 }
-

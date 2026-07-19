@@ -22,15 +22,15 @@ fst/
 │   │   ├── migrate/             # 数据库自迁移
 │   │   └── task/                # 自动任务管理器（SQL + 内存调度）
 │   ├── app/                     # 业务 MVC + plugins
-│   ├── pkg/                     # config / db / middleware
-│   ├── routes/                  # public / user / admin
+│   ├── pkg/                     # config / db / middleware / presence
+│   ├── routes/                  # public / user / admin / ws
 │   ├── tests/README.md          # 测试放置说明
 │   └── 留档.md
-├── frontend/
+├── frontend/                    # Vue；自有 .env / .env.dev / .env.production
 ├── doc/
 ├── tools/                       # 运维/诊断/集成脚本（非服务入口）
 ├── build/
-├── .env.example
+├── .env.example                 # 后端唯一示例（本地复制为根 .env，勿用 backend/.env）
 ├── dev.bat / build.bat / test.bat
 └── README.md
 ```
@@ -69,17 +69,20 @@ go install github.com/swaggo/swag/cmd/swag@latest
 cd frontend && pnpm install
 ```
 
-### 3. 数据库配置
+### 3. 数据库与配置
 
-1. 创建数据库 `fst_platform`
-2. 复制 `.env.example` 为 `.env`，修改数据库连接信息
-3. 启动后自动迁移建表
+1. 创建数据库 `fst_platform`（或本地用 `DB_DRIVER=sqlite`）
+2. 在**仓库根目录**复制 `.env.example` → `.env`，改库连接；**不要**再写 `backend/.env`
+3. 前端另配 `frontend/.env*`（Vite）；`VITE_ADMIN_BASE_PATH` 与后端 `ADMIN_PATH` 对齐
+4. 启动后自动迁移建表
+
+`.env` 查找：exe 同级 → exe 上级 `../.env` → 从 cwd 向上（跳过前端纯 VITE 与 `backend/.env`）。打包请把 `.env` 放 exe 同级或上级。
 
 ### 4. 启动开发
 
 ```bash
-# 直接运行（统一入口：项目根目录 main.go）
-go run ./main.go
+# 必须在仓库根目录（读根 .env）
+go run .
 
 # 使用脚本
 ./dev.bat          # Windows：前端 + 根目录后端
@@ -112,7 +115,12 @@ func init() {
 
 ### JWT 认证
 
-双 Token 机制 (Access + Refresh)，支持用户名/邮箱登录，注册验证码，登录失败锁定。
+双 Token 机制 (Access + Refresh)，支持用户名/邮箱登录，注册验证码，登录失败锁定。  
+前端建议开启 `VITE_AUTO_REFRESH_TOKEN=Y`；登出可走 `force-logout` 清理过期会话。
+
+### 在线 Presence
+
+WebSocket 心跳上报在线状态；管理端「在线用户」可查看/踢下线。见 [doc/在线会话与Presence.md](doc/在线会话与Presence.md)。
 
 ### Swagger 文档
 
@@ -157,10 +165,11 @@ controllers/
 
 ```text
 /api/v1/
-├── public/                 # 公共 (登录/注册/app-config/支付回调)
+├── public/                 # 公共 (登录/注册/app-config/geo/session/支付回调)
 ├── user/                   # 用户 (资料/支付/实名/提现)
 ├── system/                 # 系统状态
-├── {ADMIN_API_PATH}/       # 管理端，默认 admin
+├── ws/presence             # 在线心跳 WebSocket
+├── {ADMIN_API_PATH}/       # 管理端，默认 admin（含 online / 各类日志与模板）
 └── 插件路由                # 自动注册
 ```
 
@@ -168,6 +177,7 @@ controllers/
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
+| `DB_DRIVER` | mysql / postgres / sqlite | mysql |
 | `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | 数据库连接 | 127.0.0.1:3306 |
 | `JWT_SECRET` | JWT 签名密钥 | 见 .env.example |
 | `ENABLE_SWAGGER` | 启用 Swagger | true |
@@ -177,13 +187,16 @@ controllers/
 | `ADMIN_PATH` | 管理**页面**入口 | /system-mgr |
 | `ADMIN_API_PATH` | 管理 **REST** 前缀 | /admin |
 
-完整配置参考 `.env.example` 和 [doc/配置系统.md](doc/配置系统.md)。
+完整配置参考根目录 `.env.example` 和 [doc/配置系统.md](doc/配置系统.md)。前端见 `frontend/.env.example`。
 
 ## 文档导航
 
 | 文档 | 说明 |
 |------|------|
 | [doc/README.md](doc/README.md) | 知识库总索引 |
+| [doc/文档索引与目录留档.md](doc/文档索引与目录留档.md) | 全仓留档清单 |
+| [doc/配置系统.md](doc/配置系统.md) | 根 `.env` 加载与配置 |
+| [doc/在线会话与Presence.md](doc/在线会话与Presence.md) | 在线心跳与强退 |
 | [doc/管理端路径与Swagger自适应.md](doc/管理端路径与Swagger自适应.md) | 页面/API 路径分离与自适应 |
 | [doc/JWT认证.md](doc/JWT认证.md) | Token 生成与验证 |
 | [doc/邮件系统.md](doc/邮件系统.md) | 邮件发送与模板管理 |
@@ -192,12 +205,18 @@ controllers/
 | [doc/实名认证接入说明.md](doc/实名认证接入说明.md) | 实名认证 |
 | [doc/插件系统.md](doc/插件系统.md) | 插件开发 |
 | [doc/数据库模型.md](doc/数据库模型.md) | 数据模型 |
-| [doc/配置系统.md](doc/配置系统.md) | 配置管理 |
 | [doc/API路由.md](doc/API路由.md) | 路由规则 |
 | [doc/前端请求.md](doc/前端请求.md) | 前端请求封装 |
 | [backend/留档.md](backend/留档.md) / [frontend/留档.md](frontend/留档.md) | 目录级留档 |
 
 ## 更新日志
+
+### 2026-07-20
+
+- 统一根目录 `.env` 加载（exe 同级 / 上级 / cwd 向上），废弃 `backend/.env`
+- Presence 在线用户、会话强退、国际手机号/geo、邮件代理与 SMTP 增强
+- 管理端设置/日志/模板与 i18n、Iconify 离线、Token 自动刷新默认开启
+- SQLite 方言与日志聚合等稳定性修复；文档与目录留档同步
 
 ### 2026-07-16
 
@@ -252,7 +271,7 @@ cd C:\Users\Administrator\Desktop\coding\codingfile\fst
 go run ./main.go
 ```
 
-默认监听在根目录 `.env` 的 `PORT`（示例为 `8080`），如端口占用可自行调整配置或停止旧进程。
+默认监听在根目录 `.env` 的 `PORT`（示例见 `.env.example`），如端口占用可自行调整配置或停止旧进程。
 
 ### 管理员 / 用户双 token 行为手工验证示例
 

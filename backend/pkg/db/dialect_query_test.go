@@ -55,6 +55,24 @@ func TestAdaptMySQLQuery_FromUnixTime(t *testing.T) {
 	}
 }
 
+// TestAdaptMySQLQuery_DateFormatFromUnixOfUnixTimestamp 覆盖 sms_logs/email_logs
+// 这种 created_at 是 TIMESTAMP 列、多套了一层 UNIX_TIMESTAMP 的写法：
+// DATE_FORMAT(FROM_UNIXTIME(UNIX_TIMESTAMP(col)), '%Y%m%d')。
+// 之前因为正则的 [^)]+? 遇到内层括号提前收尾，导致整段没被替换，SQLite 报 no such function: DATE_FORMAT。
+func TestAdaptMySQLQuery_DateFormatFromUnixOfUnixTimestamp(t *testing.T) {
+	out := AdaptMySQLQueryToSQLite(`SELECT CAST(DATE_FORMAT(FROM_UNIXTIME(UNIX_TIMESTAMP(created_at)), '%Y%m%d') AS UNSIGNED) AS day_key, COUNT(*) AS total_count FROM sms_logs GROUP BY day_key ORDER BY day_key ASC`)
+	upper := strings.ToUpper(out)
+	if strings.Contains(upper, "DATE_FORMAT") || strings.Contains(upper, "FROM_UNIXTIME") || strings.Contains(upper, "UNIX_TIMESTAMP") {
+		t.Fatalf("DATE_FORMAT/FROM_UNIXTIME/UNIX_TIMESTAMP 未替换: %s", out)
+	}
+	if !strings.Contains(out, "strftime('%Y%m%d', created_at)") {
+		t.Fatalf("期望直接对 created_at strftime（不带 unixepoch）: %s", out)
+	}
+	if strings.Contains(upper, "UNSIGNED") {
+		t.Fatalf("UNSIGNED 应改为 INTEGER: %s", out)
+	}
+}
+
 func TestAdaptMySQLQuery_OnDuplicateKey(t *testing.T) {
 	in := `INSERT INTO api_access_log_daily_stats (day_key, total_count, updated_at)
     VALUES (?, 1, ?)

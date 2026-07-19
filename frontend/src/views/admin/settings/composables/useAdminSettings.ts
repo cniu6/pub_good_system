@@ -77,6 +77,7 @@ export function useAdminSettings() {
     switchLoading: state.switchLoading,
     basicForm: state.basicForm,
     emailForm: state.emailForm,
+    testEmailTo: state.testEmailTo,
     smsForm: state.smsForm,
     securityForm: state.securityForm,
     realnameApiForm: state.realnameApiForm,

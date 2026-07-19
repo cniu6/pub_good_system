@@ -2,6 +2,7 @@ package admin
 
 import (
 	"fst/backend/app/models"
+	"fst/backend/app/services"
 	"fst/backend/utils"
 	"strconv"
 	"time"
@@ -36,32 +37,30 @@ func (c *LogController) List(ctx *gin.Context) {
 	}
 
 	defaultQueryDays := 30
-	defaultMaxCount := 500
-	settingsMap, err := models.GetSettingsMap([]string{"operation_log_query_days", "operation_log_max_count"})
-	if err == nil {
-		if v, ok := settingsMap["operation_log_query_days"]; ok {
-			if parsed, parseErr := strconv.Atoi(v); parseErr == nil && parsed > 0 {
-				defaultQueryDays = parsed
-			}
-		}
-		if v, ok := settingsMap["operation_log_max_count"]; ok {
-			if parsed, parseErr := strconv.Atoi(v); parseErr == nil && parsed > 0 {
-				defaultMaxCount = parsed
-			}
-		}
+	defaultMaxCount := 1000
+	opCfg := services.GetGlobalOperationLogRuntimeConfig()
+	if opCfg.QueryDays > 0 {
+		defaultQueryDays = opCfg.QueryDays
+	}
+	if opCfg.MaxCount > 0 {
+		defaultMaxCount = opCfg.MaxCount
 	}
 
 	if defaultQueryDays > 365 {
 		defaultQueryDays = 365
 	}
-	if defaultMaxCount > 10000 {
-		defaultMaxCount = 10000
+	if defaultMaxCount > 100000 {
+		defaultMaxCount = 100000
 	}
 
-	// 自动清理超出上限的旧日志
+	// 自动清理超出上限的旧日志（总量 + 可选每用户）
 	if cleaned, cleanErr := models.CleanExcessOperationLogs(defaultMaxCount); cleanErr == nil && cleaned > 0 {
-		// 清理成功，静默处理
 		_ = cleaned
+	}
+	if opCfg.PerUserLimitEnabled && opCfg.PerUserMaxCount > 0 {
+		if cleaned, cleanErr := models.CleanExcessOperationLogsPerUser(opCfg.PerUserMaxCount); cleanErr == nil && cleaned > 0 {
+			_ = cleaned
+		}
 	}
 
 	// 设置默认分页
@@ -155,5 +154,23 @@ func (c *LogController) Clean(ctx *gin.Context) {
 	utils.Success(ctx, gin.H{
 		"affected": affected,
 	})
+}
+
+// Stats 操作日志统计（读独立聚合表，清理明细不影响累计）
+// @Summary 操作日志统计
+// @Description 获取操作日志总请求数、今日、4xx、5xx、热门模块等
+// @Tags Admin-操作日志
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Router /api/v1/admin/logs/stats [get]
+func (c *LogController) Stats(ctx *gin.Context) {
+	stats, err := models.GetOperationLogStatsDetail()
+	if err != nil {
+		utils.Fail(ctx, 500, "统计失败")
+		return
+	}
+	utils.Success(ctx, stats)
 }
 

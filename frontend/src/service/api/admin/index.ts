@@ -40,6 +40,7 @@ export const adminApi = {
   smsLog: createLazyModule(() => import('./sms-log').then(m => m.adminSMSLogApi)),
   emailLog: createLazyModule(() => import('./email-log').then(m => m.adminEmailLogApi)),
   emailTemplate: createLazyModule(() => import('./email-template').then(m => m.adminEmailTemplateApi)),
+  smsTemplate: createLazyModule(() => import('./sms-template').then(m => m.adminSMSTemplateApi)),
   debug: createLazyModule(() => import('./debug').then(m => m.adminDebugApi)),
   settings: createLazyModule(() => import('./settings').then(m => m.adminSettingsApi)),
   server: createLazyModule(() => import('./server').then(m => m.adminServerApi)),

@@ -33,6 +33,16 @@ export interface SMSLogListParams {
   end_time?: string
 }
 
+/** 短信日志详细统计（独立聚合表） */
+export interface SMSLogStats {
+  total_count: number
+  today_count: number
+  success_count: number
+  fail_count: number
+  top_templates: Array<{ template_name: string; count: number }>
+  provider_stats: Array<{ provider: string; count: number }>
+}
+
 export const adminSMSLogApi = {
   list(params?: SMSLogListParams) {
     return request.Get<Service.ResponseResult<{ list: SMSLog[]; total: number; page: number; page_size: number }>>(baseUrl(), { params })
@@ -43,7 +53,7 @@ export const adminSMSLogApi = {
   },
 
   stats() {
-    return request.Get<Service.ResponseResult<{ total: number; success: number; fail: number }>>(`${baseUrl()}/stats`)
+    return request.Get<Service.ResponseResult<SMSLogStats>>(`${baseUrl()}/stats`)
   },
 
   templateNames() {

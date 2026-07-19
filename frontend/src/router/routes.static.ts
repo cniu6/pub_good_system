@@ -59,7 +59,7 @@ export const staticRoutes: AppRoute.RowRoute[] = [
     path: '/user/account/user-center',
     title: 'route.userCenter',
     requiresAuth: true,
-    icon: 'carbon:user-avatar-filled-alt',
+    icon: 'icon-park-outline:avatar',
     menuType: 'page',
     componentPath: '/user/user-center/index.vue',
     id: 999,

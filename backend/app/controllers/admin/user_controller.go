@@ -493,7 +493,7 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 		Duration:     0,
 	})
 
-	if err := models.CreateUserSession(user.ID, authGuard, utils.HashToken(token), utils.HashToken(refreshToken), clientIP, userAgent, "Admin Impersonation", expiresAt, refreshExpiresAt); err != nil {
+	if err := models.CreateUserSession(user.ID, authGuard, utils.HashToken(token), utils.HashToken(refreshToken), clientIP, userAgent, "Admin Impersonation", "web", "", expiresAt, refreshExpiresAt); err != nil {
 		utils.Fail(ctx, 500, "创建登录会话失败")
 		return
 	}
@@ -607,4 +607,3 @@ func (c *UserController) LookupUser(ctx *gin.Context) {
 
 	utils.Fail(ctx, 404, "用户不存在")
 }
-

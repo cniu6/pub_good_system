@@ -98,7 +98,7 @@ func logMySQLConnectFailure(err error, cfg *config.Config) {
 	log.Printf("[数据库连接错误] 无法连接 MySQL: %v", err)
 	log.Println("[临时缓解] 本地暂时没有 MySQL（或连不上）时，可改用 SQLite，步骤如下：")
 	log.Println("  1) 在项目根目录 .env 设置：DB_DRIVER=sqlite")
-	log.Println("  2) 可选：DB_PATH=./data/fst.db  （默认即为 data/fst.db，相对运行目录）")
+	log.Println("  2) 可选：DB_PATH=./fst.db  （默认 data/fst.db；本地可放运行目录同级，不要 data/）")
 	log.Println("  3) 保存后重启后端；SQLite 仅建议开发/临时使用，生产请恢复 MySQL")
 	if cfg != nil && strings.TrimSpace(cfg.DBDSN) != "" {
 		// 不打印密码：DSN 形如 user:pass@tcp(...)，只提示驱动与主机概念

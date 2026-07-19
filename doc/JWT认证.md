@@ -2,10 +2,12 @@
 
 > 🔐 **文档位置**: `doc/JWT认证.md`
 > 
+> **最后更新**: 2026-07-20  
 > **关联文件**:
-> - `backend/utils/jwt.go` - JWT 生成和验证
-> - `backend/internal/middleware/auth.go` - 认证中间件
-> - `backend/internal/config/config.go` - JWT 密钥配置
+> - `backend/utils/jwt.go` - JWT 生成和验证（含 `ParseTokenForGuardIgnoreExpiry`）
+> - `backend/pkg/middleware/auth.go` - 认证中间件
+> - `backend/pkg/config/config.go` - JWT 密钥配置
+> - `backend/app/controllers/public/session_controller.go` - 过期 token 强退会话
 
 ---
 

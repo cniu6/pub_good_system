@@ -34,10 +34,12 @@ import {
 import type { PayGateway, PaymentOrder } from '@/service/api/user/payment'
 import { fetchUserProfile } from '@/service/api/user/login'
 import { useAuthStore } from '@/store'
+import { useRequestGuard } from '@/hooks'
 
 const message = useMessage()
 const authStore = useAuthStore()
 const { t } = useI18n()
+const ordersFetchGuard = useRequestGuard()
 const route = useRoute()
 
 // ========== 加载状态 ==========
@@ -348,6 +350,7 @@ async function fetchGateways() {
 
 // ========== 获取订单列表 ==========
 async function fetchOrders() {
+  const token = ordersFetchGuard.begin()
   loading.value = true
   try {
     const params: Record<string, any> = {
@@ -358,16 +361,20 @@ async function fetchOrders() {
       params.status = statusFilter.value
     }
     const res = await fetchPaymentOrders(params)
+    if (!ordersFetchGuard.isLatest(token))
+      return
     if (res.isSuccess) {
       orderData.value = res.data?.list || []
       pagination.itemCount = res.data?.total || 0
     }
   }
   catch {
-    message.error(t('recharge.fetchOrdersFailed'))
+    if (ordersFetchGuard.isLatest(token))
+      message.error(t('recharge.fetchOrdersFailed'))
   }
   finally {
-    loading.value = false
+    if (ordersFetchGuard.isLatest(token))
+      loading.value = false
   }
 }
 

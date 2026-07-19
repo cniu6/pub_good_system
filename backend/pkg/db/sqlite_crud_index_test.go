@@ -26,7 +26,7 @@ func TestSQLiteMigrateIndexesAndCRUD(t *testing.T) {
 			"user_realname_verifications", "auto_job_definitions", "auto_job_runs",
 			"system_settings", "user_settings", "user_sessions",
 			"user_money_logs", "user_score_logs", "operation_logs", "api_access_logs",
-			"sms_logs", "payment_orders", "withdraw_requests", "idempotency_keys", "pay_gateways",
+			"sms_logs", "sms_templates", "payment_orders", "withdraw_requests", "idempotency_keys", "pay_gateways",
 		}
 		for _, name := range need {
 			if !db.CheckTableExists(name) {
@@ -211,10 +211,10 @@ func TestSQLiteMigrateIndexesAndCRUD(t *testing.T) {
 	t.Run("CRUD_会话写入撤销", func(t *testing.T) {
 		u := testutil.CreateTestUser(t, "crud-session-user")
 		now := time.Now()
-		if err := models.CreateUserSession(u.ID, "user", "tok-crud", "ref-crud", "127.0.0.1", "ua", "pc", now.Add(time.Hour).Unix(), now.Add(2*time.Hour).Unix()); err != nil {
+		if err := models.CreateUserSession(u.ID, "user", "tok-crud", "ref-crud", "127.0.0.1", "ua", "pc", "web", "", now.Add(time.Hour).Unix(), now.Add(2*time.Hour).Unix()); err != nil {
 			t.Fatalf("CreateUserSession: %v", err)
 		}
-		sessions, err := models.GetUserSessionsWithGuard(u.ID, "user")
+		sessions, err := models.GetUserSessionsWithGuard(u.ID, "user", "")
 		if err != nil || len(sessions) != 1 {
 			t.Fatalf("读会话失败: len=%d err=%v", len(sessions), err)
 		}

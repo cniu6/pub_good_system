@@ -25,7 +25,7 @@ import {
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { adminApi } from '@/service/api/admin'
-import { useEcharts, useTableColumnVisibility } from '@/hooks'
+import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { adminAPILogApi, type APIAccessLog, type APIAccessLogListParams, type APIAccessLogStats } from '@/service/api/admin/api-log'
 import { parseBooleanSetting, parseNumberSetting } from '@/utils'
@@ -57,6 +57,7 @@ const query = reactive<APIAccessLogListParams>({
   page_size: 20,
   keyword: '',
   scene: undefined,
+  auth_method: undefined,
   transport: undefined,
   method: undefined,
   status_code: undefined,
@@ -65,6 +66,7 @@ const query = reactive<APIAccessLogListParams>({
 })
 
 const dateRange = ref<[number, number] | null>(null)
+const listFetchGuard = useRequestGuard()
 const pagination = reactive({
   page: 1,
   pageSize: 20,
@@ -74,6 +76,8 @@ const runtimeForm = reactive({
   api_access_log_enabled: true,
   api_log_query_days: 7,
   api_log_max_count: 1000,
+  api_log_per_user_limit_enabled: false,
+  api_log_per_user_max_count: 1000,
 })
 
 const showDetail = ref(false)
@@ -199,6 +203,10 @@ function normalizeRuntimeQueryDays(value: unknown) {
 
 function normalizeRuntimeMaxCount(value: unknown) {
   return Math.min(200000, Math.max(100, Math.floor(parseNumberSetting(value, 1000))))
+}
+
+function normalizePerUserMaxCount(value: unknown) {
+  return Math.min(200000, Math.max(1, Math.floor(parseNumberSetting(value, 1000))))
 }
 
 function applyDefaultDateRange(days = runtimeForm.api_log_query_days) {
@@ -373,6 +381,22 @@ async function loadRuntimeConfig() {
       runtimeForm.api_access_log_enabled = parseBooleanSetting(apiLogConfig.enabled, true)
       runtimeForm.api_log_query_days = normalizeRuntimeQueryDays(apiLogConfig.query_days)
       runtimeForm.api_log_max_count = normalizeRuntimeMaxCount(apiLogConfig.max_count)
+      if (apiLogConfig.per_user_limit_enabled !== undefined)
+        runtimeForm.api_log_per_user_limit_enabled = parseBooleanSetting(apiLogConfig.per_user_limit_enabled, false)
+      if (apiLogConfig.per_user_max_count !== undefined)
+        runtimeForm.api_log_per_user_max_count = normalizePerUserMaxCount(apiLogConfig.per_user_max_count)
+    }
+
+    // 服务端 ops 若未返回 per-user 字段，则从系统设置兜底读取
+    const settingsRes = await adminApi.settings.list()
+    const categories = settingsRes.data?.categories || []
+    for (const category of categories) {
+      for (const item of category.items) {
+        if (item.key === 'api_log_per_user_limit_enabled')
+          runtimeForm.api_log_per_user_limit_enabled = parseBooleanSetting(item.value, false)
+        if (item.key === 'api_log_per_user_max_count')
+          runtimeForm.api_log_per_user_max_count = normalizePerUserMaxCount(item.value)
+      }
     }
   }
   catch {
@@ -386,6 +410,7 @@ async function loadRuntimeConfig() {
 }
 
 async function fetchList() {
+  const token = listFetchGuard.begin()
   loading.value = true
   try {
     if (dateRange.value) {
@@ -407,15 +432,19 @@ async function fetchList() {
     if (!params.end_time) delete params.end_time
 
     const res = await adminAPILogApi.list(params)
+    if (!listFetchGuard.isLatest(token))
+      return
     logList.value = res.data?.list || []
     total.value = res.data?.total || 0
     pagination.itemCount = total.value
   }
   catch {
-    message.error(t('adminAPILogs.fetchListFailed'))
+    if (listFetchGuard.isLatest(token))
+      message.error(t('adminAPILogs.fetchListFailed'))
   }
   finally {
-    loading.value = false
+    if (listFetchGuard.isLatest(token))
+      loading.value = false
   }
 }
 
@@ -432,11 +461,14 @@ async function handleSaveRuntimeConfig() {
   try {
     runtimeForm.api_log_query_days = normalizeRuntimeQueryDays(runtimeForm.api_log_query_days)
     runtimeForm.api_log_max_count = normalizeRuntimeMaxCount(runtimeForm.api_log_max_count)
+    runtimeForm.api_log_per_user_max_count = normalizePerUserMaxCount(runtimeForm.api_log_per_user_max_count)
 
     const res = await adminApi.settings.batchUpdate({
       api_access_log_enabled: String(runtimeForm.api_access_log_enabled),
       api_log_query_days: String(runtimeForm.api_log_query_days),
       api_log_max_count: String(runtimeForm.api_log_max_count),
+      api_log_per_user_limit_enabled: String(runtimeForm.api_log_per_user_limit_enabled),
+      api_log_per_user_max_count: String(runtimeForm.api_log_per_user_max_count),
     })
     if (!res.isSuccess)
       throw new Error(res.message || t('adminServer.saveRuntimeFailed'))
@@ -587,6 +619,10 @@ onMounted(() => {
             <NInputNumber v-model:value="runtimeForm.api_log_query_days" :min="1" :max="365" size="small" style="width: 110px;" />
             <NText depth="3">{{ t('adminServer.runtimeConfig.maxCount') }}</NText>
             <NInputNumber v-model:value="runtimeForm.api_log_max_count" :min="100" :max="200000" size="small" style="width: 130px;" />
+            <NText depth="3">{{ t('adminAPILogs.perUserLimitEnabled') }}</NText>
+            <NSwitch v-model:value="runtimeForm.api_log_per_user_limit_enabled" />
+            <NText depth="3">{{ t('adminAPILogs.perUserMaxCount') }}</NText>
+            <NInputNumber v-model:value="runtimeForm.api_log_per_user_max_count" :min="1" :max="200000" size="small" style="width: 130px;" />
           </NSpace>
           <NSpace size="small">
             <NButton size="small" type="primary" :loading="runtimeSaving" @click="handleSaveRuntimeConfig">{{ t('adminServer.runtimeConfig.save') }}</NButton>

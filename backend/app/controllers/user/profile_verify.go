@@ -244,6 +244,12 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 	}
 
 	req.NewMobile = utils.Clean_XSS(req.NewMobile)
+	normalizedMobile, err := utils.NormalizeAndValidateMobile(req.NewMobile, services.GetGlobalMobileCNOnly())
+	if err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+	req.NewMobile = normalizedMobile
 	user, err := ctrl.user_svc.GetByID(uid)
 	if err != nil {
 		utils.Fail(c, 404, "User not found")
@@ -362,6 +368,13 @@ func (ctrl *ProfileController) VerifyPhoneChange(c *gin.Context) {
 
 	req.NewMobile = utils.Clean_XSS(req.NewMobile)
 	req.Code = utils.Clean_XSS(req.Code)
+
+	normalizedMobile, err := utils.NormalizeAndValidateMobile(req.NewMobile, services.GetGlobalMobileCNOnly())
+	if err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+	req.NewMobile = normalizedMobile
 
 	consumed, err := models.ConsumeVerificationCode(req.NewMobile, req.Code, "change_phone")
 	if err != nil || !consumed {

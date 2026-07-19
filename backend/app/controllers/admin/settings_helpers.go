@@ -16,6 +16,7 @@ const sensitiveSettingMaskedValue = "********"
 var sensitiveSettingKeys = map[string]struct{}{
 	"geetest_captcha_key": {},
 	"smtp_password":       {},
+	"smtp_proxy_password": {},
 	"sms_access_key":      {},
 	"sms_secret_key":      {},
 }
@@ -25,12 +26,14 @@ var sensitiveSettingKeys = map[string]struct{}{
 // ========================================
 
 // isValidType 验证配置类型是否有效
+// password 语义等同 string，仅用于告知前端用密码输入框（带查看/隐藏眼睛）渲染，不做额外校验
 func (ctrl *SettingsController) isValidType(t string) bool {
 	validTypes := map[string]bool{
-		"string":  true,
-		"number":  true,
-		"boolean": true,
-		"json":    true,
+		"string":   true,
+		"number":   true,
+		"boolean":  true,
+		"json":     true,
+		"password": true,
 	}
 	return validTypes[t]
 }
@@ -64,7 +67,7 @@ func (ctrl *SettingsController) validateSettingValue(value, typ string) bool {
 	case "json":
 		var payload interface{}
 		return json.Unmarshal([]byte(trimmed), &payload) == nil
-	case "string":
+	case "string", "password":
 		return true
 	default:
 		return true
@@ -115,6 +118,46 @@ func (ctrl *SettingsController) resolveSettingValueForAdmin(setting models.Syste
 			return cfg.SMTPSSL
 		}
 		return setting.GetTypedValue()
+	case "smtp_proxy_enabled":
+		if strings.TrimSpace(setting.Value) == "" {
+			return cfg.SMTPProxyEnabled
+		}
+		return setting.GetTypedValue()
+	case "smtp_proxy_type":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			val = strings.TrimSpace(cfg.SMTPProxyType)
+		}
+		if val == "" {
+			val = "socks5"
+		}
+		return val
+	case "smtp_proxy_host":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			val = strings.TrimSpace(cfg.SMTPProxyHost)
+		}
+		return val
+	case "smtp_proxy_port":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			if port, err := strconv.Atoi(strings.TrimSpace(cfg.SMTPProxyPort)); err == nil && port > 0 {
+				return port
+			}
+			return setting.GetTypedValue()
+		}
+		if port, err := strconv.Atoi(val); err == nil && port > 0 {
+			return port
+		}
+		return setting.GetTypedValue()
+	case "smtp_proxy_username":
+		val := strings.TrimSpace(setting.Value)
+		if val == "" {
+			val = strings.TrimSpace(cfg.SMTPProxyUser)
+		}
+		return val
+	case "smtp_proxy_password":
+		return ctrl.maskSensitiveSettingValue(ctrl.resolveCurrentSensitiveSettingValue(setting))
 	case "system_email_address":
 		val := strings.TrimSpace(setting.Value)
 		if val == "" {
@@ -272,6 +315,8 @@ func (ctrl *SettingsController) resolveCurrentSensitiveSettingValue(setting mode
 		return strings.TrimSpace(cfg.GeetestKey)
 	case "smtp_password":
 		return cfg.SMTPPass
+	case "smtp_proxy_password":
+		return cfg.SMTPProxyPass
 	case "sms_access_key":
 		return strings.TrimSpace(cfg.SMSAccessKey)
 	case "sms_secret_key":
@@ -306,14 +351,56 @@ func (ctrl *SettingsController) refreshRuntimeConfig() {
 		sms_plugin.ApplyRuntimeProvider(services.SMSConfig(smsConfig))
 	}
 
-	apiLogConfig := services.GetGlobalAPILogRuntimeConfig()
-	if apiLogConfig.MaxCount > 0 {
-		go func(maxCount int) {
-			if _, err := models.CleanExcessAPIAccessLogs(maxCount); err != nil {
+	// 保存配置后立即触发各类日志保留清理（异步，互不影响）
+	go func() {
+		apiLogConfig := services.GetGlobalAPILogRuntimeConfig()
+		if apiLogConfig.MaxCount > 0 {
+			if _, err := models.CleanExcessAPIAccessLogs(apiLogConfig.MaxCount); err != nil {
 				log.Printf("[APIAccessLog] 应用运行时配置后清理超限日志失败: %v", err)
-				return
+			} else {
+				invalidateAPILogStatsCache()
 			}
-			invalidateAPILogStatsCache()
-		}(apiLogConfig.MaxCount)
-	}
+		}
+		if apiLogConfig.PerUserLimitEnabled && apiLogConfig.PerUserMaxCount > 0 {
+			if _, err := models.CleanExcessAPIAccessLogsPerUser(apiLogConfig.PerUserMaxCount); err != nil {
+				log.Printf("[APIAccessLog] 应用运行时配置后按用户清理失败: %v", err)
+			}
+		}
+
+		opCfg := services.GetGlobalOperationLogRuntimeConfig()
+		if opCfg.MaxCount > 0 {
+			if _, err := models.CleanExcessOperationLogs(opCfg.MaxCount); err != nil {
+				log.Printf("[OperationLog] 应用运行时配置后清理超限日志失败: %v", err)
+			}
+		}
+		if opCfg.PerUserLimitEnabled && opCfg.PerUserMaxCount > 0 {
+			if _, err := models.CleanExcessOperationLogsPerUser(opCfg.PerUserMaxCount); err != nil {
+				log.Printf("[OperationLog] 应用运行时配置后按用户清理失败: %v", err)
+			}
+		}
+
+		smsLogCfg := services.GetGlobalSMSLogRuntimeConfig()
+		if smsLogCfg.MaxCount > 0 {
+			if _, err := models.CleanExcessSMSLogs(smsLogCfg.MaxCount); err != nil {
+				log.Printf("[SMSLog] 应用运行时配置后清理超限日志失败: %v", err)
+			}
+		}
+		if smsLogCfg.PerUserLimitEnabled && smsLogCfg.PerUserMaxCount > 0 {
+			if _, err := models.CleanExcessSMSLogsPerRecipient(smsLogCfg.PerUserMaxCount); err != nil {
+				log.Printf("[SMSLog] 应用运行时配置后按收件人清理失败: %v", err)
+			}
+		}
+
+		emailLogCfg := services.GetGlobalEmailLogRuntimeConfig()
+		if emailLogCfg.MaxCount > 0 {
+			if _, err := models.CleanExcessEmailLogs(emailLogCfg.MaxCount); err != nil {
+				log.Printf("[EmailLog] 应用运行时配置后清理超限日志失败: %v", err)
+			}
+		}
+		if emailLogCfg.PerUserLimitEnabled && emailLogCfg.PerUserMaxCount > 0 {
+			if _, err := models.CleanExcessEmailLogsPerRecipient(emailLogCfg.PerUserMaxCount); err != nil {
+				log.Printf("[EmailLog] 应用运行时配置后按收件人清理失败: %v", err)
+			}
+		}
+	}()
 }

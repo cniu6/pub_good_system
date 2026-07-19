@@ -12,6 +12,7 @@ const userInfo = computed(() => authStore.userInfo)
 const showResetConfirm = ref(false)
 const showApiKey = ref(false)
 const apiKeyLoading = ref(false)
+const resettingApiKey = ref(false)
 
 async function loadApiKey() {
   apiKeyLoading.value = true
@@ -41,6 +42,9 @@ function copyApiKey() {
 }
 
 async function confirmResetApiKey() {
+  if (resettingApiKey.value)
+    return
+  resettingApiKey.value = true
   try {
     const response = await fetchResetApiKey()
     if (response.isSuccess) {
@@ -57,6 +61,9 @@ async function confirmResetApiKey() {
       console.error('[apiTab] reset api key failed', error)
     window.$message.error(t('apiTab.apiKeyResetFailed'))
   }
+  finally {
+    resettingApiKey.value = false
+  }
 }
 
 onMounted(() => {
@@ -69,22 +76,22 @@ onMounted(() => {
     <n-h4>{{ t('apiTab.title') }}</n-h4>
     <n-divider />
 
-    <div class="api-section">
-      <n-text depth="3" class="api-desc">
+    <n-space vertical :size="16" style="max-width: 640px;">
+      <n-text depth="3">
         {{ t('apiTab.description') }}
       </n-text>
 
-      <div class="api-key-container">
+      <!-- 使用 naive-ui 原生 input-group，保证输入框与重置按钮纵向对齐 -->
+      <n-input-group>
         <n-input
           :loading="apiKeyLoading"
           :value="userInfo?.apikey || t('apiTab.noApiKey')"
           :type="showApiKey ? 'text' : 'password'"
           readonly
           :placeholder="t('apiTab.noApiKey')"
-          class="api-key-input"
         >
           <template #suffix>
-            <n-space style="margin-top: 5px;">
+            <n-space :size="4" align="center">
               <n-button
                 text
                 type="primary"
@@ -110,114 +117,39 @@ onMounted(() => {
             </n-space>
           </template>
         </n-input>
-
-        <n-button
-          type="warning"
-          class="reset-btn"
-          @click="showResetConfirm = true"
-        >
+        <n-button type="warning" @click="showResetConfirm = true">
           {{ t('apiTab.resetKey') }}
         </n-button>
-      </div>
+      </n-input-group>
 
-      <n-alert type="warning" class="mt-4">
+      <n-alert type="warning">
         <template #header>
           {{ t('apiTab.notes') }}
         </template>
-        <ul class="alert-list">
-          <li>{{ t('apiTab.note1') }}</li>
-          <li>{{ t('apiTab.note2') }}</li>
-        </ul>
+        <n-space vertical :size="4">
+          <n-text>{{ t('apiTab.note1') }}</n-text>
+          <n-text>{{ t('apiTab.note2') }}</n-text>
+          <n-text>{{ t('apiTab.note3') }}</n-text>
+          <n-text>{{ t('apiTab.note4') }}</n-text>
+        </n-space>
       </n-alert>
-    </div>
+    </n-space>
 
     <!-- 重置确认对话框 -->
-    <n-modal v-model:show="showResetConfirm">
-      <n-card
-        style="width: 400px"
-        :title="t('apiTab.confirmResetTitle')"
-        :bordered="false"
-        size="huge"
-        role="dialog"
-        aria-modal="true"
-      >
-        <div class="confirm-content">
-          <n-alert type="warning" :show-icon="false">
-            {{ t('apiTab.confirmResetContent') }}
-          </n-alert>
-        </div>
-        <template #footer>
-          <div class="dialog-footer">
-            <n-button @click="showResetConfirm = false">
-              {{ t('common.cancel') }}
-            </n-button>
-            <n-button type="warning" @click="confirmResetApiKey">
-              {{ t('apiTab.confirmReset') }}
-            </n-button>
-          </div>
-        </template>
-      </n-card>
+    <n-modal v-model:show="showResetConfirm" preset="card" :title="t('apiTab.confirmResetTitle')" style="width: 400px;" :bordered="false" size="huge">
+      <n-alert type="warning" :show-icon="false">
+        {{ t('apiTab.confirmResetContent') }}
+      </n-alert>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showResetConfirm = false">
+            {{ t('common.cancel') }}
+          </n-button>
+          <n-button type="warning" :loading="resettingApiKey" :disabled="resettingApiKey" @click="confirmResetApiKey">
+            {{ t('apiTab.confirmReset') }}
+          </n-button>
+        </n-space>
+      </template>
     </n-modal>
   </div>
 </template>
-
-<style scoped>
-.api-section {
-  max-width: 600px;
-}
-
-.api-desc {
-  display: block;
-  margin: 8px 0 16px 0;
-}
-
-.api-key-container {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.api-key-input {
-  flex: 1;
-}
-
-.reset-btn {
-  flex-shrink: 0;
-}
-
-.alert-list {
-  margin: 0;
-  padding-left: 20px;
-}
-
-.alert-list li {
-  margin-bottom: 4px;
-}
-
-.confirm-content {
-  margin: 16px 0;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-@media (max-width: 768px) {
-  .api-key-container {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .reset-btn {
-    width: 100%;
-  }
-}
-
-@media (max-width: 480px) {
-  .api-section {
-    max-width: 100%;
-  }
-}
-</style>

@@ -2,12 +2,17 @@ package models
 
 import (
 	"fst/backend/pkg/db"
+	"log"
+	"strconv"
+	"strings"
+	"sync/atomic"
 	"time"
 )
 
 // EmailLog 邮件日志
 type EmailLog struct {
 	ID           uint64    `db:"id" json:"id"`
+	UserID       uint64    `db:"user_id" json:"user_id"` // 关联用户（匿名发送为 0）
 	ToEmail      string    `db:"to_email" json:"to_email"`
 	Subject      string    `db:"subject" json:"subject"`
 	Content      string    `db:"content" json:"content"`
@@ -32,17 +37,122 @@ type EmailTemplate struct {
 	UpdatedAt   string `db:"updated_at" json:"updated_at"`
 }
 
-// CreateEmailLog 记录邮件发送日志
+var emailLogCleanupNextAt atomic.Int64
+
+// EnsureEmailLogsUserIDColumn 兼容旧表补齐 user_id
+func EnsureEmailLogsUserIDColumn() {
+	if !db.CheckTableExists("email_logs") {
+		return
+	}
+	if !db.CheckColumnExists("email_logs", "user_id") {
+		if _, err := db.Exec("ALTER TABLE email_logs ADD COLUMN user_id BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '关联用户ID（匿名发送为0）' AFTER id"); err != nil {
+			log.Printf("[Init] Failed to add email_logs.user_id: %v", err)
+		} else {
+			log.Println("[Init] Added email_logs.user_id")
+		}
+	}
+	db.EnsureIndex("email_logs", "idx_email_logs_user_id", "ALTER TABLE email_logs ADD INDEX idx_email_logs_user_id (user_id)")
+	InitEmailLogAggregateTables()
+}
+
+// CreateEmailLog 记录邮件发送日志（userID 可选，匿名发送传 0）
 func CreateEmailLog(to, subject, content, tplName string, status int, errorMsg string) error {
-	query := `INSERT INTO email_logs (to_email, subject, content, template_name, status, error_msg) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := db.Exec(query, to, subject, content, tplName, status, errorMsg)
-	return err
+	return CreateEmailLogWithUser(0, to, subject, content, tplName, status, errorMsg)
+}
+
+// CreateEmailLogWithUser 记录带用户关联的邮件日志
+func CreateEmailLogWithUser(userID uint64, to, subject, content, tplName string, status int, errorMsg string) error {
+	query := `INSERT INTO email_logs (user_id, to_email, subject, content, template_name, status, error_msg) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	result, err := db.Exec(query, userID, to, subject, content, tplName, status, errorMsg)
+	if err != nil {
+		return err
+	}
+
+	entry := &EmailLog{
+		UserID:       userID,
+		ToEmail:      to,
+		Subject:      subject,
+		Content:      content,
+		TemplateName: tplName,
+		Status:       uint8(status),
+		ErrorMsg:     errorMsg,
+		CreatedAt:    time.Now(),
+	}
+	if id, idErr := result.LastInsertId(); idErr == nil {
+		entry.ID = uint64(id)
+	}
+
+	go func(item *EmailLog) {
+		if aggErr := RecordEmailLogAggregate(item); aggErr != nil {
+			log.Printf("[EmailLog] 汇总更新失败: %v", aggErr)
+		}
+		scheduleEmailLogRetentionCleanup()
+	}(entry)
+
+	return nil
+}
+
+func scheduleEmailLogRetentionCleanup() {
+	now := time.Now().UnixNano()
+	nextAt := emailLogCleanupNextAt.Load()
+	if nextAt > now {
+		return
+	}
+	if !emailLogCleanupNextAt.CompareAndSwap(nextAt, now+int64(30*time.Second)) {
+		return
+	}
+
+	cfg := loadEmailLogRetentionConfig()
+	if cfg.MaxCount > 0 {
+		if _, err := CleanExcessEmailLogs(cfg.MaxCount); err != nil {
+			log.Printf("[EmailLog] 自动清理超限日志失败: %v", err)
+		}
+	}
+	if cfg.PerUserLimitEnabled && cfg.PerUserMaxCount > 0 {
+		if _, err := CleanExcessEmailLogsPerRecipient(cfg.PerUserMaxCount); err != nil {
+			log.Printf("[EmailLog] 按收件人清理超限日志失败: %v", err)
+		}
+	}
+}
+
+type emailLogRetentionConfig struct {
+	MaxCount            int
+	PerUserLimitEnabled bool
+	PerUserMaxCount     int
+}
+
+func loadEmailLogRetentionConfig() emailLogRetentionConfig {
+	cfg := emailLogRetentionConfig{MaxCount: 1000, PerUserMaxCount: 1000}
+	settingsMap, err := GetSettingsMap([]string{
+		"email_log_max_count",
+		"email_log_per_user_limit_enabled",
+		"email_log_per_user_max_count",
+	})
+	if err != nil {
+		return cfg
+	}
+	if v, ok := settingsMap["email_log_max_count"]; ok {
+		if n, parseErr := strconv.Atoi(strings.TrimSpace(v)); parseErr == nil && n > 0 {
+			cfg.MaxCount = n
+		}
+	}
+	if v, ok := settingsMap["email_log_per_user_limit_enabled"]; ok {
+		lower := strings.ToLower(strings.TrimSpace(v))
+		cfg.PerUserLimitEnabled = lower == "true" || lower == "1"
+	}
+	if v, ok := settingsMap["email_log_per_user_max_count"]; ok {
+		if n, parseErr := strconv.Atoi(strings.TrimSpace(v)); parseErr == nil && n > 0 {
+			cfg.PerUserMaxCount = n
+		}
+	}
+	return cfg
 }
 
 // EmailLogQuery 邮件日志查询参数
 type EmailLogQuery struct {
 	Page         int    `form:"page" json:"page"`
 	PageSize     int    `form:"page_size" json:"page_size"`
+	UserID       uint64 `form:"user_id" json:"user_id"`
 	ToEmail      string `form:"to_email" json:"to_email"`
 	TemplateName string `form:"template_name" json:"template_name"`
 	Status       int    `form:"status" json:"status"` // -1=全部, 0=失败, 1=成功
@@ -58,6 +168,10 @@ func GetEmailLogList(q *EmailLogQuery) ([]EmailLog, int64, error) {
 	where := "WHERE 1=1"
 	args := []interface{}{}
 
+	if q.UserID > 0 {
+		where += " AND user_id = ?"
+		args = append(args, q.UserID)
+	}
 	if q.ToEmail != "" {
 		where += " AND to_email LIKE ?"
 		args = append(args, "%"+q.ToEmail+"%")
@@ -92,7 +206,7 @@ func GetEmailLogList(q *EmailLogQuery) ([]EmailLog, int64, error) {
 	}
 	offset := (q.Page - 1) * q.PageSize
 
-	list_sql := "SELECT id, to_email, subject, template_name, status, error_msg, created_at FROM email_logs " +
+	list_sql := "SELECT id, user_id, to_email, subject, template_name, status, error_msg, created_at FROM email_logs " +
 		where + " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?"
 	args = append(args, q.PageSize, offset)
 
@@ -106,12 +220,12 @@ func GetEmailLogList(q *EmailLogQuery) ([]EmailLog, int64, error) {
 
 // GetEmailLogByID 根据 ID 获取邮件日志详情（含 content）
 func GetEmailLogByID(id uint64) (*EmailLog, error) {
-	var log EmailLog
-	err := db.DB.Get(&log, "SELECT * FROM email_logs WHERE id = ?", id)
+	var logEntry EmailLog
+	err := db.DB.Get(&logEntry, "SELECT * FROM email_logs WHERE id = ?", id)
 	if err != nil {
 		return nil, err
 	}
-	return &log, nil
+	return &logEntry, nil
 }
 
 // DeleteEmailLogsBefore 删除指定时间之前的邮件日志
@@ -123,18 +237,89 @@ func DeleteEmailLogsBefore(before string) (int64, error) {
 	return result.RowsAffected()
 }
 
-// GetEmailLogStats 邮件日志统计
+// CleanExcessEmailLogs 清理超出全局上限的旧邮件日志
+func CleanExcessEmailLogs(maxCount int) (int64, error) {
+	if maxCount <= 0 {
+		return 0, nil
+	}
+	var total int64
+	if err := db.DB.Get(&total, "SELECT COUNT(*) FROM email_logs"); err != nil {
+		return 0, err
+	}
+	if total <= int64(maxCount) {
+		return 0, nil
+	}
+
+	var cutoff struct {
+		ID        uint64    `db:"id"`
+		CreatedAt time.Time `db:"created_at"`
+	}
+	if err := db.DB.Get(&cutoff,
+		"SELECT id, created_at FROM email_logs ORDER BY created_at DESC, id DESC LIMIT 1 OFFSET ?",
+		maxCount-1,
+	); err != nil {
+		return 0, err
+	}
+
+	result, err := db.Exec(
+		"DELETE FROM email_logs WHERE created_at < ? OR (created_at = ? AND id < ?)",
+		cutoff.CreatedAt, cutoff.CreatedAt, cutoff.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+// CleanExcessEmailLogsPerRecipient 按收件邮箱清理超出上限的邮件日志
+func CleanExcessEmailLogsPerRecipient(maxPerRecipient int) (int64, error) {
+	if maxPerRecipient <= 0 {
+		return 0, nil
+	}
+	var groups []struct {
+		ToEmail string `db:"to_email"`
+		Cnt     int64  `db:"cnt"`
+	}
+	if err := db.DB.Select(&groups,
+		"SELECT to_email, COUNT(*) AS cnt FROM email_logs WHERE to_email != '' GROUP BY to_email HAVING COUNT(*) > ?",
+		maxPerRecipient,
+	); err != nil {
+		return 0, err
+	}
+
+	var totalAffected int64
+	for _, g := range groups {
+		var cutoff struct {
+			ID        uint64    `db:"id"`
+			CreatedAt time.Time `db:"created_at"`
+		}
+		if err := db.DB.Get(&cutoff,
+			"SELECT id, created_at FROM email_logs WHERE to_email = ? ORDER BY created_at DESC, id DESC LIMIT 1 OFFSET ?",
+			g.ToEmail, maxPerRecipient-1,
+		); err != nil {
+			continue
+		}
+		result, err := db.Exec(
+			"DELETE FROM email_logs WHERE to_email = ? AND (created_at < ? OR (created_at = ? AND id < ?))",
+			g.ToEmail, cutoff.CreatedAt, cutoff.CreatedAt, cutoff.ID,
+		)
+		if err != nil {
+			continue
+		}
+		if n, _ := result.RowsAffected(); n > 0 {
+			totalAffected += n
+		}
+	}
+	return totalAffected, nil
+}
+
+// GetEmailLogStats 邮件日志统计（兼容旧接口）
 func GetEmailLogStats() (total int64, success int64, fail int64, err error) {
-	err = db.DB.Get(&total, "SELECT COUNT(*) FROM email_logs")
-	if err != nil {
-		return
+	stats, statsErr := GetEmailLogStatsDetail()
+	if statsErr != nil {
+		return 0, 0, 0, statsErr
 	}
-	err = db.DB.Get(&success, "SELECT COUNT(*) FROM email_logs WHERE status = 1")
-	if err != nil {
-		return
-	}
-	fail = total - success
-	return
+	return stats.TotalCount, stats.SuccessCount, stats.FailCount, nil
 }
 
 // GetEmailTemplateNames 获取所有模板名（去重），用于前端筛选
@@ -181,6 +366,8 @@ func UpdateEmailTemplateContent(name, lang, content string) error {
 
 // InitEmailTemplates 初始化默认邮件模板
 func InitEmailTemplates() {
+	EnsureEmailLogsUserIDColumn()
+
 	// 注册验证码模板
 	registerCodeZH := `<p style="margin:0 0 16px 0;">您好，感谢您的注册！请使用以下验证码完成验证：</p>` +
 		`<div style="text-align:center;margin:28px 0;">` +
@@ -277,4 +464,3 @@ func InitEmailTemplates() {
 		_ = UpdateEmailTemplateContent("reset_password", "en-US", resetPasswordEN)
 	}
 }
-

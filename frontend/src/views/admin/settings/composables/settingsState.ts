@@ -16,6 +16,8 @@ export const savingSecurity = ref(false)
 export const savingRealnameApi = ref(false)
 export const savingPayment = ref(false)
 export const testingEmail = ref(false)
+/** 邮件设置页「发送测试邮件」的收件人（不入库，仅本页临时） */
+export const testEmailTo = ref('')
 export const restartingBackend = ref(false)
 export const topTab = ref('system-config')
 export const systemSubTab = ref('basic')
@@ -24,6 +26,7 @@ export const switchLoading = reactive({
   allow_register: false,
   allow_delete_account: false,
   smtp_ssl: false,
+  smtp_proxy_enabled: false,
   geetest_enabled: false,
   realname_enabled: false,
   realname_review_required: false,
@@ -32,6 +35,8 @@ export const switchLoading = reactive({
   sms_verify_enabled: false,
   payment_enabled: false,
   withdraw_enabled: false,
+  mobile_cn_only: false,
+  mobile_ip_country_detect: false,
 })
 
 export const basicForm = reactive({
@@ -53,12 +58,23 @@ export const emailForm = reactive({
   smtp_port: 587,
   smtp_username: '',
   smtp_password: '',
-  smtp_ssl: true,
+  // 默认关：587 走 STARTTLS；465 再开隐式 SSL
+  smtp_ssl: false,
+  // 默认关：国内直连国外 SMTP 不通时再开代理
+  smtp_proxy_enabled: false,
+  smtp_proxy_type: 'socks5',
+  smtp_proxy_host: '',
+  smtp_proxy_port: 1080,
+  smtp_proxy_username: '',
+  smtp_proxy_password: '',
+  system_email_address: '',
   system_email_name: '',
 })
 
 export const smsForm = reactive({
   sms_verify_enabled: false,
+  mobile_cn_only: true,
+  mobile_ip_country_detect: false,
   sms_provider: 'console',
   sms_access_key: '',
   sms_secret_key: '',

@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { NButton, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useTableColumnVisibility } from '@/hooks'
+import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import { adminMoneyLogApi, adminUserApi } from '@/service/api/admin/user'
 import { parseMemo } from '@/utils/memo'
 import I18nMemoEditor from '@/components/common/I18nMemoEditor.vue'
@@ -115,7 +115,10 @@ const {
   minScrollX: 900,
 })
 
+const listFetchGuard = useRequestGuard()
+
 async function fetchData() {
+  const token = listFetchGuard.begin()
   loading.value = true
   try {
     const res = await adminMoneyLogApi.list({
@@ -124,6 +127,8 @@ async function fetchData() {
       keyword: searchForm.keyword || undefined,
       user_id: searchForm.user_id || undefined,
     })
+    if (!listFetchGuard.isLatest(token))
+      return
     if (res.isSuccess) {
       logList.value = res.data?.list || []
       pagination.itemCount = res.data?.total || 0
@@ -133,10 +138,12 @@ async function fetchData() {
     }
   }
   catch {
-    message.error(t('moneyScore.fetchMoneyFailed'))
+    if (listFetchGuard.isLatest(token))
+      message.error(t('moneyScore.fetchMoneyFailed'))
   }
   finally {
-    loading.value = false
+    if (listFetchGuard.isLatest(token))
+      loading.value = false
   }
 }
 

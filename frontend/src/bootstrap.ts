@@ -8,6 +8,7 @@ import { installPinia, useSettingsStore } from './store'
 import { install as setupDirectives } from './modules/directives'
 import { install as setupI18n } from './modules/i18n'
 import { install as setupAssets } from './modules/assets'
+import { setupIconifyOffline } from './modules/iconify-offline'
 import { setRuntimeRouteMode } from './router/runtime-mode'
 import { authStorage } from './utils'
 import './styles/index.css'
@@ -30,6 +31,9 @@ async function setupApp(app: AppInstance<Element>, mode: AppRouteMode) {
 
 export async function bootstrap(mode: AppRouteMode) {
   try {
+    // 图标必须最先注册：侧栏/菜单用字符串图标名，离线集合就绪后才不会空白
+    setupIconifyOffline()
+
     setRuntimeRouteMode(mode)
 
     // admin 模式下自动启用 sessionStorage 隔离，

@@ -4,10 +4,13 @@ import { refreshAuthToken } from '@/service/http/token-refresh'
 import { router } from '@/router'
 import { buildAdminEntryUrl, getAdminBasePath } from '@/router/constants'
 import { getRuntimeRouteMode } from '@/router/runtime-mode'
-import { fetchLogin, fetchUserSettings } from '@/service'
-import { authStorage, langToFrontendFormat } from '@/utils'
+import { fetchLogin, fetchUserSettings, logoutCurrentSession } from '@/service'
+import { forceLogoutSession } from '@/service/api/session'
+import { startPresence, stopPresence } from '@/composables/usePresence'
+import { $t, authStorage, langToFrontendFormat } from '@/utils'
 import { useRouteStore } from './router'
 import { useTabStore } from './tab'
+import { useSettingsStore } from './settings'
 
 type LoginInfoPayload = Api.Login.Info & { expiresAt?: number }
 
@@ -35,6 +38,7 @@ interface AuthStatus {
   token: string
   accessTokenExpiresAt: number | null
   refreshTimer: ReturnType<typeof setTimeout> | null
+  isLoggingOut: boolean
 }
 export const useAuthStore = defineStore('auth-store', {
   state: (): AuthStatus => {
@@ -43,6 +47,7 @@ export const useAuthStore = defineStore('auth-store', {
       token: authStorage.get('accessToken') || '',
       accessTokenExpiresAt: authStorage.get('accessTokenExpiresAt') || null,
       refreshTimer: null,
+      isLoggingOut: false,
     }
   },
   getters: {
@@ -64,9 +69,27 @@ export const useAuthStore = defineStore('auth-store', {
     },
 
     /* 登录退出，重置用户信息等 */
-    async logout() {
+    async logout(revokeRemote = true) {
+      if (this.isLoggingOut)
+        return
+      this.isLoggingOut = true
       // 清除自动刷新定时器
       this.clearRefreshTimer()
+      // 本地先断开，避免退出过程中仍继续发送 Presence 心跳。
+      stopPresence()
+      // 撤销远程会话放后台异步执行、不等待结果：
+      // 若是因 token 已失效被强制退出，这个请求本身也会 401，
+      // 若在这里 await 它，会先卡进一轮 401 处理再回来，导致本地清理和跳转登录页被延迟甚至卡住。
+      if (revokeRemote && this.token) {
+        // 正常路径：token 仍有效时，走鉴权接口撤销会话 + 顺带踢掉 Presence 连接。
+        logoutCurrentSession().catch(() => {
+          // 网络中断或会话已失效时忽略即可，不影响本地退出。
+        })
+        // 兜底路径：token 已过期时上面那个会 401 什么也不做，
+        // 这里额外调一个"只验签名不验过期"的公开接口，确保过期会话也能被标记撤销，
+        // 不用一直等定时清理任务扫。两边都是各自忽略失败，互不影响。
+        forceLogoutSession().catch(() => {})
+      }
       // 清除本地缓存
       this.clearAuthStorage()
       // 清空路由、菜单等数据
@@ -77,12 +100,7 @@ export const useAuthStore = defineStore('auth-store', {
       tabStore.clearAllTabs()
       // 重置当前存储库
       this.$reset()
-      // 管理端与用户端退出落地不同：管理端 hash 入口无用户首页路由
-      const routeMode = getRuntimeRouteMode()
-      if (routeMode === 'admin') {
-        router.replace({ path: '/user/login' })
-        return
-      }
+      // 立即跳转登录页（管理端/用户端共用 /user/login，管理端 hash 路由下也可正常解析）
       router.replace({ path: '/user/login' })
     },
     clearAuthStorage() {
@@ -135,6 +153,7 @@ export const useAuthStore = defineStore('auth-store', {
 
       this.token = userInfo.accessToken
       this.userInfo = userInfo
+      this.startPresence()
 
       // 添加路由和菜单
       const routeStore = useRouteStore()
@@ -194,7 +213,20 @@ export const useAuthStore = defineStore('auth-store', {
       this.token = nextUserInfo.accessToken
       this.userInfo = nextUserInfo
       authStorage.setActive('userInfo', nextUserInfo)
+      this.startPresence()
       this.setupAutoRefresh()
+    },
+
+    startPresence() {
+      if (!this.token)
+        return
+      // 上报周期取管理端可配置的「在线心跳上报周期」（默认30秒），未加载完成时组合式函数内部兜底为25秒。
+      const settingsStore = useSettingsStore()
+      const intervalMs = settingsStore.onlineReportIntervalSeconds * 1000
+      startPresence(this.token, () => {
+        window.$message.warning($t('securityTab.forcedLogout'))
+        void this.logout(false)
+      }, intervalMs)
     },
 
     async restoreLanguageFromBackend() {

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import {
   NButton,
   NCard,
+  NCode,
   NDataTable,
   NDatePicker,
   NDescriptions,
@@ -12,26 +14,42 @@ import {
   NGrid,
   NGi,
   NInput,
+  NInputNumber,
   NModal,
   NSelect,
   NSpace,
   NStatistic,
+  NSwitch,
+  NTabPane,
+  NTabs,
   NTag,
   NText,
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useTableColumnVisibility } from '@/hooks'
-import { adminEmailLogApi, type EmailLog, type EmailLogListParams } from '@/service/api/admin/email-log'
+import { useEcharts, useTableColumnVisibility } from '@/hooks'
+import type { ECOption } from '@/hooks'
+import { adminApi } from '@/service/api/admin'
+import { adminEmailLogApi, type EmailLog, type EmailLogListParams, type EmailLogStats } from '@/service/api/admin/email-log'
+import { parseBooleanSetting, parseNumberSetting } from '@/utils'
 
+const router = useRouter()
 const message = useMessage()
 const { t } = useI18n()
 
 const loading = ref(false)
+const runtimeLoading = ref(false)
+const runtimeSaving = ref(false)
 const logList = ref<EmailLog[]>([])
 const total = ref(0)
-const statsData = ref({ total: 0, success: 0, fail: 0 })
+const statsData = ref<EmailLogStats>({
+  total_count: 0,
+  today_count: 0,
+  success_count: 0,
+  fail_count: 0,
+  top_templates: [],
+})
 const templateNameOptions = ref<{ label: string; value: string }[]>([])
 
 const query = reactive<EmailLogListParams>({
@@ -51,6 +69,12 @@ const pagination = reactive({
   itemCount: 0,
 })
 
+const runtimeForm = reactive({
+  email_log_max_count: 1000,
+  email_log_per_user_limit_enabled: false,
+  email_log_per_user_max_count: 1000,
+})
+
 const showDetail = ref(false)
 const detailLoading = ref(false)
 const detailData = ref<EmailLog | null>(null)
@@ -65,11 +89,68 @@ const statusOptions = [
   { label: t('adminEmailLogs.failed'), value: 0 },
 ]
 
-const formattedContent = computed(() => {
-  const raw = detailData.value?.content?.trim()
-  if (!raw) return ''
-  return raw
-})
+const topTemplateItems = computed(() => (statsData.value.top_templates || []).slice(0, 8))
+const topTemplateChartItems = computed(() => [...topTemplateItems.value].reverse())
+
+function normalizeRuntimeMaxCount(value: unknown) {
+  return Math.min(200000, Math.max(100, Math.floor(parseNumberSetting(value, 1000))))
+}
+
+function normalizePerUserMaxCount(value: unknown) {
+  return Math.min(200000, Math.max(1, Math.floor(parseNumberSetting(value, 1000))))
+}
+
+function formatTopTemplateAxisLabel(value: string) {
+  const normalized = value || '-'
+  return normalized.length > 28 ? `${normalized.slice(0, 28)}...` : normalized
+}
+
+function goToTemplate(name?: string) {
+  if (!name)
+    return
+  router.push({ path: '/settings/email-templates', query: { name } })
+}
+
+const topTemplateChartOptions = computed<ECOption>(() => ({
+  tooltip: {
+    trigger: 'axis',
+    axisPointer: { type: 'shadow' },
+    confine: true,
+    formatter: (params: any) => {
+      const index = Array.isArray(params) ? (params[0]?.dataIndex ?? 0) : (params?.dataIndex ?? 0)
+      const item = topTemplateChartItems.value[index]
+      if (!item)
+        return '-'
+      return [
+        item.template_name || '-',
+        `${t('adminEmailLogs.requestCount')}: ${item.count}`,
+      ].join('<br/>')
+    },
+  },
+  grid: { left: 16, right: 24, top: 12, bottom: 12, containLabel: true },
+  xAxis: {
+    type: 'value',
+    splitLine: { show: true },
+  },
+  yAxis: {
+    type: 'category',
+    axisTick: { show: false },
+    data: topTemplateChartItems.value.map(item => item.template_name || '-'),
+    axisLabel: {
+      formatter: (value: string) => formatTopTemplateAxisLabel(value),
+    },
+  },
+  series: [
+    {
+      type: 'bar',
+      barMaxWidth: 18,
+      label: { show: true, position: 'right' },
+      data: topTemplateChartItems.value.map(item => item.count),
+    },
+  ],
+}))
+
+useEcharts('topTemplateChartRef', topTemplateChartOptions)
 
 const columns: DataTableColumns<EmailLog> = [
   { title: 'ID', key: 'id', width: 70 },
@@ -140,11 +221,16 @@ async function fetchList() {
     }
 
     const params: Record<string, any> = { ...query }
-    if (!params.to_email) delete params.to_email
-    if (!params.template_name) delete params.template_name
-    if (params.status === -1) delete params.status
-    if (!params.start_time) delete params.start_time
-    if (!params.end_time) delete params.end_time
+    if (!params.to_email)
+      delete params.to_email
+    if (!params.template_name)
+      delete params.template_name
+    if (params.status === -1)
+      delete params.status
+    if (!params.start_time)
+      delete params.start_time
+    if (!params.end_time)
+      delete params.end_time
 
     const res = await adminEmailLogApi.list(params)
     logList.value = res.data?.list || []
@@ -162,7 +248,8 @@ async function fetchList() {
 async function fetchStats() {
   try {
     const res = await adminEmailLogApi.stats()
-    if (res.data) statsData.value = res.data
+    if (res.data)
+      statsData.value = res.data
   }
   catch {}
 }
@@ -173,6 +260,55 @@ async function fetchTemplateNames() {
     templateNameOptions.value = [{ label: t('adminEmailLogs.all'), value: '' }, ...(res.data || []).map(item => ({ label: item, value: item }))]
   }
   catch {}
+}
+
+async function loadRuntimeConfig() {
+  runtimeLoading.value = true
+  try {
+    const res = await adminApi.settings.list()
+    const categories = res.data?.categories || []
+    for (const category of categories) {
+      for (const item of category.items) {
+        if (item.key === 'email_log_max_count')
+          runtimeForm.email_log_max_count = normalizeRuntimeMaxCount(item.value)
+        if (item.key === 'email_log_per_user_limit_enabled')
+          runtimeForm.email_log_per_user_limit_enabled = parseBooleanSetting(item.value, false)
+        if (item.key === 'email_log_per_user_max_count')
+          runtimeForm.email_log_per_user_max_count = normalizePerUserMaxCount(item.value)
+      }
+    }
+  }
+  catch {
+    message.error(t('adminServer.loadRuntimeFailed'))
+  }
+  finally {
+    runtimeLoading.value = false
+  }
+}
+
+async function handleSaveRuntimeConfig() {
+  runtimeSaving.value = true
+  try {
+    runtimeForm.email_log_max_count = normalizeRuntimeMaxCount(runtimeForm.email_log_max_count)
+    runtimeForm.email_log_per_user_max_count = normalizePerUserMaxCount(runtimeForm.email_log_per_user_max_count)
+
+    const res = await adminApi.settings.batchUpdate({
+      email_log_max_count: String(runtimeForm.email_log_max_count),
+      email_log_per_user_limit_enabled: String(runtimeForm.email_log_per_user_limit_enabled),
+      email_log_per_user_max_count: String(runtimeForm.email_log_per_user_max_count),
+    })
+    if (!res.isSuccess)
+      throw new Error(res.message || t('adminServer.saveRuntimeFailed'))
+
+    await Promise.all([fetchList(), fetchStats()])
+    message.success(res.message || t('adminServer.saveRuntimeSuccess'))
+  }
+  catch (error: any) {
+    message.error(error?.message || t('adminServer.saveRuntimeFailed'))
+  }
+  finally {
+    runtimeSaving.value = false
+  }
 }
 
 async function handleDetail(id: number) {
@@ -239,6 +375,7 @@ async function handleClean() {
 }
 
 onMounted(() => {
+  loadRuntimeConfig()
   fetchList()
   fetchStats()
   fetchTemplateNames()
@@ -247,17 +384,14 @@ onMounted(() => {
 
 <template>
   <div class="email-log-page">
-    <NGrid :x-gap="12" :y-gap="12" cols="3" style="margin-bottom: 16px;">
-      <NGi>
-        <NCard size="small">
-          <NStatistic :label="t('adminEmailLogs.total')" :value="statsData.total" />
-        </NCard>
-      </NGi>
+    <NGrid :x-gap="12" :y-gap="12" cols="4" style="margin-bottom: 16px;">
+      <NGi><NCard size="small"><NStatistic :label="t('adminEmailLogs.totalCount')" :value="statsData.total_count" /></NCard></NGi>
+      <NGi><NCard size="small"><NStatistic :label="t('adminEmailLogs.todayCount')" :value="statsData.today_count" /></NCard></NGi>
       <NGi>
         <NCard size="small">
           <NStatistic :label="t('adminEmailLogs.success')">
             <template #default>
-              <NText type="success">{{ statsData.success }}</NText>
+              <NText type="success">{{ statsData.success_count }}</NText>
             </template>
           </NStatistic>
         </NCard>
@@ -266,9 +400,30 @@ onMounted(() => {
         <NCard size="small">
           <NStatistic :label="t('adminEmailLogs.failed')">
             <template #default>
-              <NText type="error">{{ statsData.fail }}</NText>
+              <NText type="error">{{ statsData.fail_count }}</NText>
             </template>
           </NStatistic>
+        </NCard>
+      </NGi>
+    </NGrid>
+
+    <NText depth="3" style="display: block; margin: -4px 0 12px;">{{ t('adminEmailLogs.statsHint') }}</NText>
+
+    <NGrid :x-gap="12" :y-gap="12" cols="1 s:2 l:2" responsive="screen" style="margin-bottom: 16px;">
+      <NGi>
+        <NCard size="small" :title="t('adminEmailLogs.topTemplates')">
+          <div ref="topTemplateChartRef" class="top-path-chart"></div>
+          <NText v-if="!topTemplateItems.length" depth="3" style="display: block; text-align: center;">{{ t('adminEmailLogs.noTopTemplates') }}</NText>
+        </NCard>
+      </NGi>
+      <NGi>
+        <NCard size="small" :title="t('adminEmailLogs.overview')">
+          <NDescriptions :column="2" bordered size="small" label-placement="left">
+            <NDescriptionsItem :label="t('adminEmailLogs.success')">{{ statsData.success_count }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminEmailLogs.failed')">{{ statsData.fail_count }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminEmailLogs.totalCount')">{{ statsData.total_count }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminEmailLogs.todayCount')">{{ statsData.today_count }}</NDescriptionsItem>
+          </NDescriptions>
         </NCard>
       </NGi>
     </NGrid>
@@ -292,6 +447,25 @@ onMounted(() => {
         </NSpace>
       </template>
 
+      <NCard size="small" embedded style="margin-bottom: 12px;">
+        <NSpace align="center" justify="space-between" :wrap="true">
+          <NSpace align="center" :wrap="true" size="small">
+            <NText strong>{{ t('adminEmailLogs.runtimeConfig') }}</NText>
+            <NText depth="3">{{ t('adminEmailLogs.maxCount') }}</NText>
+            <NInputNumber v-model:value="runtimeForm.email_log_max_count" :min="100" :max="200000" size="small" style="width: 130px;" />
+            <NText depth="3">{{ t('adminEmailLogs.perUserLimitEnabled') }}</NText>
+            <NSwitch v-model:value="runtimeForm.email_log_per_user_limit_enabled" />
+            <NText depth="3">{{ t('adminEmailLogs.perUserMaxCount') }}</NText>
+            <NInputNumber v-model:value="runtimeForm.email_log_per_user_max_count" :min="1" :max="200000" size="small" style="width: 130px;" />
+          </NSpace>
+          <NSpace size="small">
+            <NButton size="small" type="primary" :loading="runtimeSaving" @click="handleSaveRuntimeConfig">{{ t('adminServer.runtimeConfig.save') }}</NButton>
+            <NButton size="small" :loading="runtimeLoading" @click="loadRuntimeConfig">{{ t('adminEmailLogs.refresh') }}</NButton>
+          </NSpace>
+        </NSpace>
+        <NText depth="3" style="display: block; margin-top: 8px;">{{ t('adminEmailLogs.runtimeHint') }}</NText>
+      </NCard>
+
       <NSpace align="center" style="margin-bottom: 12px;" :wrap="true">
         <NInput v-model:value="query.to_email" :placeholder="t('adminEmailLogs.toEmail')" clearable size="small" style="width: 220px;" @keyup.enter="handleSearch" />
         <NSelect v-model:value="query.template_name" :options="templateNameOptions" :placeholder="t('adminEmailLogs.template')" clearable size="small" style="width: 160px;" />
@@ -313,7 +487,7 @@ onMounted(() => {
       />
     </NCard>
 
-    <NModal v-model:show="showDetail" preset="card" :title="t('adminEmailLogs.detailTitle')" style="width: 760px;" :mask-closable="true">
+    <NModal v-model:show="showDetail" preset="card" :title="t('adminEmailLogs.detailTitle')" style="width: 860px;" :mask-closable="true">
       <NText v-if="detailLoading" depth="3">{{ t('adminEmailLogs.loading') }}</NText>
       <NSpace v-else-if="detailData" vertical :size="16">
         <NGrid cols="2" :x-gap="12" :y-gap="12">
@@ -336,14 +510,38 @@ onMounted(() => {
         <NCard size="small" embedded :title="t('adminEmailLogs.basicInfo')">
           <NDescriptions bordered :column="2" label-placement="left">
             <NDescriptionsItem :label="t('adminEmailLogs.toEmail')">{{ detailData.to_email }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminEmailLogs.templateName')">{{ detailData.template_name || '-' }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminEmailLogs.templateName')">
+              <NSpace align="center" :size="8">
+                <span>{{ detailData.template_name || '-' }}</span>
+                <NButton
+                  v-if="detailData.template_name"
+                  size="tiny"
+                  text
+                  type="primary"
+                  @click="goToTemplate(detailData.template_name)"
+                >
+                  {{ t('adminEmailLogs.viewTemplate') }}
+                </NButton>
+              </NSpace>
+            </NDescriptionsItem>
             <NDescriptionsItem :label="t('adminEmailLogs.subject')" :span="2">{{ detailData.subject || '-' }}</NDescriptionsItem>
             <NDescriptionsItem :label="t('adminEmailLogs.sendTime')" :span="2">{{ detailData.created_at ? new Date(detailData.created_at).toLocaleString() : '-' }}</NDescriptionsItem>
           </NDescriptions>
         </NCard>
 
         <NCard size="small" embedded :title="t('adminEmailLogs.content')">
-          <div class="detail-content-block">{{ formattedContent || '-' }}</div>
+          <NTabs type="line" animated>
+            <NTabPane name="preview" :tab="t('adminEmailLogs.renderPreview')">
+              <iframe
+                sandbox
+                :srcdoc="detailData.content || ''"
+                style="width:100%;min-height:320px;border:1px solid var(--n-border-color);border-radius:var(--n-border-radius);background:#fff;"
+              ></iframe>
+            </NTabPane>
+            <NTabPane name="source" :tab="t('adminEmailLogs.viewSource')">
+              <NCode :code="detailData.content || '-'" language="html" word-wrap style="max-height:400px;overflow:auto;" />
+            </NTabPane>
+          </NTabs>
         </NCard>
 
         <NCard v-if="detailData.error_msg" size="small" embedded :title="t('adminEmailLogs.errorMsg')">
@@ -371,12 +569,8 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.detail-content-block {
-  padding: 12px;
-  border-radius: 10px;
-  background: rgb(250 250 252);
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: break-word;
+.top-path-chart {
+  width: 100%;
+  height: 280px;
 }
 </style>

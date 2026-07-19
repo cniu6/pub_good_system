@@ -44,15 +44,46 @@ export function getAdminRoutes(): RouteRecordRaw[] {
             icon: 'icon-park-outline:dashboard',
           },
         },
-        // ── 用户管理（独立页面）──
+        // ── 用户管理（分组目录：用户列表 + 在线用户 + 实名认证）──
         {
           path: 'users',
-          name: 'admin-users',
-          component: () => import('@/views/admin/users/index.vue'),
+          name: 'admin-users-group',
+          component: PassThrough,
+          redirect: { name: 'admin-users' },
           meta: {
             title: 'route.userManagement',
             icon: 'icon-park-outline:user',
+            menuType: 'dir',
           },
+          children: [
+            {
+              path: 'list',
+              name: 'admin-users',
+              component: () => import('@/views/admin/users/index.vue'),
+              meta: {
+                title: 'route.userList',
+                icon: 'icon-park-outline:peoples',
+              },
+            },
+            {
+              path: 'online',
+              name: 'admin-online-users',
+              component: () => import('@/views/admin/online-users/index.vue'),
+              meta: {
+                title: 'route.onlineUsers',
+                icon: 'icon-park-outline:online-meeting',
+              },
+            },
+            {
+              path: 'realname',
+              name: 'admin-realname',
+              component: () => import('@/views/admin/realname/index.vue'),
+              meta: {
+                title: 'route.realnameVerify',
+                icon: 'icon-park-outline:id-card',
+              },
+            },
+          ],
         },
         {
           path: 'users/:id',
@@ -61,17 +92,7 @@ export function getAdminRoutes(): RouteRecordRaw[] {
           meta: {
             title: 'route.userDetail',
             hide: true,
-            activeMenu: '/users',
-          },
-        },
-        // ── 实名认证管理（独立页面）──
-        {
-          path: 'realname',
-          name: 'admin-realname',
-          component: () => import('@/views/admin/realname/index.vue'),
-          meta: {
-            title: 'route.realnameVerify',
-            icon: 'icon-park-outline:id-card',
+            activeMenu: '/users/list',
           },
         },
         // ── 财务中心（分组目录）──
@@ -152,6 +173,30 @@ export function getAdminRoutes(): RouteRecordRaw[] {
               meta: {
                 title: 'route.systemConfig',
                 icon: 'icon-park-outline:setting-config',
+              },
+            },
+            {
+              // 短信模板已合并进「系统配置 → 短信设置」内层 Tab，此路由仅保留供日志页深链跳转，不在侧边栏展示。
+              path: 'sms-templates',
+              name: 'admin-sms-templates',
+              component: () => import('@/views/admin/sms-templates/index.vue'),
+              meta: {
+                title: 'route.smsTemplates',
+                icon: 'icon-park-outline:message',
+                hide: true,
+                activeMenu: '/settings/config',
+              },
+            },
+            {
+              // 邮件模板已合并进「系统配置 → 邮件设置」内层 Tab，此路由仅保留供日志页深链跳转，不在侧边栏展示。
+              path: 'email-templates',
+              name: 'admin-email-templates',
+              component: () => import('@/views/admin/email-templates/index.vue'),
+              meta: {
+                title: 'route.emailTemplates',
+                icon: 'icon-park-outline:mail',
+                hide: true,
+                activeMenu: '/settings/config',
               },
             },
             {

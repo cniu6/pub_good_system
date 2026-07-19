@@ -1,13 +1,13 @@
 package services
 
 import (
+	"database/sql"
 	"errors"
 	"fst/backend/app/models"
 	"fst/backend/pkg/db"
 	"fst/backend/utils"
 	"math"
 	"strings"
-	"time"
 )
 
 // MoneyOperationRequest 统一余额操作请求
@@ -149,53 +149,69 @@ func OperateUserMoney(userID uint64, req MoneyOperationRequest) (*utils.BalanceR
 	req.OrderNo = utils.Clean_XSS(req.OrderNo)
 	req.TradeNo = utils.Clean_XSS(req.TradeNo)
 
-	if needOrder {
-		if req.OrderNo == "" {
-			return nil, errors.New("订单号不能为空")
-		}
-		order, err := models.GetPaymentOrderByOrderNo(req.OrderNo)
-		if err != nil {
-			if createErr := createOrderForMoneyOperation(userID, req); createErr != nil {
-				return nil, createErr
-			}
-			order, err = models.GetPaymentOrderByOrderNo(req.OrderNo)
-			if err != nil {
-				return nil, errors.New("订单不存在")
-			}
-		}
-		if order.UserID != userID {
-			return nil, errors.New("订单不属于当前用户")
-		}
-	}
-
-	result, err := utils.ExecuteBalanceOp(&utils.BalanceReq{
+	balanceReq := &utils.BalanceReq{
 		UserID:      userID,
 		Amount:      req.Amount,
 		Memo:        req.Memo,
 		OrderNo:     req.OrderNo,
 		TradeNo:     req.TradeNo,
 		OrderStatus: req.OrderStatus,
-	}, opType)
+	}
+
+	if !needOrder {
+		return utils.ExecuteBalanceOp(balanceReq, opType)
+	}
+	if req.OrderNo == "" {
+		return nil, errors.New("订单号不能为空")
+	}
+
+	// 订单已存在：直接走余额事务；订单不存在：建单+余额/订单更新必须同一事务，避免「已支付订单但未到账」
+	order, err := models.GetPaymentOrderByOrderNo(req.OrderNo)
+	if err == nil {
+		if order.UserID != userID {
+			return nil, errors.New("订单不属于当前用户")
+		}
+		return utils.ExecuteBalanceOp(balanceReq, opType)
+	}
+
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return nil, errors.New("开启事务失败: " + err.Error())
+	}
+	defer tx.Rollback()
+
+	if createErr := createOrderForMoneyOperationTx(tx, userID, req); createErr != nil {
+		return nil, createErr
+	}
+	locked, lockErr := models.GetPaymentOrderForUpdate(tx, req.OrderNo)
+	if lockErr != nil {
+		return nil, errors.New("订单不存在")
+	}
+	if locked.UserID != userID {
+		return nil, errors.New("订单不属于当前用户")
+	}
+
+	result, err := utils.ExecuteBalanceOpTx(tx, balanceReq, opType)
 	if err != nil {
 		return nil, err
 	}
-
+	if err := tx.Commit(); err != nil {
+		return nil, errors.New("提交事务失败: " + err.Error())
+	}
 	return result, nil
 }
 
-// createOrderForMoneyOperation 在管理员执行余额+订单操作时，自动补建缺失订单。
-func createOrderForMoneyOperation(userID uint64, req MoneyOperationRequest) error {
+// createOrderForMoneyOperationTx 在事务内补建缺失订单（与余额操作同事务）
+func createOrderForMoneyOperationTx(tx *sql.Tx, userID uint64, req MoneyOperationRequest) error {
 	amount := req.Amount
 	if amount < 0 {
 		amount = 0
 	}
-
 	subject := "管理员余额操作自动创建订单"
 	if req.Memo != "" {
 		subject = req.Memo
 	}
-
-	err := models.CreatePaymentOrder(&models.PaymentOrder{
+	err := models.CreatePaymentOrderTx(tx, &models.PaymentOrder{
 		OrderNo:        req.OrderNo,
 		UserID:         userID,
 		GatewayID:      0,
@@ -213,18 +229,14 @@ func createOrderForMoneyOperation(userID uint64, req MoneyOperationRequest) erro
 		ExpireAt:       0,
 		ClientIP:       "admin",
 		Extra:          "",
-		CreateTime:     time.Now().Unix(),
-		UpdateTime:     time.Now().Unix(),
 	})
 	if err == nil {
 		return nil
 	}
-
-	// 并发场景下可能已被其他请求创建，重复键错误可忽略。
-	if strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+	lower := strings.ToLower(err.Error())
+	if strings.Contains(lower, "duplicate") || strings.Contains(lower, "unique constraint") {
 		return nil
 	}
-
 	return errors.New("自动创建订单失败: " + err.Error())
 }
 
@@ -303,6 +315,9 @@ func SetUserScore(userID uint64, newScore int64, memo string) (*models.UserScore
 
 	if newScore < 0 {
 		return nil, errors.New("积分不能为负数")
+	}
+	if newScore > 999999999999 {
+		return nil, errors.New("积分超出上限")
 	}
 
 	tx, err := db.DB.Begin()

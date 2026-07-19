@@ -1,4 +1,4 @@
-import { Icon } from '@iconify/vue'
+import { Icon } from '@iconify/vue/offline'
 import { NIcon } from 'naive-ui'
 
 export function renderIcon(icon?: string, props?: import('naive-ui').IconProps) {
@@ -25,6 +25,7 @@ export function createIcon(icon?: string, props?: import('naive-ui').IconProps) 
     innerIcon = h(NIcon, { ...props, innerHTML: target })
   }
   else {
+    // offline 版：只使用 bootstrap 里注册的本地集合，断网也可用
     innerIcon = h(NIcon, props, { default: () => h(Icon, { icon }) })
   }
 

@@ -20,9 +20,24 @@ const detailData = ref<UserAPIAccessLog | null>(null)
 const query = reactive({
   page: 1,
   page_size: 20,
+  auth_method: '' as string,
   start_time: 0,
   end_time: 0,
 })
+
+const authMethodOptions = computed(() => [
+  { label: t('userLogs.authMethodAll'), value: '' },
+  { label: t('userLogs.authMethodApiKey'), value: 'apikey' },
+  { label: t('userLogs.authMethodJwt'), value: 'jwt' },
+  { label: t('userLogs.authMethodNone'), value: 'none' },
+])
+
+function authMethodLabel(method?: string) {
+  if (method === 'apikey') return t('userLogs.authMethodApiKey')
+  if (method === 'jwt') return t('userLogs.authMethodJwt')
+  if (method === 'none') return t('userLogs.authMethodNone')
+  return method || '-'
+}
 
 const pagination = reactive({
   page: 1,
@@ -67,6 +82,15 @@ const columns: DataTableColumns<UserAPIAccessLog> = [
     width: 80,
     render(row) {
       return h(NTag, { type: methodColors[row.method || ''] ?? 'info', size: 'small' }, () => row.method || '-')
+    },
+  },
+  {
+    title: t('userLogs.authMethod'),
+    key: 'auth_method',
+    width: 100,
+    render(row) {
+      const type = row.auth_method === 'apikey' ? 'success' : row.auth_method === 'jwt' ? 'info' : 'default'
+      return h(NTag, { type, size: 'small' }, () => authMethodLabel(row.auth_method))
     },
   },
   { title: t('userLogs.path'), key: 'path', ellipsis: { tooltip: true } },
@@ -141,14 +165,22 @@ onMounted(() => {
   <div class="p-2">
     <n-space vertical>
       <n-text depth="3">{{ t('userLogs.apiHint') }}</n-text>
-      <n-text depth="3">{{ t('userLogs.totalLogs', { total }) }}</n-text>
+      <n-space>
+        <n-select
+          v-model:value="query.auth_method"
+          :options="authMethodOptions"
+          style="width: 160px"
+          @update:value="() => { query.page = 1; pagination.page = 1; fetchLogs() }"
+        />
+        <n-text depth="3">{{ t('userLogs.totalLogs', { total }) }}</n-text>
+      </n-space>
       <n-data-table
         remote
         :columns="columns"
         :data="logList"
         :loading="loading"
         :pagination="pagination"
-        :scroll-x="960"
+        :scroll-x="1060"
       />
     </n-space>
 
@@ -160,6 +192,7 @@ onMounted(() => {
             <n-descriptions-item :label="t('userLogs.id')">{{ detailData.id }}</n-descriptions-item>
             <n-descriptions-item :label="t('userLogs.requestId')">{{ detailData.request_id || '-' }}</n-descriptions-item>
             <n-descriptions-item :label="t('userLogs.method')">{{ detailData.method || '-' }}</n-descriptions-item>
+            <n-descriptions-item :label="t('userLogs.authMethod')">{{ authMethodLabel(detailData.auth_method) }}</n-descriptions-item>
             <n-descriptions-item :label="t('userLogs.statusCode')">{{ detailData.status_code }}</n-descriptions-item>
             <n-descriptions-item :label="t('userLogs.path')">{{ detailData.path || '-' }}</n-descriptions-item>
             <n-descriptions-item :label="t('userLogs.routePath')">{{ detailData.route_path || '-' }}</n-descriptions-item>

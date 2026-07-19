@@ -38,6 +38,12 @@ var (
 	reFromUnix = regexp.MustCompile(`(?i)FROM_UNIXTIME\s*\(\s*([^)]+?)\s*\)`)
 	// DATE_FORMAT(FROM_UNIXTIME(col), '%Y%m%d') 已先被 FROM_UNIXTIME 替换时需另处理；直接匹配整段更稳
 	reDateFormatFromUnix = regexp.MustCompile(`(?i)DATE_FORMAT\s*\(\s*FROM_UNIXTIME\s*\(\s*([^)]+?)\s*\)\s*,\s*'%Y%m%d'\s*\)`)
+	// DATE_FORMAT(FROM_UNIXTIME(UNIX_TIMESTAMP(col)), '%Y%m%d')：col 本身是 TIMESTAMP/DATETIME 列，
+	// UNIX_TIMESTAMP 多套了一层括号，会让上面那条正则的 [^)]+? 因为遇到内层右括号提前收尾而匹配失败
+	// （regexp 包不支持括号配对），必须单独识别这个"双重嵌套"整段再替换，且要放在上面那条之前先匹配。
+	// UNIX_TIMESTAMP(FROM_UNIXTIME(x)) 在 MySQL 里本质就是把 col 转一圈再转回来，直接格式化 col 即可，
+	// 不需要 'unixepoch'（col 已经是日期时间值，不是纯数字秒）。
+	reDateFormatFromUnixOfUnixTimestamp = regexp.MustCompile(`(?i)DATE_FORMAT\s*\(\s*FROM_UNIXTIME\s*\(\s*UNIX_TIMESTAMP\s*\(\s*([^)]+?)\s*\)\s*\)\s*,\s*'%Y%m%d'\s*\)`)
 	// UNIX_TIMESTAMP(col) → CAST(strftime('%s', col) AS INTEGER)
 	reUnixTimestamp = regexp.MustCompile(`(?i)UNIX_TIMESTAMP\s*\(\s*([^)]+?)\s*\)`)
 	// CAST(x AS UNSIGNED) → CAST(x AS INTEGER)
@@ -58,6 +64,8 @@ func AdaptMySQLQueryToSQLite(mysqlSQL string) string {
 	}
 
 	// 先处理带 FROM_UNIXTIME 的 DATE_FORMAT，避免被拆开后对不上
+	// 双重嵌套（含 UNIX_TIMESTAMP）的整段先替换，否则会被下面那条因括号不配对而漏转换
+	s = reDateFormatFromUnixOfUnixTimestamp.ReplaceAllString(s, "CAST(strftime('%Y%m%d', $1) AS INTEGER)")
 	s = reDateFormatFromUnix.ReplaceAllString(s, "CAST(strftime('%Y%m%d', $1, 'unixepoch') AS INTEGER)")
 	s = reDateFromUnix.ReplaceAllString(s, "date($1, 'unixepoch')")
 	s = reFromUnix.ReplaceAllString(s, "datetime($1, 'unixepoch')")

@@ -1,14 +1,16 @@
 package utils
 
 import (
+	"context"
 	"crypto/tls"
-	"errors"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"fst/backend/pkg/config"
 	"log"
 	"net"
 	"net/smtp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -86,15 +88,7 @@ func SendEmail(msg EmailMessage) error {
 	// 重试机制：最多尝试3次，处理 EOF 等瞬时错误
 	var err error
 	for attempt := 1; attempt <= 3; attempt++ {
-		if cfg.SMTPSSL {
-			err = sendEmailSSL(cfg.SMTPHost, cfg.SMTPPort, fromEmail, msg.To, message, auth, cfg.SMTPUser, cfg.SMTPPass)
-		} else {
-			err = sendEmailStartTLS(cfg.SMTPHost, cfg.SMTPPort, fromEmail, msg.To, message, auth, cfg.SMTPUser, cfg.SMTPPass)
-			if err != nil && errors.Is(err, errSMTPStartTLSUnsupported) {
-				log.Printf("[Email] 服务器不支持 STARTTLS，回退到普通 SMTP: %v", err)
-				err = sendEmailPlain(cfg.SMTPHost, cfg.SMTPPort, fromEmail, msg.To, message, auth, cfg.SMTPUser, cfg.SMTPPass)
-			}
-		}
+		err = sendEmailWithBestTLS(cfg, fromEmail, msg.To, message, auth)
 		if err == nil {
 			return nil
 		}
@@ -107,11 +101,115 @@ func SendEmail(msg EmailMessage) error {
 	return fmt.Errorf("发送邮件失败（已重试3次）: %w", err)
 }
 
+// sendEmailWithBestTLS 按配置选择加密方式，并对常见端口误配自动回退。
+// 465 = 隐式 SSL；587/25 = 明文握手后再 STARTTLS。
+// 用户常把「SSL」开在 587 上，会导致 tls handshake 失败，这里自动回退。
+func sendEmailWithBestTLS(cfg *config.Config, from, to, message string, auth smtp.Auth) error {
+	useSSL := cfg.SMTPSSL
+	port := strings.TrimSpace(cfg.SMTPPort)
+
+	// 端口明确时优先按惯例（仍尊重用户开关，失败后再回退）
+	if port == "465" && !useSSL {
+		log.Printf("[Email] 端口 465 通常需隐式 SSL，将优先尝试 SSL")
+		useSSL = true
+	}
+
+	if useSSL {
+		err := sendEmailSSL(cfg.SMTPHost, cfg.SMTPPort, from, to, message, auth, cfg.SMTPUser, cfg.SMTPPass)
+		if err == nil {
+			return nil
+		}
+		// 587 等端口开了 SSL：对端先回明文 SMTP，表现为 handshake 不像 TLS
+		if isImplicitTLSMismatch(err) {
+			log.Printf("[Email] 隐式 TLS 失败（多见于 587 误开 SSL），回退 STARTTLS: %v", err)
+			err2 := sendEmailStartTLS(cfg.SMTPHost, cfg.SMTPPort, from, to, message, auth, cfg.SMTPUser, cfg.SMTPPass)
+			if err2 == nil {
+				return nil
+			}
+			if errors.Is(err2, errSMTPStartTLSUnsupported) {
+				log.Printf("[Email] 服务器不支持 STARTTLS，回退到普通 SMTP: %v", err2)
+				return sendEmailPlain(cfg.SMTPHost, cfg.SMTPPort, from, to, message, auth, cfg.SMTPUser, cfg.SMTPPass)
+			}
+			return err2
+		}
+		return err
+	}
+
+	err := sendEmailStartTLS(cfg.SMTPHost, cfg.SMTPPort, from, to, message, auth, cfg.SMTPUser, cfg.SMTPPass)
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, errSMTPStartTLSUnsupported) {
+		log.Printf("[Email] 服务器不支持 STARTTLS，回退到普通 SMTP: %v", err)
+		return sendEmailPlain(cfg.SMTPHost, cfg.SMTPPort, from, to, message, auth, cfg.SMTPUser, cfg.SMTPPass)
+	}
+	// 465 却关了 SSL：对端期望 TLS，STARTTLS/明文会失败，尝试隐式 SSL
+	if port == "465" {
+		log.Printf("[Email] STARTTLS 失败且端口为 465，尝试隐式 SSL: %v", err)
+		return sendEmailSSL(cfg.SMTPHost, cfg.SMTPPort, from, to, message, auth, cfg.SMTPUser, cfg.SMTPPass)
+	}
+	return err
+}
+
+func isImplicitTLSMismatch(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "does not look like a TLS handshake") ||
+		strings.Contains(msg, "first record does not look like a TLS handshake")
+}
+
+// smtpOutboundProxyConfig 从全局配置构造出站代理；开关关闭时 Enabled=false（直连）。
+func smtpOutboundProxyConfig(cfg *config.Config) ProxyConfig {
+	if cfg == nil {
+		return ProxyConfig{Enabled: false, Timeout: 30 * time.Second}
+	}
+	port := 1080
+	if p, err := strconv.Atoi(strings.TrimSpace(cfg.SMTPProxyPort)); err == nil && p > 0 {
+		port = p
+	}
+	typ := strings.TrimSpace(cfg.SMTPProxyType)
+	if typ == "" {
+		typ = ProxyTypeSOCKS5
+	}
+	return ProxyConfig{
+		Enabled:  cfg.SMTPProxyEnabled,
+		Type:     typ,
+		Host:     strings.TrimSpace(cfg.SMTPProxyHost),
+		Port:     port,
+		Username: cfg.SMTPProxyUser,
+		Password: cfg.SMTPProxyPass,
+		Timeout:  30 * time.Second,
+	}
+}
+
+// dialSMTPConn 按代理开关拨号到 SMTP（plain / STARTTLS 底层 TCP）。
+func dialSMTPConn(cfg *config.Config, addr string) (net.Conn, error) {
+	proxyCfg := smtpOutboundProxyConfig(cfg)
+	if proxyCfg.Enabled {
+		log.Printf("[Email] 出站代理: %s", MaskProxyConfig(proxyCfg))
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), proxyCfg.dialTimeout())
+	defer cancel()
+	return DialViaProxy(ctx, proxyCfg, "tcp", addr)
+}
+
+// dialSMTPTLSConn 隐式 SSL：经代理 TCP 后再做 TLS 握手。
+func dialSMTPTLSConn(cfg *config.Config, addr string, tlsCfg *tls.Config) (*tls.Conn, error) {
+	proxyCfg := smtpOutboundProxyConfig(cfg)
+	if proxyCfg.Enabled {
+		log.Printf("[Email] 出站代理(TLS): %s", MaskProxyConfig(proxyCfg))
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), proxyCfg.dialTimeout())
+	defer cancel()
+	return DialTLSViaProxy(ctx, proxyCfg, "tcp", addr, tlsCfg)
+}
+
 func sendEmailPlain(host, port, from, to, message string, auth smtp.Auth, smtpUser, smtpPass string) error {
 	addr := net.JoinHostPort(host, port)
 	log.Printf("[Email] 连接 %s (plain SMTP)...", addr)
-	dialer := &net.Dialer{Timeout: 30 * time.Second}
-	conn, err := dialer.Dial("tcp", addr)
+	conn, err := dialSMTPConn(config.GlobalConfig, addr)
 	if err != nil {
 		return fmt.Errorf("SMTP连接失败: %w", err)
 	}
@@ -177,8 +275,7 @@ func sendEmailStartTLS(host, port, from, to, message string, auth smtp.Auth, smt
 	}
 
 	log.Printf("[Email] 连接 %s (STARTTLS)...", addr)
-	dialer := &net.Dialer{Timeout: 30 * time.Second}
-	conn, err := dialer.Dial("tcp", addr)
+	conn, err := dialSMTPConn(config.GlobalConfig, addr)
 	if err != nil {
 		return fmt.Errorf("SMTP连接失败: %w", err)
 	}
@@ -232,12 +329,11 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 func sendEmailSSL(host, port, from, to, message string, auth smtp.Auth, smtpUser, smtpPass string) error {
 	addr := net.JoinHostPort(host, port)
 	tlsconfig := &tls.Config{
-		ServerName:         host,
+		ServerName: host,
 	}
 
 	log.Printf("[Email] 连接 %s (TLS)...", addr)
-	dialer := &net.Dialer{Timeout: 30 * time.Second}
-	conn, err := tls.DialWithDialer(dialer, "tcp", addr, tlsconfig)
+	conn, err := dialSMTPTLSConn(config.GlobalConfig, addr, tlsconfig)
 	if err != nil {
 		return fmt.Errorf("TLS连接失败: %w", err)
 	}

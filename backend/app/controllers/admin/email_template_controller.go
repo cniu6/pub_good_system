@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/pkg/db"
@@ -362,7 +363,8 @@ func (ctrl *EmailTemplateController) SendTest(c *gin.Context) {
 	err := ctrl.email_svc.SendEmail(req.To, subject, content)
 	if err != nil {
 		log.Printf("[ADMIN][EMAIL] send test email failed to=%s: %v", req.To, err)
-		utils.Fail(c, 500, "发送测试邮件失败，请检查邮件配置")
+		// 管理端返回具体原因，便于排查端口/SSL 误配等问题
+		utils.Fail(c, 500, fmt.Sprintf("发送测试邮件失败: %v", err))
 		return
 	}
 

@@ -159,8 +159,25 @@ func finalizeIdempotency(c *gin.Context, idemKey string, userID uint64, scope st
 	bizOK, _ := c.Get(utils.CtxBizOK)
 	ok, _ := bizOK.(bool)
 	if ok {
-		if err := models.MarkIdempotencyCompleted(idemKey, userID, scope); err != nil {
-			log.Printf("[Idempotency] mark completed failed key=%s user=%d scope=%s err=%v", idemKey, userID, scope, err)
+		// 业务已成功：必须尽量落到 completed，否则僵死 processing 被清理后同 key 会再跑一遍业务（如重复建充值单）
+		var lastErr error
+		for i := 0; i < 3; i++ {
+			if err := models.MarkIdempotencyCompleted(idemKey, userID, scope); err == nil {
+				return
+			} else {
+				lastErr = err
+				time.Sleep(time.Duration(20*(i+1)) * time.Millisecond)
+			}
+		}
+		requestHash, _ := c.Get("idempotencyRequestHash")
+		hashStr, _ := requestHash.(string)
+		expireAt := time.Now().Add(10 * time.Minute).Unix()
+		if err := models.ForceUpsertIdempotencyCompleted(idemKey, userID, scope, hashStr, expireAt); err != nil {
+			log.Printf("[Idempotency] CRITICAL mark completed failed after retry+upsert key=%s user=%d scope=%s markErr=%v upsertErr=%v",
+				idemKey, userID, scope, lastErr, err)
+		} else {
+			log.Printf("[Idempotency] mark completed recovered via upsert key=%s user=%d scope=%s after=%v",
+				idemKey, userID, scope, lastErr)
 		}
 		return
 	}

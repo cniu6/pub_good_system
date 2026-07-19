@@ -31,6 +31,7 @@ import {
   showEditModal,
   smsForm,
   switchLoading,
+  testEmailTo,
   testingEmail,
 } from './settingsState'
 
@@ -69,9 +70,18 @@ export function useSettingsActions() {
             if (item.key === 'smtp_username') emailForm.smtp_username = String(item.value || '')
             if (item.key === 'smtp_password') emailForm.smtp_password = String(item.value || '')
             if (item.key === 'smtp_ssl') emailForm.smtp_ssl = parseBooleanSetting(item.value)
+            if (item.key === 'smtp_proxy_enabled') emailForm.smtp_proxy_enabled = parseBooleanSetting(item.value)
+            if (item.key === 'smtp_proxy_type') emailForm.smtp_proxy_type = String(item.value || 'socks5')
+            if (item.key === 'smtp_proxy_host') emailForm.smtp_proxy_host = String(item.value || '')
+            if (item.key === 'smtp_proxy_port') emailForm.smtp_proxy_port = Number(item.value) || 1080
+            if (item.key === 'smtp_proxy_username') emailForm.smtp_proxy_username = String(item.value || '')
+            if (item.key === 'smtp_proxy_password') emailForm.smtp_proxy_password = String(item.value || '')
+            if (item.key === 'system_email_address') emailForm.system_email_address = String(item.value || '')
             if (item.key === 'system_email_name') emailForm.system_email_name = String(item.value || '')
 
             if (item.key === 'sms_verify_enabled') smsForm.sms_verify_enabled = parseBooleanSetting(item.value)
+            if (item.key === 'mobile_cn_only') smsForm.mobile_cn_only = parseBooleanSetting(item.value)
+            if (item.key === 'mobile_ip_country_detect') smsForm.mobile_ip_country_detect = parseBooleanSetting(item.value)
             if (item.key === 'sms_provider') smsForm.sms_provider = String(item.value || 'console')
             if (item.key === 'sms_access_key') smsForm.sms_access_key = String(item.value || '')
             if (item.key === 'sms_secret_key') smsForm.sms_secret_key = String(item.value || '')
@@ -189,6 +199,18 @@ export function useSettingsActions() {
     )
   }
 
+  async function handleUpdateSmtpProxyEnabled(nextValue: boolean) {
+    await toggleSetting(
+      'smtp_proxy_enabled',
+      () => emailForm.smtp_proxy_enabled,
+      v => { emailForm.smtp_proxy_enabled = v },
+      nextValue,
+      undefined,
+      'adminSettings.smtpProxyUpdated',
+      'adminSettings.smtpProxyUpdateFailed',
+    )
+  }
+
   async function handleUpdateEmailVerifyEnabled(nextValue: boolean) {
     await toggleSetting(
       'email_verify_enabled',
@@ -210,6 +232,39 @@ export function useSettingsActions() {
       () => settingsStore.updateConfig({ sms_verify_enabled: nextValue }),
       'adminSettings.smsVerifySwitchUpdated',
       'adminSettings.smsVerifySwitchUpdateFailed',
+    )
+  }
+
+  async function handleUpdateMobileCnOnly(nextValue: boolean) {
+    await toggleSetting(
+      'mobile_cn_only',
+      () => smsForm.mobile_cn_only,
+      v => { smsForm.mobile_cn_only = v },
+      nextValue,
+      () => settingsStore.updateConfig({ mobile_cn_only: nextValue }),
+      'adminSettings.mobileCnOnlySwitchUpdated',
+      'adminSettings.mobileCnOnlySwitchUpdateFailed',
+    )
+    // 切回仅大陆时，顺手关掉 IP 探测（避免无效配置）
+    if (nextValue && smsForm.mobile_ip_country_detect) {
+      await handleUpdateMobileIpCountryDetect(false)
+    }
+  }
+
+  async function handleUpdateMobileIpCountryDetect(nextValue: boolean) {
+    // 仅大陆模式下不允许开 IP 探测（后端也会忽略）
+    if (smsForm.mobile_cn_only && nextValue) {
+      message.warning(t('adminSettings.mobileIpDetectNeedIntl'))
+      return
+    }
+    await toggleSetting(
+      'mobile_ip_country_detect',
+      () => smsForm.mobile_ip_country_detect,
+      v => { smsForm.mobile_ip_country_detect = v },
+      nextValue,
+      () => settingsStore.updateConfig({ mobile_ip_country_detect: nextValue }),
+      'adminSettings.mobileIpDetectSwitchUpdated',
+      'adminSettings.mobileIpDetectSwitchUpdateFailed',
     )
   }
 
@@ -405,7 +460,7 @@ export function useSettingsActions() {
     }
   }
 
-  async function handleSaveEmail() {
+  async function handleSaveEmail(opts?: { silent?: boolean }) {
     savingEmail.value = true
     try {
       const res = await adminApi.settings.batchUpdate({
@@ -413,13 +468,28 @@ export function useSettingsActions() {
         smtp_port: String(emailForm.smtp_port),
         smtp_username: emailForm.smtp_username,
         smtp_password: emailForm.smtp_password,
+        smtp_ssl: String(emailForm.smtp_ssl),
+        smtp_proxy_enabled: String(emailForm.smtp_proxy_enabled),
+        smtp_proxy_type: emailForm.smtp_proxy_type,
+        smtp_proxy_host: emailForm.smtp_proxy_host,
+        smtp_proxy_port: String(emailForm.smtp_proxy_port),
+        smtp_proxy_username: emailForm.smtp_proxy_username,
+        smtp_proxy_password: emailForm.smtp_proxy_password,
+        system_email_address: emailForm.system_email_address,
         system_email_name: emailForm.system_email_name,
       })
-      if (res.isSuccess) message.success(res.message || t('adminSettings.emailSettingsSaved'))
-      else message.error(res.message || t('adminSettings.emailSettingsSaveFailed'))
+      if (res.isSuccess) {
+        if (!opts?.silent)
+          message.success(res.message || t('adminSettings.emailSettingsSaved'))
+      }
+      else {
+        message.error(res.message || t('adminSettings.emailSettingsSaveFailed'))
+      }
+      return res.isSuccess
     }
     catch {
       message.error(t('adminSettings.saveFailed'))
+      return false
     }
     finally {
       savingEmail.value = false
@@ -427,9 +497,28 @@ export function useSettingsActions() {
   }
 
   async function handleTestEmail() {
+    const to = String(testEmailTo.value || '').trim()
+    if (!to) {
+      message.warning(t('adminSettings.testEmailToRequired'))
+      return
+    }
+    // 简单校验邮箱格式，避免打到后端才报错
+    const emailOk = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/.test(to)
+    if (!emailOk) {
+      message.warning(t('adminSettings.testEmailToInvalid'))
+      return
+    }
+
     testingEmail.value = true
     try {
-      const res = await adminApi.emailTemplate.sendTest({ to: emailForm.smtp_username })
+      // 先静默保存当前表单，避免「改了配置却没保存」测的还是旧 SMTP
+      const saved = await handleSaveEmail({ silent: true })
+      if (!saved) {
+        message.error(t('adminSettings.testEmailNeedSaveFirst'))
+        return
+      }
+
+      const res = await adminApi.emailTemplate.sendTest({ to })
       if (res.isSuccess) message.success(res.data?.message || t('adminSettings.testEmailSent'))
       else message.error(res.message || t('adminSettings.testEmailFailed'))
     }
@@ -587,8 +676,11 @@ export function useSettingsActions() {
     handleUpdateAllowRegister,
     handleUpdateAllowDeleteAccount,
     handleUpdateSmtpSSL,
+    handleUpdateSmtpProxyEnabled,
     handleUpdateEmailVerifyEnabled,
     handleUpdateSmsVerifyEnabled,
+    handleUpdateMobileCnOnly,
+    handleUpdateMobileIpCountryDetect,
     handleUpdateGeetestEnabled,
     handleUpdateRealnameEnabled,
     handleUpdateRealnameReviewRequired,

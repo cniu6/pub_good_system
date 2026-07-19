@@ -6,8 +6,8 @@ import { getAdminApiBase } from './base'
  * 用于管理端对系统配置进行 CRUD 操作
  */
 
-// 配置项类型
-export type SettingType = 'string' | 'number' | 'boolean' | 'json'
+// 配置项类型（password 语义等同 string，仅用于渲染带查看/隐藏眼睛的密码输入框）
+export type SettingType = 'string' | 'number' | 'boolean' | 'json' | 'password'
 
 // 配置分类
 export type SettingCategory = 'basic' | 'security' | 'email' | 'sms' | 'payment' | 'custom'

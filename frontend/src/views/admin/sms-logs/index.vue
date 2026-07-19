@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import {
   NButton,
   NCard,
+  NCode,
   NDataTable,
   NDatePicker,
   NDescriptions,
@@ -12,26 +14,42 @@ import {
   NGrid,
   NGi,
   NInput,
+  NInputNumber,
   NModal,
   NSelect,
   NSpace,
   NStatistic,
+  NSwitch,
   NTag,
   NText,
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useTableColumnVisibility } from '@/hooks'
-import { adminSMSLogApi, type SMSLog, type SMSLogListParams } from '@/service/api/admin/sms-log'
+import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
+import type { ECOption } from '@/hooks'
+import { adminApi } from '@/service/api/admin'
+import { adminSMSLogApi, type SMSLog, type SMSLogListParams, type SMSLogStats } from '@/service/api/admin/sms-log'
+import { parseBooleanSetting, parseNumberSetting } from '@/utils'
 
+const router = useRouter()
 const message = useMessage()
 const { t } = useI18n()
+const listFetchGuard = useRequestGuard()
 
 const loading = ref(false)
+const runtimeLoading = ref(false)
+const runtimeSaving = ref(false)
 const logList = ref<SMSLog[]>([])
 const total = ref(0)
-const statsData = ref<{ total: number; success: number; fail: number }>({ total: 0, success: 0, fail: 0 })
+const statsData = ref<SMSLogStats>({
+  total_count: 0,
+  today_count: 0,
+  success_count: 0,
+  fail_count: 0,
+  top_templates: [],
+  provider_stats: [],
+})
 const templateNameOptions = ref<{ label: string; value: string }[]>([])
 
 const query = reactive<SMSLogListParams>({
@@ -52,6 +70,12 @@ const pagination = reactive({
   page: 1,
   pageSize: 20,
   itemCount: 0,
+})
+
+const runtimeForm = reactive({
+  sms_log_max_count: 1000,
+  sms_log_per_user_limit_enabled: false,
+  sms_log_per_user_max_count: 1000,
 })
 
 const showDetail = ref(false)
@@ -93,7 +117,8 @@ const detailStatusText = computed(() => detailData.value?.status === 1 ? t('admi
 const detailStatusType = computed(() => detailData.value?.status === 1 ? 'success' : 'error')
 const formattedResponse = computed(() => {
   const raw = detailData.value?.response?.trim()
-  if (!raw) return ''
+  if (!raw)
+    return ''
   try {
     return JSON.stringify(JSON.parse(raw), null, 2)
   }
@@ -101,6 +126,72 @@ const formattedResponse = computed(() => {
     return raw
   }
 })
+
+const topTemplateItems = computed(() => (statsData.value.top_templates || []).slice(0, 8))
+const topTemplateChartItems = computed(() => [...topTemplateItems.value].reverse())
+
+function normalizeRuntimeMaxCount(value: unknown) {
+  return Math.min(200000, Math.max(100, Math.floor(parseNumberSetting(value, 1000))))
+}
+
+function normalizePerUserMaxCount(value: unknown) {
+  return Math.min(200000, Math.max(1, Math.floor(parseNumberSetting(value, 1000))))
+}
+
+function formatTopTemplateAxisLabel(value: string) {
+  const normalized = value || '-'
+  return normalized.length > 28 ? `${normalized.slice(0, 28)}...` : normalized
+}
+
+function goToTemplate(name?: string, lang?: string) {
+  if (!name)
+    return
+  const queryParams: Record<string, string> = { name }
+  if (lang)
+    queryParams.lang = lang
+  router.push({ path: '/settings/sms-templates', query: queryParams })
+}
+
+const topTemplateChartOptions = computed<ECOption>(() => ({
+  tooltip: {
+    trigger: 'axis',
+    axisPointer: { type: 'shadow' },
+    confine: true,
+    formatter: (params: any) => {
+      const index = Array.isArray(params) ? (params[0]?.dataIndex ?? 0) : (params?.dataIndex ?? 0)
+      const item = topTemplateChartItems.value[index]
+      if (!item)
+        return '-'
+      return [
+        item.template_name || '-',
+        `${t('adminSMSLogs.requestCount')}: ${item.count}`,
+      ].join('<br/>')
+    },
+  },
+  grid: { left: 16, right: 24, top: 12, bottom: 12, containLabel: true },
+  xAxis: {
+    type: 'value',
+    splitLine: { show: true },
+  },
+  yAxis: {
+    type: 'category',
+    axisTick: { show: false },
+    data: topTemplateChartItems.value.map(item => item.template_name || '-'),
+    axisLabel: {
+      formatter: (value: string) => formatTopTemplateAxisLabel(value),
+    },
+  },
+  series: [
+    {
+      type: 'bar',
+      barMaxWidth: 18,
+      label: { show: true, position: 'right' },
+      data: topTemplateChartItems.value.map(item => item.count),
+    },
+  ],
+}))
+
+useEcharts('topTemplateChartRef', topTemplateChartOptions)
 
 async function handleCopyResponse() {
   if (!formattedResponse.value) {
@@ -151,7 +242,8 @@ const columns: DataTableColumns<SMSLog> = [
     key: 'created_at',
     width: 160,
     render(row) {
-      if (!row.created_at) return '-'
+      if (!row.created_at)
+        return '-'
       return new Date(row.created_at).toLocaleString()
     },
   },
@@ -193,6 +285,7 @@ const {
 })
 
 async function fetchList() {
+  const token = listFetchGuard.begin()
   loading.value = true
   try {
     if (dateRange.value) {
@@ -204,31 +297,43 @@ async function fetchList() {
       query.end_time = ''
     }
     const params: any = { ...query }
-    if (!params.phone) delete params.phone
-    if (!params.provider) delete params.provider
-    if (!params.template_name) delete params.template_name
-    if (!params.lang) delete params.lang
-    if (params.status === -1) delete params.status
-    if (!params.start_time) delete params.start_time
-    if (!params.end_time) delete params.end_time
+    if (!params.phone)
+      delete params.phone
+    if (!params.provider)
+      delete params.provider
+    if (!params.template_name)
+      delete params.template_name
+    if (!params.lang)
+      delete params.lang
+    if (params.status === -1)
+      delete params.status
+    if (!params.start_time)
+      delete params.start_time
+    if (!params.end_time)
+      delete params.end_time
 
     const res = await adminSMSLogApi.list(params)
+    if (!listFetchGuard.isLatest(token))
+      return
     logList.value = res.data?.list || []
     total.value = res.data?.total || 0
     pagination.itemCount = total.value
   }
   catch {
-    message.error(t('adminSMSLogs.fetchListFailed'))
+    if (listFetchGuard.isLatest(token))
+      message.error(t('adminSMSLogs.fetchListFailed'))
   }
   finally {
-    loading.value = false
+    if (listFetchGuard.isLatest(token))
+      loading.value = false
   }
 }
 
 async function fetchStats() {
   try {
     const res = await adminSMSLogApi.stats()
-    if (res.data) statsData.value = res.data
+    if (res.data)
+      statsData.value = res.data
   }
   catch { /* ignore */ }
 }
@@ -246,6 +351,55 @@ async function fetchTemplateNames() {
   catch { /* ignore */ }
 }
 
+async function loadRuntimeConfig() {
+  runtimeLoading.value = true
+  try {
+    const res = await adminApi.settings.list()
+    const categories = res.data?.categories || []
+    for (const category of categories) {
+      for (const item of category.items) {
+        if (item.key === 'sms_log_max_count')
+          runtimeForm.sms_log_max_count = normalizeRuntimeMaxCount(item.value)
+        if (item.key === 'sms_log_per_user_limit_enabled')
+          runtimeForm.sms_log_per_user_limit_enabled = parseBooleanSetting(item.value, false)
+        if (item.key === 'sms_log_per_user_max_count')
+          runtimeForm.sms_log_per_user_max_count = normalizePerUserMaxCount(item.value)
+      }
+    }
+  }
+  catch {
+    message.error(t('adminServer.loadRuntimeFailed'))
+  }
+  finally {
+    runtimeLoading.value = false
+  }
+}
+
+async function handleSaveRuntimeConfig() {
+  runtimeSaving.value = true
+  try {
+    runtimeForm.sms_log_max_count = normalizeRuntimeMaxCount(runtimeForm.sms_log_max_count)
+    runtimeForm.sms_log_per_user_max_count = normalizePerUserMaxCount(runtimeForm.sms_log_per_user_max_count)
+
+    const res = await adminApi.settings.batchUpdate({
+      sms_log_max_count: String(runtimeForm.sms_log_max_count),
+      sms_log_per_user_limit_enabled: String(runtimeForm.sms_log_per_user_limit_enabled),
+      sms_log_per_user_max_count: String(runtimeForm.sms_log_per_user_max_count),
+    })
+    if (!res.isSuccess)
+      throw new Error(res.message || t('adminServer.saveRuntimeFailed'))
+
+    await Promise.all([fetchList(), fetchStats()])
+    message.success(res.message || t('adminServer.saveRuntimeSuccess'))
+  }
+  catch (error: any) {
+    message.error(error?.message || t('adminServer.saveRuntimeFailed'))
+  }
+  finally {
+    runtimeSaving.value = false
+  }
+}
+
 async function handleDetail(row: SMSLog) {
   showDetail.value = true
   detailLoading.value = true
@@ -253,9 +407,8 @@ async function handleDetail(row: SMSLog) {
   try {
     const res = await adminSMSLogApi.detail(row.id)
     detailData.value = res.data || null
-    if (!detailData.value) {
+    if (!detailData.value)
       message.warning(t('adminSMSLogs.noDetailData'))
-    }
   }
   catch {
     showDetail.value = false
@@ -313,15 +466,14 @@ async function handleClean() {
 }
 
 function handleCleanDateChange(val: number | null) {
-  if (val) {
+  if (val)
     cleanBefore.value = new Date(val).toISOString().slice(0, 19).replace('T', ' ')
-  }
-  else {
+  else
     cleanBefore.value = ''
-  }
 }
 
 onMounted(() => {
+  loadRuntimeConfig()
   fetchList()
   fetchStats()
   fetchTemplateNames()
@@ -330,18 +482,14 @@ onMounted(() => {
 
 <template>
   <div class="sms-log-page">
-    <!-- 统计卡片 -->
-    <NGrid :x-gap="12" :y-gap="12" cols="3" style="margin-bottom: 16px;">
-      <NGi>
-        <NCard size="small">
-          <NStatistic :label="t('adminSMSLogs.totalSent')" :value="statsData.total" />
-        </NCard>
-      </NGi>
+    <NGrid :x-gap="12" :y-gap="12" cols="4" style="margin-bottom: 16px;">
+      <NGi><NCard size="small"><NStatistic :label="t('adminSMSLogs.totalCount')" :value="statsData.total_count" /></NCard></NGi>
+      <NGi><NCard size="small"><NStatistic :label="t('adminSMSLogs.todayCount')" :value="statsData.today_count" /></NCard></NGi>
       <NGi>
         <NCard size="small">
           <NStatistic :label="t('adminSMSLogs.success')">
             <template #default>
-              <NText type="success">{{ statsData.success }}</NText>
+              <NText type="success">{{ statsData.success_count }}</NText>
             </template>
           </NStatistic>
         </NCard>
@@ -350,14 +498,35 @@ onMounted(() => {
         <NCard size="small">
           <NStatistic :label="t('adminSMSLogs.failed')">
             <template #default>
-              <NText type="error">{{ statsData.fail }}</NText>
+              <NText type="error">{{ statsData.fail_count }}</NText>
             </template>
           </NStatistic>
         </NCard>
       </NGi>
     </NGrid>
 
-    <!-- 列表 -->
+    <NText depth="3" style="display: block; margin: -4px 0 12px;">{{ t('adminSMSLogs.statsHint') }}</NText>
+
+    <NGrid :x-gap="12" :y-gap="12" cols="1 s:2 l:2" responsive="screen" style="margin-bottom: 16px;">
+      <NGi>
+        <NCard size="small" :title="t('adminSMSLogs.topTemplates')">
+          <div ref="topTemplateChartRef" class="top-path-chart"></div>
+          <NText v-if="!topTemplateItems.length" depth="3" style="display: block; text-align: center;">{{ t('adminSMSLogs.noTopTemplates') }}</NText>
+        </NCard>
+      </NGi>
+      <NGi>
+        <NCard size="small" :title="t('adminSMSLogs.overview')">
+          <NDescriptions :column="2" bordered size="small" label-placement="left">
+            <NDescriptionsItem :label="t('adminSMSLogs.success')">{{ statsData.success_count }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminSMSLogs.failed')">{{ statsData.fail_count }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminSMSLogs.providerSummary')" :span="2">
+              {{ (statsData.provider_stats || []).map(item => `${providerMap[item.provider]?.label || item.provider}:${item.count}`).join(' / ') || '-' }}
+            </NDescriptionsItem>
+          </NDescriptions>
+        </NCard>
+      </NGi>
+    </NGrid>
+
     <NCard :title="t('adminSMSLogs.title')">
       <template #header-extra>
         <NSpace>
@@ -377,7 +546,25 @@ onMounted(() => {
         </NSpace>
       </template>
 
-      <!-- 筛选 -->
+      <NCard size="small" embedded style="margin-bottom: 12px;">
+        <NSpace align="center" justify="space-between" :wrap="true">
+          <NSpace align="center" :wrap="true" size="small">
+            <NText strong>{{ t('adminSMSLogs.runtimeConfig') }}</NText>
+            <NText depth="3">{{ t('adminSMSLogs.maxCount') }}</NText>
+            <NInputNumber v-model:value="runtimeForm.sms_log_max_count" :min="100" :max="200000" size="small" style="width: 130px;" />
+            <NText depth="3">{{ t('adminSMSLogs.perUserLimitEnabled') }}</NText>
+            <NSwitch v-model:value="runtimeForm.sms_log_per_user_limit_enabled" />
+            <NText depth="3">{{ t('adminSMSLogs.perUserMaxCount') }}</NText>
+            <NInputNumber v-model:value="runtimeForm.sms_log_per_user_max_count" :min="1" :max="200000" size="small" style="width: 130px;" />
+          </NSpace>
+          <NSpace size="small">
+            <NButton size="small" type="primary" :loading="runtimeSaving" @click="handleSaveRuntimeConfig">{{ t('adminServer.runtimeConfig.save') }}</NButton>
+            <NButton size="small" :loading="runtimeLoading" @click="loadRuntimeConfig">{{ t('adminSMSLogs.refresh') }}</NButton>
+          </NSpace>
+        </NSpace>
+        <NText depth="3" style="display: block; margin-top: 8px;">{{ t('adminSMSLogs.runtimeHint') }}</NText>
+      </NCard>
+
       <NSpace align="center" style="margin-bottom: 12px;" :wrap="true">
         <NInput v-model:value="query.phone" :placeholder="t('adminSMSLogs.phone')" clearable size="small" style="width: 140px;" @keyup.enter="handleSearch" />
         <NSelect v-model:value="query.provider" :options="providerOptions" :placeholder="t('adminSMSLogs.provider')" clearable size="small" style="width: 120px;" />
@@ -401,7 +588,6 @@ onMounted(() => {
       />
     </NCard>
 
-    <!-- 详情弹窗 -->
     <NModal v-model:show="showDetail" preset="card" :title="t('adminSMSLogs.detailTitle')" style="width: 760px;" :mask-closable="true">
       <NText v-if="detailLoading" depth="3">{{ t('adminSMSLogs.loading') }}</NText>
       <NSpace v-else-if="detailData" vertical :size="16">
@@ -431,7 +617,20 @@ onMounted(() => {
               </NTag>
             </NDescriptionsItem>
             <NDescriptionsItem :label="t('adminSMSLogs.templateId')">{{ detailData.template_code || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminSMSLogs.templateName')">{{ detailData.template_name || '-' }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminSMSLogs.templateName')">
+              <NSpace align="center" :size="8">
+                <span>{{ detailData.template_name || '-' }}</span>
+                <NButton
+                  v-if="detailData.template_name"
+                  size="tiny"
+                  text
+                  type="primary"
+                  @click="goToTemplate(detailData.template_name, detailData.lang)"
+                >
+                  {{ t('adminSMSLogs.viewTemplate') }}
+                </NButton>
+              </NSpace>
+            </NDescriptionsItem>
             <NDescriptionsItem :label="t('adminSMSLogs.lang')">{{ detailData.lang || '-' }}</NDescriptionsItem>
             <NDescriptionsItem :label="t('adminSMSLogs.requestId')">{{ detailData.request_id || '-' }}</NDescriptionsItem>
             <NDescriptionsItem :label="t('adminSMSLogs.sendTime')" :span="2">
@@ -441,9 +640,7 @@ onMounted(() => {
         </NCard>
 
         <NCard size="small" embedded :title="t('adminSMSLogs.content')">
-          <div class="detail-content-block">
-            {{ detailData.content || '-' }}
-          </div>
+          <NCode :code="detailData.content || '-'" word-wrap style="max-height: 280px; overflow: auto;" />
         </NCard>
 
         <NCard v-if="detailData.error_msg" size="small" embedded :title="t('adminSMSLogs.errorMsg')">
@@ -454,13 +651,12 @@ onMounted(() => {
           <template #header-extra>
             <NButton size="small" quaternary @click="handleCopyResponse">{{ t('adminSMSLogs.copyContent') }}</NButton>
           </template>
-          <div class="detail-response-block">{{ formattedResponse }}</div>
+          <NCode :code="formattedResponse" language="json" word-wrap style="max-height: 320px; overflow: auto;" />
         </NCard>
       </NSpace>
       <NText v-else depth="3">{{ t('adminSMSLogs.noDetailData') }}</NText>
     </NModal>
 
-    <!-- 清理弹窗 -->
     <NModal v-model:show="showClean" preset="card" :title="t('adminSMSLogs.cleanModalTitle')" style="width: 400px;" :mask-closable="false">
       <NSpace vertical>
         <NText>{{ t('adminSMSLogs.cleanWarning') }}</NText>
@@ -479,26 +675,8 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.detail-content-block {
-  padding: 12px;
-  border-radius: 10px;
-  background: rgb(250 250 252);
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.detail-response-block {
-  max-height: 320px;
-  overflow-y: auto;
-  padding: 12px;
-  border-radius: 10px;
-  background: rgb(17 24 39);
-  color: rgb(229 231 235);
-  font-family: Consolas, 'Courier New', monospace;
-  font-size: 12px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-all;
+.top-path-chart {
+  width: 100%;
+  height: 280px;
 }
 </style>

@@ -183,9 +183,11 @@ func (ctrl *SettingsController) GetServerOperationsStatus(c *gin.Context) {
 		"tasks":       taskItems,
 		"rate_limits": middleware.GetDynamicRateLimitSnapshots(),
 		"api_log": gin.H{
-			"enabled":    apiLogConfig.Enabled,
-			"query_days": apiLogConfig.QueryDays,
-			"max_count":  apiLogConfig.MaxCount,
+			"enabled":                 apiLogConfig.Enabled,
+			"query_days":              apiLogConfig.QueryDays,
+			"max_count":               apiLogConfig.MaxCount,
+			"per_user_limit_enabled":  apiLogConfig.PerUserLimitEnabled,
+			"per_user_max_count":      apiLogConfig.PerUserMaxCount,
 		},
 	})
 }

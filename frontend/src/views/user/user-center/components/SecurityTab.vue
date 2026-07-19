@@ -18,6 +18,10 @@ interface SessionItem {
   user_agent?: string
   ip?: string
   login_at?: number | null
+  last_seen_at?: number | null
+  client_type?: string
+  is_online?: boolean
+  is_current?: boolean
 }
 
 interface UserSecurityStats {
@@ -251,17 +255,25 @@ onMounted(() => {
         <n-divider />
         <n-spin :show="sessionsLoading">
           <n-space v-if="sessions.length > 0" vertical>
-            <div v-for="session in sessions" :key="session.id" class="session-item">
+            <div v-for="session in sessions" :key="session.id" class="session-item" :class="{ 'is-online': session.is_online }">
               <div class="session-info">
                 <div class="session-device">
+                  <span class="online-dot" :class="{ offline: !session.is_online }" />
                   <NovaIcon icon="icon-park-outline:computer" :size="16" class="mr-1" />
                   {{ session.device || t('securityTab.unknownDevice') }}
+                  <n-tag v-if="session.is_current" size="small" type="primary" :bordered="false" class="ml-2">
+                    {{ t('securityTab.currentDevice') }}
+                  </n-tag>
+                  <n-tag v-if="session.client_type" size="small" :bordered="false" class="ml-2">
+                    {{ session.client_type }}
+                  </n-tag>
                   <n-tag v-if="parseBrowser(session.user_agent)" size="small" :bordered="false" class="ml-2">
                     {{ parseBrowser(session.user_agent) }}
                   </n-tag>
                 </div>
                 <n-text depth="3" class="session-detail">
                   {{ t('securityTab.sessionDetail', { ip: session.ip || t('securityTab.unknown'), time: formatTime(session.login_at) }) }}
+                  <span v-if="session.last_seen_at"> · {{ t('securityTab.lastSeenAt') }}: {{ formatTime(session.last_seen_at) }}</span>
                 </n-text>
               </div>
               <n-button size="small" type="error" @click="handleRevokeSession(session.id)">
@@ -359,6 +371,11 @@ onMounted(() => {
   background: var(--n-color);
 }
 
+.session-item.is-online {
+  border-color: var(--n-success-color);
+  background: color-mix(in srgb, var(--n-success-color) 8%, var(--n-color));
+}
+
 .session-info {
   flex: 1;
 }
@@ -368,6 +385,20 @@ onMounted(() => {
   align-items: center;
   font-weight: 500;
   margin-bottom: 4px;
+}
+
+.online-dot {
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--n-success-color);
+  box-shadow: 0 0 8px var(--n-success-color);
+}
+
+.online-dot.offline {
+  background: var(--n-text-color-disabled);
+  box-shadow: none;
 }
 
 .session-detail {

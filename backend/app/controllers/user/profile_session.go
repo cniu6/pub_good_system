@@ -2,7 +2,9 @@ package user
 
 import (
 	"fst/backend/app/models"
+	"fst/backend/pkg/presence"
 	"fst/backend/utils"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -60,7 +62,8 @@ func (ctrl *ProfileController) GetSessions(c *gin.Context) {
 	if guardStr == "" {
 		guardStr = "user"
 	}
-	sessions, err := models.GetUserSessionsWithGuard(uid, guardStr)
+	currentTokenHash := utils.HashToken(utils.ExtractBearerToken(c.GetHeader("Authorization")))
+	sessions, err := models.GetUserSessionsWithGuard(uid, guardStr, currentTokenHash)
 	if err != nil {
 		utils.Fail(c, 500, "Failed to load sessions")
 		return
@@ -107,6 +110,9 @@ func (ctrl *ProfileController) RevokeSession(c *gin.Context) {
 		utils.Fail(c, 500, "Failed to revoke session")
 		return
 	}
+	if sessionID, err := models.ParseSessionID(session_id); err == nil {
+		presence.DefaultHub().Kick(sessionID, "session_revoked")
+	}
 
 	utils.Success(c, gin.H{"message": "Session revoked successfully"})
 }
@@ -139,12 +145,45 @@ func (ctrl *ProfileController) RevokeAllSessions(c *gin.Context) {
 	if guardStr == "" {
 		guardStr = "user"
 	}
+	sessionIDs, err := models.ListActiveSessionIDsExceptCurrent(uid, guardStr, currentTokenHash)
+	if err != nil {
+		utils.Fail(c, 500, "Failed to load sessions")
+		return
+	}
 	if err := models.RevokeAllUserSessionsWithGuard(uid, guardStr, currentTokenHash); err != nil {
 		utils.Fail(c, 500, "Failed to revoke sessions")
 		return
 	}
+	presence.DefaultHub().KickMany(sessionIDs, "revoked_by_user")
 
 	utils.Success(c, gin.H{"message": "All other sessions revoked"})
+}
+
+// Logout 撤销当前登录会话，并主动关闭其 Presence 连接。
+func (ctrl *ProfileController) Logout(c *gin.Context) {
+	userID, ok := c.Get("userID")
+	uid, ok := userID.(uint64)
+	if !ok {
+		utils.Fail(c, 401, "User not logged in")
+		return
+	}
+	guard, _ := c.Get("authGuard")
+	guardStr, _ := guard.(string)
+	if guardStr == "" {
+		guardStr = "user"
+	}
+	tokenHash := utils.HashToken(utils.ExtractBearerToken(c.GetHeader("Authorization")))
+	session, err := models.GetActiveSessionByTokenHash(tokenHash)
+	if err != nil || session == nil || session.UserID != uid || session.AuthGuard != guardStr {
+		utils.Fail(c, 401, "Session expired or revoked")
+		return
+	}
+	if err := models.RevokeUserSessionWithGuard(uid, guardStr, strconv.FormatUint(session.ID, 10)); err != nil {
+		utils.Fail(c, 500, "Failed to logout")
+		return
+	}
+	presence.DefaultHub().Kick(session.ID, "logout")
+	utils.Success(c, gin.H{"message": "Logged out"})
 }
 
 // ========================================

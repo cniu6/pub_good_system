@@ -115,6 +115,41 @@ func MarkIdempotencyCompleted(idemKey string, userID uint64, scope string) error
 	return err
 }
 
+// ForceUpsertIdempotencyCompleted 强制写入 completed。
+// 用于「业务已成功但 MarkCompleted 失败」的兜底，避免 processing 僵死后被清理、同 key 再跑业务。
+// 注意：唯一键是 (user_id, scope, idem_key)，不能用「首列 idem_key」的 ON DUPLICATE 方言转换，故采用更新→插入→再更新。
+func ForceUpsertIdempotencyCompleted(idemKey string, userID uint64, scope string, requestHash string, expireAt int64) error {
+	now := time.Now().Unix()
+	if expireAt <= 0 {
+		expireAt = now + 600
+	}
+	if requestHash == "" {
+		requestHash = "force-completed"
+	}
+	res, err := db.Exec(
+		"UPDATE idempotency_keys SET status = ?, request_hash = ?, expire_at = ? WHERE idem_key = ? AND user_id = ? AND scope = ?",
+		IdempotencyStatusCompleted, requestHash, expireAt, idemKey, userID, scope,
+	)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	_, err = db.Exec(
+		"INSERT INTO idempotency_keys (idem_key, user_id, scope, request_hash, status, expire_at, create_time) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		idemKey, userID, scope, requestHash, IdempotencyStatusCompleted, expireAt, now,
+	)
+	if err == nil {
+		return nil
+	}
+	_, err2 := db.Exec(
+		"UPDATE idempotency_keys SET status = ?, request_hash = ?, expire_at = ? WHERE idem_key = ? AND user_id = ? AND scope = ?",
+		IdempotencyStatusCompleted, requestHash, expireAt, idemKey, userID, scope,
+	)
+	return err2
+}
+
 // DeleteStaleProcessingIdempotencyKeyTx 清理卡住的 processing（进程崩溃等），允许重试
 func DeleteStaleProcessingIdempotencyKeyTx(tx *sql.Tx, idemKey string, userID uint64, scope string, olderThan int64) error {
 	_, err := tx.Exec(

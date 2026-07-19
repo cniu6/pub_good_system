@@ -81,6 +81,7 @@ func migrateCoreSchemas() {
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 		`CREATE TABLE IF NOT EXISTS email_logs (
 			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+			user_id BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '关联用户ID（匿名发送为0）',
 			to_email VARCHAR(150) NOT NULL COMMENT '收件人',
 			subject VARCHAR(255) NOT NULL COMMENT '主题',
 			content TEXT NOT NULL COMMENT '内容',
@@ -89,6 +90,7 @@ func migrateCoreSchemas() {
 			error_msg TEXT COMMENT '错误信息',
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
 			INDEX idx_email_logs_to (to_email),
+			INDEX idx_email_logs_user_id (user_id),
 			INDEX idx_email_logs_status_created (status, created_at),
 			INDEX idx_email_logs_template_name (template_name),
 			INDEX idx_email_logs_created_at (created_at)
@@ -293,8 +295,10 @@ func migrateBusinessTables() {
 	models.InitAPIAccessLogsTable()
 	models.InitAPIAccessLogAggregateTables()
 
-	// ---------- 短信日志 ----------
+	// ---------- 短信日志 / 短信模板 ----------
 	models.InitSMSTable()
+	models.InitSMSTemplatesTable()
+	models.InitSMSTemplates()
 
 	// ---------- 支付 / 提现 / 幂等键 / 支付通道 ----------
 	models.InitPaymentOrdersTable()

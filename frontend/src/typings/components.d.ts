@@ -132,6 +132,7 @@ declare module 'vue' {
     NWatermark: typeof import('naive-ui')['NWatermark']
     Pagination: typeof import('./../components/common/Pagination.vue')['default']
     PcaCascader: typeof import('./../components/custom/PcaCascader.vue')['default']
+    PhoneInput: typeof import('./../components/common/PhoneInput.vue')['default']
     RichTextEditor: typeof import('./../components/custom/Editor/RichTextEditor/index.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

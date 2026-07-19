@@ -2,11 +2,32 @@ package models
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fst/backend/pkg/db"
+	"regexp"
 	"strings"
 	"time"
 )
+
+// 与 utils/phone.go 对齐：用于手机号等价写法查询（避免 import cycle）
+var reMobileCNLookup = regexp.MustCompile(`^1[3-9]\d{9}$`)
+
+// mobileLookupVariants 同一号码可能存成 11 位或 +86 E.164
+func mobileLookupVariants(normalized string) []string {
+	normalized = strings.TrimSpace(normalized)
+	if normalized == "" {
+		return nil
+	}
+	out := []string{normalized}
+	if strings.HasPrefix(normalized, "+86") && len(normalized) == 14 && reMobileCNLookup.MatchString(normalized[3:]) {
+		out = append(out, normalized[3:])
+	} else if reMobileCNLookup.MatchString(normalized) {
+		out = append(out, "+86"+normalized)
+	}
+	return out
+}
 
 type User struct {
 	ID            uint64  `db:"id" json:"id"`
@@ -174,14 +195,25 @@ func GetUserByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
-// GetUserByMobile finds a user by mobile number
+// GetUserByMobile finds a user by mobile number（兼容 11 位与 +86 E.164 等价写法）
 func GetUserByMobile(mobile string) (*User, error) {
-	var user User
-	err := db.DB.Get(&user, "SELECT "+BuildUserSelectColumns("users")+" FROM users WHERE mobile = ? AND delete_time IS NULL", mobile)
-	if err != nil {
-		return nil, err
+	variants := mobileLookupVariants(mobile)
+	if len(variants) == 0 {
+		return nil, sql.ErrNoRows
 	}
-	return &user, nil
+	var lastErr error = sql.ErrNoRows
+	for _, v := range variants {
+		var user User
+		err := db.DB.Get(&user, "SELECT "+BuildUserSelectColumns("users")+" FROM users WHERE mobile = ? AND delete_time IS NULL", v)
+		if err == nil {
+			return &user, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		lastErr = err
+	}
+	return nil, lastErr
 }
 
 // GetUserByUsernameOrEmail finds a user by username or email
@@ -225,6 +257,25 @@ func UpdateLoginInfo(userID uint64, loginIP string) error {
 		now, loginIP, now, userID,
 	)
 	return err
+}
+
+// GetUserByApiKey 按 API Key 查找用户（忽略已软删除；空 key 直接未找到）
+func GetUserByApiKey(apiKey string) (*User, error) {
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return nil, sql.ErrNoRows
+	}
+	var user User
+	err := db.DB.Get(&user, "SELECT "+BuildUserSelectColumns("users")+" FROM users WHERE apikey = ? AND delete_time IS NULL", apiKey)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// GenerateApiKey 生成随机 API 密钥（供注册自动发放等调用）
+func GenerateApiKey() string {
+	return generateApiKey()
 }
 
 // ResetUserApiKey 重置用户API密钥

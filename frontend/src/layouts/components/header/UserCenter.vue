@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/store'
-import { renderIcon } from '@/utils/icon'
 import IconBookOpen from '~icons/icon-park-outline/book-open'
 import IconGithub from '~icons/icon-park-outline/github'
 import IconLogout from '~icons/icon-park-outline/logout'
@@ -30,7 +29,7 @@ const options = computed(() => {
     {
       label: t('app.gitee'),
       key: 'gitee',
-      icon: renderIcon('simple-icons:gitee'),
+      icon: () => h(IconGithub),
     },
     {
       label: t('app.docs'),

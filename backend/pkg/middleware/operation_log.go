@@ -13,7 +13,7 @@ import (
 )
 
 // SimpleLogMiddleware 操作日志中间件：记录模块/动作/路径，以及请求内容、响应内容、处理函数名。
-// GET 无 body 时把 query 写入 request_body；响应体会捕获并脱敏截断后入库。
+// GET 无 body 时把 query 写入 request_body；响应体会捕获并截断后入库（不做字段脱敏）。
 func SimpleLogMiddleware(module string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		startTime := time.Now()
@@ -42,7 +42,7 @@ func SimpleLogMiddleware(module string) gin.HandlerFunc {
 			}
 		}
 
-		// 响应内容：脱敏 + 安全截断（复用 API 访问日志的类型判断）
+		// 响应内容：安全截断（复用 API 访问日志的类型判断；管理端可见，不做字段脱敏）
 		responseContentType := normalizeContentType(blw.Header().Get("Content-Type"))
 		responseBody := sanitizeResponseBodyByType(blw.body.String(), responseContentType, "http", c.Writer.Status())
 		requestBody = sanitizeOperationRequestContent(requestBody)
@@ -77,7 +77,7 @@ func SimpleLogMiddleware(module string) gin.HandlerFunc {
 }
 
 // captureOperationRequestContent 读取请求内容（可读完后还原 Body 供后续使用）。
-// GET 等无 body 场景返回脱敏后的 query JSON；有 body 则读 body。
+// GET 等无 body 场景返回 query JSON；有 body 则读 body。
 func captureOperationRequestContent(c *gin.Context) string {
 	method := strings.ToUpper(c.Request.Method)
 	rawQuery := c.Request.URL.RawQuery
@@ -150,7 +150,7 @@ func sanitizeOperationRequestContent(raw string) string {
 	if raw == "" {
 		return raw
 	}
-	// 说明性占位文案不走 JSON 脱敏
+	// 说明性占位文案只做长度截断
 	if strings.HasPrefix(raw, "[") && strings.Contains(raw, "omitted") {
 		return truncateForLog(raw, maxLogStoredBodyBytes)
 	}

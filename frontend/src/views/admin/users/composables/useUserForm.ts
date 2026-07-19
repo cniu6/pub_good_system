@@ -10,6 +10,8 @@ import {
   updateAdminUserProfile,
 } from '@/service/api/admin/user'
 import type { AdminUser } from '@/service/api/admin/user'
+import { useSettingsStore } from '@/store'
+import { normalizeAndValidateMobile } from '@/utils/phone'
 
 function reportAdminUsersError(message: string, error?: unknown) {
   if (import.meta.env.DEV)
@@ -169,9 +171,31 @@ export function useUserForm(options?: {
     reportAdminUsersError('[adminUsers] avatar load failed')
   }
 
+  /** 按后台 mobile_cn_only 规范化手机号；空号允许；非法则提示并返回 null */
+  function resolveMobileOrWarn(raw: string): string | null {
+    const trimmed = String(raw || '').trim()
+    if (!trimmed)
+      return ''
+    const settingsStore = useSettingsStore()
+    const cnOnly = settingsStore.mobileCnOnly
+    const normalized = normalizeAndValidateMobile(trimmed, cnOnly)
+    if (!normalized) {
+      message.error(cnOnly ? t('adminUsers.invalidMobileCN') : t('adminUsers.invalidMobile'))
+      return null
+    }
+    return normalized
+  }
+
   async function handleSubmit() {
     try {
       await formRef.value?.validate()
+
+      const resolvedMobile = resolveMobileOrWarn(userForm.mobile)
+      if (resolvedMobile === null)
+        return
+      // 回写规范化结果，便于后续对比与展示
+      userForm.mobile = resolvedMobile
+
       submitting.value = true
 
       if (isEdit.value) {

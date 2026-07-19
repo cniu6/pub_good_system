@@ -42,6 +42,9 @@ type AppConfigResponse struct {
 	// 验证码开关
 	EmailVerifyEnabled bool `json:"email_verify_enabled"`
 	SMSVerifyEnabled   bool `json:"sms_verify_enabled"`
+	MobileCNOnly       bool `json:"mobile_cn_only"`
+	// MobileIPCountryDetect 仅在关闭「仅大陆号」时生效：按 IP/CDN 预选区号
+	MobileIPCountryDetect bool `json:"mobile_ip_country_detect"`
 
 	// 实名认证配置
 	RealnameEnabled    bool   `json:"realname_enabled"`
@@ -55,6 +58,9 @@ type AppConfigResponse struct {
 
 	// 管理端 REST API 在 /api/v1 下的前缀（来自 env ADMIN_API_PATH，默认 /admin）
 	AdminAPIPath string `json:"admin_api_path"`
+
+	// 在线心跳上报周期（秒），前端 Presence 心跳按此间隔发送
+	OnlineReportIntervalSeconds int `json:"online_report_interval_seconds"`
 }
 
 // GetAppConfig 获取应用配置
@@ -98,13 +104,16 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 		GeetestCaptchaId:   "",
 		EmailVerifyEnabled: true,
 		SMSVerifyEnabled:   false,
-		RealnameEnabled:    true,
+		MobileCNOnly:          true,
+		MobileIPCountryDetect: false,
+		RealnameEnabled:       true,
 		RealnameNotifyText: "完成实名认证后可享受更多服务",
 		WithdrawEnabled:    true,
 		WithdrawMinAmount:  10,
 		WithdrawNotifyText: "提现申请提交后需管理员审核，通过后人工打款。",
 		WithdrawAccountTypes: []string{"bank", "alipay", "wechat", "usdt"},
 		AdminAPIPath:       "/admin",
+		OnlineReportIntervalSeconds: 30,
 	}
 	// 从全局配置快照读取 ADMIN_API_PATH，供前端注入管理端请求前缀
 	if cfg := config.CloneGlobalConfig(); cfg != nil {
@@ -151,6 +160,16 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 	if v, ok := configMap["sms_verify_enabled"]; ok {
 		response.SMSVerifyEnabled = v == "true" || v == "1"
 	}
+	if v, ok := configMap["mobile_cn_only"]; ok {
+		response.MobileCNOnly = v == "true" || v == "1"
+	} else {
+		response.MobileCNOnly = true
+	}
+	if v, ok := configMap["mobile_ip_country_detect"]; ok {
+		response.MobileIPCountryDetect = v == "true" || v == "1"
+	} else {
+		response.MobileIPCountryDetect = false
+	}
 	if v, ok := configMap["realname_enabled"]; ok {
 		response.RealnameEnabled = v == "true" || v == "1"
 	}
@@ -191,6 +210,7 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 
 	response.GeetestEnabled = geetestConfig.Enabled && geetestConfig.CaptchaID != "" && geetestConfig.CaptchaKey != ""
 	response.GeetestCaptchaId = geetestConfig.CaptchaID
+	response.OnlineReportIntervalSeconds = services.GetGlobalOnlinePresenceRuntimeConfig().ReportIntervalSeconds
 
 	return response
 }

@@ -58,34 +58,34 @@ type ProfileRealnameSummary struct {
 }
 
 type ProfileResponse struct {
-	ID            uint64                  `json:"id"`
-	GroupID       uint64                  `json:"groupId"`
-	Username      string                  `json:"username"`
-	UserName      string                  `json:"userName"`
-	Email         string                  `json:"email"`
-	Nickname      string                  `json:"nickname"`
-	Avatar        string                  `json:"avatar"`
-	BackGroundRaw string                  `json:"back_ground"`
-	BackGround    string                  `json:"backGround"`
-	Gender        uint8                   `json:"gender"`
-	Birthday      *int64                  `json:"birthday"`
-	Motto         string                  `json:"motto"`
-	Mobile        string                  `json:"mobile"`
-	Money         float64                 `json:"money"`
-	Score         int64                   `json:"score"`
-	Level         uint64                  `json:"level"`
-	Role          string                  `json:"role"`
-	Status        uint8                   `json:"status"`
-	Language      string                  `json:"language"`
-	Country       string                  `json:"country"`
-	LoginFailure  uint8                   `json:"loginFailure"`
-	JoinTime      *int64                  `json:"joinTime"`
-	JoinIP        string                  `json:"joinIp"`
-	LastLoginTime *int64                  `json:"lastLoginTime"`
-	LastLoginIP   string                  `json:"lastLoginIp"`
-	UpdateTime    *int64                  `json:"updateTime"`
-	CreateTime    *int64                  `json:"createTime"`
-	Realname      ProfileRealnameSummary  `json:"realname"`
+	ID            uint64                 `json:"id"`
+	GroupID       uint64                 `json:"groupId"`
+	Username      string                 `json:"username"`
+	UserName      string                 `json:"userName"`
+	Email         string                 `json:"email"`
+	Nickname      string                 `json:"nickname"`
+	Avatar        string                 `json:"avatar"`
+	BackGroundRaw string                 `json:"back_ground"`
+	BackGround    string                 `json:"backGround"`
+	Gender        uint8                  `json:"gender"`
+	Birthday      *int64                 `json:"birthday"`
+	Motto         string                 `json:"motto"`
+	Mobile        string                 `json:"mobile"`
+	Money         float64                `json:"money"`
+	Score         int64                  `json:"score"`
+	Level         uint64                 `json:"level"`
+	Role          string                 `json:"role"`
+	Status        uint8                  `json:"status"`
+	Language      string                 `json:"language"`
+	Country       string                 `json:"country"`
+	LoginFailure  uint8                  `json:"loginFailure"`
+	JoinTime      *int64                 `json:"joinTime"`
+	JoinIP        string                 `json:"joinIp"`
+	LastLoginTime *int64                 `json:"lastLoginTime"`
+	LastLoginIP   string                 `json:"lastLoginIp"`
+	UpdateTime    *int64                 `json:"updateTime"`
+	CreateTime    *int64                 `json:"createTime"`
+	Realname      ProfileRealnameSummary `json:"realname"`
 }
 
 // ========================================
@@ -536,6 +536,7 @@ func (ctrl *ProfileController) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/sessions", ctrl.GetSessions)
 	group.DELETE("/sessions/:id", ctrl.RevokeSession)
 	group.POST("/sessions/revoke-all", ctrl.RevokeAllSessions)
+	group.POST("/logout", ctrl.Logout)
 
 	// API Key
 	group.POST("/resetapikey", ctrl.ResetApiKey)

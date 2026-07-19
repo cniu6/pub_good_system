@@ -43,7 +43,11 @@ func (p *Plugin) Configure(cfg map[string]interface{}) error {
 
 func (p *Plugin) Init() error {
 	p.templateMgr = smstemplates.NewManager()
+	// 先装载内置默认，再尝试用数据库覆盖（库为空则保留默认）
 	p.templateMgr.InitDefaultTemplates()
+	models.InitSMSTemplatesTable()
+	models.InitSMSTemplates()
+	p.templateMgr.LoadFromDB()
 
 	cfg := config.GlobalConfig
 	if cfg != nil && services.GlobalSMSService != nil {
@@ -54,6 +58,11 @@ func (p *Plugin) Init() error {
 		services.GlobalSMSService.GetProviderName(),
 		services.GlobalSMSService.IsConfigured())
 	return nil
+}
+
+// ReloadTemplates 供管理端更新/重置后热加载内存模板
+func ReloadTemplates() {
+	getTemplateManager().Reload()
 }
 
 func buildSMSConfig(cfg *config.Config) services.SMSConfig {
@@ -109,6 +118,8 @@ func getTemplateManager() *smstemplates.Manager {
 
 func (p *Plugin) Migrate() error {
 	models.InitSMSTable()
+	models.InitSMSTemplatesTable()
+	models.InitSMSTemplates()
 	log.Println("[SMSPlugin] 数据库迁移完成")
 	return nil
 }

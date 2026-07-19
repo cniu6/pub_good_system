@@ -18,13 +18,15 @@ const {
   smsTemplateEnLabel,
   smsTemplateEnPlaceholder,
   handleUpdateSmsVerifyEnabled,
+  handleUpdateMobileCnOnly,
+  handleUpdateMobileIpCountryDetect,
   handleSaveSms,
 } = useAdminSettings()
 </script>
 
 <template>
   <n-space vertical>
-    <n-form :model="smsForm" label-placement="left" label-width="120px" style="max-width: 640px;">
+    <n-form :model="smsForm" label-placement="left" label-width="140px" style="max-width: 640px;">
       <n-form-item :label="t('adminSettings.smsVerification')">
         <n-space align="center">
           <n-switch
@@ -33,6 +35,41 @@ const {
             @update:value="handleUpdateSmsVerifyEnabled"
           />
           <n-text depth="3">{{ smsForm.sms_verify_enabled ? t('adminSettings.smsVerifyEnabled') : t('adminSettings.smsVerifyDisabled') }}</n-text>
+        </n-space>
+      </n-form-item>
+      <n-form-item :label="t('adminSettings.mobileCnOnly')">
+        <n-space vertical :size="4">
+          <n-space align="center">
+            <n-switch
+              :value="smsForm.mobile_cn_only"
+              :loading="switchLoading.mobile_cn_only"
+              @update:value="handleUpdateMobileCnOnly"
+            />
+            <n-text depth="3">
+              {{ smsForm.mobile_cn_only ? t('adminSettings.mobileCnOnlyEnabled') : t('adminSettings.mobileCnOnlyDisabled') }}
+            </n-text>
+          </n-space>
+          <n-text depth="3" style="font-size: 12px;">
+            {{ t('adminSettings.mobileCnOnlyHint') }}
+          </n-text>
+        </n-space>
+      </n-form-item>
+      <n-form-item :label="t('adminSettings.mobileIpDetect')">
+        <n-space vertical :size="4">
+          <n-space align="center">
+            <n-switch
+              :value="smsForm.mobile_ip_country_detect"
+              :loading="switchLoading.mobile_ip_country_detect"
+              :disabled="smsForm.mobile_cn_only"
+              @update:value="handleUpdateMobileIpCountryDetect"
+            />
+            <n-text depth="3">
+              {{ smsForm.mobile_ip_country_detect ? t('adminSettings.mobileIpDetectEnabled') : t('adminSettings.mobileIpDetectDisabled') }}
+            </n-text>
+          </n-space>
+          <n-text depth="3" style="font-size: 12px;">
+            {{ t('adminSettings.mobileIpDetectHint') }}
+          </n-text>
         </n-space>
       </n-form-item>
       <n-divider />

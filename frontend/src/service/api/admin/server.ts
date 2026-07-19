@@ -34,6 +34,8 @@ export interface ServerOperationsStatusResponse {
     enabled: boolean
     query_days: number
     max_count: number
+    per_user_limit_enabled?: boolean
+    per_user_max_count?: number
   }
 }
 

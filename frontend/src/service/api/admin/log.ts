@@ -1,11 +1,23 @@
 /**
  * 管理端 API 服务 - 操作日志
- * 操作日志主要用于审计，不需要复杂查询，只提供分页浏览和清理功能
+ * 操作日志主要用于审计，提供分页浏览、详情、统计与清理功能
  */
 import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
 function baseUrl() { return `${getAdminApiBase()}/logs` }
+
+export interface OperationLogStats {
+  total_count: number
+  today_count: number
+  success_count: number
+  client_error_count: number
+  server_error_count: number
+  avg_duration: number
+  top_modules: Array<{ module: string; count: number }>
+  top_actions: Array<{ action: string; count: number }>
+  method_stats: Array<{ method: string; count: number }>
+}
 
 export const adminLogApi = {
   /**
@@ -17,6 +29,11 @@ export const adminLogApi = {
 
   detail(id: number) {
     return request.Get<Service.ResponseResult<any>>(`${baseUrl()}/${id}`)
+  },
+
+  /** 操作日志详细统计（独立聚合，不受明细清理影响） */
+  stats() {
+    return request.Get<Service.ResponseResult<OperationLogStats>>(`${baseUrl()}/stats`)
   },
 
   /**

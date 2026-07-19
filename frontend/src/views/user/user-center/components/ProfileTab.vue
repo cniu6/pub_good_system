@@ -1,19 +1,34 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { useAuthStore } from '@/store'
-import { fetchChangePassword, fetchUpdateProfile } from '@/service'
-import { sendEmailChangeCode, verifyEmailChange, sendPhoneChangeCode, verifyPhoneChange } from '@/service'
+import { useAuthStore, useSettingsStore } from '@/store'
+import { fetchChangePassword, fetchUpdateProfile, sendEmailChangeCode, sendPhoneChangeCode, verifyEmailChange, verifyPhoneChange } from '@/service'
 import GeetestCaptcha from '@/components/common/GeetestCaptcha.vue'
+import PhoneInput from '@/components/common/PhoneInput.vue'
 import { geetestManager } from '@/utils/geetest'
+import { Regex } from '@/constants/Regex'
+import { normalizeAndValidateMobile } from '@/utils/phone'
 
 const authStore = useAuthStore()
+const settingsStore = useSettingsStore()
 const { t } = useI18n()
 
 const userInfo = computed(() => authStore.userInfo)
+/** 与后台 mobile_cn_only 对齐；默认仅大陆号 */
+const mobileCnOnly = computed(() => settingsStore.mobileCnOnly)
 
 const showPasswordModal = ref(false)
 const showEmailModal = ref(false)
 const showPhoneModal = ref(false)
+
+const phoneInputRef = ref<InstanceType<typeof PhoneInput> | null>(null)
+
+/** 防重复提交锁 */
+const profileSubmitting = ref(false)
+const passwordSubmitting = ref(false)
+const emailCodeSending = ref(false)
+const emailVerifying = ref(false)
+const phoneCodeSending = ref(false)
+const phoneVerifying = ref(false)
 
 const passwordForm = ref({
   old_password: '',
@@ -71,6 +86,8 @@ watchEffect(() => {
 const passwordChangeCountdown = ref(0)
 
 async function handlePasswordSubmit() {
+  if (passwordSubmitting.value)
+    return
   if (passwordForm.value.new_password !== passwordForm.value.confirm_password) {
     window.$message.error(t('profile.passwordMismatch'))
     return
@@ -79,6 +96,7 @@ async function handlePasswordSubmit() {
     window.$message.error(t('profile.passwordTooShort'))
     return
   }
+  passwordSubmitting.value = true
   try {
     const response = await fetchChangePassword({
       old_password: passwordForm.value.old_password,
@@ -103,6 +121,9 @@ async function handlePasswordSubmit() {
   catch (error) {
     window.$message.error(`${t('profile.changePasswordFailed')}: ${error}`)
   }
+  finally {
+    passwordSubmitting.value = false
+  }
 }
 
 // ========== 邮箱验证流程 ==========
@@ -115,8 +136,14 @@ function openEmailModal() {
 }
 
 function triggerSendEmailCode() {
+  if (emailCodeSending.value || emailCodeCountdown.value > 0)
+    return
   if (!emailForm.value.email) {
     window.$message.error(t('profile.enterNewEmail'))
+    return
+  }
+  if (!new RegExp(Regex.Email).test(emailForm.value.email)) {
+    window.$message.error(t('profile.invalidEmail') || '邮箱格式不正确')
     return
   }
   if (isGeetestEnabled.value) {
@@ -137,6 +164,9 @@ function onEmailGeetestError() {
 }
 
 async function doSendEmailCode() {
+  if (emailCodeSending.value)
+    return
+  emailCodeSending.value = true
   try {
     const response = await sendEmailChangeCode({ new_email: emailForm.value.email })
     if (response.isSuccess) {
@@ -165,13 +195,19 @@ async function doSendEmailCode() {
   catch (error) {
     window.$message.error(`${t('profile.sendCodeFailed')}: ${error}`)
   }
+  finally {
+    emailCodeSending.value = false
+  }
 }
 
 async function handleVerifyEmailChange() {
+  if (emailVerifying.value)
+    return
   if (!emailForm.value.code) {
     window.$message.error(t('profile.enterVerificationCode'))
     return
   }
+  emailVerifying.value = true
   try {
     const response = await verifyEmailChange({
       new_email: emailForm.value.email,
@@ -190,6 +226,9 @@ async function handleVerifyEmailChange() {
   catch (error) {
     window.$message.error(`${t('profile.emailVerifyFailed')}: ${error}`)
   }
+  finally {
+    emailVerifying.value = false
+  }
 }
 
 // ========== 手机验证流程 ==========
@@ -199,13 +238,23 @@ function openPhoneModal() {
   phoneStep.value = 'input'
   phoneCodeCountdown.value = 0
   showPhoneModal.value = true
+  nextTick(() => phoneInputRef.value?.detectDefaultCountry?.())
 }
 
 function triggerSendPhoneCode() {
-  if (!phoneForm.value.mobile) {
+  if (phoneCodeSending.value || phoneCodeCountdown.value > 0)
+    return
+  const normalized = phoneInputRef.value?.getNormalized?.()
+    ?? normalizeAndValidateMobile(phoneForm.value.mobile, mobileCnOnly.value)
+  if (!phoneForm.value.mobile && (normalized === '' || normalized == null)) {
     window.$message.error(t('profile.enterNewPhone'))
     return
   }
+  if (!normalized) {
+    window.$message.error(mobileCnOnly.value ? t('profile.invalidPhoneCN') : t('profile.invalidPhone'))
+    return
+  }
+  phoneForm.value.mobile = normalized
   if (isGeetestEnabled.value) {
     phoneGeetestRef.value?.showCaptcha()
   }
@@ -224,6 +273,9 @@ function onPhoneGeetestError() {
 }
 
 async function doSendPhoneCode() {
+  if (phoneCodeSending.value)
+    return
+  phoneCodeSending.value = true
   try {
     const response = await sendPhoneChangeCode({ new_mobile: phoneForm.value.mobile })
     if (response.isSuccess) {
@@ -252,13 +304,19 @@ async function doSendPhoneCode() {
   catch (error) {
     window.$message.error(`${t('profile.sendCodeFailed')}: ${error}`)
   }
+  finally {
+    phoneCodeSending.value = false
+  }
 }
 
 async function handleVerifyPhoneChange() {
+  if (phoneVerifying.value)
+    return
   if (!phoneForm.value.code) {
     window.$message.error(t('profile.enterVerificationCode'))
     return
   }
+  phoneVerifying.value = true
   try {
     const response = await verifyPhoneChange({
       new_mobile: phoneForm.value.mobile,
@@ -277,11 +335,17 @@ async function handleVerifyPhoneChange() {
   catch (error) {
     window.$message.error(`${t('profile.phoneVerifyFailed')}: ${error}`)
   }
+  finally {
+    phoneVerifying.value = false
+  }
 }
 
 // ========== 基本资料 ==========
 
 async function handleProfileSubmit() {
+  if (profileSubmitting.value)
+    return
+  profileSubmitting.value = true
   try {
     const submitData = {
       nickname: profileForm.value.nickname,
@@ -309,6 +373,9 @@ async function handleProfileSubmit() {
   }
   catch (error) {
     window.$message.error(`${t('profile.profileSaveFailed')}: ${error}`)
+  }
+  finally {
+    profileSubmitting.value = false
   }
 }
 </script>
@@ -358,7 +425,7 @@ async function handleProfileSubmit() {
           </n-grid-item>
         </n-grid>
         <n-space>
-          <n-button type="primary" @click="handleProfileSubmit">
+          <n-button type="primary" :loading="profileSubmitting" :disabled="profileSubmitting" @click="handleProfileSubmit">
             {{ t('profile.saveChanges') }}
           </n-button>
         </n-space>
@@ -473,7 +540,7 @@ async function handleProfileSubmit() {
           <n-button @click="showPasswordModal = false">
             {{ t('common.cancel') }}
           </n-button>
-          <n-button type="primary" @click="handlePasswordSubmit">
+          <n-button type="primary" :loading="passwordSubmitting" :disabled="passwordSubmitting" @click="handlePasswordSubmit">
             {{ t('profile.confirmChange') }}
           </n-button>
         </n-space>
@@ -498,7 +565,8 @@ async function handleProfileSubmit() {
               :maxlength="6"
             />
             <n-button
-              :disabled="emailCodeCountdown > 0"
+              :disabled="emailCodeCountdown > 0 || emailCodeSending"
+              :loading="emailCodeSending"
               @click="triggerSendEmailCode"
             >
               {{ emailCodeCountdown > 0 ? `${emailCodeCountdown}s` : t('profile.resend') }}
@@ -519,10 +587,10 @@ async function handleProfileSubmit() {
           <n-button @click="showEmailModal = false">
             {{ t('common.cancel') }}
           </n-button>
-          <n-button v-if="emailStep === 'input'" type="primary" @click="triggerSendEmailCode">
+          <n-button v-if="emailStep === 'input'" type="primary" :loading="emailCodeSending" :disabled="emailCodeSending" @click="triggerSendEmailCode">
             {{ t('profile.sendCode') }}
           </n-button>
-          <n-button v-else type="primary" @click="handleVerifyEmailChange">
+          <n-button v-else type="primary" :loading="emailVerifying" :disabled="emailVerifying" @click="handleVerifyEmailChange">
             {{ t('profile.confirmChange') }}
           </n-button>
         </n-space>
@@ -533,10 +601,12 @@ async function handleProfileSubmit() {
     <n-modal v-model:show="showPhoneModal" preset="dialog" :title="t('profile.changePhone')">
       <n-form :model="phoneForm" label-placement="left" label-width="100px">
         <n-form-item :label="t('profile.newPhone')" required>
-          <n-input
-            v-model:value="phoneForm.mobile"
-            :placeholder="t('profile.enterNewPhone')"
+          <PhoneInput
+            ref="phoneInputRef"
+            v-model="phoneForm.mobile"
             :disabled="phoneStep === 'verify'"
+            :cn-only="mobileCnOnly"
+            :auto-detect="true"
           />
         </n-form-item>
         <n-form-item v-if="phoneStep === 'verify'" :label="t('profile.verificationCode')" required>
@@ -547,7 +617,8 @@ async function handleProfileSubmit() {
               :maxlength="6"
             />
             <n-button
-              :disabled="phoneCodeCountdown > 0"
+              :disabled="phoneCodeCountdown > 0 || phoneCodeSending"
+              :loading="phoneCodeSending"
               @click="triggerSendPhoneCode"
             >
               {{ phoneCodeCountdown > 0 ? `${phoneCodeCountdown}s` : t('profile.resend') }}
@@ -568,10 +639,10 @@ async function handleProfileSubmit() {
           <n-button @click="showPhoneModal = false">
             {{ t('common.cancel') }}
           </n-button>
-          <n-button v-if="phoneStep === 'input'" type="primary" @click="triggerSendPhoneCode">
+          <n-button v-if="phoneStep === 'input'" type="primary" :loading="phoneCodeSending" :disabled="phoneCodeSending" @click="triggerSendPhoneCode">
             {{ t('profile.sendCode') }}
           </n-button>
-          <n-button v-else type="primary" @click="handleVerifyPhoneChange">
+          <n-button v-else type="primary" :loading="phoneVerifying" :disabled="phoneVerifying" @click="handleVerifyPhoneChange">
             {{ t('profile.confirmChange') }}
           </n-button>
         </n-space>

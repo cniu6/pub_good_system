@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"fst/backend/pkg/middleware"
 	"fst/backend/utils"
 
 	"github.com/gin-gonic/gin"
@@ -74,6 +75,9 @@ func registerFrontendNoRoute(router *gin.Engine, rawFS fs.FS) {
 			utils.Fail(c, 404, "API not found")
 			return
 		}
+
+		// 登录/注册页防 iframe 嵌套（由 AUTH_CORS_ENABLED 控制）
+		middleware.ApplyAuthPageFrameHeaders(c, path)
 
 		relPath := strings.TrimPrefix(path, "/")
 		if relPath != "" {

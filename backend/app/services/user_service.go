@@ -1,9 +1,12 @@
 package services
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/pkg/db"
+	"fst/backend/utils"
 	"strings"
 	"time"
 
@@ -199,23 +202,45 @@ type UserCreateRequest struct {
 
 // Create 创建用户
 func (s *UserService) Create(req *UserCreateRequest) (*models.User, error) {
-	// 检查用户名是否已存在
-	existing, _ := models.GetUserByUsername(req.Username)
+	// 检查用户名是否已存在（DB 故障不可吞掉，否则会跳过唯一性判断）
+	existing, err := models.GetUserByUsername(req.Username)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, errors.New("检查用户名失败: " + err.Error())
+	}
 	if existing != nil {
 		return nil, NewClientError("用户名已存在")
 	}
 
 	// 检查邮箱是否已存在
-	existing, _ = models.GetUserByEmail(req.Email)
+	existing, err = models.GetUserByEmail(req.Email)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, errors.New("检查邮箱失败: " + err.Error())
+	}
 	if existing != nil {
 		return nil, NewClientError("邮箱已存在")
+	}
+
+	mobile := strings.TrimSpace(req.Mobile)
+	if mobile != "" {
+		normalized, normErr := utils.NormalizeAndValidateMobile(mobile, GetGlobalMobileCNOnly())
+		if normErr != nil {
+			return nil, NewClientError(normErr.Error())
+		}
+		mobile = normalized
+		existingMobile, err := models.GetUserByMobile(mobile)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("检查手机号失败: " + err.Error())
+		}
+		if existingMobile != nil {
+			return nil, NewClientError("手机号已被使用")
+		}
 	}
 
 	user := &models.User{
 		Username:    req.Username,
 		Email:       req.Email,
 		Nickname:    req.Nickname,
-		Mobile:      req.Mobile,
+		Mobile:      mobile,
 		Language:    req.Language,
 		Country:     req.Country,
 		AdminRemark: req.AdminRemark,
@@ -246,7 +271,7 @@ func (s *UserService) Create(req *UserCreateRequest) (*models.User, error) {
 		user.Language = "zh-CN"
 	}
 
-	err := models.CreateUser(user)
+	err = models.CreateUser(user)
 	if err != nil {
 		return nil, err
 	}
@@ -306,11 +331,24 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 		user.Email = *req.Email
 	}
 	if req.Mobile != nil && *req.Mobile != user.Mobile {
-		existing, _ := models.GetUserByMobile(*req.Mobile)
-		if existing != nil && existing.ID != user.ID {
-			return NewClientError("手机号已被使用")
+		mobileVal := strings.TrimSpace(*req.Mobile)
+		if mobileVal == "" {
+			user.Mobile = ""
+		} else {
+			normalized, normErr := utils.NormalizeAndValidateMobile(mobileVal, GetGlobalMobileCNOnly())
+			if normErr != nil {
+				return NewClientError(normErr.Error())
+			}
+			*req.Mobile = normalized
+			existing, err := models.GetUserByMobile(normalized)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return errors.New("检查手机号失败: " + err.Error())
+			}
+			if existing != nil && existing.ID != user.ID {
+				return NewClientError("手机号已被使用")
+			}
+			user.Mobile = normalized
 		}
-		user.Mobile = *req.Mobile
 	}
 
 	if req.Nickname != nil {

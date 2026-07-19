@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"encoding/json"
 	"strings"
 	"unicode/utf8"
 )
@@ -29,68 +28,30 @@ const (
 	logTruncateMarker = "...(已截断)"
 )
 
-// sensitiveLogFields 审计日志中需要脱敏的字段。
-// 注意：这里使用“包含匹配”以覆盖各种命名风格（如 new_password / oldPassword）。
-var sensitiveLogFields = []string{
+// sensitiveLogHeaderFields 仅用于请求头脱敏（Authorization / Cookie / Token 等）。
+// 请求体/响应体不做字段脱敏：操作日志与 API 日志仅管理员（及本人）可查看，
+// 过度脱敏会把业务字段（如响应 code、email）打成 ***，影响排查。
+// 注意：使用“包含匹配”以覆盖各种命名风格（如 Authorization / X-Access-Token）。
+var sensitiveLogHeaderFields = []string{
 	"password", "passwd", "pwd",
 	"token", "accesstoken", "refreshtoken", "apikey", "api_key", "authorization", "cookie", "session", "jwt",
-	"secret", "sign", "signature",
-	"captcha", "code", "verification",
-	"mobile", "phone", "email",
-	"certificate_no", "certificateno", "id_card", "idcard",
-	"account_no", "accountno", "card_no", "cardno",
+	"secret",
 }
 
-// sanitizeLogBody 对请求/响应体做关键字段脱敏，并控制长度。
-// 优先尝试 JSON 脱敏；如果不是 JSON，则退化为截断。
+// sanitizeLogBody 对请求/响应体只做长度截断，不做字段脱敏。
 func sanitizeLogBody(raw string, limit int) string {
 	if raw == "" {
 		return raw
 	}
-
-	trimmed := strings.TrimSpace(raw)
-	if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
-		var payload any
-		if err := json.Unmarshal([]byte(trimmed), &payload); err == nil {
-			masked := maskSensitiveValues(payload)
-			if data, err := json.Marshal(masked); err == nil {
-				return truncateForLog(string(data), limit)
-			}
-		}
-	}
-
 	return truncateForLog(raw, limit)
 }
 
-// maskSensitiveValues 递归遍历 JSON 结构，对敏感键值做遮蔽。
-func maskSensitiveValues(value any) any {
-	switch v := value.(type) {
-	case map[string]any:
-		out := make(map[string]any, len(v))
-		for key, inner := range v {
-			if isSensitiveLogField(key) {
-				out[key] = "***"
-				continue
-			}
-			out[key] = maskSensitiveValues(inner)
-		}
-		return out
-	case []any:
-		for i := range v {
-			v[i] = maskSensitiveValues(v[i])
-		}
-		return v
-	default:
-		return v
-	}
-}
-
-// isSensitiveLogField 判断字段名是否涉及敏感数据。
+// isSensitiveLogField 判断请求头字段名是否涉及敏感凭证（仅用于请求头脱敏）。
 func isSensitiveLogField(key string) bool {
 	normalized := strings.ToLower(key)
 	normalized = strings.ReplaceAll(normalized, "-", "")
 	normalized = strings.ReplaceAll(normalized, "_", "")
-	for _, keyword := range sensitiveLogFields {
+	for _, keyword := range sensitiveLogHeaderFields {
 		clean := strings.ReplaceAll(keyword, "_", "")
 		if clean == "" {
 			continue

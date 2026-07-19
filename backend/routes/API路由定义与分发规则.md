@@ -1,30 +1,35 @@
 # API 路由定义与分发规则 (Routes)
 
-> 路径：`backend/routes/`（`routes.go` 汇总，`public.go` / `user.go` / `admin.go` / `legacy.go` 分文件）  
-> **最后更新**：2026-07-17
+> 路径：`backend/routes/`（`routes.go` 汇总，`public.go` / `user.go` / `admin.go` / `ws.go` 分文件）  
+> **最后更新**：2026-07-20
 
 ## 简介
 
-`SetupRoutes` 为全站 API 注册入口：公共、用户、系统、管理端；插件路由在 `appinit.SetupHTTP` 里挂载。
+`SetupRoutes` 为全站 API 注册入口：公共、用户、系统、管理端、Presence WS；插件路由在 `appinit.SetupHTTP` 里挂载。
 
 ## 路由树（当前）
 
 ```text
 /swagger/*any          # 可选 EnableSwagger + 管理路径改写中间件
 /api/v1/
-├── public/            # 无需登录：登录注册、app-config、支付回调
+├── public/            # 无需登录：登录注册、app-config、geo、session 强退、支付回调
 ├── user/              # 需 user 或 admin token：资料/支付/实名/提现
 ├── system/            # 需登录：cleanup-status 等
+├── ws/presence        # Presence WebSocket（JWT）
 ├── {ADMIN_API_PATH}/  # 默认 /admin；需 admin token + AdminOnly + 动态限流
 │   ├── dashboard
-│   ├── users / money-logs / score-logs
+│   ├── users / online / money-logs / score-logs
 │   ├── logs / api-logs
-│   ├── settings / email-templates / email-logs / sms-logs
+│   ├── settings / email-templates / email-logs
+│   ├── sms-templates / sms-logs
 │   ├── payment / payment/gateways / withdraw / realname
 │   ├── generate-nos
 │   └── debug/*        # 仅 IsAdminDebugOpsEnabled 时注册
 └── 插件路由           # pluginregistry 自动注册
 ```
+
+公开补充：`/public/geo/*`（区号/地理探测）、`/public/session/force-logout`（过期 token 亦可吊销会话）。  
+在线管理：`/online/stats`、`/online/sessions`。详见 [doc/在线会话与Presence.md](../../doc/在线会话与Presence.md)。
 
 ## 管理端前缀
 

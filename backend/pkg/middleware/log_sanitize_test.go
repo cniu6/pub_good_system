@@ -28,13 +28,38 @@ func TestTruncateForLogNoOpWhenShort(t *testing.T) {
 	}
 }
 
-func TestSanitizeLogBodyMasksSensitive(t *testing.T) {
-	raw := `{"password":"secret123","name":"tom"}`
+func TestSanitizeLogBodyKeepsBusinessFields(t *testing.T) {
+	// 管理端审计日志需要完整业务字段（如 code / email），不做字段脱敏
+	raw := `{"code":0,"data":{"email":"a@b.com","username":"zerohh"},"message":"OK"}`
 	out := sanitizeLogBody(raw, maxLogStoredBodyBytes)
-	if strings.Contains(out, "secret123") {
-		t.Fatalf("password should be masked: %s", out)
+	if out != raw {
+		t.Fatalf("expected body unchanged, got %q", out)
 	}
-	if !strings.Contains(out, "***") {
-		t.Fatalf("expected mask marker: %s", out)
+}
+
+func TestSanitizeLogBodyTruncatesLongContent(t *testing.T) {
+	raw := strings.Repeat("a", 100)
+	out := sanitizeLogBody(raw, 20)
+	if !strings.HasSuffix(out, logTruncateMarker) {
+		t.Fatalf("expected truncate marker, got %q", out)
+	}
+	if strings.Contains(out, strings.Repeat("a", 50)) {
+		t.Fatalf("expected truncated content, got len=%d", len(out))
+	}
+}
+
+func TestIsSensitiveLogFieldForHeaders(t *testing.T) {
+	if !isSensitiveLogField("Authorization") {
+		t.Fatal("Authorization should be sensitive")
+	}
+	if !isSensitiveLogField("X-Access-Token") {
+		t.Fatal("X-Access-Token should be sensitive")
+	}
+	// 业务字段不应被当成请求头敏感键
+	if isSensitiveLogField("email") {
+		t.Fatal("email should not be treated as header secret")
+	}
+	if isSensitiveLogField("code") {
+		t.Fatal("code should not be treated as header secret")
 	}
 }

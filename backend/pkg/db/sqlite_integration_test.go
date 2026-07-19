@@ -172,14 +172,14 @@ func TestSQLiteBusinessIntegration(t *testing.T) {
 
 	t.Run("会话 CRUD 和布尔映射", func(t *testing.T) {
 		now := time.Now()
-		if err := models.CreateUserSession(user.ID, "user", "token-old", "refresh-old", "127.0.0.1", "sqlite-test", "test", now.Add(time.Hour).Unix(), now.Add(2*time.Hour).Unix()); err != nil {
+		if err := models.CreateUserSession(user.ID, "user", "token-old", "refresh-old", "127.0.0.1", "sqlite-test", "test", "web", "", now.Add(time.Hour).Unix(), now.Add(2*time.Hour).Unix()); err != nil {
 			t.Fatalf("models.CreateUserSession 失败: %v", err)
 		}
 		active, err := models.IsUserSessionActive(user.ID, "user", "token-old")
 		if err != nil || !active {
 			t.Fatalf("models.IsUserSessionActive 失败: active=%v err=%v", active, err)
 		}
-		sessions, err := models.GetUserSessionsWithGuard(user.ID, "user")
+		sessions, err := models.GetUserSessionsWithGuard(user.ID, "user", "")
 		if err != nil || len(sessions) != 1 || !sessions[0].IsActive {
 			t.Fatalf("models.GetUserSessionsWithGuard（TINYINT→bool）失败: sessions=%d err=%v", len(sessions), err)
 		}

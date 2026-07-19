@@ -24,10 +24,13 @@ export interface EmailLogListParams {
   end_time?: string
 }
 
+/** 邮件日志详细统计（独立聚合表） */
 export interface EmailLogStats {
-  total: number
-  success: number
-  fail: number
+  total_count: number
+  today_count: number
+  success_count: number
+  fail_count: number
+  top_templates: Array<{ template_name: string; count: number }>
 }
 
 export const adminEmailLogApi = {

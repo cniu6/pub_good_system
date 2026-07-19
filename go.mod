@@ -10,6 +10,7 @@ require (
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/pprof v0.0.0-20260202012954-cb029daf43ef
+	github.com/gorilla/websocket v1.5.3
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/shirou/gopsutil/v4 v4.25.1
@@ -19,6 +20,7 @@ require (
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.57
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/sms v1.3.57
 	golang.org/x/crypto v0.40.0
+	golang.org/x/net v0.42.0
 	modernc.org/sqlite v1.34.5
 )
 
@@ -74,7 +76,6 @@ require (
 	go.uber.org/mock v0.5.0 // indirect
 	golang.org/x/arch v0.20.0 // indirect
 	golang.org/x/mod v0.25.0 // indirect
-	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.27.0 // indirect

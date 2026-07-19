@@ -27,6 +27,7 @@ export interface UserAPIAccessLog {
   user_id: number
   username?: string
   scene?: string
+  auth_method?: string
   method?: string
   path?: string
   route_path?: string
@@ -62,6 +63,7 @@ export function fetchMyAPILogs(params?: {
   page?: number
   page_size?: number
   keyword?: string
+  auth_method?: string
   method?: string
   path?: string
   status_code?: number

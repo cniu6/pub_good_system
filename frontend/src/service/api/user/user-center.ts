@@ -42,17 +42,21 @@ interface VerifyChangeResponse extends ActionMessageResponse {
   verified?: boolean
 }
 
-interface UserSessionItem {
+export interface UserSessionItem {
   id: number | string
-  token?: string
+  user_id?: number
+  auth_guard?: string
   ip?: string
   user_agent?: string
   device?: string
-  login_at?: number
+  client_type?: string
+  is_active?: boolean
+  is_online?: boolean
   is_current?: boolean
-  create_time?: number
-  expire_time?: number
-  last_active_time?: number
+  login_at?: number
+  last_seen_at?: number
+  expires_at?: number
+  created_at?: number
 }
 
 interface UserDashboardResponse {
@@ -139,6 +143,11 @@ export function revokeSession(sessionId: number | string) {
 /** 踢出所有其他会话 */
 export function revokeAllSessions() {
   return request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/user/sessions/revoke-all')
+}
+
+/** 注销当前登录会话 */
+export function logoutCurrentSession() {
+  return request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/user/logout')
 }
 
 // ========================================

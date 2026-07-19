@@ -291,7 +291,7 @@ func (ctrl *SettingsController) UpdateMeta(c *gin.Context) {
 	if req.Type != nil {
 		candidateType := strings.TrimSpace(*req.Type)
 		if candidateType == "" || !ctrl.isValidType(candidateType) {
-			utils.Fail(c, 400, "Invalid type. Must be one of: string, number, boolean, json")
+			utils.Fail(c, 400, "Invalid type. Must be one of: string, number, boolean, json, password")
 			return
 		}
 		effectiveType = candidateType
@@ -334,8 +334,8 @@ func (ctrl *SettingsController) UpdateMeta(c *gin.Context) {
 	if req.IsPublic != nil {
 		effectiveIsPublic = *req.IsPublic
 	}
-	// 敏感配置禁止公开：避免 smtp_password / sms_secret_key 等经 /public/settings 外泄
-	if effectiveIsPublic && isSensitiveSettingKey(key) {
+	// 敏感配置禁止公开：避免 smtp_password / sms_secret_key 等经 /public/settings 外泄；类型选了 password 也一并拦截
+	if effectiveIsPublic && (isSensitiveSettingKey(key) || effectiveType == "password") {
 		utils.Fail(c, 400, "敏感配置不允许设为公开")
 		return
 	}
@@ -466,7 +466,7 @@ func (ctrl *SettingsController) Create(c *gin.Context) {
 
 	// 验证类型
 	if !ctrl.isValidType(req.Type) {
-		utils.Fail(c, 400, "Invalid type. Must be one of: string, number, boolean, json")
+		utils.Fail(c, 400, "Invalid type. Must be one of: string, number, boolean, json, password")
 		return
 	}
 
@@ -486,8 +486,8 @@ func (ctrl *SettingsController) Create(c *gin.Context) {
 	if req.IsPublic != nil {
 		isPublic = *req.IsPublic
 	}
-	// 新建时同样禁止敏感 key 公开；自定义 key 名命中敏感名单也拦截
-	if isPublic && isSensitiveSettingKey(req.Key) {
+	// 新建时同样禁止敏感 key 公开；自定义 key 名命中敏感名单、或类型选了 password 也拦截
+	if isPublic && (isSensitiveSettingKey(req.Key) || req.Type == "password") {
 		utils.Fail(c, 400, "敏感配置不允许设为公开")
 		return
 	}

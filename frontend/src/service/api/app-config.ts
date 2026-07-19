@@ -29,6 +29,10 @@ export interface AppConfig {
   // 验证码开关
   email_verify_enabled: boolean
   sms_verify_enabled: boolean
+  /** true=仅中国大陆手机号(+86)；false=允许国际 E.164 */
+  mobile_cn_only: boolean
+  /** 国际号模式下是否按 IP/CDN 预选国家区号 */
+  mobile_ip_country_detect: boolean
 
   // 实名认证配置
   realname_enabled: boolean
@@ -45,6 +49,9 @@ export interface AppConfig {
    * 前端应注入到 getAdminApiBase()，勿写死 /admin
    */
   admin_api_path?: string
+
+  /** 在线心跳上报周期（秒），Presence 心跳按此间隔发送，默认30秒 */
+  online_report_interval_seconds?: number
 }
 
 /**

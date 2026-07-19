@@ -43,10 +43,11 @@ type RegisterRequest struct {
 }
 
 type LoginRequest struct {
-	UserName  string `json:"userName"`
-	Username  string `json:"username"`
-	Password  string `json:"password" binding:"required"`
-	AuthGuard string `json:"authGuard"`
+	UserName   string `json:"userName"`
+	Username   string `json:"username"`
+	Password   string `json:"password" binding:"required"`
+	AuthGuard  string `json:"authGuard"`
+	ClientType string `json:"clientType"`
 }
 
 type SendCodeRequest struct {
@@ -153,7 +154,18 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	device := utils.ParseDeviceFromUserAgent(userAgent)
 	accessTokenHash := utils.HashToken(result.AccessToken)
 	refreshTokenHash := utils.HashToken(result.RefreshToken)
-	if err := models.CreateUserSession(result.ID, authGuard, accessTokenHash, refreshTokenHash, clientIP, userAgent, device, result.ExpiresAt, result.RefreshExpiresAt); err != nil {
+	clientType := req.ClientType
+	if clientType == "" {
+		clientType = c.GetHeader("X-Client-Type")
+	}
+	if clientType == "" {
+		clientType = c.Query("client_type")
+	}
+	browserID := strings.TrimSpace(c.GetHeader("X-Browser-Id"))
+	if browserID == "" {
+		browserID = strings.TrimSpace(c.Query("browser_id"))
+	}
+	if err := models.CreateUserSession(result.ID, authGuard, accessTokenHash, refreshTokenHash, clientIP, userAgent, device, models.NormalizeClientType(clientType), browserID, result.ExpiresAt, result.RefreshExpiresAt); err != nil {
 		if isNonProductionMode() {
 			log.Printf("[AUTH] create login session failed: user_id=%d, err=%v", result.ID, err)
 		}
@@ -502,6 +514,7 @@ func (ctrl *AuthController) UpdateToken(c *gin.Context) {
 func (ctrl *AuthController) RegisterRoutes(group *gin.RouterGroup) {
 	// 应用严格限流
 	authGroup := group.Group("")
+	authGroup.Use(middleware.RejectApiKeyOnAuthPaths())
 	authGroup.Use(middleware.StrictRateLimitMiddleware())
 	{
 		authGroup.POST("/login", ctrl.Login)
@@ -521,4 +534,3 @@ func generateSecureCode() string {
 	}
 	return fmt.Sprintf("%06d", n.Int64())
 }
-

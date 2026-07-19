@@ -2,6 +2,8 @@ package templates
 
 import (
 	"fmt"
+	"fst/backend/app/models"
+	"log"
 	"sync"
 )
 
@@ -92,11 +94,75 @@ func replaceAll(s, old, new string) string {
 func (m *Manager) Add(tpl *Template) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.addLocked(tpl)
+}
 
+func (m *Manager) addLocked(tpl *Template) {
 	if _, ok := m.templates[tpl.Lang]; !ok {
 		m.templates[tpl.Lang] = make(map[string]*Template)
 	}
 	m.templates[tpl.Lang][tpl.Name] = tpl
+}
+
+// LoadFromDB 从数据库加载已启用模板到内存；库为空则保持现有内存内容（通常是默认模板）
+func (m *Manager) LoadFromDB() int {
+	list, err := models.ListEnabledSMSTemplates()
+	if err != nil {
+		log.Printf("[SMSTemplates] LoadFromDB 失败: %v", err)
+		return 0
+	}
+	if len(list) == 0 {
+		return 0
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.templates = make(map[string]map[string]*Template)
+	for i := range list {
+		row := list[i]
+		m.addLocked(&Template{
+			Name:        row.Name,
+			Lang:        row.Lang,
+			SignName:    row.SignName,
+			Content:     row.Content,
+			Variables:   row.Variables,
+			Description: row.Description,
+		})
+	}
+	log.Printf("[SMSTemplates] 已从数据库加载 %d 条模板", len(list))
+	return len(list)
+}
+
+// Reload 清空内存后重新从 DB 加载；若 DB 无启用模板则回退到内置默认
+func (m *Manager) Reload() {
+	list, err := models.ListEnabledSMSTemplates()
+	m.mu.Lock()
+	m.templates = make(map[string]map[string]*Template)
+	count := 0
+	if err == nil {
+		for i := range list {
+			row := list[i]
+			m.addLocked(&Template{
+				Name:        row.Name,
+				Lang:        row.Lang,
+				SignName:    row.SignName,
+				Content:     row.Content,
+				Variables:   row.Variables,
+				Description: row.Description,
+			})
+			count++
+		}
+	} else {
+		log.Printf("[SMSTemplates] Reload 读库失败: %v", err)
+	}
+	m.mu.Unlock()
+
+	if count == 0 {
+		log.Println("[SMSTemplates] DB 无启用模板，回退到内置默认")
+		m.InitDefaultTemplates()
+		return
+	}
+	log.Printf("[SMSTemplates] Reload 完成，共 %d 条", count)
 }
 
 func (m *Manager) InitDefaultTemplates() {
@@ -165,4 +231,3 @@ func (m *Manager) InitDefaultTemplates() {
 		Description: "Phone binding verification code",
 	})
 }
-

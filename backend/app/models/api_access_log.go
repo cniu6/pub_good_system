@@ -10,37 +10,38 @@ import (
 // APIAccessLog API接口访问日志
 // 统一记录管理端 / 用户端 / 公共接口的请求与响应概要，便于审计、排障与统计。
 type APIAccessLog struct {
-	ID                   uint64  `db:"id" json:"id"`
-	RequestID            string  `db:"request_id" json:"request_id"`
-	UserID               uint64  `db:"user_id" json:"user_id"`
-	Username             string  `db:"username" json:"username"`
-	Role                 string  `db:"role" json:"role"`
-	Scene                string  `db:"scene" json:"scene"`
-	Method               string  `db:"method" json:"method"`
-	Transport            string  `db:"transport" json:"transport"`
-	Protocol             string  `db:"protocol" json:"protocol"`
-	Path                 string  `db:"path" json:"path"`
-	RoutePath            string  `db:"route_path" json:"route_path"`
-	HandlerName          string  `db:"handler_name" json:"handler_name"`
-	RequestContentType   string  `db:"request_content_type" json:"request_content_type"`
-	ResponseContentType  string  `db:"response_content_type" json:"response_content_type"`
-	QueryString          string  `db:"query_string" json:"query_string"`
-	PathParams           *string `db:"path_params" json:"path_params,omitempty"`
-	IP                   string  `db:"ip" json:"ip"`
-	SourceIP             string  `db:"source_ip" json:"source_ip"`
-	XIP                  string  `db:"x_ip" json:"x_ip"`
-	XForwardedFor        string  `db:"x_forwarded_for" json:"x_forwarded_for"`
-	XRealIP              string  `db:"x_real_ip" json:"x_real_ip"`
-	UserAgent            string  `db:"user_agent" json:"user_agent"`
-	Referer              string  `db:"referer" json:"referer"`
-	RequestHeaders       *string `db:"request_headers" json:"request_headers,omitempty"`
-	RequestBody          *string `db:"request_body" json:"request_body,omitempty"`
-	ResponseBody         *string `db:"response_body" json:"response_body,omitempty"`
-	StatusCode           int     `db:"status_code" json:"status_code"`
-	Duration             int     `db:"duration" json:"duration"`
-	RequestSize          int64   `db:"request_size" json:"request_size"`
-	ResponseSize         int64   `db:"response_size" json:"response_size"`
-	CreateTime           *int64  `db:"create_time" json:"create_time"`
+	ID                  uint64  `db:"id" json:"id"`
+	RequestID           string  `db:"request_id" json:"request_id"`
+	UserID              uint64  `db:"user_id" json:"user_id"`
+	Username            string  `db:"username" json:"username"`
+	Role                string  `db:"role" json:"role"`
+	AuthMethod          string  `db:"auth_method" json:"auth_method"`
+	Scene               string  `db:"scene" json:"scene"`
+	Method              string  `db:"method" json:"method"`
+	Transport           string  `db:"transport" json:"transport"`
+	Protocol            string  `db:"protocol" json:"protocol"`
+	Path                string  `db:"path" json:"path"`
+	RoutePath           string  `db:"route_path" json:"route_path"`
+	HandlerName         string  `db:"handler_name" json:"handler_name"`
+	RequestContentType  string  `db:"request_content_type" json:"request_content_type"`
+	ResponseContentType string  `db:"response_content_type" json:"response_content_type"`
+	QueryString         string  `db:"query_string" json:"query_string"`
+	PathParams          *string `db:"path_params" json:"path_params,omitempty"`
+	IP                  string  `db:"ip" json:"ip"`
+	SourceIP            string  `db:"source_ip" json:"source_ip"`
+	XIP                 string  `db:"x_ip" json:"x_ip"`
+	XForwardedFor       string  `db:"x_forwarded_for" json:"x_forwarded_for"`
+	XRealIP             string  `db:"x_real_ip" json:"x_real_ip"`
+	UserAgent           string  `db:"user_agent" json:"user_agent"`
+	Referer             string  `db:"referer" json:"referer"`
+	RequestHeaders      *string `db:"request_headers" json:"request_headers,omitempty"`
+	RequestBody         *string `db:"request_body" json:"request_body,omitempty"`
+	ResponseBody        *string `db:"response_body" json:"response_body,omitempty"`
+	StatusCode          int     `db:"status_code" json:"status_code"`
+	Duration            int     `db:"duration" json:"duration"`
+	RequestSize         int64   `db:"request_size" json:"request_size"`
+	ResponseSize        int64   `db:"response_size" json:"response_size"`
+	CreateTime          *int64  `db:"create_time" json:"create_time"`
 }
 
 func (l *APIAccessLog) TableName() string {
@@ -55,6 +56,7 @@ func InitAPIAccessLogsTable() {
 			user_id BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '用户ID',
 			username VARCHAR(100) NOT NULL DEFAULT '' COMMENT '用户名',
 			role VARCHAR(32) NOT NULL DEFAULT '' COMMENT '角色',
+			auth_method VARCHAR(16) NOT NULL DEFAULT '' COMMENT '鉴权方式：jwt/apikey/none',
 			scene VARCHAR(32) NOT NULL DEFAULT '' COMMENT '接口场景：admin/user/public/system/plugin',
 			method VARCHAR(20) NOT NULL DEFAULT '' COMMENT '请求方法',
 			transport VARCHAR(32) NOT NULL DEFAULT 'http' COMMENT '连接类型：http/websocket/sse/stream',
@@ -73,9 +75,9 @@ func InitAPIAccessLogsTable() {
 			x_real_ip VARCHAR(45) NOT NULL DEFAULT '' COMMENT 'X-Real-IP头',
 			user_agent TEXT COMMENT 'User-Agent',
 			referer VARCHAR(500) NOT NULL DEFAULT '' COMMENT 'Referer',
-			request_headers MEDIUMTEXT COMMENT '请求头(JSON，已脱敏)',
-			request_body MEDIUMTEXT COMMENT '请求体（已脱敏）',
-			response_body MEDIUMTEXT COMMENT '响应体（已脱敏）',
+			request_headers MEDIUMTEXT COMMENT '请求头(JSON，凭证字段已脱敏)',
+			request_body MEDIUMTEXT COMMENT '请求体(写入前截断)',
+			response_body MEDIUMTEXT COMMENT '响应体(写入前截断)',
 			status_code INT NOT NULL DEFAULT 0 COMMENT 'HTTP状态码',
 			duration INT NOT NULL DEFAULT 0 COMMENT '耗时(ms)',
 			request_size BIGINT NOT NULL DEFAULT 0 COMMENT '请求体大小(bytes)',
@@ -109,6 +111,7 @@ func InitAPIAccessLogsTable() {
 		{"user_id", "ALTER TABLE api_access_logs ADD COLUMN user_id BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '用户ID' AFTER id"},
 		{"username", "ALTER TABLE api_access_logs ADD COLUMN username VARCHAR(100) NOT NULL DEFAULT '' COMMENT '用户名' AFTER user_id"},
 		{"role", "ALTER TABLE api_access_logs ADD COLUMN role VARCHAR(32) NOT NULL DEFAULT '' COMMENT '角色' AFTER username"},
+		{"auth_method", "ALTER TABLE api_access_logs ADD COLUMN auth_method VARCHAR(16) NOT NULL DEFAULT '' COMMENT '鉴权方式：jwt/apikey/none' AFTER role"},
 		{"scene", "ALTER TABLE api_access_logs ADD COLUMN scene VARCHAR(32) NOT NULL DEFAULT '' COMMENT '接口场景：admin/user/public/system/plugin' AFTER role"},
 		{"method", "ALTER TABLE api_access_logs ADD COLUMN method VARCHAR(20) NOT NULL DEFAULT '' COMMENT '请求方法' AFTER scene"},
 		{"transport", "ALTER TABLE api_access_logs ADD COLUMN transport VARCHAR(32) NOT NULL DEFAULT 'http' COMMENT '连接类型：http/websocket/sse/stream' AFTER method"},
@@ -127,9 +130,9 @@ func InitAPIAccessLogsTable() {
 		{"x_real_ip", "ALTER TABLE api_access_logs ADD COLUMN x_real_ip VARCHAR(45) NOT NULL DEFAULT '' COMMENT 'X-Real-IP头' AFTER x_forwarded_for"},
 		{"user_agent", "ALTER TABLE api_access_logs ADD COLUMN user_agent TEXT COMMENT 'User-Agent' AFTER ip"},
 		{"referer", "ALTER TABLE api_access_logs ADD COLUMN referer VARCHAR(500) NOT NULL DEFAULT '' COMMENT 'Referer' AFTER user_agent"},
-		{"request_headers", "ALTER TABLE api_access_logs ADD COLUMN request_headers MEDIUMTEXT COMMENT '请求头(JSON，已脱敏)' AFTER referer"},
-		{"request_body", "ALTER TABLE api_access_logs ADD COLUMN request_body MEDIUMTEXT COMMENT '请求体（已脱敏）' AFTER referer"},
-		{"response_body", "ALTER TABLE api_access_logs ADD COLUMN response_body MEDIUMTEXT COMMENT '响应体（已脱敏）' AFTER request_body"},
+		{"request_headers", "ALTER TABLE api_access_logs ADD COLUMN request_headers MEDIUMTEXT COMMENT '请求头(JSON，凭证字段已脱敏)' AFTER referer"},
+		{"request_body", "ALTER TABLE api_access_logs ADD COLUMN request_body MEDIUMTEXT COMMENT '请求体(写入前截断)' AFTER referer"},
+		{"response_body", "ALTER TABLE api_access_logs ADD COLUMN response_body MEDIUMTEXT COMMENT '响应体(写入前截断)' AFTER request_body"},
 		{"status_code", "ALTER TABLE api_access_logs ADD COLUMN status_code INT NOT NULL DEFAULT 0 COMMENT 'HTTP状态码' AFTER response_body"},
 		{"duration", "ALTER TABLE api_access_logs ADD COLUMN duration INT NOT NULL DEFAULT 0 COMMENT '耗时(ms)' AFTER status_code"},
 		{"request_size", "ALTER TABLE api_access_logs ADD COLUMN request_size BIGINT NOT NULL DEFAULT 0 COMMENT '请求体大小(bytes)' AFTER duration"},
@@ -154,15 +157,16 @@ func InitAPIAccessLogsTable() {
 	}
 
 	indexRepairs := map[string]string{
-		"uk_request_id":          "ALTER TABLE api_access_logs ADD UNIQUE INDEX uk_request_id (request_id)",
-		"idx_create_time_id":    "ALTER TABLE api_access_logs ADD INDEX idx_create_time_id (create_time, id)",
-		"idx_scene_create_time": "ALTER TABLE api_access_logs ADD INDEX idx_scene_create_time (scene, create_time)",
-		"idx_user_create_time":  "ALTER TABLE api_access_logs ADD INDEX idx_user_create_time (user_id, create_time)",
-		"idx_method_create_time": "ALTER TABLE api_access_logs ADD INDEX idx_method_create_time (method, create_time)",
-		"idx_transport_create_time": "ALTER TABLE api_access_logs ADD INDEX idx_transport_create_time (transport, create_time)",
-		"idx_status_create_time": "ALTER TABLE api_access_logs ADD INDEX idx_status_create_time (status_code, create_time)",
-		"idx_ip_create_time":    "ALTER TABLE api_access_logs ADD INDEX idx_ip_create_time (ip, create_time)",
-		"idx_handler_create_time": "ALTER TABLE api_access_logs ADD INDEX idx_handler_create_time (handler_name, create_time)",
+		"uk_request_id":               "ALTER TABLE api_access_logs ADD UNIQUE INDEX uk_request_id (request_id)",
+		"idx_create_time_id":          "ALTER TABLE api_access_logs ADD INDEX idx_create_time_id (create_time, id)",
+		"idx_scene_create_time":       "ALTER TABLE api_access_logs ADD INDEX idx_scene_create_time (scene, create_time)",
+		"idx_auth_method_create_time": "ALTER TABLE api_access_logs ADD INDEX idx_auth_method_create_time (auth_method, create_time)",
+		"idx_user_create_time":        "ALTER TABLE api_access_logs ADD INDEX idx_user_create_time (user_id, create_time)",
+		"idx_method_create_time":      "ALTER TABLE api_access_logs ADD INDEX idx_method_create_time (method, create_time)",
+		"idx_transport_create_time":   "ALTER TABLE api_access_logs ADD INDEX idx_transport_create_time (transport, create_time)",
+		"idx_status_create_time":      "ALTER TABLE api_access_logs ADD INDEX idx_status_create_time (status_code, create_time)",
+		"idx_ip_create_time":          "ALTER TABLE api_access_logs ADD INDEX idx_ip_create_time (ip, create_time)",
+		"idx_handler_create_time":     "ALTER TABLE api_access_logs ADD INDEX idx_handler_create_time (handler_name, create_time)",
 	}
 	for indexName, alterSQL := range indexRepairs {
 		db.EnsureIndex("api_access_logs", indexName, alterSQL)
@@ -173,11 +177,11 @@ func InitAPIAccessLogsTable() {
 
 func CreateAPIAccessLog(item *APIAccessLog) error {
 	query := `INSERT INTO api_access_logs (
-		request_id, user_id, username, role, scene, method, transport, protocol, path, route_path, handler_name, request_content_type, response_content_type, query_string,
+		request_id, user_id, username, role, auth_method, scene, method, transport, protocol, path, route_path, handler_name, request_content_type, response_content_type, query_string,
 		path_params, ip, source_ip, x_ip, x_forwarded_for, x_real_ip, user_agent, referer, request_headers,
 		request_body, response_body, status_code, duration, request_size, response_size, create_time
 	) VALUES (
-		:request_id, :user_id, :username, :role, :scene, :method, :transport, :protocol, :path, :route_path, :handler_name, :request_content_type, :response_content_type, :query_string,
+		:request_id, :user_id, :username, :role, :auth_method, :scene, :method, :transport, :protocol, :path, :route_path, :handler_name, :request_content_type, :response_content_type, :query_string,
 		:path_params, :ip, :source_ip, :x_ip, :x_forwarded_for, :x_real_ip, :user_agent, :referer, :request_headers,
 		:request_body, :response_body, :status_code, :duration, :request_size, :response_size, :create_time
 	)`
@@ -219,6 +223,7 @@ type APIAccessLogQuery struct {
 	Keyword    string `form:"keyword" json:"keyword"`
 	RequestID  string `form:"request_id" json:"request_id"`
 	Scene      string `form:"scene" json:"scene"`
+	AuthMethod string `form:"auth_method" json:"auth_method"`
 	Transport  string `form:"transport" json:"transport"`
 	UserID     uint64 `form:"user_id" json:"user_id"`
 	Username   string `form:"username" json:"username"`
@@ -253,6 +258,10 @@ func GetAPIAccessLogList(query *APIAccessLogQuery) ([]APIAccessLog, int64, error
 	if query.Scene != "" {
 		where += " AND scene = ?"
 		args = append(args, query.Scene)
+	}
+	if query.AuthMethod != "" {
+		where += " AND auth_method = ?"
+		args = append(args, strings.TrimSpace(query.AuthMethod))
 	}
 	if query.Transport != "" {
 		where += " AND transport = ?"
@@ -304,7 +313,7 @@ func GetAPIAccessLogList(query *APIAccessLogQuery) ([]APIAccessLog, int64, error
 	}
 	offset := (query.Page - 1) * query.PageSize
 
-	listQuery := "SELECT id, request_id, user_id, username, role, scene, method, transport, protocol, path, route_path, handler_name, request_content_type, response_content_type, query_string, ip, source_ip, x_ip, x_forwarded_for, x_real_ip, user_agent, referer, status_code, duration, request_size, response_size, create_time FROM api_access_logs " + where + " ORDER BY create_time DESC, id DESC LIMIT ? OFFSET ?"
+	listQuery := "SELECT id, request_id, user_id, username, role, auth_method, scene, method, transport, protocol, path, route_path, handler_name, request_content_type, response_content_type, query_string, ip, source_ip, x_ip, x_forwarded_for, x_real_ip, user_agent, referer, status_code, duration, request_size, response_size, create_time FROM api_access_logs " + where + " ORDER BY create_time DESC, id DESC LIMIT ? OFFSET ?"
 	args = append(args, query.PageSize, offset)
 	if err := db.DB.Select(&list, listQuery, args...); err != nil {
 		return nil, 0, err
@@ -352,17 +361,60 @@ func CleanExcessAPIAccessLogs(maxCount int) (int64, error) {
 	return result.RowsAffected()
 }
 
+// CleanExcessAPIAccessLogsPerUser 按用户清理超出上限的 API 访问日志
+func CleanExcessAPIAccessLogsPerUser(maxPerUser int) (int64, error) {
+	if maxPerUser <= 0 {
+		return 0, nil
+	}
+	var groups []struct {
+		UserID uint64 `db:"user_id"`
+		Cnt    int64  `db:"cnt"`
+	}
+	// 仅清理已登录用户的日志；user_id=0（未鉴权）不按用户限制
+	if err := db.DB.Select(&groups,
+		"SELECT user_id, COUNT(*) AS cnt FROM api_access_logs WHERE user_id > 0 GROUP BY user_id HAVING COUNT(*) > ?",
+		maxPerUser,
+	); err != nil {
+		return 0, err
+	}
+
+	var totalAffected int64
+	for _, g := range groups {
+		var cutoff struct {
+			ID         uint64 `db:"id"`
+			CreateTime int64  `db:"create_time"`
+		}
+		if err := db.DB.Get(&cutoff,
+			"SELECT id, create_time FROM api_access_logs WHERE user_id = ? ORDER BY create_time DESC, id DESC LIMIT 1 OFFSET ?",
+			g.UserID, maxPerUser-1,
+		); err != nil {
+			continue
+		}
+		result, err := db.Exec(
+			"DELETE FROM api_access_logs WHERE user_id = ? AND (create_time < ? OR (create_time = ? AND id < ?))",
+			g.UserID, cutoff.CreateTime, cutoff.CreateTime, cutoff.ID,
+		)
+		if err != nil {
+			continue
+		}
+		if n, _ := result.RowsAffected(); n > 0 {
+			totalAffected += n
+		}
+	}
+	return totalAffected, nil
+}
+
 type APIAccessLogStats struct {
-	TotalCount       int64                `json:"total_count"`
-	TodayCount       int64                `json:"today_count"`
-	SuccessCount     int64                `json:"success_count"`
-	ClientErrorCount int64                `json:"client_error_count"`
-	ServerErrorCount int64                `json:"server_error_count"`
-	DistinctIPCount  int64                `json:"distinct_ip_count"`
-	AvgDuration      float64              `json:"avg_duration"`
-	TopPaths         []APIAccessPathStat  `json:"top_paths"`
+	TotalCount       int64                 `json:"total_count"`
+	TodayCount       int64                 `json:"today_count"`
+	SuccessCount     int64                 `json:"success_count"`
+	ClientErrorCount int64                 `json:"client_error_count"`
+	ServerErrorCount int64                 `json:"server_error_count"`
+	DistinctIPCount  int64                 `json:"distinct_ip_count"`
+	AvgDuration      float64               `json:"avg_duration"`
+	TopPaths         []APIAccessPathStat   `json:"top_paths"`
 	MethodStats      []APIAccessMethodStat `json:"method_stats"`
-	SceneStats       []APIAccessSceneStat `json:"scene_stats"`
+	SceneStats       []APIAccessSceneStat  `json:"scene_stats"`
 }
 
 type APIAccessPathStat struct {
@@ -384,4 +436,3 @@ type APIAccessSceneStat struct {
 func GetAPIAccessLogStats() (*APIAccessLogStats, error) {
 	return getAPIAccessLogStatsFromAggregate()
 }
-

@@ -8,6 +8,8 @@ import type { DataTableColumns } from 'naive-ui'
 import type { AdminUser } from '@/service/api/admin/user'
 import type { WithdrawRecord } from '@/service/api/admin/finance'
 import NovaIcon from '@/components/common/NovaIcon.vue'
+import PhoneInput from '@/components/common/PhoneInput.vue'
+import { useSettingsStore } from '@/store'
 
 defineProps<{
   show: boolean
@@ -49,6 +51,8 @@ const emit = defineEmits<{
   tabChange: [tab: string]
 }>()
 
+const settingsStore = useSettingsStore()
+const mobileCnOnly = computed(() => settingsStore.mobileCnOnly)
 function onTabChange(tab: string) {
   emit('update:activeTab', tab)
   emit('tabChange', tab)
@@ -102,7 +106,11 @@ function bindFormRef(el: any) {
               />
             </n-form-item-gi>
             <n-form-item-gi :label="$t('adminUsers.mobile')" path="mobile">
-              <n-input v-model:value="userForm.mobile" :placeholder="$t('adminUsers.enterMobile')" />
+              <PhoneInput
+                v-model="userForm.mobile"
+                :cn-only="mobileCnOnly"
+                :auto-detect="!isEdit"
+              />
             </n-form-item-gi>
             <n-form-item-gi :label="$t('adminUsers.language')" path="language">
               <n-select v-model:value="userForm.language" :options="languageOptions" :placeholder="$t('adminUsers.selectLanguage')" />

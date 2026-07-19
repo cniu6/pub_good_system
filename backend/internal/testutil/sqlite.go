@@ -29,7 +29,7 @@ func SetupSQLite(t *testing.T) func() {
 	t.Setenv("ENABLE_SWAGGER", "false")
 	t.Setenv("ADMIN_API_PATH", "/admin")
 
-	// 避免读到真实 backend/.env 干扰：godotenv 通常不覆盖已有环境变量，上面 Setenv 优先
+	// 避免读到磁盘上的真实 .env 干扰：godotenv 通常不覆盖已有环境变量，上面 Setenv 优先
 	config.InitConfig()
 	db.InitDB()
 	if !db.IsSQLite() {

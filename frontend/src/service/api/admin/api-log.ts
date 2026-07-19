@@ -9,6 +9,7 @@ export interface APIAccessLog {
   user_id: number
   username: string
   role: string
+  auth_method?: string
   scene: string
   method: string
   transport?: string
@@ -43,6 +44,7 @@ export interface APIAccessLogListParams {
   keyword?: string
   request_id?: string
   scene?: string
+  auth_method?: string
   transport?: string
   user_id?: number
   username?: string

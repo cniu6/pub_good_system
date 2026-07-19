@@ -1,0 +1,23 @@
+---
+description: 管理后台新增功能必须补充中英文 i18n，不允许硬编码中文文案
+globs: frontend/src/views/admin/**/*.vue,frontend/src/router/admin.routes.ts
+alwaysApply: false
+---
+
+# 管理后台必须补齐多语言
+
+给管理后台（`frontend/src/views/admin/**`）新增页面、按钮、筛选项、提示语、路由标题时，
+必须同步在 `frontend/locales/zh_CN.json` 和 `frontend/locales/en_US.json` 两个文件里都加上对应 key，
+不要在模板里直接写死中文字符串。
+
+- 路由 `meta.title` 用 `route.xxx`，页面文案按模块建 `adminXxx` 命名空间（参考 `adminOnlineUsers`、`adminUsers`）。
+- 新增筛选下拉框时，默认选项要显式给「全部」一项（`value: ''`），不要留空占位符让用户误以为没设置默认值。
+- 新增侧边栏/Tab 时检查是否会与已有页面重复（例如同一份配置不要在侧边栏和系统设置里各出现一次）。
+
+```vue
+<!-- ❌ BAD -->
+<n-button>发送测试邮件</n-button>
+
+<!-- ✅ GOOD -->
+<n-button>{{ t('adminXxx.sendTestEmail') }}</n-button>
+```

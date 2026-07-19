@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Icon } from '@iconify/vue'
+import { Icon } from '@iconify/vue/offline'
 
 interface iconPorps {
   /* 图标名称 */
@@ -40,6 +40,7 @@ function getLocalIcon(icon: string) {
       <i v-html="getLocalIcon(icon)" />
     </template>
     <template v-else>
+      <!-- 使用 offline 版 Icon：只读本地已注册集合，不打远程 API -->
       <Icon :icon="icon" />
     </template>
   </n-icon>

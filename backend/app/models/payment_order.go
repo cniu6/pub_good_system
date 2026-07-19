@@ -169,6 +169,29 @@ func CreatePaymentOrder(order *PaymentOrder) error {
 	return nil
 }
 
+// CreatePaymentOrderTx 在已有事务中创建支付订单（与余额操作同事务时用）
+func CreatePaymentOrderTx(tx *sql.Tx, order *PaymentOrder) error {
+	now := time.Now().Unix()
+	order.TradeNo = NormalizeTradeNo(order.TradeNo)
+	order.CreateTime = now
+	order.UpdateTime = now
+
+	result, err := tx.Exec(
+		`INSERT INTO payment_orders (order_no, user_id, gateway_id, trade_no, payment_channel, payment_type, amount, fee, pay_amount, subject, status, notify_count, pay_url, paid_at, expire_at, client_ip, extra, create_time, update_time)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		order.OrderNo, order.UserID, order.GatewayID, order.TradeNo, order.PaymentChannel, order.PaymentType,
+		order.Amount, order.Fee, order.PayAmount, order.Subject, order.Status, order.NotifyCount,
+		order.PayURL, order.PaidAt, order.ExpireAt, order.ClientIP, order.Extra,
+		order.CreateTime, order.UpdateTime,
+	)
+	if err != nil {
+		return err
+	}
+	id, _ := result.LastInsertId()
+	order.ID = uint64(id)
+	return nil
+}
+
 // GetPaymentOrderByOrderNo 按系统订单号查询
 func GetPaymentOrderByOrderNo(orderNo string) (*PaymentOrder, error) {
 	var order PaymentOrder

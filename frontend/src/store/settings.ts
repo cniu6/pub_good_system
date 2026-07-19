@@ -71,6 +71,12 @@ export const useSettingsStore = defineStore('settings-store', () => {
   // 短信验证码是否启用
   const smsVerifyEnabled = computed(() => config.value?.sms_verify_enabled ?? false)
 
+  /** 是否仅允许中国大陆手机号（默认 true，与后端一致） */
+  const mobileCnOnly = computed(() => config.value?.mobile_cn_only ?? true)
+
+  /** 国际号模式下是否按 IP 自动匹配国家（默认 false） */
+  const mobileIpCountryDetect = computed(() => config.value?.mobile_ip_country_detect ?? false)
+
   // 实名认证功能是否启用
   const realnameEnabled = computed(() => config.value?.realname_enabled ?? true)
 
@@ -91,6 +97,9 @@ export const useSettingsStore = defineStore('settings-store', () => {
 
   // 管理端 REST API 前缀（运行时注入后与后端 ADMIN_API_PATH 一致）
   const adminApiPath = computed(() => getAdminApiPath())
+
+  // 在线心跳上报周期（秒），默认30秒；由管理端「在线用户」页可配置
+  const onlineReportIntervalSeconds = computed(() => config.value?.online_report_interval_seconds ?? 30)
 
   // ========================================
   // Actions
@@ -174,6 +183,8 @@ export const useSettingsStore = defineStore('settings-store', () => {
     geetestCaptchaId,
     emailVerifyEnabled,
     smsVerifyEnabled,
+    mobileCnOnly,
+    mobileIpCountryDetect,
     realnameEnabled,
     realnameNotifyText,
     withdrawEnabled,
@@ -181,6 +192,7 @@ export const useSettingsStore = defineStore('settings-store', () => {
     withdrawNotifyText,
     withdrawAccountTypes,
     adminApiPath,
+    onlineReportIntervalSeconds,
 
     // Actions
     loadConfig,

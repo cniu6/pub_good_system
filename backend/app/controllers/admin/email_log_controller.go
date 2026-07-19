@@ -126,7 +126,7 @@ func (ctrl *EmailLogController) Clean(c *gin.Context) {
 
 // Stats 邮件日志统计
 // @Summary 邮件发送统计
-// @Description 获取邮件发送总数、成功数、失败数
+// @Description 获取邮件发送总数、今日、成功数、失败数、热门模板（读独立聚合表）
 // @Tags Admin-邮件日志
 // @Accept json
 // @Produce json
@@ -134,17 +134,12 @@ func (ctrl *EmailLogController) Clean(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/admin/email-logs/stats [get]
 func (ctrl *EmailLogController) Stats(c *gin.Context) {
-	total, success, fail, err := models.GetEmailLogStats()
+	stats, err := models.GetEmailLogStatsDetail()
 	if err != nil {
 		utils.Fail(c, 500, "统计失败")
 		return
 	}
-
-	utils.Success(c, gin.H{
-		"total":   total,
-		"success": success,
-		"fail":    fail,
-	})
+	utils.Success(c, stats)
 }
 
 // TemplateNames 获取模板名列表（用于筛选下拉）

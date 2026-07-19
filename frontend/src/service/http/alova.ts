@@ -1,4 +1,4 @@
-import { authStorage } from '@/utils'
+import { authStorage, getBrowserId } from '@/utils'
 import { geetestManager } from '@/utils/geetest'
 import { createAlova } from 'alova'
 import { createServerTokenAuthentication } from 'alova/client'
@@ -72,6 +72,8 @@ export function createAlovaInstance(
       // 自动添加极验验证头
       const geetestHeaders = geetestManager.getValidGeetestHeaders()
       Object.assign(method.config.headers, geetestHeaders)
+      // 同浏览器实例 ID：登录/刷新时后端用来合并多标签重复会话
+      method.config.headers['X-Browser-Id'] = getBrowserId()
 
       if (method.meta?.isFormPost) {
         method.config.headers['Content-Type'] = 'application/x-www-form-urlencoded'
