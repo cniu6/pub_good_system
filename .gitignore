@@ -12,6 +12,7 @@
 build/*/fst*
 build/*/.env.example
 backend/main.exe
+/*.exe
 # 旧入口目录产物（已统一到根目录 main.go / main_embedded.go）
 backend/cmd/dist/
 backend/cmd/main.go
