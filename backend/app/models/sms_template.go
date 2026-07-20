@@ -94,29 +94,53 @@ func GetDefaultSMSTemplateByNameLang(name, lang string) (signName, content, desc
 	return "", "", "", "", false
 }
 
-// InitSMSTemplatesTable 创建短信模板表（若不存在）
+// InitSMSTemplatesTable 创建短信模板表；表已存在时补齐历史缺列（如 sign_name）。
 func InitSMSTemplatesTable() {
-	if db.CheckTableExists("sms_templates") {
-		return
+	if !db.CheckTableExists("sms_templates") {
+		schema := `CREATE TABLE IF NOT EXISTS sms_templates (
+			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+			name VARCHAR(100) NOT NULL COMMENT '模板标识',
+			lang VARCHAR(20) NOT NULL DEFAULT 'zh-CN' COMMENT '语言',
+			sign_name VARCHAR(64) NOT NULL DEFAULT '' COMMENT '短信签名',
+			content TEXT NOT NULL COMMENT '短信内容(纯文本)',
+			description VARCHAR(255) NOT NULL DEFAULT '' COMMENT '描述',
+			variables VARCHAR(500) NOT NULL DEFAULT '' COMMENT '可用变量说明',
+			status TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '状态:1=启用,0=禁用',
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			UNIQUE KEY idx_sms_tpl_name_lang (name, lang)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
+		if _, err := db.Exec(schema); err != nil {
+			log.Printf("[Init] Failed to create sms_templates table: %v", err)
+		} else {
+			log.Println("[Init] Created sms_templates table")
+		}
 	}
-	schema := `CREATE TABLE IF NOT EXISTS sms_templates (
-		id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-		name VARCHAR(100) NOT NULL COMMENT '模板标识',
-		lang VARCHAR(20) NOT NULL DEFAULT 'zh-CN' COMMENT '语言',
-		sign_name VARCHAR(64) NOT NULL DEFAULT '' COMMENT '短信签名',
-		content TEXT NOT NULL COMMENT '短信内容(纯文本)',
-		description VARCHAR(255) NOT NULL DEFAULT '' COMMENT '描述',
-		variables VARCHAR(500) NOT NULL DEFAULT '' COMMENT '可用变量说明',
-		status TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '状态:1=启用,0=禁用',
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-		UNIQUE KEY idx_sms_tpl_name_lang (name, lang)
-	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
-	if _, err := db.Exec(schema); err != nil {
-		log.Printf("[Init] Failed to create sms_templates table: %v", err)
-	} else {
-		log.Println("[Init] Created sms_templates table")
+
+	// 旧库可能在引入签名字段前已建表：表存在就直接 return 会导致 CRUD 报 Unknown column
+	// 按切片顺序补列，避免 map 乱序导致 AFTER 依赖列尚未存在
+	columnRepairs := []struct {
+		Column   string
+		AlterSQL string
+	}{
+		{"sign_name", "ALTER TABLE sms_templates ADD COLUMN sign_name VARCHAR(64) NOT NULL DEFAULT '' COMMENT '短信签名' AFTER lang"},
+		{"description", "ALTER TABLE sms_templates ADD COLUMN description VARCHAR(255) NOT NULL DEFAULT '' COMMENT '描述' AFTER content"},
+		{"variables", "ALTER TABLE sms_templates ADD COLUMN variables VARCHAR(500) NOT NULL DEFAULT '' COMMENT '可用变量说明' AFTER description"},
+		{"status", "ALTER TABLE sms_templates ADD COLUMN status TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '状态:1=启用,0=禁用' AFTER variables"},
 	}
+	for _, r := range columnRepairs {
+		if db.CheckColumnExists("sms_templates", r.Column) {
+			continue
+		}
+		if _, err := db.Exec(r.AlterSQL); err != nil {
+			log.Printf("[Init] Failed to add sms_templates.%s: %v", r.Column, err)
+		} else {
+			log.Printf("[Init] Added sms_templates.%s", r.Column)
+		}
+	}
+
+	db.EnsureIndex("sms_templates", "idx_sms_tpl_name_lang",
+		"ALTER TABLE sms_templates ADD UNIQUE INDEX idx_sms_tpl_name_lang (name, lang)")
 }
 
 // CheckSMSTemplateExists 检查模板是否已存在

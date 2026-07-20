@@ -259,13 +259,7 @@ func migrateCoreSchemas() {
 	}
 
 	if db.CheckTableExists("verification_codes") {
-		if db.CheckColumnExists("verification_codes", "email") && !db.CheckColumnExists("verification_codes", "contact") {
-			if _, err := db.Exec("ALTER TABLE verification_codes CHANGE COLUMN email contact VARCHAR(255) NOT NULL COMMENT '联系方式(邮箱或手机号)'"); err != nil {
-				log.Printf("[Migrate] verification_codes.email→contact 失败: %v", err)
-			} else if !db.IsSQLite() {
-				log.Println("[Migrate] 已重命名 verification_codes.email → contact")
-			}
-		}
+		// 字段重命名交给 models.InitVerificationCodeTable / repair（含 SQLite 加列拷贝）
 		for _, r := range []indexRepair{
 			{"idx_contact_type_active_created", "ALTER TABLE verification_codes ADD INDEX idx_contact_type_active_created (contact, code_type, is_used, is_deleted, created_at)"},
 			{"idx_contact_code_type_active", "ALTER TABLE verification_codes ADD INDEX idx_contact_code_type_active (contact, code, code_type, is_used, is_deleted)"},
@@ -293,7 +287,11 @@ func migrateBusinessTables() {
 	models.InitUserScoreLogsTable()
 	models.InitOperationLogsTable()
 	models.InitAPIAccessLogsTable()
+	// 聚合表显式再调一次，避免只依赖父 Init 内部副作用时被误删漏迁
 	models.InitAPIAccessLogAggregateTables()
+	models.InitEmailLogAggregateTables()
+	models.InitSMSLogAggregateTables()
+	models.InitOperationLogAggregateTables()
 
 	// ---------- 短信日志 / 短信模板 ----------
 	models.InitSMSTable()

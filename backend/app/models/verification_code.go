@@ -40,16 +40,40 @@ func InitVerificationCodeTable() {
 	repairVerificationCodeTable()
 }
 
+// renameVerificationCodesEmailToContact 将旧列 email 迁移为 contact。
+// MySQL 用 CHANGE COLUMN；SQLite 跳过 CHANGE，改为 ADD + UPDATE 拷贝。
+func renameVerificationCodesEmailToContact() {
+	hasEmail := db.CheckColumnExists("verification_codes", "email")
+	hasContact := db.CheckColumnExists("verification_codes", "contact")
+	if !hasEmail || hasContact {
+		return
+	}
+
+	if db.IsSQLite() {
+		if _, err := db.Exec("ALTER TABLE verification_codes ADD COLUMN contact VARCHAR(255) NOT NULL DEFAULT ''"); err != nil {
+			log.Printf("[Init] SQLite 补 verification_codes.contact 失败: %v", err)
+			return
+		}
+		if _, err := db.Exec("UPDATE verification_codes SET contact = email WHERE contact = '' OR contact IS NULL"); err != nil {
+			log.Printf("[Init] SQLite 拷贝 email→contact 失败: %v", err)
+			return
+		}
+		log.Println("[Init] SQLite 已把 verification_codes.email 数据拷贝到 contact（旧 email 列保留）")
+		return
+	}
+
+	if _, err := db.Exec("ALTER TABLE verification_codes CHANGE COLUMN email contact VARCHAR(255) NOT NULL COMMENT '联系方式(邮箱或手机号)'"); err != nil {
+		log.Printf("[Init] Failed to rename verification_codes.email to contact: %v", err)
+		return
+	}
+	log.Println("[Init] Renamed verification_codes.email to contact")
+}
+
 // repairVerificationCodeTable 检查并修复表字段
 func repairVerificationCodeTable() {
 	// 兼容旧表：早期字段名使用 email，但现在验证码同时服务邮箱与手机号。
-	if db.CheckColumnExists("verification_codes", "email") && !db.CheckColumnExists("verification_codes", "contact") {
-		if _, err := db.Exec("ALTER TABLE verification_codes CHANGE COLUMN email contact VARCHAR(255) NOT NULL COMMENT '联系方式(邮箱或手机号)'"); err != nil {
-			log.Printf("[Init] Failed to rename verification_codes.email to contact: %v", err)
-		} else {
-			log.Printf("[Init] Renamed verification_codes.email to contact")
-		}
-	}
+	// 注意：SQLite 方言会静默跳过 CHANGE COLUMN，必须走「加列 + 拷贝」路径。
+	renameVerificationCodesEmailToContact()
 
 	// 定义需要删除的错误字段名（之前版本创建的错误字段）
 	wrongColumns := []string{"type", "expire_at"}

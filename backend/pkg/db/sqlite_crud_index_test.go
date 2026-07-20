@@ -27,6 +27,8 @@ func TestSQLiteMigrateIndexesAndCRUD(t *testing.T) {
 			"system_settings", "user_settings", "user_sessions",
 			"user_money_logs", "user_score_logs", "operation_logs", "api_access_logs",
 			"sms_logs", "sms_templates", "payment_orders", "withdraw_requests", "idempotency_keys", "pay_gateways",
+			// 日志聚合表（显式 Init*AggregateTables）
+			"email_log_stats", "sms_log_stats", "operation_log_stats", "api_access_log_stats",
 		}
 		for _, name := range need {
 			if !db.CheckTableExists(name) {
