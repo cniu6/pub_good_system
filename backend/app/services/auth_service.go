@@ -6,6 +6,7 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/pkg/config"
 	"fst/backend/utils"
+	"log"
 	"strings"
 	"time"
 )
@@ -102,7 +103,8 @@ func buildLoginRealnameSummary(userID uint64) LoginRealnameSummary {
 	summary.Status = verification.Status
 	summary.RealName = verification.RealName
 	summary.CertificateType = verification.CertificateType
-	summary.CertificateNo = verification.CertificateNo
+	// 用户端登录响应只回传掩码后的证件号，避免身份证号明文随登录态泄露
+	summary.CertificateNo = utils.MaskCertificateNo(verification.CertificateNo)
 	summary.SubmittedAt = verification.SubmittedAt
 	summary.ReviewedAt = verification.ReviewedAt
 	summary.RejectReason = verification.RejectReason
@@ -290,12 +292,29 @@ func (s *AuthService) RefreshToken(refreshToken, authGuard, clientIP, userAgent,
 		return nil, NewServiceError(500, "Failed to generate refresh token")
 	}
 
+	// 刷新令牌重放检测：轮换前先确认该 refresh token 仍是某个活跃会话的当前令牌。
+	// 若未命中（已被轮换过 / 已过期 / 已被踢下线），视为潜在的令牌泄露或重放攻击，
+	// 主动吊销该用户在此 guard 下的全部会话，阻止攻击者用同一枚旧 refresh token 继续得手。
+	refreshTokenHash := utils.HashToken(refreshToken)
+	active, err := models.IsRefreshSessionActive(user.ID, authGuard, refreshTokenHash)
+	if err != nil {
+		return nil, NewServiceError(500, "Failed to validate refresh session")
+	}
+	if !active {
+		if revokeErr := models.RevokeAllUserSessionsWithGuard(user.ID, authGuard, ""); revokeErr != nil {
+			log.Printf("[Auth] 检测到 refresh token 重放，吊销会话失败 user_id=%d guard=%s: %v", user.ID, authGuard, revokeErr)
+		} else {
+			log.Printf("[Auth] 检测到 refresh token 重放/失效，已吊销该用户全部会话 user_id=%d guard=%s", user.ID, authGuard)
+		}
+		return nil, NewServiceError(401, "Refresh session expired or revoked")
+	}
+
 	accessExpiresAt := time.Now().Unix() + int64(accessTTL.Seconds())
 	refreshExpiresAt := time.Now().Unix() + int64(refreshTTL.Seconds())
 	rotated, err := models.RotateUserSessionTokens(
 		user.ID,
 		authGuard,
-		utils.HashToken(refreshToken),
+		refreshTokenHash,
 		utils.HashToken(accessToken),
 		utils.HashToken(newRefreshToken),
 		clientIP,

@@ -267,7 +267,7 @@ func (ctrl *PaymentController) GetGateway(c *gin.Context) {
 		return
 	}
 
-	gw, err := models.GetPayGatewayByID(id)
+	gw, err := services.GetPayGatewayDetailForAdmin(id)
 	if err != nil {
 		utils.Fail(c, 404, "支付通道不存在")
 		return

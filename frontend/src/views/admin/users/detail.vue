@@ -42,14 +42,22 @@ const { t } = useI18n()
 
 import { setPendingUserEditId } from './utils/pendingEdit'
 
-/** API Key 默认脱敏，点击后再完整展示，降低屏幕偷看/录屏风险 */
+/** API Key 默认脱敏，点击后再完整展示，降低屏幕偷看/录屏风险。
+ * 注意：后端 GET 接口现在始终只返回掩码（形如 ********xxxx，仅末4位），
+ * 完整明文只会在「重置API密钥」成功的那一次响应里短暂出现在本地 user.apikey，
+ * 刷新/重新拉取详情后即恢复为掩码，这里的显示/隐藏开关只对这种“本地临时明文”生效。 */
 const showApiKey = ref(false)
+
+/** 判断当前值是否已经是后端下发的掩码格式（无需也不能再展示更多信息） */
+function isServerMaskedApiKey(value: string) {
+  return value.startsWith('********')
+}
 
 function maskedApiKey(key?: string | null) {
   const value = String(key || '').trim()
   if (!value)
     return '-'
-  if (showApiKey.value)
+  if (isServerMaskedApiKey(value) || showApiKey.value)
     return value
   if (value.length <= 8)
     return '*'.repeat(value.length)
@@ -695,7 +703,12 @@ function handleResetApikey() {
       if (res.isSuccess) {
         message.success(t('adminUsersDetail.apiKeyResetSuccess'))
         showApiKey.value = true
-        fetchUserData()
+        // 重置接口的明文只此一次返回：先刷新其余字段，再用本次明文覆盖回显，
+        // 避免被 fetchUserData() 拉回来的掩码值覆盖掉，导致管理员连一次都看不到完整密钥。
+        await fetchUserData()
+        const newPlainKey = res.data?.apikey
+        if (user.value && newPlainKey)
+          user.value.apikey = newPlainKey
       }
       else {
         message.error(res.message || t('adminUsersDetail.apiKeyResetFailed'))
@@ -944,7 +957,7 @@ onMounted(() => {
                       {{ maskedApiKey(user?.apikey) }}
                     </n-text>
                     <n-button
-                      v-if="user?.apikey"
+                      v-if="user?.apikey && !isServerMaskedApiKey(String(user.apikey))"
                       size="tiny"
                       quaternary
                       @click="showApiKey = !showApiKey"

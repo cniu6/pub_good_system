@@ -805,6 +805,21 @@ func ApplyGlobalRuntimeConfig() {
 	config.UpdateGlobalConfig(func(cfg *config.Config) {
 		*cfg = next
 	})
+
+	warnIfProductionRateLimitDisabled()
+}
+
+// warnIfProductionRateLimitDisabled 生产环境限流软提醒。
+// 仅打印非致命 Warning，不阻断启动、不影响业务；不涉及 JWT 校验逻辑
+// （JWT 相关的强校验见 pkg/config.validateCriticalSecurityConfig，本函数不与之交叉）。
+func warnIfProductionRateLimitDisabled() {
+	if !config.IsProductionMode() {
+		return
+	}
+	if GetGlobalAPIRateLimitRuntimeConfig().Enabled {
+		return
+	}
+	log.Println("[Security Warning] 当前判定为生产环境（APP_ENV/GO_ENV/GIN_MODE 或 APP_MODE），但系统设置里全局 API 限流 api_rate_limit_enabled=false；建议在管理后台「系统设置-安全」中开启，避免接口被刷/被爬")
 }
 
 // GetPublicAppConfig returns public app config consumed by frontend bootstrap.

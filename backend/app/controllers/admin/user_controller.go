@@ -522,7 +522,7 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 			"join_time":       user.JoinTime,
 			"motto":           user.Motto,
 			"status":          user.Status,
-			"apikey":          user.Apikey,
+			"apikey":          user.MaskedApikey(),
 			"update_time":     user.UpdateTime,
 			"create_time":     user.CreateTime,
 			"language":        user.Language,

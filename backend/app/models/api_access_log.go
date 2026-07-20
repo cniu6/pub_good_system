@@ -436,3 +436,42 @@ type APIAccessSceneStat struct {
 func GetAPIAccessLogStats() (*APIAccessLogStats, error) {
 	return getAPIAccessLogStatsFromAggregate()
 }
+
+// GetAPIAccessLogStatsByUserID 当前用户自己的 API 访问日志统计（仅本人数据）
+// 全局聚合表（api_access_log_stats 等）不区分 user_id，无法直接复用；
+// 这里直接查询 api_access_logs 原始表，SQL 结构与 admin 端聚合失败时的
+// 兜底查询 getAPIAccessLogStatsFromLogsFallback 保持一致，仅额外附加 user_id 过滤条件。
+func GetAPIAccessLogStatsByUserID(userID uint64) (*APIAccessLogStats, error) {
+	stats := &APIAccessLogStats{
+		TopPaths:    []APIAccessPathStat{},
+		MethodStats: []APIAccessMethodStat{},
+	}
+	todayStart := resolveAPIAccessLogStartOfLocalDay(time.Now()).Unix()
+
+	if err := db.DB.Get(&stats.TotalCount, "SELECT COUNT(*) FROM api_access_logs WHERE user_id = ?", userID); err != nil {
+		return nil, err
+	}
+	if err := db.DB.Get(&stats.TodayCount, "SELECT COUNT(*) FROM api_access_logs WHERE user_id = ? AND create_time >= ?", userID, todayStart); err != nil {
+		return nil, err
+	}
+	if err := db.DB.Get(&stats.SuccessCount, "SELECT COUNT(*) FROM api_access_logs WHERE user_id = ? AND status_code >= 200 AND status_code < 400", userID); err != nil {
+		return nil, err
+	}
+	if err := db.DB.Get(&stats.ClientErrorCount, "SELECT COUNT(*) FROM api_access_logs WHERE user_id = ? AND status_code >= 400 AND status_code < 500", userID); err != nil {
+		return nil, err
+	}
+	if err := db.DB.Get(&stats.ServerErrorCount, "SELECT COUNT(*) FROM api_access_logs WHERE user_id = ? AND status_code >= 500", userID); err != nil {
+		return nil, err
+	}
+	if err := db.DB.Get(&stats.AvgDuration, "SELECT COALESCE(AVG(duration), 0) FROM api_access_logs WHERE user_id = ?", userID); err != nil {
+		return nil, err
+	}
+	if err := db.DB.Select(&stats.TopPaths, `SELECT COALESCE(NULLIF(COALESCE(NULLIF(route_path, ''), path), ''), '/') AS route_path, COUNT(*) AS count, COALESCE(AVG(duration), 0) AS avg_duration FROM api_access_logs WHERE user_id = ? GROUP BY COALESCE(NULLIF(COALESCE(NULLIF(route_path, ''), path), ''), '/') ORDER BY count DESC LIMIT 10`, userID); err != nil {
+		return nil, err
+	}
+	if err := db.DB.Select(&stats.MethodStats, "SELECT COALESCE(NULLIF(method, ''), 'UNKNOWN') AS method, COUNT(*) AS count FROM api_access_logs WHERE user_id = ? GROUP BY COALESCE(NULLIF(method, ''), 'UNKNOWN') ORDER BY count DESC", userID); err != nil {
+		return nil, err
+	}
+	// 单用户维度不统计独立 IP 数与场景分布（场景对本人固定为 user，无区分意义）
+	return stats, nil
+}

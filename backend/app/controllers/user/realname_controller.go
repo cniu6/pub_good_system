@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"fst/backend/app/services"
 	"fst/backend/utils"
-	"log"
 	"github.com/gin-gonic/gin"
+	"log"
 )
 
 // RealnameController 实名认证控制器
@@ -147,12 +147,13 @@ func (c *RealnameController) GetMyRealnameStatus(ctx *gin.Context) {
 		"status":          verification.Status,
 		"realName":        verification.RealName,
 		"certificateType": verification.CertificateType,
-		"certificateNo":   verification.CertificateNo,
+		// 用户端只回传掩码后的证件号，避免身份证号明文泄露
+		"certificateNo":    utils.MaskCertificateNo(verification.CertificateNo),
 		"certificateFront": verification.CertificateFront,
 		"certificateBack":  verification.CertificateBack,
-		"rejectReason":    verification.RejectReason,
-		"submittedAt":     verification.SubmittedAt,
-		"reviewedAt":      verification.ReviewedAt,
+		"rejectReason":     verification.RejectReason,
+		"submittedAt":      verification.SubmittedAt,
+		"reviewedAt":       verification.ReviewedAt,
 	})
 }
 
@@ -161,4 +162,3 @@ func (c *RealnameController) RegisterRoutes(group *gin.RouterGroup) {
 	group.POST("/realname", c.SubmitRealname)
 	group.GET("/realname", c.GetMyRealnameStatus)
 }
-

@@ -172,6 +172,21 @@ func (ctrl *ProfileController) ListMyAPILogs(c *gin.Context) {
 	})
 }
 
+// GetMyAPILogStats 当前用户自己的 API 访问日志统计（仅本人数据，不含其他用户信息）
+// GET /api/v1/user/api-logs/stats
+func (ctrl *ProfileController) GetMyAPILogStats(c *gin.Context) {
+	uid, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	stats, err := models.GetAPIAccessLogStatsByUserID(uid)
+	if err != nil {
+		utils.Fail(c, 500, "统计失败")
+		return
+	}
+	utils.Success(c, stats)
+}
+
 // GetMyAPILogDetail 当前用户自己的 API 访问日志详情
 // GET /api/v1/user/api-logs/:id
 func (ctrl *ProfileController) GetMyAPILogDetail(c *gin.Context) {

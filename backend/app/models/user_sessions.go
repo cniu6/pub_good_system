@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jmoiron/sqlx"
 )
 
 // OnlineHeartbeatGraceSeconds 心跳超过此秒数未上报即视为离线（默认值，实际以管理端「上报周期」设置为准，
@@ -478,6 +480,31 @@ func ListActiveSessionIDsExceptCurrent(userID uint64, authGuard, currentTokenHas
 // 用 var 函数指针而非直接依赖 services 包，避免 models → services 的循环引用；
 // 由 services 包在包初始化时注入真实实现，此处仅提供兜底默认值。
 var GetOnlineHeartbeatGraceSeconds = func() int64 { return OnlineHeartbeatGraceSeconds }
+
+// GetLastSeenAtByUserIDs 批量查询用户最近一次会话心跳时间（跨全部设备取最大值，不限 is_active）。
+// 用于管理端用户列表展示「上次在线」，仅反映历史心跳，不代表当前是否在线
+// （当前是否在线的准确判定见 SessionIsOnline，及专门的在线用户页 ListOnlineUsersGrouped）。
+func GetLastSeenAtByUserIDs(userIDs []uint64) (map[uint64]int64, error) {
+	result := make(map[uint64]int64, len(userIDs))
+	if len(userIDs) == 0 {
+		return result, nil
+	}
+	query, args, err := sqlx.In(`SELECT user_id, MAX(last_seen_at) AS last_seen_at FROM user_sessions WHERE user_id IN (?) GROUP BY user_id`, userIDs)
+	if err != nil {
+		return result, err
+	}
+	var rows []struct {
+		UserID     uint64 `db:"user_id"`
+		LastSeenAt int64  `db:"last_seen_at"`
+	}
+	if err := db.DB.Select(&rows, query, args...); err != nil {
+		return result, err
+	}
+	for _, r := range rows {
+		result[r.UserID] = r.LastSeenAt
+	}
+	return result, nil
+}
 
 // CountOnlineSessions 统计心跳窗口内在线会话数。
 func CountOnlineSessions() (int64, error) {

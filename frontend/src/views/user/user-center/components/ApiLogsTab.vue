@@ -5,7 +5,7 @@
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NButton, NTag, NCode, useMessage, type DataTableColumns } from 'naive-ui'
-import { fetchMyAPILogDetail, fetchMyAPILogs, type UserAPIAccessLog } from '@/service/api/user/logs'
+import { fetchMyAPILogDetail, fetchMyAPILogStats, fetchMyAPILogs, type UserAPIAccessLog, type UserAPILogStats } from '@/service/api/user/logs'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -16,6 +16,25 @@ const total = ref(0)
 const showDetail = ref(false)
 const detailLoading = ref(false)
 const detailData = ref<UserAPIAccessLog | null>(null)
+
+const statsData = ref<UserAPILogStats>({
+  total_count: 0,
+  today_count: 0,
+  success_count: 0,
+  client_error_count: 0,
+  server_error_count: 0,
+  avg_duration: 0,
+  top_paths: [],
+  method_stats: [],
+})
+
+async function fetchStats() {
+  try {
+    const res = await fetchMyAPILogStats()
+    if (res.data) statsData.value = res.data
+  }
+  catch {}
+}
 
 const query = reactive({
   page: 1,
@@ -158,6 +177,7 @@ async function fetchLogs() {
 onMounted(() => {
   applyDateRange()
   fetchLogs()
+  fetchStats()
 })
 </script>
 
@@ -165,6 +185,12 @@ onMounted(() => {
   <div class="p-2">
     <n-space vertical>
       <n-text depth="3">{{ t('userLogs.apiHint') }}</n-text>
+      <n-grid :x-gap="12" :y-gap="12" cols="2 s:4" responsive="screen">
+        <n-gi><n-card size="small"><n-statistic :label="t('userLogs.statsTotal')" :value="statsData.total_count" /></n-card></n-gi>
+        <n-gi><n-card size="small"><n-statistic :label="t('userLogs.statsToday')" :value="statsData.today_count" /></n-card></n-gi>
+        <n-gi><n-card size="small"><n-statistic :label="t('userLogs.statsErrors')"><n-text type="warning">{{ statsData.client_error_count + statsData.server_error_count }}</n-text></n-statistic></n-card></n-gi>
+        <n-gi><n-card size="small"><n-statistic :label="t('userLogs.statsAvgDuration')">{{ Number(statsData.avg_duration || 0).toFixed(1) }} ms</n-statistic></n-card></n-gi>
+      </n-grid>
       <n-space>
         <n-select
           v-model:value="query.auth_method"

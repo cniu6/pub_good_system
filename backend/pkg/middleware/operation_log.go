@@ -154,7 +154,7 @@ func sanitizeOperationRequestContent(raw string) string {
 	if strings.HasPrefix(raw, "[") && strings.Contains(raw, "omitted") {
 		return truncateForLog(raw, maxLogStoredBodyBytes)
 	}
-	return sanitizeLogBody(raw, maxLogStoredBodyBytes)
+	return sanitizeLogBody(raw, maxLogStoredBodyBytes, true)
 }
 
 func getActionByMethod(method string) string {

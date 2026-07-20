@@ -735,6 +735,9 @@
     "enterMotto": "Please enter a motto",
     "realnameStatus": "Real-name Verification",
     "lastLoginTime": "Last Login",
+    "lastSeenAt": "Last Seen",
+    "online": "Online",
+    "offline": "Offline",
     "registerTime": "Registered At",
     "updateTime": "Updated At",
     "actions": "Actions",
@@ -850,7 +853,8 @@
     "apiKeyResetSuccess": "API key reset successfully",
     "apiKeyResetFailed": "Failed to reset API key",
     "note3": "Calls appear in API Logs (auth method = API Key)",
-    "note4": "Login/register/password reset endpoints reject API Key"
+    "note4": "Login/register/password reset endpoints reject API Key",
+    "note5": "The full key is shown only once when generated/reset — copy it immediately. Afterwards only the last 4 characters are shown and the full key cannot be viewed again"
   },
   "adminMoneyLogs": {
     "title": "Balance Log Management",
@@ -1144,6 +1148,10 @@
   "userLogs": {
     "operationHint": "Only your own operation logs are shown",
     "apiHint": "Shows only your own API access logs. Filter by auth method for API Key calls.",
+    "statsTotal": "Total Calls",
+    "statsToday": "Today's Calls",
+    "statsErrors": "Failed Calls",
+    "statsAvgDuration": "Avg Duration",
     "totalLogs": "{total} records",
     "module": "Module",
     "action": "Action",

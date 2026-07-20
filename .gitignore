@@ -21,6 +21,7 @@ backend/cmd/main_embedded.go
 # 本地敏感配置
 .env
 backend/.env
+frontend/.env
 _env_backup_*/
 
 # SQLite 本地数据文件（DB_DRIVER=sqlite 临时库）

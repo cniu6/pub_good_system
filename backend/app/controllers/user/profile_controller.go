@@ -132,10 +132,11 @@ func (ctrl *ProfileController) GetProfile(c *gin.Context) {
 			Status:          verification.Status,
 			RealName:        verification.RealName,
 			CertificateType: verification.CertificateType,
-			CertificateNo:   verification.CertificateNo,
-			SubmittedAt:     verification.SubmittedAt,
-			ReviewedAt:      verification.ReviewedAt,
-			RejectReason:    verification.RejectReason,
+			// 用户端个人中心只回传掩码后的证件号，避免身份证号明文泄露
+			CertificateNo: utils.MaskCertificateNo(verification.CertificateNo),
+			SubmittedAt:   verification.SubmittedAt,
+			ReviewedAt:    verification.ReviewedAt,
+			RejectReason:  verification.RejectReason,
 		}
 	}
 
@@ -549,6 +550,7 @@ func (ctrl *ProfileController) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/logs", ctrl.ListMyOperationLogs)
 	group.GET("/logs/:id", ctrl.GetMyOperationLogDetail)
 	group.GET("/api-logs", ctrl.ListMyAPILogs)
+	group.GET("/api-logs/stats", ctrl.GetMyAPILogStats)
 	group.GET("/api-logs/:id", ctrl.GetMyAPILogDetail)
 
 	// 仪表盘

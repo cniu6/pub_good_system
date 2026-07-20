@@ -47,6 +47,10 @@ export interface AdminUser {
   total_paid_amount?: number
   balance_paid_ratio?: number
   realname?: Api.Login.RealnameSummary
+  /** 最近一次会话心跳时间（跨全部设备取最大值），来自 user_sessions；无会话记录时为空 */
+  last_seen_at?: number | null
+  /** 当前是否在线（依据 last_seen_at 与在线心跳容忍窗口判定，口径与在线用户页一致） */
+  is_online?: boolean
 }
 
 export interface AdminUserRealnameSummary {

@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/store'
-import IconBookOpen from '~icons/icon-park-outline/book-open'
-import IconGithub from '~icons/icon-park-outline/github'
 import IconLogout from '~icons/icon-park-outline/logout'
 import IconUser from '~icons/icon-park-outline/user'
 
@@ -10,31 +8,13 @@ const { t } = useI18n()
 const { userInfo, logout } = useAuthStore()
 const router = useRouter()
 
+// 头像下拉只保留本站入口（用户中心 / 退出），不再外链上游 Nova/chansee97 仓库与文档
 const options = computed(() => {
   return [
     {
       label: t('app.userCenter'),
       key: 'userCenter',
       icon: () => h(IconUser),
-    },
-    {
-      type: 'divider',
-      key: 'd1',
-    },
-    {
-      label: t('app.github'),
-      key: 'github',
-      icon: () => h(IconGithub),
-    },
-    {
-      label: t('app.gitee'),
-      key: 'gitee',
-      icon: () => h(IconGithub),
-    },
-    {
-      label: t('app.docs'),
-      key: 'docs',
-      icon: () => h(IconBookOpen),
     },
     {
       type: 'divider',
@@ -61,15 +41,6 @@ function handleSelect(key: string | number) {
   }
   if (key === 'userCenter')
     router.push('/user/account/user-center')
-
-  if (key === 'github')
-    window.open('https://github.com/chansee97/nova-admin')
-
-  if (key === 'gitee')
-    window.open('https://gitee.com/chansee97/nova-admin')
-
-  if (key === 'docs')
-    window.open('https://nova-admin-docs.pages.dev/')
 }
 </script>
 

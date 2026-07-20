@@ -15,7 +15,8 @@ const formComponets = {
 }
 
 onMounted(() => {
-  if (route.query.email && route.query.token) {
+  // 重置密码链接出于安全考虑不再携带验证码（token），仅带邮箱，验证码由用户从邮件正文手动输入
+  if (route.query.email) {
     formType.value = 'resetPwdConfirm'
   }
 })

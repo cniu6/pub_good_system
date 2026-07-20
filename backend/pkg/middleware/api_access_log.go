@@ -87,6 +87,11 @@ func sanitizeQueryString(raw string) string {
 	}
 	payload := make(map[string]any, len(values))
 	for key, items := range values {
+		// 查询参数均为客户端提交内容，命中敏感字段（如验证码、token）整体脱敏
+		if isSensitiveBodyField(key, true) {
+			payload[key] = sensitiveValueMask
+			continue
+		}
 		if len(items) == 1 {
 			payload[key] = items[0]
 			continue
@@ -97,7 +102,6 @@ func sanitizeQueryString(raw string) string {
 		}
 		payload[key] = arr
 	}
-	// query 与 body 一致：仅截断，不做字段脱敏（管理端审计需要完整参数）
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return truncateForLog(raw, 1000)
@@ -319,7 +323,7 @@ func sanitizeResponseBodyByType(raw, contentType, transport string, statusCode i
 		return "[websocket upgrade handshake established; frame messages are not captured in HTTP access logs]"
 	}
 	if trimmedType == "" || strings.Contains(trimmedType, "json") || strings.Contains(trimmedType, "text") || strings.Contains(trimmedType, "xml") || strings.Contains(trimmedType, "javascript") || strings.Contains(trimmedType, "x-www-form-urlencoded") || trimmedType == "text/event-stream" || transport == "sse" || transport == "stream" {
-		return sanitizeLogBody(raw, maxLogStoredBodyBytes)
+		return sanitizeLogBody(raw, maxLogStoredBodyBytes, false)
 	}
 	if raw == "" {
 		return ""
@@ -378,7 +382,7 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 		responseContentType := truncateForLog(normalizeContentType(blw.Header().Get("Content-Type")), 255)
 		transport := resolveAPITransport(c, requestBody, responseContentType)
 		responseBody := sanitizeResponseBodyByType(blw.body.String(), responseContentType, transport, c.Writer.Status())
-		requestBody = sanitizeLogBody(requestBody, maxLogStoredBodyBytes)
+		requestBody = sanitizeLogBody(requestBody, maxLogStoredBodyBytes, true)
 		requestHeaders := sanitizeRequestHeaders(c.Request.Header)
 		pathParams := sanitizePathParams(c.Params)
 

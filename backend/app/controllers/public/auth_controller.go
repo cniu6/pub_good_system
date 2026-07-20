@@ -10,6 +10,7 @@ import (
 	"fst/backend/utils"
 	"log"
 	"math/big"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -392,7 +393,9 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 			return
 		}
 	}
-	resetLink := fmt.Sprintf("%s/#/login/reset-password-confirm?email=%s&token=%s", frontendURL, user.Email, code)
+	// 安全考虑：重置链接只带邮箱，验证码绝不放入 URL（避免出现在浏览器历史/服务端访问日志/Referer 中）。
+	// 用户需要在重置页面手动输入邮件正文里的验证码，前端 ResetPwdConfirm 已配合改造为必填输入框。
+	resetLink := fmt.Sprintf("%s/#/login/reset-password-confirm?email=%s", frontendURL, url.QueryEscape(user.Email))
 
 	// 获取语言
 	lang := getLangFromRequest(c, req.Lang)

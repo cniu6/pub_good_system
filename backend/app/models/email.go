@@ -412,23 +412,23 @@ func InitEmailTemplates() {
 		_ = UpdateEmailTemplateContent("register_code", "en-US", registerCodeEN)
 	}
 
-	// 密码重置模板
-	resetPasswordZH := `<p style="margin:0 0 16px 0;">您好，我们收到了您的密码重置请求。请点击下方按钮重置密码：</p>` +
+	// 密码重置模板：验证码不放入链接，用户需在重置页面手动输入邮件正文中的验证码
+	resetPasswordZH := `<p style="margin:0 0 16px 0;">您好，我们收到了您的密码重置请求。请点击下方按钮打开重置页面，并输入下方验证码完成重置：</p>` +
 		`<div style="text-align:center;margin:28px 0;">` +
-		`<a href="{link}" style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 48px;border-radius:10px;">重置密码</a>` +
+		`<a href="{link}" style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 48px;border-radius:10px;">打开重置密码页面</a>` +
 		`</div>` +
-		`<p style="margin:0 0 8px 0;">如果按钮无法点击，您也可以使用以下验证码：</p>` +
+		`<p style="margin:0 0 8px 0;">请在重置页面手动输入以下验证码（出于安全考虑，验证码不会包含在链接中）：</p>` +
 		`<div style="text-align:center;margin:20px 0;">` +
 		`<div style="display:inline-block;background:#f0f2f5;font-size:28px;font-weight:700;letter-spacing:6px;padding:14px 36px;border-radius:10px;color:#1a1a2e;border:2px dashed #667eea;">{code}</div>` +
 		`</div>` +
 		`<p style="margin:0 0 8px 0;">⏱ 有效期为 <strong>15 分钟</strong>，请尽快操作。</p>` +
 		`<p style="margin:0;color:#a0a0b8;font-size:13px;">如果这不是您本人的操作，请忽略此邮件，您的密码不会被更改。</p>`
 
-	resetPasswordEN := `<p style="margin:0 0 16px 0;">Hello, we received a request to reset your password. Click the button below to proceed:</p>` +
+	resetPasswordEN := `<p style="margin:0 0 16px 0;">Hello, we received a request to reset your password. Click the button below to open the reset page, then enter the verification code below to complete the reset:</p>` +
 		`<div style="text-align:center;margin:28px 0;">` +
-		`<a href="{link}" style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 48px;border-radius:10px;">Reset Password</a>` +
+		`<a href="{link}" style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 48px;border-radius:10px;">Open Reset Page</a>` +
 		`</div>` +
-		`<p style="margin:0 0 8px 0;">If the button doesn't work, you can also use this verification code:</p>` +
+		`<p style="margin:0 0 8px 0;">Please enter this verification code on the reset page (for security, it is never included in the link):</p>` +
 		`<div style="text-align:center;margin:20px 0;">` +
 		`<div style="display:inline-block;background:#f0f2f5;font-size:28px;font-weight:700;letter-spacing:6px;padding:14px 36px;border-radius:10px;color:#1a1a2e;border:2px dashed #667eea;">{code}</div>` +
 		`</div>` +

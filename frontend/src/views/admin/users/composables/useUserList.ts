@@ -250,6 +250,27 @@ export function useUserList(options?: {
       },
     },
     {
+      // 「上次在线」来自会话心跳（user_sessions.last_seen_at），比「最近登录」更贴近真实活跃时间
+      title: t('adminUsers.lastSeenAt'),
+      key: 'last_seen_at',
+      width: 190,
+      render: (row: AdminUser) => {
+        if (!row.last_seen_at)
+          return '-'
+        let text = ''
+        try {
+          text = new Date(row.last_seen_at * 1000).toLocaleString()
+        }
+        catch {
+          text = String(row.last_seen_at)
+        }
+        return h(NSpace, { size: 4, align: 'center' }, () => [
+          h(NTag, { size: 'small', type: row.is_online ? 'success' : 'default' }, () => row.is_online ? t('adminUsers.online') : t('adminUsers.offline')),
+          h('span', text),
+        ])
+      },
+    },
+    {
       title: t('adminUsers.registerTime'),
       key: 'create_time',
       width: 180,
@@ -325,6 +346,7 @@ export function useUserList(options?: {
     { key: 'realname_status', label: t('adminUsers.realnameStatus') },
     { key: 'admin_remark', label: t('adminUsers.adminRemark') },
     { key: 'last_login_time', label: t('adminUsers.lastLoginTime') },
+    { key: 'last_seen_at', label: t('adminUsers.lastSeenAt') },
     { key: 'create_time', label: t('adminUsers.registerTime') },
     { key: 'update_time', label: t('adminUsers.updateTime') },
   ]

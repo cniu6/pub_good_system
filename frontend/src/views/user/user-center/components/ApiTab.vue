@@ -131,6 +131,7 @@ onMounted(() => {
           <n-text>{{ t('apiTab.note2') }}</n-text>
           <n-text>{{ t('apiTab.note3') }}</n-text>
           <n-text>{{ t('apiTab.note4') }}</n-text>
+          <n-text>{{ t('apiTab.note5') }}</n-text>
         </n-space>
       </n-alert>
     </n-space>

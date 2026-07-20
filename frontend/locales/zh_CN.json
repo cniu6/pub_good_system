@@ -404,6 +404,10 @@
   "userLogs": {
     "operationHint": "仅展示属于你本人的操作日志",
     "apiHint": "仅展示属于你本人的 API 调用日志；可用鉴权方式筛选 API Key 调用",
+    "statsTotal": "累计调用",
+    "statsToday": "今日调用",
+    "statsErrors": "失败次数",
+    "statsAvgDuration": "平均耗时",
     "totalLogs": "共 {total} 条",
     "module": "模块",
     "action": "操作",
@@ -2090,6 +2094,9 @@
     "enterMotto": "请输入座右铭",
     "realnameStatus": "实名认证状态",
     "lastLoginTime": "最近登录",
+    "lastSeenAt": "上次在线",
+    "online": "在线",
+    "offline": "离线",
     "registerTime": "注册时间",
     "updateTime": "更新时间",
     "actions": "操作",
@@ -2205,7 +2212,8 @@
     "apiKeyResetSuccess": "API密钥重置成功",
     "apiKeyResetFailed": "API密钥重置失败",
     "note3": "调用记录可在「API 日志」中查看（鉴权方式=API Key）",
-    "note4": "登录/注册/找回密码接口不可使用 API Key"
+    "note4": "登录/注册/找回密码接口不可使用 API Key",
+    "note5": "完整密钥仅在生成/重置时显示一次，请立即复制保存；之后仅展示末4位，无法再次查看完整密钥"
   },
   "adminMoneyLogs": {
     "title": "余额日志管理",

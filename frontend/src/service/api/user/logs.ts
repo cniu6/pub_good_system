@@ -79,3 +79,19 @@ export function fetchMyAPILogs(params?: {
 export function fetchMyAPILogDetail(id: number | string) {
   return request.Get<Service.ResponseResult<UserAPIAccessLog>>(`/api/v1/user/api-logs/${id}`)
 }
+
+/** 用户本人 API 访问统计（仅本人数据，字段与管理端一致，缺去独立 IP/场景等无区分意义字段） */
+export interface UserAPILogStats {
+  total_count: number
+  today_count: number
+  success_count: number
+  client_error_count: number
+  server_error_count: number
+  avg_duration: number
+  top_paths: { route_path: string, count: number, avg_duration: number }[]
+  method_stats: { method: string, count: number }[]
+}
+
+export function fetchMyAPILogStats() {
+  return request.Get<Service.ResponseResult<UserAPILogStats>>('/api/v1/user/api-logs/stats')
+}

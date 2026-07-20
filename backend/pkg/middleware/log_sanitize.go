@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"encoding/json"
+	"net/url"
 	"strings"
 	"unicode/utf8"
 )
@@ -29,8 +31,6 @@ const (
 )
 
 // sensitiveLogHeaderFields 仅用于请求头脱敏（Authorization / Cookie / Token 等）。
-// 请求体/响应体不做字段脱敏：操作日志与 API 日志仅管理员（及本人）可查看，
-// 过度脱敏会把业务字段（如响应 code、email）打成 ***，影响排查。
 // 注意：使用“包含匹配”以覆盖各种命名风格（如 Authorization / X-Access-Token）。
 var sensitiveLogHeaderFields = []string{
 	"password", "passwd", "pwd",
@@ -38,12 +38,126 @@ var sensitiveLogHeaderFields = []string{
 	"secret",
 }
 
-// sanitizeLogBody 对请求/响应体只做长度截断，不做字段脱敏。
-func sanitizeLogBody(raw string, limit int) string {
+// sensitiveValueMask 请求/响应体命中敏感字段后的统一替换值。
+const sensitiveValueMask = "***"
+
+// sensitiveBodyFieldNames 请求/响应体中需要整体脱敏的字段名（已归一化：小写 + 去掉下划线/连字符）。
+// 仅做“精确字段名”匹配，不做模糊包含匹配：
+//   - 避免把业务字段误伤成 ***（例如响应包裹字段 code 表示状态码，"status_code"/"error_code" 等业务码不应被遮盖）
+//   - "code" 单独处理：仅在请求体（客户端提交的验证码）中脱敏，响应体统一保留（响应包裹的 code 是状态码，见下方 isSensitiveBodyField）
+var sensitiveBodyFieldNames = map[string]struct{}{
+	"password": {}, "passwd": {}, "pwd": {},
+	"oldpassword": {}, "newpassword": {}, "confirmpassword": {}, "repassword": {},
+	"token": {}, "accesstoken": {}, "refreshtoken": {}, "idtoken": {}, "sessiontoken": {},
+	"apikey": {}, "apisecret": {}, "secretkey": {}, "clientsecret": {}, "secret": {},
+	"sign": {}, "signature": {},
+	"authorization": {},
+	// 验证码类字段：这些字段名本身语义明确是验证码，请求/响应体中都脱敏
+	"smscode": {}, "emailcode": {}, "verifycode": {}, "verificationcode": {}, "authcode": {}, "otp": {}, "captchacode": {}, "resetcode": {},
+	// 证件号：与 utils.MaskCertificateNo 双重保护，日志层再兜底一次
+	"certificateno": {}, "idcard": {},
+}
+
+// normalizeBodyFieldName 归一化字段名：小写 + 去掉下划线/连字符，兼容 snake_case / camelCase / kebab-case。
+func normalizeBodyFieldName(key string) string {
+	key = strings.ToLower(key)
+	key = strings.ReplaceAll(key, "_", "")
+	key = strings.ReplaceAll(key, "-", "")
+	return key
+}
+
+// isSensitiveBodyField 判断请求/响应体字段名是否需要脱敏。
+// isRequest=true 时才把裸字段名 "code" 视为敏感（用户提交的验证码）；
+// 响应体的 "code" 是 utils.Response 状态码包裹字段，不能脱敏，否则所有响应都会被打成 ***。
+func isSensitiveBodyField(key string, isRequest bool) bool {
+	normalized := normalizeBodyFieldName(key)
+	if normalized == "code" {
+		return isRequest
+	}
+	_, ok := sensitiveBodyFieldNames[normalized]
+	return ok
+}
+
+// maskSensitiveJSONValue 递归遍历 JSON 结构，命中敏感字段名则整体替换为 ***。
+// changed 记录本次是否有字段被脱敏，避免对未命中任何敏感字段的内容做无意义的重新序列化。
+func maskSensitiveJSONValue(v any, isRequest bool, changed *bool) any {
+	switch t := v.(type) {
+	case map[string]any:
+		for k, val := range t {
+			if isSensitiveBodyField(k, isRequest) {
+				if s, ok := val.(string); !ok || s != sensitiveValueMask {
+					*changed = true
+				}
+				t[k] = sensitiveValueMask
+				continue
+			}
+			t[k] = maskSensitiveJSONValue(val, isRequest, changed)
+		}
+		return t
+	case []any:
+		for i, item := range t {
+			t[i] = maskSensitiveJSONValue(item, isRequest, changed)
+		}
+		return t
+	default:
+		return v
+	}
+}
+
+// maskSensitiveFieldsInText 对日志文本做字段级脱敏（而非仅长度截断）：
+//  1. 优先按 JSON 解析（对象/数组），命中敏感字段名则整体替换为 ***后重新序列化；
+//  2. 非 JSON 时尝试按 form-urlencoded 解析并脱敏（如 application/x-www-form-urlencoded 请求体）；
+//  3. 两者都不是结构化数据（纯文本/HTML/SSE 流等）时原样返回，仅交由 truncateForLog 截断。
+//
+// 未命中任何敏感字段时原样返回原文，避免无意义的重新序列化改变原始格式（便于排查时比对）。
+func maskSensitiveFieldsInText(raw string, isRequest bool) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return raw
+	}
+
+	if trimmed[0] == '{' || trimmed[0] == '[' {
+		var parsed any
+		if err := json.Unmarshal([]byte(trimmed), &parsed); err == nil {
+			changed := false
+			masked := maskSensitiveJSONValue(parsed, isRequest, &changed)
+			if changed {
+				if data, err := json.Marshal(masked); err == nil {
+					return string(data)
+				}
+			}
+			return raw
+		}
+	}
+
+	// form-urlencoded 兜底：仅当文本形如 key=value（且不含 <> 避免误判 HTML）时才尝试
+	if strings.Contains(trimmed, "=") && !strings.ContainsAny(trimmed, "<>") {
+		if values, err := url.ParseQuery(trimmed); err == nil && len(values) > 0 {
+			changed := false
+			for key := range values {
+				if isSensitiveBodyField(key, isRequest) {
+					values.Set(key, sensitiveValueMask)
+					changed = true
+				}
+			}
+			if changed {
+				return values.Encode()
+			}
+		}
+	}
+
+	return raw
+}
+
+// sanitizeLogBody 对请求/响应体做字段级脱敏 + 长度截断。
+// isRequest 区分请求体/响应体：请求体中的裸 "code" 字段（用户提交的验证码）会被脱敏，
+// 响应体的 "code" 字段（utils.Response 状态码包裹）保留，避免所有响应日志都被打成 ***。
+func sanitizeLogBody(raw string, limit int, isRequest bool) string {
 	if raw == "" {
 		return raw
 	}
-	return truncateForLog(raw, limit)
+	masked := maskSensitiveFieldsInText(raw, isRequest)
+	return truncateForLog(masked, limit)
 }
 
 // isSensitiveLogField 判断请求头字段名是否涉及敏感凭证（仅用于请求头脱敏）。

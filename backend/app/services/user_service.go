@@ -36,6 +36,13 @@ type AdminUserListItem struct {
 	RealnameStatus   *uint8  `db:"realname_status" json:"realname_status"`
 	TotalPaidAmount  float64 `db:"total_paid_amount" json:"total_paid_amount"`
 	BalancePaidRatio float64 `db:"balance_paid_ratio" json:"balance_paid_ratio"`
+	// ApikeyMasked 管理端列表/详情展示用：仅末4位，数据库存的哈希/明文都不下发
+	ApikeyMasked string `db:"-" json:"apikey"`
+	// LastSeenAt 最近一次会话心跳时间（跨全部设备取最大值），来自 user_sessions；无会话记录时为 0。
+	// 仅供列表展示「上次在线」参考，不代表当前是否在线。
+	LastSeenAt int64 `db:"-" json:"last_seen_at"`
+	// IsOnline 当前是否在线（依据 LastSeenAt 与在线心跳容忍窗口判定，与专门的在线用户页口径一致）。
+	IsOnline bool `db:"-" json:"is_online"`
 }
 
 // UserListResult 用户列表返回结果
@@ -123,8 +130,25 @@ func (s *UserService) GetList(query *UserListQuery) (*UserListResult, error) {
 		return nil, err
 	}
 
+	userIDs := make([]uint64, 0, len(users))
+	for i := range users {
+		userIDs = append(userIDs, users[i].ID)
+	}
+	lastSeenMap, err := models.GetLastSeenAtByUserIDs(userIDs)
+	if err != nil {
+		// 会话表查询失败不应影响用户列表主流程，仅记录日志并跳过「上次在线」展示。
+		lastSeenMap = map[uint64]int64{}
+	}
+	graceSeconds := models.GetOnlineHeartbeatGraceSeconds()
+	now := time.Now().Unix()
+
 	for i := range users {
 		users[i].AdminRemark = users[i].User.AdminRemark
+		users[i].ApikeyMasked = users[i].User.MaskedApikey()
+		if seen, ok := lastSeenMap[users[i].ID]; ok {
+			users[i].LastSeenAt = seen
+			users[i].IsOnline = seen >= now-graceSeconds
+		}
 	}
 
 	return &UserListResult{
@@ -170,6 +194,13 @@ func (s *UserService) GetAdminDetail(id uint64) (*AdminUserListItem, error) {
 		return nil, err
 	}
 	user.AdminRemark = user.User.AdminRemark
+	user.ApikeyMasked = user.User.MaskedApikey()
+	if lastSeenMap, err := models.GetLastSeenAtByUserIDs([]uint64{user.ID}); err == nil {
+		if seen, ok := lastSeenMap[user.ID]; ok {
+			user.LastSeenAt = seen
+			user.IsOnline = seen >= time.Now().Unix()-models.GetOnlineHeartbeatGraceSeconds()
+		}
+	}
 	return &user, nil
 }
 

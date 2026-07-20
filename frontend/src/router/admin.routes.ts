@@ -237,26 +237,6 @@ export function getAdminRoutes(): RouteRecordRaw[] {
             },
           ],
         },
-        {
-          path: 'log-management',
-          name: 'admin-log-management-legacy',
-          redirect: '/settings/log-management',
-          meta: {
-            title: 'route.logManagement',
-            hide: true,
-            activeMenu: '/settings/log-management',
-          },
-        },
-        {
-          path: 'server-management',
-          name: 'admin-server-management-legacy',
-          redirect: '/settings/server-management',
-          meta: {
-            title: 'route.serverManagement',
-            hide: true,
-            activeMenu: '/settings/server-management',
-          },
-        },
       ],
     },
   ]

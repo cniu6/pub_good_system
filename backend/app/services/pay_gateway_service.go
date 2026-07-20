@@ -6,7 +6,21 @@ import (
 	"fst/backend/utils"
 	"log"
 	"math"
+	"strings"
 )
+
+// payGatewayMaskedValue 支付通道商户密钥对管理端列表/详情的掩码占位值。
+// 与 settings_helpers.go 的敏感设置掩码保持同一约定：非空原值 -> 固定占位串；
+// 更新时前端若原样传回该占位值，视为"未修改密钥"，不覆盖数据库中的真实密钥。
+const payGatewayMaskedValue = "********"
+
+// maskPayGatewayForAdmin 对管理端返回的支付通道做密钥掩码，避免商户密钥通过列表/详情/创建/更新接口明文泄露。
+func maskPayGatewayForAdmin(gw models.PayGateway) models.PayGateway {
+	if strings.TrimSpace(gw.Key) != "" {
+		gw.Key = payGatewayMaskedValue
+	}
+	return gw
+}
 
 // PayGatewayCreateRequest 创建支付通道请求
 type PayGatewayCreateRequest struct {
@@ -86,7 +100,8 @@ func CreatePayGateway(req *PayGatewayCreateRequest) (*models.PayGateway, error) 
 		return nil, errors.New("创建支付通道失败: " + err.Error())
 	}
 
-	return gw, nil
+	masked := maskPayGatewayForAdmin(*gw)
+	return &masked, nil
 }
 
 // UpdatePayGateway 更新支付通道
@@ -103,7 +118,8 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 	// 允许在存在待支付订单时修改 PID/密钥：运维纠错（密钥填错）时不能被卡死。
 	// 风险：旧待支付单的回调验签可能失败，需管理员自行处理（取消旧单或补单）。
 	if pendingCount > 0 {
-		if (req.PID != nil && *req.PID != gw.PID) || (req.Key != nil && *req.Key != gw.Key) {
+		keyChanged := req.Key != nil && *req.Key != payGatewayMaskedValue && *req.Key != gw.Key
+		if (req.PID != nil && *req.PID != gw.PID) || keyChanged {
 			log.Printf("[PayGateway] 存在 %d 笔待支付订单，仍修改通道敏感配置: gateway_id=%d", pendingCount, id)
 		}
 	}
@@ -129,7 +145,8 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 	if req.PID != nil {
 		gw.PID = *req.PID
 	}
-	if req.Key != nil {
+	if req.Key != nil && *req.Key != payGatewayMaskedValue {
+		// 前端回传的密钥若等于掩码占位值，说明管理员未修改密钥输入框，保留数据库中原有密钥
 		gw.Key = *req.Key
 	}
 	if req.LogoURL != nil {
@@ -169,7 +186,8 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 		return nil, errors.New("更新支付通道失败: " + err.Error())
 	}
 
-	return gw, nil
+	masked := maskPayGatewayForAdmin(*gw)
+	return &masked, nil
 }
 
 // DeletePayGateway 删除支付通道
@@ -188,9 +206,26 @@ func DeletePayGateway(id uint64) error {
 	return models.DeletePayGateway(id)
 }
 
-// GetPayGatewayListForAdmin 管理端获取支付通道列表（包含全部信息）
+// GetPayGatewayListForAdmin 管理端获取支付通道列表（商户密钥已掩码，不回传明文）
 func GetPayGatewayListForAdmin(page, pageSize int, keyword string) ([]models.PayGateway, int64, error) {
-	return models.GetPayGatewayList(page, pageSize, keyword, false)
+	gateways, total, err := models.GetPayGatewayList(page, pageSize, keyword, false)
+	if err != nil {
+		return nil, 0, err
+	}
+	for i := range gateways {
+		gateways[i] = maskPayGatewayForAdmin(gateways[i])
+	}
+	return gateways, total, nil
+}
+
+// GetPayGatewayDetailForAdmin 管理端获取支付通道详情（商户密钥已掩码，不回传明文）
+func GetPayGatewayDetailForAdmin(id uint64) (*models.PayGateway, error) {
+	gw, err := models.GetPayGatewayByID(id)
+	if err != nil {
+		return nil, err
+	}
+	masked := maskPayGatewayForAdmin(*gw)
+	return &masked, nil
 }
 
 // GetPayGatewayListForUser 用户端获取支付通道列表（隐藏敏感信息）

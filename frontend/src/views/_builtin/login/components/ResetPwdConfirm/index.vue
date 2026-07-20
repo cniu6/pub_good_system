@@ -11,12 +11,18 @@ const { t } = useI18n()
 const route = useRoute()
 
 const formValue = ref({
+  code: '',
   pwd: '',
   rePwd: '',
 })
 
 const rules = computed(() => {
   return {
+    code: {
+      required: true,
+      trigger: 'blur',
+      message: t('login.codeRequired'),
+    },
     pwd: {
       required: true,
       trigger: 'blur',
@@ -41,14 +47,14 @@ const rules = computed(() => {
   }
 })
 
+// 重置链接出于安全考虑不再携带验证码（避免出现在浏览器历史/服务端日志中），
+// 仅带邮箱；验证码需要用户从邮件正文手动输入。
 const email = ref('')
-const token = ref('')
 
 onMounted(() => {
   email.value = (route.query.email as string) || ''
-  token.value = (route.query.token as string) || ''
 
-  if (!email.value || !token.value) {
+  if (!email.value) {
     window.$message.error(t('login.invalidResetLink'))
     toLogin()
   }
@@ -71,7 +77,7 @@ async function handleConfirm() {
   try {
     const { isSuccess } = await fetchResetPasswordConfirm({
       email: email.value,
-      code: token.value,
+      code: formValue.value.code,
       new_password: formValue.value.pwd,
     })
     if (isSuccess) {
@@ -97,6 +103,13 @@ async function handleConfirm() {
       :show-label="false"
       size="large"
     >
+      <n-form-item path="code">
+        <n-input
+          v-model:value="formValue.code"
+          :placeholder="$t('login.codePlaceholder')"
+          clearable
+        />
+      </n-form-item>
       <n-form-item path="pwd">
         <n-input
           v-model:value="formValue.pwd"

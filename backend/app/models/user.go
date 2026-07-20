@@ -2,10 +2,12 @@ package models
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fst/backend/pkg/db"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -63,7 +65,10 @@ type User struct {
 	UpdatedAtRaw *time.Time `db:"updated_at" json:"-"`
 	DeletedAtRaw *time.Time `db:"deleted_at" json:"-"`
 
-	Apikey     *string `db:"apikey" json:"apikey"`
+	// Apikey 数据库中存储 SHA256 哈希，绝不是明文；因此禁止直接 JSON 下发（json:"-"）。
+	// 展示统一走 MaskedApikey()（仅末4位），明文只在生成/重置的响应中一次性返回。
+	Apikey     *string `db:"apikey" json:"-"`
+	ApikeyHint *string `db:"apikey_hint" json:"-"` // API Key 明文末4位，仅用于拼出展示用的掩码，不是敏感信息
 	UpdateTime *int64  `db:"update_time" json:"update_time"`
 	CreateTime *int64  `db:"create_time" json:"create_time"`
 	DeleteTime *int64  `db:"delete_time" json:"-"`
@@ -77,6 +82,22 @@ type User struct {
 
 func (u *User) TableName() string {
 	return "users"
+}
+
+// MaskedApikey 返回用于展示的掩码 API Key（固定 ******** + 末4位）；
+// 未设置时返回空串。真实哈希/明文都不经此方法或任何 JSON 字段下发，
+// 明文仅在 ResetUserApiKey 生成时一次性返回给调用方。
+func (u *User) MaskedApikey() string {
+	if u == nil || u.Apikey == nil || strings.TrimSpace(*u.Apikey) == "" {
+		return ""
+	}
+	if u.ApikeyHint != nil {
+		hint := strings.TrimSpace(*u.ApikeyHint)
+		if hint != "" {
+			return "********" + hint
+		}
+	}
+	return "********"
 }
 
 func BuildUserSelectColumns(tableAlias string) string {
@@ -113,6 +134,7 @@ func BuildUserSelectColumns(tableAlias string) string {
 		qualified("password"),
 		qualified("status"),
 		qualified("apikey"),
+		qualified("apikey_hint"),
 		qualified("update_time"),
 		qualified("create_time"),
 		qualified("delete_time"),
@@ -128,14 +150,24 @@ func CreateUser(user *User) error {
 	query := `INSERT INTO users (
 		group_id, username, nickname, email, mobile, avatar, back_ground, gender, birthday, 
 		money, score, level, role, last_login_time, last_login_ip, login_failure, 
-		join_ip, join_time, motto, admin_remark, password, status, apikey, update_time, create_time, 
+		join_ip, join_time, motto, admin_remark, password, status, apikey, apikey_hint, update_time, create_time, 
 		language, country, token
 	) VALUES (
 		:group_id, :username, :nickname, :email, :mobile, :avatar, :back_ground, :gender, :birthday, 
 		:money, :score, :level, :role, :last_login_time, :last_login_ip, :login_failure, 
-		:join_ip, :join_time, :motto, :admin_remark, :password, :status, :apikey, :update_time, :create_time, 
+		:join_ip, :join_time, :motto, :admin_remark, :password, :status, :apikey, :apikey_hint, :update_time, :create_time, 
 		:language, :country, :token
 	)`
+
+	// 调用方（如注册自动发放）可能在 user.Apikey 里传入明文，这里统一落库前转成 SHA256 哈希 + 末4位提示，
+	// 数据库任何时候都不落地明文 API Key。
+	if user.Apikey != nil && strings.TrimSpace(*user.Apikey) != "" {
+		plain := strings.TrimSpace(*user.Apikey)
+		hashed := hashAPIKey(plain)
+		hint := apiKeyHint(plain)
+		user.Apikey = &hashed
+		user.ApikeyHint = &hint
+	}
 
 	now := time.Now().Unix()
 	user.CreateTime = &now
@@ -259,30 +291,53 @@ func UpdateLoginInfo(userID uint64, loginIP string) error {
 	return err
 }
 
-// GetUserByApiKey 按 API Key 查找用户（忽略已软删除；空 key 直接未找到）
+// GetUserByApiKey 按 API Key 查找用户（apikey 列存储 SHA256 哈希；忽略已软删除；空 key 直接未找到）。
+// 兼容历史遗留的明文 API Key：哈希未命中时回退按明文查一次，命中后立即回写为哈希+末4位，
+// 不影响该 Key 本次及后续继续可用，逐步淘汰库中明文残留。
 func GetUserByApiKey(apiKey string) (*User, error) {
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" {
 		return nil, sql.ErrNoRows
 	}
+
+	hashed := hashAPIKey(apiKey)
 	var user User
-	err := db.DB.Get(&user, "SELECT "+BuildUserSelectColumns("users")+" FROM users WHERE apikey = ? AND delete_time IS NULL", apiKey)
-	if err != nil {
+	err := db.DB.Get(&user, "SELECT "+BuildUserSelectColumns("users")+" FROM users WHERE apikey = ? AND delete_time IS NULL", hashed)
+	if err == nil {
+		return &user, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
-	return &user, nil
+
+	// 哈希未命中，回退尝试历史遗留明文（老数据升级前发放的 Key）
+	var legacyUser User
+	legacyErr := db.DB.Get(&legacyUser, "SELECT "+BuildUserSelectColumns("users")+" FROM users WHERE apikey = ? AND delete_time IS NULL", apiKey)
+	if legacyErr != nil {
+		return nil, sql.ErrNoRows
+	}
+	hint := apiKeyHint(apiKey)
+	if _, upErr := db.Exec("UPDATE users SET apikey = ?, apikey_hint = ? WHERE id = ? AND apikey = ?", hashed, hint, legacyUser.ID, apiKey); upErr != nil {
+		log.Printf("[User] 回写历史明文 API Key 为哈希失败 user_id=%d: %v", legacyUser.ID, upErr)
+	}
+	legacyUser.Apikey = &hashed
+	legacyUser.ApikeyHint = &hint
+	return &legacyUser, nil
 }
 
-// GenerateApiKey 生成随机 API 密钥（供注册自动发放等调用）
+// GenerateApiKey 生成随机 API 密钥明文（供注册自动发放等调用；落库前会被 CreateUser 统一哈希）
 func GenerateApiKey() string {
 	return generateApiKey()
 }
 
-// ResetUserApiKey 重置用户API密钥
+// ResetUserApiKey 重置用户 API 密钥：落库为 SHA256 哈希 + 末4位提示，返回值为明文，且仅此一次可见，
+// 调用方（用户自服务/管理员操作）需自行妥善展示给用户后即不再可查完整明文。
 func ResetUserApiKey(userID uint64) (string, error) {
 	newKey := generateApiKey()
+	hashed := hashAPIKey(newKey)
+	hint := apiKeyHint(newKey)
 	now := time.Now().Unix()
-	_, err := db.Exec("UPDATE users SET apikey = ?, update_time = ? WHERE id = ?", newKey, now, userID)
+	_, err := db.Exec("UPDATE users SET apikey = ?, apikey_hint = ?, update_time = ? WHERE id = ?", hashed, hint, now, userID)
 	if err != nil {
 		return "", err
 	}
@@ -294,6 +349,21 @@ func generateApiKey() string {
 	b := make([]byte, 20)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// hashAPIKey 对 API Key 明文做 SHA256 哈希（十六进制），用于落库/查询比对，数据库不保存明文。
+func hashAPIKey(raw string) string {
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
+}
+
+// apiKeyHint 取明文末4位供展示用（不敏感，不足4位原样返回）
+func apiKeyHint(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if len(raw) <= 4 {
+		return raw
+	}
+	return raw[len(raw)-4:]
 }
 
 // IncrementLoginFailure 增加登录失败次数，如果达到最大失败次数则锁定账户
