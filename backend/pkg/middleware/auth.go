@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fst/backend/app/models"
+	"fst/backend/app/services"
 	"fst/backend/utils"
 	"log"
 	"strings"
@@ -106,6 +107,15 @@ func authenticateWithJWT(c *gin.Context, authHeader string, acceptGuards []strin
 }
 
 func authenticateWithAPIKey(c *gin.Context, apiKey string, acceptGuards []string) {
+	// 全局总开关：默认关闭，管理员未在后台主动开启前，一律拒绝 X-Api-Key 鉴权方式（必须走 Bearer JWT）。
+	// 该开关读的是内存缓存（services.GlobalSettingsService），不会每次请求都查库；
+	// 管理员在后台保存后会立即刷新缓存，单机部署下无需重启即可生效。
+	if !services.GetGlobalAPIKeyAuthEnabled() {
+		utils.Fail(c, 403, "API Key authentication is disabled")
+		c.Abort()
+		return
+	}
+
 	// 防御：即便误挂到认证公开路由，也拒绝
 	if IsAuthSensitiveAPIPath(c.Request.URL.Path) {
 		utils.Fail(c, 403, "API Key cannot be used on authentication endpoints")

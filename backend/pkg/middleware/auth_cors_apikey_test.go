@@ -76,11 +76,37 @@ func TestAuthCorsAndAPIKey(t *testing.T) {
 		}
 	})
 
+	t.Run("总开关默认关闭时ApiKey鉴权被拒绝", func(t *testing.T) {
+		u := testutil.CreateTestUser(t, "apikey_user_default_off")
+		key, err := models.ResetUserApiKey(u.ID)
+		if err != nil {
+			t.Fatalf("ResetUserApiKey: %v", err)
+		}
+
+		r := gin.New()
+		r.GET("/need", middleware.AuthMiddleware(), func(c *gin.Context) {
+			c.JSON(200, gin.H{"code": 0})
+		})
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/need", nil)
+		req.Header.Set("X-Api-Key", key)
+		r.ServeHTTP(w, req)
+		var resp map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &resp)
+		if resp["code"] != float64(403) {
+			t.Fatalf("默认关闭时期望 403，实际 %v body=%s", resp["code"], w.Body.String())
+		}
+	})
+
 	t.Run("X-Api-Key鉴权成功并写入authMethod", func(t *testing.T) {
 		u := testutil.CreateTestUser(t, "apikey_user_1")
 		key, err := models.ResetUserApiKey(u.ID)
 		if err != nil {
 			t.Fatalf("ResetUserApiKey: %v", err)
+		}
+		// 主动开启总开关后才能走 X-Api-Key 鉴权
+		if err := models.UpdateSetting("api_key_auth_enabled", "true"); err != nil {
+			t.Fatalf("开启api_key_auth_enabled失败: %v", err)
 		}
 
 		r := gin.New()

@@ -151,6 +151,8 @@ var defaultSettings = []SystemSetting{
 	{Key: "admin_rate_limit_enabled", Value: "false", Type: "boolean", Category: "security", Label: "启用管理端限流", Description: "是否对管理员后台接口额外启用更严格的限流", IsPublic: false, IsEditable: true, SortOrder: 16},
 	{Key: "admin_rate_limit_rate", Value: "60", Type: "number", Category: "security", Label: "管理端每秒速率", Description: "管理员后台接口每秒允许请求数", IsPublic: false, IsEditable: true, SortOrder: 17},
 	{Key: "admin_rate_limit_burst", Value: "120", Type: "number", Category: "security", Label: "管理端突发上限", Description: "管理员后台接口限流突发流量上限", IsPublic: false, IsEditable: true, SortOrder: 18},
+	// 默认关闭：未显式开启前，任何 X-Api-Key 请求都会被拒绝，必须走 Bearer JWT；管理员主动开启后才允许 APIKey 鉴权方式
+	{Key: "api_key_auth_enabled", Value: "false", Type: "boolean", Category: "security", Label: "允许APIKey鉴权", Description: "关闭后所有 X-Api-Key 请求直接拒绝（仅允许 Authorization: Bearer 登录），默认关闭，需管理员主动开启", IsPublic: false, IsEditable: true, SortOrder: 19},
 
 	// ===== 邮件设置 =====
 	{Key: "email_verify_enabled", Value: "true", Type: "boolean", Category: "email", Label: "邮箱验证码", Description: "是否启用邮箱验证码功能（关闭后修改邮箱无需验证）", IsPublic: true, IsEditable: true, SortOrder: 0},

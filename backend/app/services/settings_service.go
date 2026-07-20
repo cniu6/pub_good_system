@@ -687,6 +687,16 @@ func GetGlobalAdminRateLimitRuntimeConfig() RateLimitRuntimeConfig {
 	}
 }
 
+// GetGlobalAPIKeyAuthEnabled 是否允许 X-Api-Key 方式鉴权（默认 false，需管理员在后台主动开启）。
+// 走与其他运行时配置一致的内存缓存（GlobalSettingsService），单机场景下管理员后台保存后立即生效，
+// 不需要重启进程；命中的是进程内存里的 map，不会对每次请求都查一次数据库，性能上是安全的。
+func GetGlobalAPIKeyAuthEnabled() bool {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.getRuntimeBool("api_key_auth_enabled", false)
+	}
+	return getDirectSettingBool("api_key_auth_enabled", false)
+}
+
 func GetGlobalAllowRegister() bool {
 	if GlobalSettingsService != nil {
 		return GlobalSettingsService.getRuntimeBool("allow_register", true)
