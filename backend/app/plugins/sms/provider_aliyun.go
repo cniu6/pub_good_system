@@ -35,6 +35,7 @@ func (p *AliyunProvider) SendCode(phone, code string, expireMinutes int, templat
 		return fmt.Errorf("aliyun SMS not configured")
 	}
 
+	userID := ExtractMetaUserID(templateParams)
 	region := p.config.Region
 	if region == "" {
 		region = "cn-hangzhou"
@@ -44,7 +45,7 @@ func (p *AliyunProvider) SendCode(phone, code string, expireMinutes int, templat
 	templateCode := p.templateCodeForLang(lang)
 	templateJSON, err := json.Marshal(templatePayload)
 	if err != nil {
-		p.log(phone, templateName, lang, templateCode, 0, err.Error(), "", "")
+		p.log(userID, phone, templateName, lang, templateCode, 0, err.Error(), "", "")
 		return err
 	}
 
@@ -57,7 +58,7 @@ func (p *AliyunProvider) SendCode(phone, code string, expireMinutes int, templat
 
 	client, err := dysmsapi20170525.NewClient(cfg)
 	if err != nil {
-		p.log(phone, templateName, lang, templateCode, 0, err.Error(), "", "")
+		p.log(userID, phone, templateName, lang, templateCode, 0, err.Error(), "", "")
 		return err
 	}
 
@@ -70,7 +71,7 @@ func (p *AliyunProvider) SendCode(phone, code string, expireMinutes int, templat
 
 	resp, err := client.SendSms(request)
 	if err != nil {
-		p.log(phone, templateName, lang, templateCode, 0, err.Error(), "", "")
+		p.log(userID, phone, templateName, lang, templateCode, 0, err.Error(), "", "")
 		return err
 	}
 
@@ -78,7 +79,7 @@ func (p *AliyunProvider) SendCode(phone, code string, expireMinutes int, templat
 	respStr := string(respBytes)
 	requestID := tea.StringValue(resp.Body.RequestId)
 	if strings.EqualFold(tea.StringValue(resp.Body.Code), "OK") {
-		p.log(phone, templateName, lang, templateCode, 1, "", requestID, respStr)
+		p.log(userID, phone, templateName, lang, templateCode, 1, "", requestID, respStr)
 		return nil
 	}
 
@@ -86,7 +87,7 @@ func (p *AliyunProvider) SendCode(phone, code string, expireMinutes int, templat
 	if msg == "" {
 		msg = tea.StringValue(resp.Body.Code)
 	}
-	p.log(phone, templateName, lang, templateCode, 0, msg, requestID, respStr)
+	p.log(userID, phone, templateName, lang, templateCode, 0, msg, requestID, respStr)
 	return fmt.Errorf("aliyun SMS failed: %s", msg)
 }
 
@@ -98,9 +99,10 @@ func (p *AliyunProvider) templateCodeForLang(lang string) string {
 	return p.config.TemplateCode
 }
 
-func (p *AliyunProvider) log(phone, templateName, lang, templateCode string, status uint8, errMsg, requestID, resp string) {
+func (p *AliyunProvider) log(userID uint64, phone, templateName, lang, templateCode string, status uint8, errMsg, requestID, resp string) {
 	content := fmt.Sprintf("code sent to %s", models.MaskPhone(phone))
 	models.CreateSMSLog(&models.SMSLog{
+		UserID:       userID,
 		Phone:        models.MaskPhone(phone),
 		Provider:     "aliyun",
 		TemplateCode: templateCode,

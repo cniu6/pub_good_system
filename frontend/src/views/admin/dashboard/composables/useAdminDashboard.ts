@@ -283,7 +283,7 @@ export function useAdminDashboard() {
     { label: t('adminDashboard.userManagement'), icon: markRaw(UserOutlined), type: 'primary' as const, path: 'users' },
     { label: t('route.paymentOrders'), icon: markRaw(DollarOutlined), type: 'success' as const, path: 'finance/payment-orders' },
     { label: t('route.withdrawManagement'), icon: markRaw(StarOutlined), type: 'warning' as const, path: 'finance/withdraw' },
-    { label: t('route.realnameVerify'), icon: markRaw(CheckCircleOutlined), type: 'info' as const, path: 'realname' },
+    { label: t('route.realnameVerify'), icon: markRaw(CheckCircleOutlined), type: 'info' as const, path: 'users/realname' },
     { label: t('route.logManagement'), icon: markRaw(FileTextOutlined), type: 'default' as const, path: 'settings/log-management' },
     { label: t('route.serverManagement'), icon: markRaw(SettingOutlined), type: 'error' as const, path: 'settings/server-management' },
   ])
@@ -493,7 +493,7 @@ export function useAdminDashboard() {
         title: t('adminDashboard.pendingRealname'),
         detail: t('adminDashboard.pendingRealnameDetail', { count: statistics.pending_realname_count }),
         priority: 84,
-        path: 'realname',
+        path: 'users/realname',
         actionLabel: t('adminDashboard.handleNow'),
       })
     }

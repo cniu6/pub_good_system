@@ -6,7 +6,6 @@ import (
 	"fst/backend/utils"
 	"log"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -178,11 +177,27 @@ func (ctrl *ProfileController) GetDashboard(c *gin.Context) {
 
 	login_count, _ := models.GetUserLoginCount(uid)
 
-	// 公告列表（可扩展为从数据库读取）
-	announcements := []gin.H{
-		{"id": 1, "type": "info", "title": "系统维护通知", "content": "系统将于本周六凌晨进行维护升级", "time": time.Now().Unix()},
-		{"id": 2, "type": "success", "title": "新功能上线", "content": "用户中心新增设备管理和账号安全功能", "time": time.Now().Unix()},
-		{"id": 3, "type": "warning", "title": "安全提醒", "content": "请定期修改密码以保障账号安全", "time": time.Now().Unix()},
+	// 站内公告：开关关闭时返回空列表；开启则取最近 5 条摘要
+	enabled := models.IsAnnouncementEnabled()
+	announcements := []gin.H{}
+	if enabled {
+		role := user.Role
+		if role != "admin" {
+			role = "user"
+		}
+		list, err := models.ListDashboardAnnouncements(uid, role, 5)
+		if err == nil {
+			for _, item := range list {
+				announcements = append(announcements, gin.H{
+					"id":      item.ID,
+					"title":   item.Title,
+					"content": models.DisplaySummary(item.Announcement),
+					"summary": models.DisplaySummary(item.Announcement),
+					"type":    item.Type,
+					"is_read": item.IsRead,
+				})
+			}
+		}
 	}
 
 	utils.Success(c, gin.H{
@@ -200,6 +215,7 @@ func (ctrl *ProfileController) GetDashboard(c *gin.Context) {
 			"loginCount": login_count,
 			"daysJoined": calculateDaysJoined(user.JoinTime),
 		},
-		"announcements": announcements,
+		"announcements":        announcements,
+		"announcement_enabled": enabled,
 	})
 }

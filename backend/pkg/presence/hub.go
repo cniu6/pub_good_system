@@ -102,6 +102,42 @@ func MarshalForceLogout(reason string) []byte {
 	return data
 }
 
+// writeJSON 向单个连接写 JSON（带写锁）
+func (c *Client) writeJSON(v interface{}) {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	_ = c.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	_ = c.conn.WriteJSON(v)
+}
+
+// BroadcastJSON 向所有在线连接广播一条业务消息（如公告发布）。单机 Hub；多实例需总线。
+func (h *Hub) BroadcastJSON(v interface{}) {
+	h.mu.Lock()
+	clients := make([]*Client, 0, len(h.bySession))
+	for _, c := range h.bySession {
+		clients = append(clients, c)
+	}
+	h.mu.Unlock()
+	for _, c := range clients {
+		c.writeJSON(v)
+	}
+}
+
+// BroadcastToUserJSON 向指定用户的所有在线连接推送
+func (h *Hub) BroadcastToUserJSON(userID uint64, v interface{}) {
+	h.mu.Lock()
+	clients := make([]*Client, 0)
+	for _, c := range h.bySession {
+		if c.UserID == userID {
+			clients = append(clients, c)
+		}
+	}
+	h.mu.Unlock()
+	for _, c := range clients {
+		c.writeJSON(v)
+	}
+}
+
 var defaultHub = NewHub()
 
 // DefaultHub 返回全局单机 Hub。

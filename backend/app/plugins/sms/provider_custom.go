@@ -37,21 +37,21 @@ func (p *CustomProvider) Send(phone, content string) error {
 
 	body, err := p.buildBody(phone, content, nil)
 	if err != nil {
-		p.log(phone, "send", "", 0, err.Error(), "", "")
+		p.log(0, phone, "send", "", 0, err.Error(), "", "")
 		return err
 	}
 
 	resp, err := p.doPost(body)
 	if err != nil {
-		p.log(phone, "send", "", 0, err.Error(), "", "")
+		p.log(0, phone, "send", "", 0, err.Error(), "", "")
 		return err
 	}
 
 	if p.isSuccess(resp) {
-		p.log(phone, "send", "", 1, "", "", resp)
+		p.log(0, phone, "send", "", 1, "", "", resp)
 		return nil
 	}
-	p.log(phone, "send", "", 0, "provider returned failure", "", resp)
+	p.log(0, phone, "send", "", 0, "provider returned failure", "", resp)
 	return fmt.Errorf("custom SMS provider returned failure: %s", resp)
 }
 
@@ -60,6 +60,7 @@ func (p *CustomProvider) SendCode(phone, code string, expireMinutes int, templat
 		return fmt.Errorf("custom SMS endpoint not configured")
 	}
 
+	userID := ExtractMetaUserID(templateParams)
 	templateName, params, _ := normalizeTemplateParams(code, expireMinutes, templateParams)
 	templateMgr := getTemplateManager()
 	content, signName := templateMgr.Render(templateName, normalizeSMSLang(lang), code, fmt.Sprintf("%d", expireMinutes))
@@ -69,21 +70,21 @@ func (p *CustomProvider) SendCode(phone, code string, expireMinutes int, templat
 
 	body, err := p.buildBody(phone, content, params)
 	if err != nil {
-		p.log(phone, templateName, lang, 0, err.Error(), "", "")
+		p.log(userID, phone, templateName, lang, 0, err.Error(), "", "")
 		return err
 	}
 
 	resp, err := p.doPost(body)
 	if err != nil {
-		p.log(phone, templateName, lang, 0, err.Error(), "", "")
+		p.log(userID, phone, templateName, lang, 0, err.Error(), "", "")
 		return err
 	}
 
 	if p.isSuccess(resp) {
-		p.log(phone, templateName, lang, 1, "", "", resp)
+		p.log(userID, phone, templateName, lang, 1, "", "", resp)
 		return nil
 	}
-	p.log(phone, templateName, lang, 0, "provider returned failure", "", resp)
+	p.log(userID, phone, templateName, lang, 0, "provider returned failure", "", resp)
 	return fmt.Errorf("custom SMS provider returned failure: %s", resp)
 }
 
@@ -199,9 +200,10 @@ func (p *CustomProvider) isSuccess(resp string) bool {
 		(strings.Contains(lower, `"errcode"`) && (strings.Contains(lower, `"0"`) || strings.Contains(lower, `"ok"`)))
 }
 
-func (p *CustomProvider) log(phone, templateName, lang string, status uint8, errMsg, requestID, resp string) {
+func (p *CustomProvider) log(userID uint64, phone, templateName, lang string, status uint8, errMsg, requestID, resp string) {
 	content := fmt.Sprintf("code sent to %s", models.MaskPhone(phone))
 	models.CreateSMSLog(&models.SMSLog{
+		UserID:       userID,
 		Phone:        models.MaskPhone(phone),
 		Provider:     "custom",
 		TemplateCode: p.config.TemplateCode,

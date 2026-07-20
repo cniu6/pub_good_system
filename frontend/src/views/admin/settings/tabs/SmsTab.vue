@@ -7,6 +7,8 @@ const {
   smsForm,
   switchLoading,
   savingSms,
+  testingSms,
+  testSmsPhone,
   smsProviderOptions,
   smsBodyFormatOptions,
   smsProviderNeedsSignName,
@@ -21,11 +23,19 @@ const {
   handleUpdateMobileCnOnly,
   handleUpdateMobileIpCountryDetect,
   handleSaveSms,
+  handleTestSms,
 } = useAdminSettings()
 </script>
 
 <template>
   <n-space vertical>
+    <!-- 双轨说明：云厂商 template_code vs 本地 sms_templates 表 -->
+    <n-alert type="warning" :title="t('adminSettings.smsDualTrackTitle')" :bordered="false">
+      <div style="font-size: 13px; line-height: 1.7; white-space: pre-line;">
+        {{ t('adminSettings.smsDualTrackBody') }}
+      </div>
+    </n-alert>
+
     <n-form :model="smsForm" label-placement="left" label-width="140px" style="max-width: 640px;">
       <n-form-item :label="t('adminSettings.smsVerification')">
         <n-space align="center">
@@ -121,8 +131,27 @@ const {
           :placeholder="t('adminSettings.smsBodyFormatPlaceholder')"
         />
       </n-form-item>
+      <n-divider />
+      <n-form-item :label="t('adminSettings.testSmsPhone')">
+        <n-input
+          v-model:value="testSmsPhone"
+          :placeholder="t('adminSettings.testSmsPhonePlaceholder')"
+          clearable
+        />
+      </n-form-item>
       <n-form-item>
-        <n-button type="primary" :loading="savingSms" @click="handleSaveSms">{{ t('adminSettings.saveSettings') }}</n-button>
+        <n-space>
+          <n-button type="primary" :loading="savingSms" @click="() => handleSaveSms()">
+            {{ t('adminSettings.saveSettings') }}
+          </n-button>
+          <n-button
+            :loading="testingSms"
+            :disabled="!String(testSmsPhone || '').trim()"
+            @click="handleTestSms"
+          >
+            {{ t('adminSettings.sendTestSms') }}
+          </n-button>
+        </n-space>
       </n-form-item>
     </n-form>
     <n-alert type="info" :title="t('adminSettings.tip')" :bordered="false">

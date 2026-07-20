@@ -38,8 +38,13 @@ type SendResult struct {
 	Error   error
 }
 
-// SendEmail 发送简单邮件
+// SendEmail 发送简单邮件（匿名，user_id=0）
 func (s *EmailService) SendEmail(to, subject, body string) error {
+	return s.SendEmailWithUser(0, to, subject, body)
+}
+
+// SendEmailWithUser 发送简单邮件并写入关联 user_id
+func (s *EmailService) SendEmailWithUser(userID uint64, to, subject, body string) error {
 	msg := utils.EmailMessage{
 		To:      to,
 		Subject: subject,
@@ -56,7 +61,7 @@ func (s *EmailService) SendEmail(to, subject, body string) error {
 		error_msg = err.Error()
 	}
 
-	if logErr := models.CreateEmailLog(to, subject, body, "", status, error_msg); logErr != nil {
+	if logErr := models.CreateEmailLogWithUser(userID, to, subject, body, "", status, error_msg); logErr != nil {
 		log.Printf("[Email] 记录邮件日志失败: %v", logErr)
 	}
 
@@ -82,8 +87,13 @@ func buildEmailLogContent(templateName, content string) string {
 	return content
 }
 
-// SendTemplateEmail 发送模板邮件
+// SendTemplateEmail 发送模板邮件（匿名，user_id=0）
 func (s *EmailService) SendTemplateEmail(to, template_name, lang string, vars map[string]string) error {
+	return s.SendTemplateEmailWithUser(0, to, template_name, lang, vars)
+}
+
+// SendTemplateEmailWithUser 发送模板邮件并写入关联 user_id（登录用户绑邮箱/改密等应传真实 ID）
+func (s *EmailService) SendTemplateEmailWithUser(userID uint64, to, template_name, lang string, vars map[string]string) error {
 	subject, content, err := s.RenderTemplateMail(template_name, lang, vars)
 	if err != nil {
 		return err
@@ -110,7 +120,7 @@ func (s *EmailService) SendTemplateEmail(to, template_name, lang string, vars ma
 	}
 
 	loggedContent := buildEmailLogContent(template_name, content)
-	if logErr := models.CreateEmailLog(to, subject, loggedContent, template_name, status, error_msg); logErr != nil {
+	if logErr := models.CreateEmailLogWithUser(userID, to, subject, loggedContent, template_name, status, error_msg); logErr != nil {
 		log.Printf("[Email] 记录模板邮件日志失败: %v", logErr)
 	}
 

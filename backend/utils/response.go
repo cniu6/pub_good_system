@@ -29,9 +29,21 @@ func SuccessMsg(c *gin.Context, message string, data any) {
 	})
 }
 
+// httpStatus 把业务 code 映射为真实 HTTP 状态码。
+// 项目里 Fail 传入的 code 约定就是标准 HTTP 错误码（400/401/403/404/409/429/500 等），
+// 落在合法错误状态区间 [400,599] 时直接原样作为 HTTP 状态，
+// 让网关/中间件按 c.Writer.Status() 统计的 4xx/5xx 才准确；
+// 否则（如历史遗留的非标准业务码）兜底成 500，避免 c.JSON 传入非法状态码。
+func httpStatus(code int) int {
+	if code >= 400 && code <= 599 {
+		return code
+	}
+	return 500
+}
+
 func Fail(c *gin.Context, code int, message string) {
 	c.Set(CtxBizOK, false)
-	c.JSON(200, Response{
+	c.JSON(httpStatus(code), Response{
 		Code:    code,
 		Message: message,
 		Data:    nil,

@@ -53,6 +53,9 @@ export const useSettingsStore = defineStore('settings-store', () => {
   // 是否允许注册
   const allowRegister = computed(() => config.value?.allow_register ?? true)
 
+  // 站内公告总开关（关闭后用户端不展示铃铛/工作台公告区）
+  const announcementEnabled = computed(() => config.value?.announcement_enabled ?? true)
+
   // 是否允许注销账号
   const allowDeleteAccount = computed(() => config.value?.allow_delete_account ?? false)
 
@@ -177,6 +180,7 @@ export const useSettingsStore = defineStore('settings-store', () => {
     icp,
     version,
     allowRegister,
+    announcementEnabled,
     allowDeleteAccount,
     defaultLang,
     geetestEnabled,

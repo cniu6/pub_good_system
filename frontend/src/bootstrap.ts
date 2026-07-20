@@ -22,6 +22,20 @@ async function setupApp(app: AppInstance<Element>, mode: AppRouteMode) {
   const settingsStore = useSettingsStore()
   await settingsStore.loadConfig()
 
+  // 2.1 本地无语言偏好时，用后端 app-config.default_lang 同步到 appStore（已有 localStorage.lang 不覆盖）
+  {
+    const { useAppStore } = await import('./store/app')
+    const { local } = await import('./utils')
+    if (!local.get('lang')) {
+      const raw = String(settingsStore.defaultLang || 'zhCN').trim()
+      // 后端 default_lang 存的是前端格式 zhCN / enUS
+      const resolved: App.lang = (raw === 'enUS' || raw === 'en-US') ? 'enUS' : 'zhCN'
+      const appStore = useAppStore()
+      if (appStore.lang !== resolved)
+        appStore.setAppLang(resolved)
+    }
+  }
+
   // 3. 安装其他模块
   setupI18n(app)
   await installRouter(app, mode)

@@ -2,7 +2,7 @@ import { computed, readonly, ref } from 'vue'
 import { getBrowserId } from '@/utils/browserId'
 
 // 默认上报周期（毫秒）；实际值优先取管理端可配置的「在线心跳上报周期」（默认30秒），见 startPresence 的 intervalMs 参数。
-const DEFAULT_PING_INTERVAL = 25_000
+const DEFAULT_PING_INTERVAL = 30_000
 const MAX_RECONNECT_DELAY = 30_000
 const PRESENCE_CHANNEL = 'fst-presence-leader'
 
@@ -97,10 +97,19 @@ function connect() {
         clearTimers()
         socket?.close()
         forceLogoutHandler?.()
+        return
+      }
+      // 公告发布实时事件：通知铃铛/其它标签刷新
+      if (message?.type === 'announcement' || message?.type === 'unread_count') {
+        window.dispatchEvent(new CustomEvent('fst:announcement', { detail: message }))
+        try {
+          presenceChannel?.postMessage({ type: 'announcement', payload: message })
+        }
+        catch { /* ignore */ }
       }
     }
     catch {
-      // Presence 不处理其他业务消息。
+      // 忽略非 JSON
     }
   }
 
@@ -165,7 +174,7 @@ function setupPresenceLeaderElection() {
 
   presenceChannel = new BroadcastChannel(PRESENCE_CHANNEL)
   presenceChannel.onmessage = (event) => {
-    const data = event.data as { type?: string, tabId?: string } | null
+    const data = event.data as { type?: string, tabId?: string, payload?: unknown } | null
     if (!data?.type)
       return
     if (data.type === 'leader' && data.tabId && data.tabId !== tabId) {
@@ -178,6 +187,10 @@ function setupPresenceLeaderElection() {
     else if (data.type === 'need-leader') {
       if (isLeader)
         presenceChannel?.postMessage({ type: 'leader', tabId: ensureTabId() })
+    }
+    else if (data.type === 'announcement') {
+      // 非 leader 标签也刷新铃铛
+      window.dispatchEvent(new CustomEvent('fst:announcement', { detail: data.payload }))
     }
   }
 
@@ -214,7 +227,7 @@ function teardownPresenceLeaderElection() {
 
 /**
  * 建立 Presence 心跳连接。
- * @param intervalMs 心跳上报周期（毫秒），来自管理端可配置的「在线心跳上报周期」设置，默认25秒。
+ * @param intervalMs 心跳上报周期（毫秒），来自管理端可配置的「在线心跳上报周期」设置，默认 30 秒。
  */
 export function startPresence(token: string, onForceLogout: () => void, intervalMs?: number) {
   if (!token)

@@ -414,7 +414,7 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 		"link": resetLink,
 	}
 
-	if err := ctrl.email_svc.SendTemplateEmail(user.Email, "reset_password", lang, vars); err != nil {
+	if err := ctrl.email_svc.SendTemplateEmailWithUser(user.ID, user.Email, "reset_password", lang, vars); err != nil {
 		if isNonProductionMode() {
 			log.Printf("[AUTH] failed to send reset password email: %v", err)
 		}

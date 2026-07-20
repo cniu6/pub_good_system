@@ -32,7 +32,9 @@ import {
   smsForm,
   switchLoading,
   testEmailTo,
+  testSmsPhone,
   testingEmail,
+  testingSms,
 } from './settingsState'
 
 export function useSettingsActions() {
@@ -60,6 +62,7 @@ export function useSettingsActions() {
             if (item.key === 'version') basicForm.version = String(item.value || '')
             if (item.key === 'default_lang') basicForm.default_lang = String(item.value || 'zhCN')
             if (item.key === 'allow_register') basicForm.allow_register = parseBooleanSetting(item.value)
+            if (item.key === 'announcement_enabled') basicForm.announcement_enabled = parseBooleanSetting(item.value)
             if (item.key === 'allow_delete_account') securityForm.allow_delete_account = parseBooleanSetting(item.value)
             if (item.key === 'frontend_url') basicForm.frontend_url = String(item.value || '')
             if (item.key === 'backend_api_url') basicForm.backend_api_url = String(item.value || '')
@@ -172,6 +175,18 @@ export function useSettingsActions() {
       () => settingsStore.updateConfig({ allow_register: nextValue }),
       'adminSettings.registerSwitchUpdated',
       'adminSettings.registerSwitchUpdateFailed',
+    )
+  }
+
+  async function handleUpdateAnnouncementEnabled(nextValue: boolean) {
+    await toggleSetting(
+      'announcement_enabled',
+      () => basicForm.announcement_enabled,
+      v => { basicForm.announcement_enabled = v },
+      nextValue,
+      () => settingsStore.updateConfig({ announcement_enabled: nextValue }),
+      'adminSettings.announcementSwitchUpdated',
+      'adminSettings.announcementSwitchUpdateFailed',
     )
   }
 
@@ -340,7 +355,7 @@ export function useSettingsActions() {
     )
   }
 
-  async function handleSaveSms() {
+  async function handleSaveSms(options?: { silent?: boolean }): Promise<boolean> {
     savingSms.value = true
     try {
       const res = await adminApi.settings.batchUpdate({
@@ -355,14 +370,50 @@ export function useSettingsActions() {
         sms_endpoint: smsForm.sms_endpoint,
         sms_body_format: smsForm.sms_body_format,
       })
-      if (res.isSuccess) message.success(res.message || t('adminSettings.smsSettingsSaved'))
-      else message.error(res.message || t('adminSettings.smsSettingsSaveFailed'))
+      if (res.isSuccess) {
+        if (!options?.silent)
+          message.success(res.message || t('adminSettings.smsSettingsSaved'))
+        return true
+      }
+      message.error(res.message || t('adminSettings.smsSettingsSaveFailed'))
+      return false
     }
     catch {
       message.error(t('adminSettings.saveFailed'))
+      return false
     }
     finally {
       savingSms.value = false
+    }
+  }
+
+  async function handleTestSms() {
+    const phone = String(testSmsPhone.value || '').trim()
+    if (!phone) {
+      message.warning(t('adminSettings.testSmsPhoneRequired'))
+      return
+    }
+
+    testingSms.value = true
+    try {
+      // 先静默保存当前表单，避免「改了配置却没保存」测的还是旧通道
+      const saved = await handleSaveSms({ silent: true })
+      if (!saved) {
+        message.error(t('adminSettings.testSmsNeedSaveFirst'))
+        return
+      }
+
+      const res = await adminApi.smsTemplate.sendTest({ phone })
+      if (res.isSuccess)
+        message.success(res.data?.message || t('adminSettings.testSmsSent'))
+      else
+        message.error(res.message || t('adminSettings.testSmsFailed'))
+    }
+    catch (error: any) {
+      message.error(error?.message || t('adminSettings.testSmsFailed'))
+    }
+    finally {
+      testingSms.value = false
     }
   }
 
@@ -674,6 +725,7 @@ export function useSettingsActions() {
   return {
     loadSettings,
     handleUpdateAllowRegister,
+    handleUpdateAnnouncementEnabled,
     handleUpdateAllowDeleteAccount,
     handleUpdateSmtpSSL,
     handleUpdateSmtpProxyEnabled,
@@ -691,6 +743,7 @@ export function useSettingsActions() {
     handleSaveEmail,
     handleTestEmail,
     handleSaveSms,
+    handleTestSms,
     handleSaveSecurity,
     handleRestartBackend,
     handleSaveRealnameApi,

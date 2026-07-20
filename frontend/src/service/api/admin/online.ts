@@ -1,6 +1,7 @@
 import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
+/** 单条在线设备会话 */
 export interface OnlineSession {
   id: number
   user_id: number
@@ -18,6 +19,18 @@ export interface OnlineSession {
   last_seen_at: number
   expires_at: number
   created_at: number
+}
+
+/** 管理端在线列表：同一用户+登录端归为一行，多设备挂在 devices */
+export interface OnlineUserRow {
+  user_id: number
+  username?: string
+  nickname?: string
+  auth_guard: string
+  device_count: number
+  last_seen_at: number
+  is_online: boolean
+  devices: OnlineSession[]
 }
 
 export interface OnlineSessionListParams {
@@ -38,7 +51,7 @@ export const adminOnlineApi = {
   },
 
   sessions(params?: OnlineSessionListParams) {
-    return request.Get<Service.ResponseResult<{ list: OnlineSession[]; total: number; page: number; page_size: number }>>(
+    return request.Get<Service.ResponseResult<{ list: OnlineUserRow[]; total: number; page: number; page_size: number }>>(
       `${baseUrl()}/sessions`,
       { params },
     )

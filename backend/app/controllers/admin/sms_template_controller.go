@@ -2,11 +2,14 @@ package admin
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"fst/backend/app/models"
 	sms_plugin "fst/backend/app/plugins/sms"
+	"fst/backend/app/services"
+	"fst/backend/pkg/config"
 	"fst/backend/utils"
 
 	"github.com/gin-gonic/gin"
@@ -203,6 +206,82 @@ func (ctrl *SMSTemplateController) Reset(c *gin.Context) {
 
 	sms_plugin.ReloadTemplates()
 	utils.Success(c, gin.H{"message": "Template reset successfully"})
+}
+
+// SMSSendTestRequest 短信发送测试请求
+type SMSSendTestRequest struct {
+	Phone string `json:"phone" binding:"required"`
+	Lang  string `json:"lang"`
+}
+
+// SendTest 短信发送测试（对齐邮件 email-send-test）
+// 无真实云配置时可走 console/已配置的 sms 插件；失败返回清晰错误，便于后续接真云。
+// @Summary 短信发送测试
+// @Tags Admin-短信模板
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body SMSSendTestRequest true "测试手机号"
+// @Success 200 {object} utils.Response
+// @Router /api/v1/admin/sms-send-test [post]
+func (ctrl *SMSTemplateController) SendTest(c *gin.Context) {
+	var req SMSSendTestRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+
+	phone := strings.TrimSpace(req.Phone)
+	if phone == "" {
+		utils.Fail(c, 400, "手机号不能为空")
+		return
+	}
+	normalized, err := utils.NormalizeAndValidateMobile(phone, services.GetGlobalMobileCNOnly())
+	if err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+
+	if services.GlobalSMSService == nil {
+		utils.Fail(c, 500, "短信服务未初始化")
+		return
+	}
+	providerName := services.GlobalSMSService.GetProviderName()
+	if providerName == "none" {
+		utils.Fail(c, 500, "未配置短信服务商")
+		return
+	}
+	// 生产环境不允许仅靠 console；本地开发允许 console 打日志验证链路
+	if providerName != "console" && !services.GlobalSMSService.IsConfigured() {
+		utils.Fail(c, 500, "短信服务商未完成配置（请检查 AccessKey / 签名 / 模板 Code 等）")
+		return
+	}
+	if providerName == "console" && !config.IsProductionMode() {
+		// 本地 console 可测
+	} else if providerName == "console" {
+		utils.Fail(c, 500, "生产环境不可使用 console 短信通道，请配置云厂商或 custom")
+		return
+	}
+
+	lang := strings.TrimSpace(req.Lang)
+	if lang == "" {
+		lang = "zh-CN"
+	}
+	testCode := "888888"
+	params := map[string]string{
+		"__template_name":  "bind_phone",
+		"__template_order": "code,expire",
+	}
+	if err := services.GlobalSMSService.SendCode(normalized, testCode, 10, params, lang); err != nil {
+		utils.Fail(c, 500, fmt.Sprintf("发送测试短信失败: %v", err))
+		return
+	}
+
+	utils.Success(c, gin.H{
+		"message":  "测试短信已发送（或已写入 console 日志）",
+		"provider": providerName,
+		"phone":    models.MaskPhone(normalized),
+	})
 }
 
 func parseSMSTemplateID(c *gin.Context) (uint64, error) {

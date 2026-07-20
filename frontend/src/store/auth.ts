@@ -118,16 +118,30 @@ export const useAuthStore = defineStore('auth-store', {
       try {
         const mode = getRuntimeRouteMode()
         const authGuard = mode === 'admin' ? 'admin' : 'user'
-        const { isSuccess, data } = await fetchLogin({ userName, password, authGuard })
+        const result = await fetchLogin({ userName, password, authGuard })
+        const { isSuccess, data } = result
         const loginData = data as LoginInfoPayload | undefined
-        if (!isSuccess || !loginData)
+        if (!isSuccess || !loginData) {
+          // 拦截器通常已 toast 业务错误；这里再兜底一次，避免完全静默
+          const tip = typeof (result as { message?: string }).message === 'string'
+            && (result as { message?: string }).message
+            ? (result as { message: string }).message
+            : $t('login.loginFailed')
+          window.$message?.error(tip)
           return
+        }
 
         // 处理登录信息
         await this.handleLoginInfo(loginData)
       }
-      catch {
-        // do nothing
+      catch (error: unknown) {
+        // handleLoginInfo 抛错或网络异常时给出明确提示（网络层可能已 toast，这里兜底）
+        const tip = error && typeof error === 'object' && 'message' in error
+          && typeof (error as { message?: unknown }).message === 'string'
+          && (error as { message: string }).message
+          ? (error as { message: string }).message
+          : $t('login.loginFailed')
+        window.$message?.error(tip)
       }
     },
 
@@ -220,7 +234,7 @@ export const useAuthStore = defineStore('auth-store', {
     startPresence() {
       if (!this.token)
         return
-      // 上报周期取管理端可配置的「在线心跳上报周期」（默认30秒），未加载完成时组合式函数内部兜底为25秒。
+      // 上报周期取管理端可配置的「在线心跳上报周期」（默认30秒），未加载完成时组合式函数内部兜底为30秒。
       const settingsStore = useSettingsStore()
       const intervalMs = settingsStore.onlineReportIntervalSeconds * 1000
       startPresence(this.token, () => {

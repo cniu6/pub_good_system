@@ -9,6 +9,7 @@ const {
   switchLoading,
   savingBasic,
   handleUpdateAllowRegister,
+  handleUpdateAnnouncementEnabled,
   handleSaveBasic,
 } = useAdminSettings()
 </script>
@@ -52,6 +53,13 @@ const {
           />
           <n-text depth="3">{{ basicForm.allow_register ? t('adminSettings.allowRegister') : t('adminSettings.disallowRegister') }}</n-text>
         </n-space>
+      </n-form-item>
+      <n-form-item :label="t('adminSettings.announcementEnabled')">
+        <n-switch
+          :value="basicForm.announcement_enabled"
+          :loading="switchLoading.announcement_enabled"
+          @update:value="handleUpdateAnnouncementEnabled"
+        />
       </n-form-item>
       <n-form-item>
         <n-button type="primary" :loading="savingBasic" @click="handleSaveBasic">{{ t('adminSettings.saveSettings') }}</n-button>

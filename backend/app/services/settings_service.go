@@ -217,6 +217,7 @@ type PublicAppConfig struct {
 	Copyright          string `json:"copyright"`
 	ICP                string `json:"icp"`
 	AllowRegister      bool   `json:"allow_register"`
+	AnnouncementEnabled bool  `json:"announcement_enabled"`
 	AllowDeleteAccount bool   `json:"allow_delete_account"`
 	DefaultLang        string `json:"default_lang"`
 	Version            string `json:"version"`
@@ -823,6 +824,7 @@ func (s *SettingsService) GetPublicAppConfig() *PublicAppConfig {
 		Copyright:          s.GetWithDefault("copyright", "(c) 2024 F.st"),
 		ICP:                s.GetWithDefault("icp", ""),
 		AllowRegister:      s.GetBoolWithDefault("allow_register", true),
+		AnnouncementEnabled: s.GetBoolWithDefault("announcement_enabled", true),
 		AllowDeleteAccount: s.GetBool("allow_delete_account"),
 		DefaultLang:        s.GetWithDefault("default_lang", "zhCN"),
 		Version:            s.GetWithDefault("version", "1.0.0"),

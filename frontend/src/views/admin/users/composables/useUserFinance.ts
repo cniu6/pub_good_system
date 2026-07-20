@@ -7,7 +7,7 @@ import { NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { adminUserApi } from '@/service/api/admin/user'
 import type { AdminUser, UserSimpleInfo } from '@/service/api/admin/user'
-import { addScoreLog, fetchWithdrawRecords, generateNos, operateUserMoney } from '@/service/api/admin/finance'
+import { adminApi } from '@/service/api/admin'
 import type { MoneyOperationPayload, WithdrawRecord } from '@/service/api/admin/finance'
 import {
   formatTime,
@@ -102,7 +102,7 @@ export function useUserFinance(options: {
 
     withdrawLoading.value = true
     try {
-      const response: any = await fetchWithdrawRecords({
+      const response: any = await adminApi.finance.fetchWithdrawRecords({
         page: withdrawPagination.page,
         page_size: withdrawPagination.pageSize,
         user_id: options.selectedUser.value.id,
@@ -231,7 +231,7 @@ export function useUserFinance(options: {
     try {
       options.submitting.value = true
 
-      const response: any = await operateUserMoney(options.selectedUser.value.id, {
+      const response: any = await adminApi.finance.operateUserMoney(options.selectedUser.value.id, {
         money: Number(balanceForm.amount || 0),
         memo: balanceForm.memo,
         operation: balanceForm.operation as MoneyOperationPayload['operation'],
@@ -263,7 +263,7 @@ export function useUserFinance(options: {
    */
   async function handleAutoFillNo(field: 'order' | 'trade') {
     try {
-      const res: any = await generateNos()
+      const res: any = await adminApi.finance.generateNos()
       if (!res.isSuccess) {
         message.error(res.message || (
           field === 'order' ? t('adminUsers.generateOrderNoFailed') : t('adminUsers.generateTradeNoFailed')
@@ -320,7 +320,7 @@ export function useUserFinance(options: {
         }
       }
       else if (scoreForm.operation === 'log') {
-        const response: any = await addScoreLog(options.selectedUser.value.id, {
+        const response: any = await adminApi.finance.addScoreLog(options.selectedUser.value.id, {
           score: scoreForm.amount,
           memo: scoreForm.memo,
         })

@@ -18,7 +18,7 @@ import {
 import type { AdminUser, AdminUserRealnameSummary, UserSimpleInfo } from '@/service/api/admin/user'
 import { adminPaymentApi } from '@/service/api/admin/payment'
 import { adminOnlineApi, type OnlineSession } from '@/service/api/admin/online'
-import { fetchAllMoneyLogs, fetchAllScoreLogs, fetchWithdrawRecords } from '@/service/api/admin/finance'
+import { adminApi } from '@/service/api/admin'
 import type { WithdrawRecord } from '@/service/api/admin/finance'
 import WithdrawDetailModal from './components/WithdrawDetailModal.vue'
 import {
@@ -422,7 +422,7 @@ async function fetchMoneyData() {
 
   moneyLoading.value = true
   try {
-    const response: any = await fetchAllMoneyLogs({
+    const response: any = await adminApi.finance.fetchAllMoneyLogs({
       page: moneyPagination.page,
       page_size: moneyPagination.pageSize,
       user_id: userId.value,
@@ -453,7 +453,7 @@ async function fetchScoreData() {
 
   scoreLoading.value = true
   try {
-    const response: any = await fetchAllScoreLogs({
+    const response: any = await adminApi.finance.fetchAllScoreLogs({
       page: scorePagination.page,
       page_size: scorePagination.pageSize,
       user_id: userId.value,
@@ -484,7 +484,7 @@ async function fetchWithdrawData() {
 
   withdrawLoading.value = true
   try {
-    const response: any = await fetchWithdrawRecords({
+    const response: any = await adminApi.finance.fetchWithdrawRecords({
       page: withdrawPagination.page,
       page_size: withdrawPagination.pageSize,
       user_id: userId.value,

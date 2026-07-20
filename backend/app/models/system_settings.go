@@ -114,6 +114,7 @@ var defaultSettings = []SystemSetting{
 	{Key: "copyright", Value: "© 2024 F.st", Type: "string", Category: "basic", Label: "版权信息", Description: "页脚版权声明", IsPublic: true, IsEditable: true, SortOrder: 4},
 	{Key: "icp", Value: "", Type: "string", Category: "basic", Label: "ICP备案号", Description: "网站ICP备案号", IsPublic: true, IsEditable: true, SortOrder: 5},
 	{Key: "allow_register", Value: "true", Type: "boolean", Category: "basic", Label: "允许注册", Description: "是否允许新用户注册", IsPublic: true, IsEditable: true, SortOrder: 6},
+	{Key: "announcement_enabled", Value: "true", Type: "boolean", Category: "basic", Label: "站内公告", Description: "关闭后前台不展示公告入口与内容", IsPublic: true, IsEditable: true, SortOrder: 6},
 	{Key: "default_lang", Value: "zhCN", Type: "string", Category: "basic", Label: "默认语言", Description: "系统默认语言", IsPublic: true, IsEditable: true, SortOrder: 7},
 	{Key: "version", Value: "1.0.0", Type: "string", Category: "basic", Label: "系统版本", Description: "当前系统版本号", IsPublic: true, IsEditable: true, SortOrder: 8},
 	{Key: "allow_delete_account", Value: "false", Type: "boolean", Category: "basic", Label: "允许注销账号", Description: "是否允许用户自助注销账号", IsPublic: true, IsEditable: true, SortOrder: 7},

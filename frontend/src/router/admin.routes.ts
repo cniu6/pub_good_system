@@ -176,6 +176,15 @@ export function getAdminRoutes(): RouteRecordRaw[] {
               },
             },
             {
+              path: 'announcements',
+              name: 'admin-announcements',
+              component: () => import('@/views/admin/announcements/index.vue'),
+              meta: {
+                title: 'route.announcements',
+                icon: 'icon-park-outline:volume-notice',
+              },
+            },
+            {
               // 短信模板已合并进「系统配置 → 短信设置」内层 Tab，此路由仅保留供日志页深链跳转，不在侧边栏展示。
               path: 'sms-templates',
               name: 'admin-sms-templates',

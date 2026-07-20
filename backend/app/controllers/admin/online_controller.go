@@ -32,7 +32,8 @@ func (ctrl *OnlineController) Stats(c *gin.Context) {
 func (ctrl *OnlineController) ListSessions(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	sessions, total, err := models.ListOnlineSessions(
+	// 按用户归并：一行多设备，便于管理端展示
+	rows, total, err := models.ListOnlineUsersGrouped(
 		strings.TrimSpace(c.Query("keyword")),
 		strings.TrimSpace(c.Query("client_type")),
 		strings.TrimSpace(c.Query("auth_guard")),
@@ -42,7 +43,7 @@ func (ctrl *OnlineController) ListSessions(c *gin.Context) {
 		utils.Fail(c, 500, "Failed to list online sessions")
 		return
 	}
-	utils.Success(c, gin.H{"list": sessions, "total": total, "page": page, "page_size": pageSize})
+	utils.Success(c, gin.H{"list": rows, "total": total, "page": page, "page_size": pageSize})
 }
 
 // UserSessions 返回指定用户的有效会话，包含当前离线但未撤销的设备。

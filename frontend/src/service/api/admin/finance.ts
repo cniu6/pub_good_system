@@ -105,3 +105,18 @@ export function payWithdraw(id: number, data?: { transfer_remark?: string }) {
     headers: { 'X-Idempotency-Key': createIdempotencyKey(`withdraw-pay-${id}`) },
   })
 }
+
+/** 供 adminApi.finance 懒加载统一入口 */
+export const adminFinanceApi = {
+  operateUserMoney,
+  generateNos,
+  addScoreLog,
+  fetchAllMoneyLogs,
+  fetchAllScoreLogs,
+  fetchWithdrawRecords,
+  fetchWithdrawStats,
+  fetchWithdrawDetail,
+  reviewWithdraw,
+  payWithdraw,
+}
+

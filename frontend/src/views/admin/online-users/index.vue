@@ -1,21 +1,25 @@
 <script setup lang="ts">
 import { h, onMounted, reactive, ref } from 'vue'
 import type { DataTableColumns } from 'naive-ui'
-import { NButton, NTag, useDialog, useMessage } from 'naive-ui'
-import { adminOnlineApi, type OnlineSession, type OnlineSessionListParams } from '@/service/api/admin/online'
+import { NButton, NSpace, NTag, NText, NTooltip, useDialog, useMessage } from 'naive-ui'
+import { adminOnlineApi, type OnlineSession, type OnlineSessionListParams, type OnlineUserRow } from '@/service/api/admin/online'
 import { fetchSetting, updateSetting } from '@/service/api/admin/settings'
+import { useAuthStore, useSettingsStore } from '@/store'
+import { startPresence, stopPresence } from '@/composables/usePresence'
 
 const { t } = useI18n()
 const message = useMessage()
 const dialog = useDialog()
+const authStore = useAuthStore()
+const settingsStore = useSettingsStore()
 const loading = ref(false)
 const stats = ref({ online_users: 0, online_sessions: 0 })
-const sessions = ref<OnlineSession[]>([])
-// client_type 默认值为空字符串，语义上代表「全部」，配合下方 clientTypeOptions 的「全部」选项显式展示，而非空白占位符
+const userRows = ref<OnlineUserRow[]>([])
+// client_type 默认值为空字符串，语义上代表「全部」
 const query = reactive<OnlineSessionListParams>({ page: 1, page_size: 20, keyword: '', client_type: '' })
 const pagination = reactive({ page: 1, pageSize: 20, itemCount: 0 })
 
-// ── 在线心跳「上报周期」设置（默认30秒，直接在本页配置，无需跳转系统设置） ──
+// ── 在线心跳「上报周期」设置（默认30秒，直接在本页配置） ──
 const REPORT_INTERVAL_KEY = 'online_report_interval_seconds'
 const reportInterval = ref(30)
 const reportIntervalSaving = ref(false)
@@ -50,7 +54,16 @@ async function saveReportInterval() {
     const res = await updateSetting(REPORT_INTERVAL_KEY, String(val))
     if (res.isSuccess) {
       reportInterval.value = val
-      message.success(t('adminOnlineUsers.reportIntervalSaveSuccess'))
+      // 热更新：同步 settingsStore，并重启当前 Presence 心跳周期
+      settingsStore.updateConfig({ online_report_interval_seconds: val })
+      if (authStore.token) {
+        stopPresence()
+        startPresence(authStore.token, () => {
+          window.$message?.warning(t('securityTab.forcedLogout'))
+          void authStore.logout(false)
+        }, val * 1000)
+      }
+      message.success(t('adminOnlineUsers.reportIntervalSaveSuccessHot'))
     }
     else {
       message.error(res.message || t('adminOnlineUsers.reportIntervalSaveFailed'))
@@ -68,18 +81,9 @@ function formatTime(timestamp?: number) {
   return timestamp ? new Date(timestamp * 1000).toLocaleString() : '-'
 }
 
-function formatUserLabel(row: OnlineSession) {
+function formatUserLabel(row: OnlineUserRow) {
   const name = row.username || row.nickname
   return name ? `${name} (#${row.user_id})` : `#${row.user_id}`
-}
-
-function formatDeviceDetail(row: OnlineSession) {
-  const parts = [row.device || '-']
-  if (row.user_agent) {
-    const ua = row.user_agent.length > 80 ? `${row.user_agent.slice(0, 80)}…` : row.user_agent
-    parts.push(ua)
-  }
-  return parts.join(' · ')
 }
 
 function formatGuard(guard?: string) {
@@ -88,7 +92,31 @@ function formatGuard(guard?: string) {
   return t('adminOnlineUsers.guardUser')
 }
 
-const columns: DataTableColumns<OnlineSession> = [
+function deviceShortLabel(device?: OnlineSession) {
+  if (!device)
+    return '-'
+  const parts = [device.client_type || '-', device.device || '-']
+  if (device.ip)
+    parts.push(device.ip)
+  return parts.join(' · ')
+}
+
+function deviceTooltip(device?: OnlineSession) {
+  if (!device)
+    return ''
+  const ua = device.user_agent
+    ? (device.user_agent.length > 120 ? `${device.user_agent.slice(0, 120)}…` : device.user_agent)
+    : ''
+  return [
+    `${t('adminOnlineUsers.device')}: ${device.device || '-'}`,
+    `IP: ${device.ip || '-'}`,
+    `${t('adminOnlineUsers.loginAt')}: ${formatTime(device.login_at)}`,
+    `${t('adminOnlineUsers.lastSeenAt')}: ${formatTime(device.last_seen_at)}`,
+    ua ? `UA: ${ua}` : '',
+  ].filter(Boolean).join('\n')
+}
+
+const columns: DataTableColumns<OnlineUserRow> = [
   {
     title: t('adminOnlineUsers.user'),
     key: 'username',
@@ -102,33 +130,72 @@ const columns: DataTableColumns<OnlineSession> = [
     width: 100,
     render: row => formatGuard(row.auth_guard),
   },
-  { title: t('adminOnlineUsers.clientType'), key: 'client_type', width: 90 },
   {
-    title: t('adminOnlineUsers.device'),
-    key: 'device',
-    minWidth: 220,
-    ellipsis: { tooltip: true },
-    render: row => formatDeviceDetail(row),
+    title: t('adminOnlineUsers.devices'),
+    key: 'devices',
+    minWidth: 360,
+    render: (row) => {
+      const devices = row.devices || []
+      if (!devices.length)
+        return h(NText, { depth: 3 }, () => '-')
+      return h(
+        NSpace,
+        { size: 8, vertical: true, style: 'padding: 4px 0;' },
+        () => devices.map(device =>
+          h(
+            NSpace,
+            { key: device.id, align: 'center', size: 8, wrap: false },
+            () => [
+              h(
+                NTooltip,
+                { trigger: 'hover' },
+                {
+                  trigger: () => h(
+                    NTag,
+                    {
+                      size: 'small',
+                      type: device.is_online ? 'success' : 'default',
+                      round: true,
+                      style: 'max-width: 280px;',
+                    },
+                    () => deviceShortLabel(device),
+                  ),
+                  default: () => h('div', { style: 'white-space: pre-line; max-width: 360px;' }, deviceTooltip(device)),
+                },
+              ),
+              h(
+                NButton,
+                {
+                  size: 'tiny',
+                  type: 'error',
+                  quaternary: true,
+                  onClick: () => handleKick(device, row),
+                },
+                () => t('adminOnlineUsers.kick'),
+              ),
+            ],
+          ),
+        ),
+      )
+    },
   },
-  { title: 'IP', key: 'ip', width: 130 },
   {
-    title: t('adminOnlineUsers.loginAt'),
-    key: 'login_at',
+    title: t('adminOnlineUsers.deviceCount'),
+    key: 'device_count',
+    width: 90,
+    render: row => row.device_count || (row.devices?.length ?? 0),
+  },
+  {
+    title: t('adminOnlineUsers.lastSeenAt'),
+    key: 'last_seen_at',
     width: 170,
-    render: row => formatTime(row.login_at),
+    render: row => formatTime(row.last_seen_at),
   },
-  { title: t('adminOnlineUsers.lastSeenAt'), key: 'last_seen_at', width: 170, render: row => formatTime(row.last_seen_at) },
   {
     title: t('adminOnlineUsers.status'),
     key: 'is_online',
     width: 90,
     render: row => h(NTag, { type: row.is_online ? 'success' : 'default', size: 'small' }, () => row.is_online ? t('adminOnlineUsers.online') : t('adminOnlineUsers.offline')),
-  },
-  {
-    title: t('adminOnlineUsers.actions'),
-    key: 'actions',
-    width: 100,
-    render: row => h(NButton, { size: 'small', type: 'error', secondary: true, onClick: () => handleKick(row) }, () => t('adminOnlineUsers.kick')),
   },
 ]
 
@@ -139,7 +206,7 @@ async function fetchStats() {
       stats.value = res.data
   }
   catch {
-    // 统计请求失败不影响会话列表使用。
+    // 统计请求失败不影响会话列表使用
   }
 }
 
@@ -147,11 +214,13 @@ async function fetchSessions() {
   loading.value = true
   try {
     const params = { ...query }
-    if (!params.keyword) delete params.keyword
-    if (!params.client_type) delete params.client_type
+    if (!params.keyword)
+      delete params.keyword
+    if (!params.client_type)
+      delete params.client_type
     const res = await adminOnlineApi.sessions(params)
     if (res.isSuccess && res.data) {
-      sessions.value = res.data.list || []
+      userRows.value = res.data.list || []
       pagination.itemCount = res.data.total || 0
     }
     else {
@@ -188,10 +257,14 @@ async function refreshAll() {
   await Promise.all([fetchSessions(), fetchStats()])
 }
 
-function handleKick(session: OnlineSession) {
+function handleKick(session: OnlineSession, userRow?: OnlineUserRow) {
+  const label = session.device || `#${session.id}`
+  const userHint = userRow ? formatUserLabel(userRow) : ''
   dialog.warning({
     title: t('adminOnlineUsers.kickTitle'),
-    content: t('adminOnlineUsers.kickContent', { device: session.device || `#${session.id}` }),
+    content: userHint
+      ? t('adminOnlineUsers.kickContentWithUser', { user: userHint, device: label })
+      : t('adminOnlineUsers.kickContent', { device: label }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
@@ -239,7 +312,6 @@ onMounted(() => {
       </template>
       <n-space align="center" :wrap="true" style="margin-bottom: 12px;">
         <n-input v-model:value="query.keyword" clearable size="small" :placeholder="t('adminOnlineUsers.keyword')" style="width: 180px;" @keyup.enter="handleSearch" />
-        <!-- 首个选项即「全部」，默认选中它而非留空占位符，避免看起来像没设置默认值 -->
         <n-select
           v-model:value="query.client_type"
           size="small"
@@ -251,8 +323,12 @@ onMounted(() => {
           ]"
           @update:value="handleSearch"
         />
-        <n-button size="small" type="primary" @click="handleSearch">{{ t('adminOnlineUsers.search') }}</n-button>
-        <n-button size="small" @click="handleReset">{{ t('adminOnlineUsers.reset') }}</n-button>
+        <n-button size="small" type="primary" @click="handleSearch">
+          {{ t('adminOnlineUsers.search') }}
+        </n-button>
+        <n-button size="small" @click="handleReset">
+          {{ t('adminOnlineUsers.reset') }}
+        </n-button>
       </n-space>
       <n-alert type="default" :show-icon="true" style="margin-bottom: 12px;">
         {{ t('adminOnlineUsers.multiDeviceHint') }}
@@ -260,16 +336,15 @@ onMounted(() => {
       <n-data-table
         remote
         :columns="columns"
-        :data="sessions"
+        :data="userRows"
         :loading="loading"
         :pagination="pagination"
-        :scroll-x="1200"
-        :row-key="row => row.id"
+        :scroll-x="1100"
+        :row-key="row => `${row.user_id}-${row.auth_guard}`"
         @update:page="handlePageChange"
       />
     </n-card>
 
-    <!-- 在线心跳「上报周期」设置：直接在本页配置，默认30秒，无需跳转系统设置 -->
     <n-card :title="t('adminOnlineUsers.reportIntervalTitle')" style="margin-top: 16px;" size="small">
       <n-space align="center" :wrap="true">
         <span>{{ t('adminOnlineUsers.reportIntervalLabel') }}</span>

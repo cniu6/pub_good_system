@@ -16,14 +16,18 @@ export const savingSecurity = ref(false)
 export const savingRealnameApi = ref(false)
 export const savingPayment = ref(false)
 export const testingEmail = ref(false)
+export const testingSms = ref(false)
 /** 邮件设置页「发送测试邮件」的收件人（不入库，仅本页临时） */
 export const testEmailTo = ref('')
+/** 短信设置页「发送测试短信」的手机号（不入库，仅本页临时） */
+export const testSmsPhone = ref('')
 export const restartingBackend = ref(false)
 export const topTab = ref('system-config')
 export const systemSubTab = ref('basic')
 
 export const switchLoading = reactive({
   allow_register: false,
+  announcement_enabled: false,
   allow_delete_account: false,
   smtp_ssl: false,
   smtp_proxy_enabled: false,
@@ -48,6 +52,7 @@ export const basicForm = reactive({
   version: '',
   default_lang: 'zhCN',
   allow_register: true,
+  announcement_enabled: true,
   frontend_url: '',
   backend_api_url: '',
 })

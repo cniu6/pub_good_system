@@ -197,7 +197,8 @@
     "usernameRuleTip": "Please enter username",
     "usernameInvalid": "Invalid username (3-50 alphanumeric & underscore)",
     "accountOrEmailPlaceholder": "Enter username/email",
-    "passwordInvalid": "Password must contain uppercase, lowercase letters and numbers, at least 6 characters"
+    "passwordInvalid": "Password must contain uppercase, lowercase letters and numbers, at least 6 characters",
+    "loginFailed": "Login failed. Please check your credentials or try again later."
   },
   "route": {
     "appRoot": "Home",
@@ -284,7 +285,9 @@
     "serverManagement": "Server Management",
     "admin-auto-jobs": "Auto Jobs",
     "autoJobManager": "Auto Job Manager",
-    "onlineUsers": "Online Users"
+    "onlineUsers": "Online Users",
+    "announcements": "Announcements",
+    "admin-announcements": "Announcements"
   },
   "realname": {
     "title": "Real-name Verification",
@@ -940,13 +943,17 @@
     "kickSuccess": "Device has been kicked",
     "kickFailed": "Failed to kick device",
     "loadFailed": "Failed to load online sessions",
-    "multiDeviceHint": "Each device/browser is shown as its own row. Multiple tabs in the same browser share one online session. Only currently online sessions appear here.",
+    "multiDeviceHint": "Multiple devices of the same user are shown in one row. Multiple tabs in the same browser share one online session. Only currently online users appear here.",
+    "devices": "Devices",
+    "deviceCount": "Count",
+    "kickContentWithUser": "Kick device \"{device}\" of user \"{user}\"?",
     "reportIntervalTitle": "Heartbeat Settings",
     "reportIntervalLabel": "Report Interval",
     "reportIntervalUnit": "sec",
     "reportIntervalHint": "Clients report a heartbeat every this many seconds (default 30s); a session is marked offline after 3x this interval without a heartbeat",
     "reportIntervalSave": "Save",
     "reportIntervalSaveSuccess": "Saved, takes effect after clients refresh",
+    "reportIntervalSaveSuccessHot": "Saved; current session heartbeat interval updated",
     "reportIntervalSaveFailed": "Failed to save",
     "reportIntervalLoadFailed": "Failed to load"
   },
@@ -1578,6 +1585,8 @@
     "level": "Level",
     "announcements": "Announcements",
     "noAnnouncements": "No announcements",
+    "announcementPlaceholder": "Announcements are not enabled yet (placeholder only). Full announcements and push will be planned separately.",
+    "announcementNotEnabled": "Announcements not enabled",
     "fetchDashboardFailed": "Failed to fetch dashboard data"
   },
   "monitor": {
@@ -1818,6 +1827,15 @@
     "formatForm": "Form",
     "tip": "Tip",
     "smsAlert": "Supports Aliyun, Tencent, and custom HTTP gateways. In console mode, verification codes are only printed to backend logs. For custom gateways, you can explicitly choose json or form format. Aliyun/Tencent can configure both default and English templates; English template falls back to default if empty.",
+    "smsDualTrackTitle": "SMS dual-track (important)",
+    "smsDualTrackBody": "1) Aliyun/Tencent: real sends use template_code / TemplateId from system_settings on this page; template body lives in the cloud console. Local SMS template text is NOT pushed to the cloud.\n2) sms_templates table: mainly for custom gateway rendering, local preview and audit. Editing local content does not change Aliyun/Tencent templates.\n3) Without a real cloud account, use Send Test via console / configured provider to verify the pipeline; fill keys and template codes when integrating later.",
+    "testSmsPhone": "Test phone",
+    "testSmsPhonePlaceholder": "Phone number for SMS test",
+    "testSmsPhoneRequired": "Please enter a test phone number",
+    "sendTestSms": "Send test SMS",
+    "testSmsSent": "Test SMS sent (or written to console log)",
+    "testSmsFailed": "Failed to send test SMS",
+    "testSmsNeedSaveFirst": "Save SMS settings before testing",
     "securitySettings": "Security Settings",
     "geetestEnabled": "Geetest Captcha",
     "enabled": "Enabled",
@@ -2120,7 +2138,10 @@
     "loadFailed": "Load failed",
     "stacksCleared": "Stacks cleared",
     "langZhCN": "Simplified Chinese",
-    "langEnUS": "English"
+    "langEnUS": "English",
+    "announcementEnabled": "Announcements",
+    "announcementSwitchUpdated": "Announcement switch updated",
+    "announcementSwitchUpdateFailed": "Failed to update announcement switch"
   },
   "emailTemplates": {
     "pageTitle": "Email Templates",
@@ -2183,7 +2204,7 @@
     "pageTitle": "SMS Templates",
     "refresh": "Refresh",
     "infoTip": "SMS templates support variable substitution using {variableName}, e.g. {code}, {expire}, {app_name}.",
-    "providerWarning": "This content is for local records/preview only. If using Aliyun/Tencent Cloud, ensure provider-side templates and variable order match.",
+    "providerWarning": "[Dual-track] This page is for custom gateway rendering, local preview and audit. Aliyun/Tencent real sends use template_code from system settings (cloud console templates); editing here does not sync to the cloud.",
     "lang": "Language",
     "signName": "Sign Name",
     "content": "Content",
@@ -2612,5 +2633,56 @@
   },
   "editor": {
     "insertTextHere": "Insert text here..."
+  },
+  "announcements": {
+    "pageTitle": "Announcements",
+    "create": "Create",
+    "createTitle": "Create announcement",
+    "editTitle": "Edit announcement",
+    "searchPlaceholder": "Search title/content",
+    "colTitle": "Title",
+    "colType": "Type",
+    "colStatus": "Status",
+    "colPriority": "Priority",
+    "colPopup": "Popup",
+    "colTarget": "Audience",
+    "colContent": "Content",
+    "colPublishedAt": "Published at",
+    "colAction": "Actions",
+    "statusAll": "All",
+    "statusDraft": "Draft",
+    "statusPublished": "Published",
+    "statusUnpublished": "Unpublished",
+    "type": {
+      "info": "Info",
+      "success": "Success",
+      "warning": "Warning",
+      "error": "Error"
+    },
+    "targetAll": "Everyone",
+    "targetUser": "Users only",
+    "targetAdmin": "Admins only",
+    "publish": "Publish",
+    "unpublish": "Unpublish",
+    "publishSuccess": "Published",
+    "unpublishSuccess": "Unpublished",
+    "deleteSuccess": "Deleted",
+    "saveSuccess": "Saved",
+    "saveFailed": "Save failed",
+    "loadFailed": "Load failed",
+    "actionFailed": "Action failed",
+    "titleContentRequired": "Title and content are required",
+    "previewTitle": "Announcement",
+    "gotIt": "Got it",
+    "notEnabled": "Announcements are disabled",
+    "empty": "No announcements",
+    "messagesEmpty": "No messages",
+    "todosEmpty": "No todos",
+    "markAllRead": "Mark all read",
+    "markAllReadSuccess": "All marked as read",
+    "yes": "Yes",
+    "no": "No",
+    "colSummary": "List preview",
+    "summaryPlaceholder": "Short text for bell/list (max ~2 lines). Leave empty to auto-cut from body."
   }
 }

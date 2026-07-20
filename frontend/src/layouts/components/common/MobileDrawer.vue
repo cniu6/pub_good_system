@@ -3,8 +3,10 @@ import Search from '../header/Search.vue'
 import Notices from '../header/Notices.vue'
 import UserCenter from '../header/UserCenter.vue'
 import Setting from './Setting.vue'
+import { useSettingsStore } from '@/store'
 
 const showDrawer = defineModel<boolean>('show', { default: false })
+const settingsStore = useSettingsStore()
 </script>
 
 <template>
@@ -21,7 +23,7 @@ const showDrawer = defineModel<boolean>('show', { default: false })
           <UserCenter />
           <div class="ml-auto" />
           <Search />
-          <Notices />
+          <Notices v-if="settingsStore.announcementEnabled" />
         </div>
       </template>
 

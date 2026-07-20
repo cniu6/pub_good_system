@@ -27,7 +27,9 @@
 | `views/admin/online-users/` | 管理端「在线用户」页（用户管理下） |
 | `service/api/admin/online.ts` | 管理 API |
 
-心跳间隔可由系统设置注入（见 app-config / settings）。
+心跳间隔可由系统设置 `online_report_interval_seconds` 注入（默认 **30 秒**；前端 `usePresence` 默认与此对齐）。管理端「在线用户」页保存后会热更新当前会话 Presence。
+
+列表按 **用户 + 登录端** 归并为一行，多设备挂在 `devices` 数组内展示；踢下线仍按单条会话 ID。
 
 ## 相关：过期 Token 强退
 

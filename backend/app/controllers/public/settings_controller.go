@@ -29,9 +29,10 @@ type AppConfigResponse struct {
 	Version   string `json:"version"`
 
 	// 功能开关
-	AllowRegister      bool `json:"allow_register"`
-	AllowDeleteAccount bool `json:"allow_delete_account"`
-	GeetestEnabled     bool `json:"geetest_enabled"`
+	AllowRegister       bool `json:"allow_register"`
+	AnnouncementEnabled bool `json:"announcement_enabled"`
+	AllowDeleteAccount  bool `json:"allow_delete_account"`
+	GeetestEnabled      bool `json:"geetest_enabled"`
 
 	// 极验配置
 	GeetestCaptchaId string `json:"geetest_captcha_id"`
@@ -97,8 +98,9 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 		SiteDesc:           "Full-stack admin template based on Go + Vue 3",
 		Copyright:          "(c) 2024 F.st",
 		Version:            "1.0.0",
-		AllowRegister:      true,
-		AllowDeleteAccount: false,
+		AllowRegister:       true,
+		AnnouncementEnabled: false,
+		AllowDeleteAccount:  false,
 		DefaultLang:        "zhCN",
 		GeetestEnabled:     false,
 		GeetestCaptchaId:   "",
@@ -147,6 +149,9 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 	}
 	if v, ok := configMap["allow_register"]; ok {
 		response.AllowRegister = v == "true" || v == "1"
+	}
+	if v, ok := configMap["announcement_enabled"]; ok {
+		response.AnnouncementEnabled = v == "true" || v == "1"
 	}
 	if v, ok := configMap["allow_delete_account"]; ok {
 		response.AllowDeleteAccount = v == "true" || v == "1"

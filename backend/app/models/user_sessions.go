@@ -493,7 +493,19 @@ func CountOnlineUsers() (int64, error) {
 	return count, err
 }
 
-// ListOnlineSessions 分页查询在线会话。关键字匹配用户名/昵称/用户 ID、IP、设备或 UA。
+// OnlineUserRow 管理端在线列表：同一用户+登录端归并为一行，多设备挂在 Devices。
+type OnlineUserRow struct {
+	UserID      uint64        `json:"user_id"`
+	Username    string        `json:"username,omitempty"`
+	Nickname    string        `json:"nickname,omitempty"`
+	AuthGuard   string        `json:"auth_guard"`
+	DeviceCount int           `json:"device_count"`
+	LastSeenAt  int64         `json:"last_seen_at"`
+	IsOnline    bool          `json:"is_online"`
+	Devices     []UserSession `json:"devices"`
+}
+
+// ListOnlineSessions 分页查询在线会话（原始会话行，不做用户归并）。
 func ListOnlineSessions(keyword, clientType, authGuard string, page, pageSize int) ([]UserSession, int64, error) {
 	if page < 1 {
 		page = 1
@@ -535,3 +547,86 @@ func ListOnlineSessions(keyword, clientType, authGuard string, page, pageSize in
 	}
 	return sessions, total, nil
 }
+
+// ListOnlineUsersGrouped 按 user_id + auth_guard 归并在线用户，一行多设备。
+// 分页按「用户行」计数，而非原始会话行。
+func ListOnlineUsersGrouped(keyword, clientType, authGuard string, page, pageSize int) ([]OnlineUserRow, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	where := ` WHERE s.is_active = 1 AND s.last_seen_at >= ?`
+	args := []interface{}{time.Now().Unix() - GetOnlineHeartbeatGraceSeconds()}
+	if clientType = strings.TrimSpace(clientType); clientType != "" {
+		where += ` AND s.client_type = ?`
+		args = append(args, NormalizeClientType(clientType))
+	}
+	if authGuard = strings.TrimSpace(authGuard); authGuard != "" {
+		where += ` AND s.auth_guard = ?`
+		args = append(args, authGuard)
+	}
+	if keyword = strings.TrimSpace(keyword); keyword != "" {
+		where += ` AND (CAST(s.user_id AS CHAR) LIKE ? OR s.ip LIKE ? OR s.device LIKE ? OR COALESCE(s.user_agent, '') LIKE ? OR COALESCE(u.username, '') LIKE ? OR COALESCE(u.nickname, '') LIKE ?)`
+		like := "%" + keyword + "%"
+		args = append(args, like, like, like, like, like, like)
+	}
+
+	// 先取全部匹配会话再归并分页（在线用户量通常不大；避免复杂 SQL 在 SQLite/MySQL 双方言差异）
+	sessions := make([]UserSession, 0)
+	err := db.DB.Select(&sessions, `SELECT s.id, s.user_id, s.auth_guard, s.ip, s.user_agent, s.device, s.client_type, s.browser_id, s.is_active, s.login_at, s.last_seen_at, s.expires_at, s.created_at,
+		COALESCE(u.username, '') AS username, COALESCE(u.nickname, '') AS nickname
+		FROM user_sessions s
+		LEFT JOIN users u ON u.id = s.user_id`+where+
+		` ORDER BY s.last_seen_at DESC`, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	type groupKey struct {
+		UserID    uint64
+		AuthGuard string
+	}
+	order := make([]groupKey, 0)
+	grouped := make(map[groupKey]*OnlineUserRow)
+	for i := range sessions {
+		s := sessions[i]
+		s.IsOnline = true
+		key := groupKey{UserID: s.UserID, AuthGuard: s.AuthGuard}
+		row, ok := grouped[key]
+		if !ok {
+			row = &OnlineUserRow{
+				UserID:    s.UserID,
+				Username:  s.Username,
+				Nickname:  s.Nickname,
+				AuthGuard: s.AuthGuard,
+				IsOnline:  true,
+				Devices:   make([]UserSession, 0, 2),
+			}
+			grouped[key] = row
+			order = append(order, key)
+		}
+		row.Devices = append(row.Devices, s)
+		if s.LastSeenAt > row.LastSeenAt {
+			row.LastSeenAt = s.LastSeenAt
+		}
+		row.DeviceCount = len(row.Devices)
+	}
+
+	total := int64(len(order))
+	start := (page - 1) * pageSize
+	if start >= len(order) {
+		return []OnlineUserRow{}, total, nil
+	}
+	end := start + pageSize
+	if end > len(order) {
+		end = len(order)
+	}
+	result := make([]OnlineUserRow, 0, end-start)
+	for _, key := range order[start:end] {
+		result = append(result, *grouped[key])
+	}
+	return result, total, nil
+}
+

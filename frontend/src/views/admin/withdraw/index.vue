@@ -5,7 +5,7 @@ import { NButton, NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
-import { fetchWithdrawDetail, fetchWithdrawRecords, fetchWithdrawStats, payWithdraw, reviewWithdraw } from '@/service/api/admin/finance'
+import { adminApi } from '@/service/api/admin'
 import type { WithdrawRecord, WithdrawStats } from '@/service/api/admin/finance'
 import { adminUserApi } from '@/service/api/admin/user'
 import type { UserSimpleInfo } from '@/service/api/admin/user'
@@ -151,7 +151,7 @@ const columns: DataTableColumns<WithdrawRecord> = [
             showDetailModal.value = true
             detailLoading.value = true
             try {
-              const res = await fetchWithdrawDetail(row.id)
+              const res = await adminApi.finance.fetchWithdrawDetail(row.id)
               if (res.isSuccess && res.data) {
                 currentRow.value = res.data
               }
@@ -236,8 +236,8 @@ async function fetchData() {
       status: searchForm.status ?? undefined,
     }
     const [res, statsRes] = await Promise.all([
-      fetchWithdrawRecords(params),
-      fetchWithdrawStats({
+      adminApi.finance.fetchWithdrawRecords(params),
+      adminApi.finance.fetchWithdrawStats({
         keyword: params.keyword,
         user_id: params.user_id,
         status: params.status,
@@ -314,7 +314,7 @@ async function handleSubmitReview() {
   }
   submitting.value = true
   try {
-    const res = await reviewWithdraw(currentRow.value.id, reviewForm)
+    const res = await adminApi.finance.reviewWithdraw(currentRow.value.id, reviewForm)
     if (res.isSuccess) {
       message.success(res.message || t('adminWithdraw.reviewSuccess'))
       showReviewModal.value = false
@@ -341,7 +341,7 @@ async function handleSubmitPay() {
   }
   submitting.value = true
   try {
-    const res = await payWithdraw(currentRow.value.id, payForm)
+    const res = await adminApi.finance.payWithdraw(currentRow.value.id, payForm)
     if (res.isSuccess) {
       message.success(res.message || t('adminWithdraw.markPaidSuccess'))
       showPayModal.value = false

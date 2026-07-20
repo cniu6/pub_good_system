@@ -304,5 +304,8 @@ func migrateBusinessTables() {
 	models.InitIdempotencyKeysTable()
 	models.InitPayGatewaysTable()
 
+	// ---------- 站内公告 ----------
+	models.InitAnnouncementTables()
+
 	log.Println("[Migrate] 业务表 Init* 完成")
 }

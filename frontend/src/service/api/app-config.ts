@@ -17,6 +17,7 @@ export interface AppConfig {
 
   // 功能开关
   allow_register: boolean
+  announcement_enabled: boolean
   allow_delete_account: boolean
   geetest_enabled: boolean
 

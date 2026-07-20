@@ -9,7 +9,24 @@ import (
 const (
 	metaTemplateNameKey  = "__template_name"
 	metaTemplateOrderKey = "__template_order"
+	metaUserIDKey        = "__user_id"
 )
+
+// ExtractMetaUserID 从模板参数中取出关联用户 ID（匿名发送为 0）。
+func ExtractMetaUserID(templateParams map[string]string) uint64 {
+	if templateParams == nil {
+		return 0
+	}
+	raw := strings.TrimSpace(templateParams[metaUserIDKey])
+	if raw == "" {
+		return 0
+	}
+	id, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return id
+}
 
 func normalizeTemplateParams(code string, expireMinutes int, templateParams map[string]string) (string, map[string]string, []string) {
 	payload := map[string]string{
@@ -28,7 +45,8 @@ func normalizeTemplateParams(code string, expireMinutes int, templateParams map[
 			if strings.TrimSpace(v) != "" {
 				templateName = strings.TrimSpace(v)
 			}
-		case metaTemplateOrderKey:
+		case metaTemplateOrderKey, metaUserIDKey:
+			// 元数据，不传给云厂商模板参数
 		default:
 			payload[key] = v
 		}

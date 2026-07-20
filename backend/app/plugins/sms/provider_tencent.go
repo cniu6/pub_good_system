@@ -41,6 +41,7 @@ func (p *TencentProvider) SendCode(phone, code string, expireMinutes int, templa
 		return fmt.Errorf("tencent SMS not configured")
 	}
 
+	userID := ExtractMetaUserID(templateParams)
 	templateName, payload, order := normalizeTemplateParams(code, expireMinutes, templateParams)
 	templateCode := p.templateCodeForLang(lang)
 
@@ -58,7 +59,7 @@ func (p *TencentProvider) SendCode(phone, code string, expireMinutes int, templa
 
 	client, err := tencentSms.NewClient(credential, region, cpf)
 	if err != nil {
-		p.log(phone, templateName, lang, templateCode, 0, err.Error(), "", "")
+		p.log(userID, phone, templateName, lang, templateCode, 0, err.Error(), "", "")
 		return err
 	}
 
@@ -81,7 +82,7 @@ func (p *TencentProvider) SendCode(phone, code string, expireMinutes int, templa
 
 	resp, err := client.SendSms(request)
 	if err != nil {
-		p.log(phone, templateName, lang, templateCode, 0, err.Error(), "", "")
+		p.log(userID, phone, templateName, lang, templateCode, 0, err.Error(), "", "")
 		return err
 	}
 
@@ -93,7 +94,7 @@ func (p *TencentProvider) SendCode(phone, code string, expireMinutes int, templa
 		if len(resp.Response.SendStatusSet) > 0 {
 			status := resp.Response.SendStatusSet[0]
 			if status.Code != nil && *status.Code == "Ok" {
-				p.log(phone, templateName, lang, templateCode, 1, "", requestId, respStr)
+				p.log(userID, phone, templateName, lang, templateCode, 1, "", requestId, respStr)
 				return nil
 			}
 			var codeStr, msg string
@@ -103,12 +104,12 @@ func (p *TencentProvider) SendCode(phone, code string, expireMinutes int, templa
 			if status.Message != nil {
 				msg = *status.Message
 			}
-			p.log(phone, templateName, lang, templateCode, 0, codeStr+": "+msg, requestId, respStr)
+			p.log(userID, phone, templateName, lang, templateCode, 0, codeStr+": "+msg, requestId, respStr)
 			return fmt.Errorf("tencent SMS failed: %s - %s", codeStr, msg)
 		}
 	}
 
-	p.log(phone, templateName, lang, templateCode, 0, "unknown error", "", respStr)
+	p.log(userID, phone, templateName, lang, templateCode, 0, "unknown error", "", respStr)
 	return fmt.Errorf("tencent SMS unknown error")
 }
 
@@ -120,9 +121,10 @@ func (p *TencentProvider) templateCodeForLang(lang string) string {
 	return p.config.TemplateCode
 }
 
-func (p *TencentProvider) log(phone, templateName, lang, templateCode string, status uint8, errMsg, requestID, resp string) {
+func (p *TencentProvider) log(userID uint64, phone, templateName, lang, templateCode string, status uint8, errMsg, requestID, resp string) {
 	content := fmt.Sprintf("code sent to %s", models.MaskPhone(phone))
 	models.CreateSMSLog(&models.SMSLog{
+		UserID:       userID,
 		Phone:        models.MaskPhone(phone),
 		Provider:     "tencent",
 		TemplateCode: templateCode,

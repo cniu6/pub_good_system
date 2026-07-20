@@ -43,7 +43,9 @@ var (
 	adminSMSLogCtrl           *admin.SMSLogController    //短信日志
 	adminDashboardCtrl        *admin.DashboardController //仪表盘
 	adminAutoJobCtrl          *admin.AutoJobController   //自动任务
-	adminOnlineCtrl           *admin.OnlineController    //在线用户
+	adminOnlineCtrl           *admin.OnlineController       //在线用户
+	adminAnnouncementCtrl     *admin.AnnouncementController //站内公告
+	userAnnouncementCtrl      *user.AnnouncementController  //用户公告
 )
 
 func initControllers() {
@@ -73,6 +75,8 @@ func initControllers() {
 	adminSMSLogCtrl = admin.NewSMSLogController()
 	adminAutoJobCtrl = admin.NewAutoJobController()
 	adminOnlineCtrl = admin.NewOnlineController()
+	adminAnnouncementCtrl = admin.NewAnnouncementController()
+	userAnnouncementCtrl = user.NewAnnouncementController()
 }
 
 // SetupRoutes 汇总注册全部 HTTP 路由（详情拆在 public/user/admin 文件）。

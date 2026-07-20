@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useAppStore, useAuthStore, useRouteStore } from '@/store'
+import { useAppStore, useAuthStore, useRouteStore, useSettingsStore } from '@/store'
 import {
   BackTop,
   Breadcrumb,
@@ -17,11 +17,14 @@ import {
 } from './components'
 import Content from './Content.vue'
 import { ProLayout, useLayoutMenu } from 'pro-naive-ui'
+import AnnouncementPreviewModal from '@/components/common/AnnouncementPreviewModal.vue'
+import { userAnnouncementApi } from '@/service/api/user/announcement'
 
 const route = useRoute()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const routeStore = useRouteStore()
+const settingsStore = useSettingsStore()
 
 const { layoutMode } = storeToRefs(useAppStore())
 const currentMenus = computed(() => routeStore.menuMode === 'admin' ? routeStore.adminMenus : routeStore.menus)
@@ -38,6 +41,43 @@ const {
 watch(() => route.path, () => {
   activeKey.value = routeStore.activeMenu
 }, { immediate: true })
+
+// 登录后可选弹窗公告（popup=1 且未读）
+const popupShow = ref(false)
+const popupTitle = ref('')
+const popupContent = ref('')
+const popupType = ref('info')
+const popupId = ref(0)
+
+async function loadPopupAnnouncement() {
+  if (!authStore.token)
+    return
+  try {
+    const res = await userAnnouncementApi.list({ unread_only: true, popup: true, limit: 1 })
+    if (!res.isSuccess || !res.data?.enabled)
+      return
+    const first = res.data.list?.[0]
+    if (!first)
+      return
+    popupId.value = first.id
+    popupTitle.value = first.title
+    popupContent.value = first.content
+    popupType.value = first.type || 'info'
+    popupShow.value = true
+  }
+  catch { /* ignore */ }
+}
+
+async function onPopupClose() {
+  if (popupId.value) {
+    try {
+      await userAnnouncementApi.markRead(popupId.value)
+      window.dispatchEvent(new CustomEvent('fst:announcement'))
+    }
+    catch { /* ignore */ }
+  }
+  popupId.value = 0
+}
 
 // 移动端抽屉控制
 const showMobileDrawer = ref(false)
@@ -98,6 +138,7 @@ onBeforeUnmount(() => {
 onMounted(() => {
   authStore.startPresence()
   authStore.setupAutoRefresh()
+  loadPopupAnnouncement()
 })
 </script>
 
@@ -161,7 +202,7 @@ onMounted(() => {
         <!-- 桌面端：显示完整功能组件 -->
         <template v-else>
           <Search />
-          <Notices />
+          <Notices v-if="settingsStore.announcementEnabled" />
           <FullScreen />
           <DarkModeSwitch />
           <LangsSwitch />
@@ -219,6 +260,14 @@ onMounted(() => {
       <n-menu v-bind="layout.verticalMenuProps" />
     </MobileDrawer>
   </ProLayout>
+
+  <AnnouncementPreviewModal
+    v-model:show="popupShow"
+    :title="popupTitle"
+    :content="popupContent"
+    :type="popupType"
+    @close="onPopupClose"
+  />
 </template>
 
 <style scoped>

@@ -189,7 +189,8 @@
     "usernameRuleTip": "请输入用户名",
     "usernameInvalid": "用户名格式不正确(3-50位,字母数字下划线)",
     "accountOrEmailPlaceholder": "输入用户名/邮箱",
-    "passwordInvalid": "密码至少6位（可包含字母、数字及特殊字符）"
+    "passwordInvalid": "密码至少6位（可包含字母、数字及特殊字符）",
+    "loginFailed": "登录失败，请检查账号密码或稍后重试"
   },
   "route": {
     "appRoot": "首页",
@@ -278,7 +279,9 @@
     "serverManagement": "服务器管理",
     "admin-auto-jobs": "自动任务",
     "autoJobManager": "自动任务管理器",
-    "onlineUsers": "在线用户"
+    "onlineUsers": "在线用户",
+    "announcements": "公告管理",
+    "admin-announcements": "公告管理"
   },
   "home": {
     "nav": {
@@ -842,6 +845,8 @@
     "level": "等级",
     "announcements": "公告",
     "noAnnouncements": "暂无公告",
+    "announcementPlaceholder": "公告功能尚未启用（当前为占位模板）。完整公告与推送将另开一轮实现。",
+    "announcementNotEnabled": "公告未启用",
     "fetchDashboardFailed": "获取仪表盘数据失败"
   },
   "monitor": {
@@ -1082,6 +1087,15 @@
     "formatForm": "Form",
     "tip": "提示",
     "smsAlert": "支持阿里云、腾讯云和自定义 HTTP 网关。console 模式下验证码仅打印到后端控制台日志；自定义网关可显式选择 json 或 form 请求格式。阿里云 / 腾讯云可同时配置默认模板和英文模板，英文模板留空时自动回退默认模板。",
+    "smsDualTrackTitle": "短信双轨说明（重要）",
+    "smsDualTrackBody": "1）阿里云 / 腾讯云：真正发短信时用的是本页 system_settings 里的「模板 Code / TemplateId」（sms_template_code），内容在云控制台审核，本系统不会把本地短信模板正文推给云厂商。\n2）sms_templates 表：主要用于 custom 网关渲染、本地预览与审计留档；改本地模板正文不等于改了阿里云/腾讯云模板。\n3）当前若未接真实云账号，可用「发送测试」走 console / 已配通道做链路自检，接真云后再填密钥与模板 Code。",
+    "testSmsPhone": "测试手机号",
+    "testSmsPhonePlaceholder": "输入用于发送测试的手机号",
+    "testSmsPhoneRequired": "请先填写测试手机号",
+    "sendTestSms": "发送测试短信",
+    "testSmsSent": "测试短信已发送（或已写入 console 日志）",
+    "testSmsFailed": "测试短信发送失败",
+    "testSmsNeedSaveFirst": "请先保存短信配置后再测试",
     "securitySettings": "安全设置",
     "geetestEnabled": "极验验证码",
     "enabled": "已启用",
@@ -1328,8 +1342,6 @@
     "deleteAccountSwitchUpdateFailed": "账号注销开关更新失败",
     "smtpSslUpdated": "SMTP SSL 开关已更新",
     "smtpSslUpdateFailed": "SMTP SSL 开关更新失败",
-    "smtpProxyUpdated": "SMTP 代理开关已更新",
-    "smtpProxyUpdateFailed": "SMTP 代理开关更新失败",
     "emailVerifySwitchUpdated": "邮箱验证码开关已更新",
     "emailVerifySwitchUpdateFailed": "邮箱验证码开关更新失败",
     "smsVerifySwitchUpdated": "短信验证码开关已更新",
@@ -1386,7 +1398,10 @@
     "loadFailed": "加载失败",
     "stacksCleared": "已清空堆栈",
     "langZhCN": "中文简体",
-    "langEnUS": "English"
+    "langEnUS": "English",
+    "announcementEnabled": "站内公告",
+    "announcementSwitchUpdated": "公告开关已更新",
+    "announcementSwitchUpdateFailed": "公告开关更新失败"
   },
   "emailTemplates": {
     "pageTitle": "邮件模板管理",
@@ -1449,7 +1464,7 @@
     "pageTitle": "短信模板管理",
     "refresh": "刷新",
     "infoTip": "短信模板支持变量替换，使用 {变量名} 格式，例如 {code}、{expire}、{app_name}。",
-    "providerWarning": "此内容仅作为本地记录/预览用途；若使用阿里云/腾讯云，请确保服务商侧模板与变量顺序一致。",
+    "providerWarning": "【双轨说明】此页内容主要用于 custom 网关渲染、本地预览与审计。阿里云/腾讯云真正发短信时用的是系统设置里的 template_code（云控制台模板），改这里不会同步到云厂商。",
     "lang": "语言",
     "signName": "签名",
     "content": "内容",
@@ -2283,13 +2298,17 @@
     "kickSuccess": "已踢下线",
     "kickFailed": "踢下线失败",
     "loadFailed": "获取在线会话失败",
-    "multiDeviceHint": "不同设备/浏览器各占一行；同一浏览器的多个标签页只保留一条在线会话。本列表仅展示当前在线会话，离线不会出现。",
+    "multiDeviceHint": "同一用户的多台设备归并到一行展示；同一浏览器的多个标签页只保留一条在线会话。本列表仅展示当前在线用户。",
+    "devices": "在线设备",
+    "deviceCount": "设备数",
+    "kickContentWithUser": "确定要踢掉用户「{user}」的设备「{device}」吗？",
     "reportIntervalTitle": "在线心跳设置",
     "reportIntervalLabel": "上报周期",
     "reportIntervalUnit": "秒",
     "reportIntervalHint": "客户端每隔该周期上报一次在线心跳，默认30秒；超过周期3倍未上报即判定为离线",
     "reportIntervalSave": "保存",
     "reportIntervalSaveSuccess": "已保存，客户端刷新后生效",
+    "reportIntervalSaveSuccessHot": "已保存，当前会话心跳周期已热更新",
     "reportIntervalSaveFailed": "保存失败",
     "reportIntervalLoadFailed": "加载失败"
   },
@@ -2622,5 +2641,56 @@
   },
   "editor": {
     "insertTextHere": "在此输入文本..."
+  },
+  "announcements": {
+    "pageTitle": "站内公告",
+    "create": "新建公告",
+    "createTitle": "新建公告",
+    "editTitle": "编辑公告",
+    "searchPlaceholder": "搜索标题/内容",
+    "colTitle": "标题",
+    "colType": "类型",
+    "colStatus": "状态",
+    "colPriority": "优先级",
+    "colPopup": "登录弹窗",
+    "colTarget": "定向",
+    "colContent": "正文",
+    "colPublishedAt": "发布时间",
+    "colAction": "操作",
+    "statusAll": "全部状态",
+    "statusDraft": "草稿",
+    "statusPublished": "已发布",
+    "statusUnpublished": "已下架",
+    "type": {
+      "info": "通知",
+      "success": "成功",
+      "warning": "警告",
+      "error": "错误"
+    },
+    "targetAll": "全员",
+    "targetUser": "仅普通用户",
+    "targetAdmin": "仅管理员",
+    "publish": "发布",
+    "unpublish": "下架",
+    "publishSuccess": "已发布",
+    "unpublishSuccess": "已下架",
+    "deleteSuccess": "已删除",
+    "saveSuccess": "已保存",
+    "saveFailed": "保存失败",
+    "loadFailed": "加载失败",
+    "actionFailed": "操作失败",
+    "titleContentRequired": "请填写标题和正文",
+    "previewTitle": "公告详情",
+    "gotIt": "知道了",
+    "notEnabled": "站内公告未启用",
+    "empty": "暂无公告",
+    "messagesEmpty": "暂无消息",
+    "todosEmpty": "暂无待办",
+    "markAllRead": "全部已读",
+    "markAllReadSuccess": "已全部标为已读",
+    "yes": "是",
+    "no": "否",
+    "colSummary": "列表预览",
+    "summaryPlaceholder": "显示在铃铛/列表里的短文案，最多约 2 行；不填则自动从正文截取"
   }
 }

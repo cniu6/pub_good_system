@@ -66,6 +66,7 @@ func registerAdminRoutes(v1 *gin.RouterGroup) {
 		}
 
 		adminGroup.POST("/email-send-test", adminEmailTplCtrl.SendTest)
+		adminGroup.POST("/sms-send-test", adminSMSTplCtrl.SendTest)
 
 		emailTemplates := adminGroup.Group("/email-templates")
 		{
@@ -101,6 +102,19 @@ func registerAdminRoutes(v1 *gin.RouterGroup) {
 			smsLogs.GET("/template-names", adminSMSLogCtrl.TemplateNames)
 			smsLogs.GET("/:id", adminSMSLogCtrl.Detail)
 			smsLogs.POST("/clean", adminSMSLogCtrl.Clean)
+		}
+
+		// 站内公告管理
+		announcements := adminGroup.Group("/announcements")
+		announcements.Use(middleware.SimpleLogMiddleware("公告管理"))
+		{
+			announcements.GET("", adminAnnouncementCtrl.List)
+			announcements.POST("", adminAnnouncementCtrl.Create)
+			announcements.GET("/:id", adminAnnouncementCtrl.Detail)
+			announcements.PUT("/:id", adminAnnouncementCtrl.Update)
+			announcements.POST("/:id/publish", adminAnnouncementCtrl.Publish)
+			announcements.POST("/:id/unpublish", adminAnnouncementCtrl.Unpublish)
+			announcements.DELETE("/:id", adminAnnouncementCtrl.Delete)
 		}
 
 		adminMoneyScoreCtrl.RegisterRoutes(adminGroup)     //用户积分

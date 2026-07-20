@@ -1,6 +1,7 @@
 package user
 
 import (
+	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/pkg/config"
@@ -137,9 +138,9 @@ func (ctrl *ProfileController) SendEmailChangeCode(c *gin.Context) {
 		"code":           code,
 		"expire_minutes": "15",
 	}
-	if err := email_svc.SendTemplateEmail(req.NewEmail, "change_email", lang, vars); err != nil {
+	if err := email_svc.SendTemplateEmailWithUser(uid, req.NewEmail, "change_email", lang, vars); err != nil {
 		// 降级：尝试用 register_code 模板
-		if err2 := email_svc.SendTemplateEmail(req.NewEmail, "register_code", lang, vars); err2 != nil {
+		if err2 := email_svc.SendTemplateEmailWithUser(uid, req.NewEmail, "register_code", lang, vars); err2 != nil {
 			utils.Fail(c, 500, "Failed to send verification email")
 			return
 		}
@@ -327,6 +328,7 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 	smsTemplateParams := map[string]string{
 		"__template_name":  "bind_phone",
 		"__template_order": "code,expire",
+		"__user_id":        fmt.Sprintf("%d", uid),
 	}
 	if err := services.GlobalSMSService.SendCode(req.NewMobile, code, 10, smsTemplateParams, smsLang); err != nil {
 		log.Printf("[SMS] failed to send code to %s via %s: %v", models.MaskPhone(req.NewMobile), providerName, err)

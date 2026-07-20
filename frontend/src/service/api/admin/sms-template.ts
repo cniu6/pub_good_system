@@ -47,6 +47,14 @@ export const adminSMSTemplateApi = {
   reset(id: number) {
     return request.Post<Service.ResponseResult<{ message: string }>>(`${baseUrl()}/${id}/reset`, {})
   },
+
+  /** 短信发送测试（对齐邮件 email-send-test） */
+  sendTest(data: { phone: string; lang?: string }) {
+    return request.Post<Service.ResponseResult<{ message?: string; provider?: string; phone?: string }>>(
+      `${getAdminApiBase()}/sms-send-test`,
+      data,
+    )
+  },
 }
 
 export const fetchSMSTemplateList = () => adminSMSTemplateApi.list()

@@ -1,29 +1,67 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { useMessage } from 'naive-ui'
 import { useAuthStore } from '@/store'
 import { fetchDashboard } from '@/service'
+import AnnouncementPreviewModal from '@/components/common/AnnouncementPreviewModal.vue'
+import { userAnnouncementApi } from '@/service/api/user/announcement'
 
 const authStore = useAuthStore()
 const { t } = useI18n()
+const message = useMessage()
 const userInfo = computed(() => authStore.userInfo)
 
 const loading = ref(false)
+const loadError = ref(false)
 const dashboardData = ref<any>(null)
 
 const stats = computed(() => dashboardData.value?.stats || {})
 const announcements = computed(() => dashboardData.value?.announcements || [])
+const announcementEnabled = computed(() => dashboardData.value?.announcement_enabled === true)
+
+const previewShow = ref(false)
+const previewTitle = ref('')
+const previewContent = ref('')
+const previewType = ref('info')
+
+async function openAnnouncement(item: any) {
+  previewTitle.value = item.title || ''
+  previewType.value = item.type || 'info'
+  previewContent.value = ''
+  previewShow.value = true
+  try {
+    const res = await userAnnouncementApi.detail(item.id)
+    if (res.isSuccess && res.data) {
+      previewContent.value = res.data.content || item.content || ''
+      await userAnnouncementApi.markRead(item.id)
+    }
+    else {
+      previewContent.value = item.content || ''
+    }
+  }
+  catch {
+    previewContent.value = item.content || ''
+  }
+}
 
 async function loadDashboard() {
   loading.value = true
+  loadError.value = false
   try {
     const response = await fetchDashboard()
     if (response.isSuccess && response.data) {
       dashboardData.value = response.data
     }
+    else {
+      loadError.value = true
+      message.error(response.message || t('workbench.fetchDashboardFailed'))
+    }
   }
   catch (error) {
+    loadError.value = true
     if (import.meta.env.DEV)
       console.error('[workbench] fetch dashboard failed', error)
+    message.error(t('workbench.fetchDashboardFailed'))
   }
   finally {
     loading.value = false
@@ -56,7 +94,21 @@ onMounted(() => {
 
 <template>
   <n-spin :show="loading">
+    <n-result
+      v-if="loadError && !dashboardData"
+      status="error"
+      :title="t('workbench.fetchDashboardFailed')"
+      style="padding: 48px 16px;"
+    >
+      <template #footer>
+        <n-button type="primary" @click="loadDashboard">
+          {{ t('common.refresh') }}
+        </n-button>
+      </template>
+    </n-result>
+
     <n-grid
+      v-else
       :x-gap="16"
       :y-gap="16"
       :cols="3"
@@ -200,9 +252,9 @@ onMounted(() => {
             </n-flex>
           </n-card>
 
-          <!-- 公告 -->
-          <n-card :title="t('workbench.announcements')">
-            <n-list>
+          <!-- 站内公告：总开关关闭时整块不显示 -->
+          <n-card v-if="announcementEnabled" :title="t('workbench.announcements')">
+            <n-list v-if="announcements.length > 0">
               <n-list-item v-for="item in announcements" :key="item.id">
                 <template #prefix>
                   <n-tag
@@ -213,17 +265,15 @@ onMounted(() => {
                     {{ announcementTagLabel[item.type] || t('workbench.announcementDefault') }}
                   </n-tag>
                 </template>
-                <n-tooltip trigger="hover">
-                  <template #trigger>
-                    <n-button text>
-                      {{ item.title }}
-                    </n-button>
-                  </template>
-                  {{ item.content }}
-                </n-tooltip>
+                <n-button text @click="openAnnouncement(item)">
+                  {{ item.title }}
+                </n-button>
               </n-list-item>
-              <n-empty v-if="announcements.length === 0" :description="t('workbench.noAnnouncements')" />
             </n-list>
+            <n-empty
+              v-else
+              :description="t('workbench.noAnnouncements')"
+            />
           </n-card>
 
           <!-- 账户概览 -->
@@ -265,6 +315,13 @@ onMounted(() => {
       </n-gi>
     </n-grid>
   </n-spin>
+
+  <AnnouncementPreviewModal
+    v-model:show="previewShow"
+    :title="previewTitle"
+    :content="previewContent"
+    :type="previewType"
+  />
 </template>
 
 <style scoped></style>

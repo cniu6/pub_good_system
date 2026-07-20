@@ -8,6 +8,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AnnouncementPreviewModal: typeof import('./../components/common/AnnouncementPreviewModal.vue')['default']
     AppLoading: typeof import('./../components/common/AppLoading.vue')['default']
     CommonWrapper: typeof import('./../components/common/CommonWrapper.vue')['default']
     DarkModeSwitch: typeof import('./../components/common/DarkModeSwitch.vue')['default']
