@@ -204,14 +204,17 @@ export const useAppStore = defineStore('app-store', {
      * @return {*}
      */
     async reloadPage(delay = 600) {
+      // loadFlag 仅控制内容区短暂卸载重挂，不可持久化；失败也要保证恢复为 true，避免侧边栏切换后一直空白
       this.loadFlag = false
-      await nextTick()
-      if (delay) {
-        setTimeout(() => {
-          this.loadFlag = true
-        }, delay)
+      try {
+        await nextTick()
+        if (delay) {
+          await new Promise<void>((resolve) => {
+            setTimeout(() => resolve(), delay)
+          })
+        }
       }
-      else {
+      finally {
         this.loadFlag = true
       }
     },
@@ -228,5 +231,7 @@ export const useAppStore = defineStore('app-store', {
   },
   persist: {
     storage: localStorage,
+    // loadFlag 是运行时临时开关，持久化后可能以 false 回灌导致内容区永久空白
+    omit: ['loadFlag'],
   },
 })

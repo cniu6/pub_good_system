@@ -4,7 +4,10 @@ import Layout from '@/layouts/index.vue'
 import { $t, arrayToTree, renderIcon } from '@/utils'
 import { clone, min, omit, pick } from 'radash'
 import { h } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, RouterView } from 'vue-router'
+
+/** 目录路由透传组件：对齐管理端，保证嵌套子路由在侧边栏切换时 Content 层始终有可渲染组件 */
+const PassThrough = { name: 'RoutePassThrough', render: () => h(RouterView) }
 
 export interface AdminMenuRoute extends Omit<RouteRecordRaw, 'children' | 'meta' | 'name'> {
   name?: RouteRecordNameGeneric
@@ -48,6 +51,9 @@ export function createRoutes(routes: AppRoute.RowRoute[]) {
   resultRouter = resultRouter.map((item: AppRoute.Route) => {
     if (item.componentPath && !item.redirect)
       item.component = modules[`/src/views${item.componentPath}`]
+    // 目录节点无页面组件时补 PassThrough，避免跨分组切换时 router-view 的 Component 为空导致空白
+    if (item.meta?.menuType === 'dir' && !item.component)
+      item.component = PassThrough
     return item
   })
 
