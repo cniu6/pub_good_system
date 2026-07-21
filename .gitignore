@@ -48,6 +48,7 @@ frontend/*.local
 frontend/system-mgr/
 frontend/admin/
 build/*
+build
 
 # Windows 垃圾文件
 *nul*
