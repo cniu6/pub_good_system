@@ -61,9 +61,28 @@ main.go (开发, tag !embedded) / main_embedded.go (tag embedded, //go:embed dis
 - `backend/utils/` — Success/Fail 响应、JWT、邮件、手机区号等通用工具
 - 数据库用 sqlx，禁止绕过 models 层手拼 SQL；模型方法已封装软删除等约定
 
+### 分层调用关系
+
+```
+HTTP → controllers → services → models → DB
+                    ↘ utils / pkg/config
+```
+
+- **控制器**：参数绑定、权限上下文、响应封装
+- **服务**：事务边界、跨模型规则（支付绑定、提现状态机等）；控制器不直接操作数据库
+- **模型**：SQL 与字段映射，CRUD 命名统一 `动词+类型+条件`（如 `GetUserByID`、`CreatePaymentOrder`），禁止业务里写死 CamelCase 列名
+
 ### 插件系统（全自动）
 
 在 `backend/app/plugins/<name>/` 实现 Plugin 接口，`init()` 中 `pluginregistry.Register(...)`。根 main.go / main_embedded.go 的 `@plugins-start` ~ `@plugins-end` blank import 区域由 `gen_plugins.go` 自动扫描更新，勿手改。生命周期：`Configure → Init → Migrate → RegisterRoutes → Shutdown`；demo 插件需 `-tags demo`。
+
+当前业务插件：
+
+| 插件 | 优先级 | 路由 | 说明 |
+|------|--------|------|------|
+| `sms` | 10 | `/api/v1/{ADMIN}/sms-send-test` | 短信发送测试 + 模板管理 |
+| `pay_balance` | 50 | `/api/v1/user/payment/balance` | 余额充值支付通道 |
+| `demo` | — | `/api/v1/demo/*` | 示例插件，需 `-tags demo` |
 
 ### 配置（关键约定）
 
@@ -71,6 +90,16 @@ main.go (开发, tag !embedded) / main_embedded.go (tag embedded, //go:embed dis
 - 前端另有 `frontend/.env / .env.dev / .env.production`（Vite 分层），与后端根 `.env` 分开维护；仅需人工对齐 `VITE_ADMIN_BASE_PATH` ↔ `ADMIN_PATH`
 - `DB_DRIVER` 支持 mysql / postgres / sqlite（本地开发可用 sqlite，根目录 fst.db）
 - 全局配置 `config.GlobalConfig` 并发安全（Clone/Update），运行时可被 system_settings 覆盖
+
+**并发安全 API（必用）**：
+
+| 函数 | 用途 |
+|------|------|
+| `CloneGlobalConfig()` | 只读快照，业务读配置优先用这个 |
+| `UpdateGlobalConfig(fn)` | 写锁内更新（热更新） |
+| `NormalizeAdminAPIPath(path)` | 规范化 API 前缀：`/` 开头、去尾斜杠、空则 `/admin` |
+| `IsProductionMode()` | 是否生产环境 |
+| `IsAdminDebugOpsEnabled()` | 是否允许 debug/pprof/重启/手动任务等 |
 
 ### 管理端两套路径（勿混淆）
 
@@ -86,6 +115,63 @@ Swagger 注解仍写 `/api/v1/admin/*`；doc.json 在运行时按 `ADMIN_API_PAT
 - JWT 双 Token（access + refresh）+ `authGuard` 区分 admin/user 两套会话：同一账号的管理员态与用户态在 `user_sessions` 中是独立会话，互不挤占（login-as 自己不会把管理员踢下线）
 - 刷新令牌轮换带重用检测（重用即吊销该用户会话）
 - Presence：WebSocket 心跳上报在线（`pkg/presence` + `routes/ws.go`），管理端 `/online/*` 查看/踢下线；公告发布经 Hub `BroadcastJSON` 推送
+
+### 后端中间件
+
+| 中间件 | 包 | 说明 |
+|--------|-----|------|
+| `AuthMiddleware` / `AuthMiddlewareForGuard` | `pkg/middleware` | JWT Bearer + X-Api-Key 验证；设置 username/userID/role/authGuard |
+| `AdminOnly` | `pkg/middleware` | 检查 authGuard == "admin" && role == "admin" |
+| `CorsMiddleware` | `pkg/middleware` | CORS 白名单，支持通配符 |
+| `LoggerMiddleware` | `pkg/middleware` | 请求日志（可配置跳过路径） |
+| `APIAccessLogMiddleware` | `pkg/middleware` | 每请求写 api_access_logs 表 |
+| `DynamicGlobalRateLimitMiddleware` | `pkg/middleware` | 令牌桶，读 system_settings 运行时配置 |
+| `DynamicAdminRateLimitMiddleware` | `pkg/middleware` | 管理端专用限流 |
+| `RequireIdempotency` | `pkg/middleware` | X-Idempotency-Key 幂等控制 |
+| `SimpleLogMiddleware` | `pkg/middleware` | 管理写操作审计日志 |
+| `SwaggerAdminPathRewriteMiddleware` | `pkg/middleware` | doc.json 路径改写 |
+
+### 后端工具函数（`backend/utils/`）
+
+| 函数 | 说明 |
+|------|------|
+| `Success(c, data)` | 统一成功响应 `{code:200, message:"OK", data}` |
+| `Fail(c, code, message)` | 统一失败响应；code 400–599 同时作为 HTTP 状态码 |
+| `GenerateToken / GenerateRefreshToken` | JWT 签发 |
+| `ParseToken / ParseTokenIgnoreExpiry` | JWT 解析（后者忽略过期，用于强退） |
+| `SendEmail / SendEmailWithTemplate` | 邮件发送（支持代理） |
+| `HashPassword / CheckPassword` | bcrypt 密码 |
+| `NormalizePhone / FormatPhoneDisplay` | 手机号规范化/显示 |
+| `MaskCertificateNo` | 证件号掩码 |
+| `VerifyGeetest` | 极验验证码校验 |
+| `GetClientIP / GetUserAgent / GetRequestContext` | 请求上下文提取 |
+
+### 自动任务（`backend/internal/task/`）
+
+- 表：`auto_job_definitions` / `auto_job_runs`
+- 管理 API：`/api/v1/{ADMIN}/auto-jobs/*`
+- 默认任务：`prune_auto_job_runs`(1h)、`mark_stuck_auto_jobs`(180s)、`cleanup_expired_idempotency`(1h)、`cleanup_expired_orders`(120s)、`cleanup_sessions_codes`(600s)
+- 新增任务：在 `handlers.go` 加一行 map + 函数，并在 `seed.go` 加预设
+- 运行要点：空跑(Quiet)不落库；running 状态看定义表而非 runs 表；id 逼近上限自动重编号；handler 与调度均有 panic 兜底
+
+### API 路由树
+
+```text
+/swagger/*any          # 可选 EnableSwagger + 管理路径改写中间件
+/api/v1/
+├── public/            # 无需登录：登录注册、app-config、geo、session 强退、支付回调
+├── user/              # 需 user 或 admin token：资料/支付/实名/提现/公告
+├── system/            # 需登录：cleanup-status
+├── ws/presence        # Presence WebSocket（JWT，自行鉴权）
+├── {ADMIN_API_PATH}/  # 默认 /admin；需 admin token + AdminOnly + 动态限流
+│   ├── dashboard / users / online / money-logs / score-logs
+│   ├── logs / api-logs / email-logs / sms-logs
+│   ├── settings / email-templates / sms-templates
+│   ├── payment / pay-gateways / withdraw / realname
+│   ├── announcements / auto-jobs / server-management
+│   └── debug/*        # 仅 IsAdminDebugOpsEnabled 时注册
+└── 插件路由           # pluginregistry 自动注册
+```
 
 ## 接口协议硬规则（防回归，提交前自检）
 
@@ -128,13 +214,105 @@ Swagger 注解仍写 `/api/v1/admin/*`；doc.json 在运行时按 `ADMIN_API_PAT
 - 图标统一用 `icon-park-outline` 集合（已离线注册，`modules/iconify-offline.ts`）：路由 icon 写字符串 `'icon-park-outline:xxx'`，代码中渲染用 `renderIcon` / `NovaIcon`
 - 列表页固定套路（模板参考 `views/admin/online-users/index.vue`）：`n-card` 内筛选 `n-space`（`n-input` 支持回车搜索 + `n-select` 筛选）+ `remote` 的 `n-data-table`；`reactive` 的 `query { page, page_size }` 与 `pagination { page, pageSize, itemCount }` 同步翻页；筛选下拉必须显式给「全部」项（`value: ''`），不留空占位
 - 危险操作（删除/踢下线）必须 `dialog.warning` 二次确认，按钮文案用 `t('common.confirm')` / `t('common.cancel')`；`common.*` 命名空间已有确认/取消/刷新/重置等通用文案，优先复用
-- 请求结果统一判 `res.isSuccess`（alova 封装注入），失败 `message.error(res.message || t('...'))`，加载态走 `loading` ref；优先复用 `components/common/` 现有封装（`PhoneInput`、`TableColumnSelector`、`GeetestCaptcha`、`NovaIcon`、`AnnouncementPreviewModal` 等）
+- 请求结果统一判 `res.isSuccess`（alova 封装注入），失败 `message.error(res.message || t('...'))`，加载态走 `loading` ref；优先复用 `components/common/` 现有封装（`PhoneInput`、`TableColumnSelector`、`GeetestCaptcha`、`NovaIcon`、`AnnouncementPreviewModal`、`I18nMemoEditor` 等）
+
+### 前端启动顺序（务必遵守）
+
+```
+createApp
+  → installPinia
+  → settingsStore.loadConfig()   // 注入 admin_api_path
+  → i18n / installRouter(mode)
+  → directives / assets
+  → mount
+```
+
+- **admin 模式**：`authStorage.enableSessionIsolation()`（sessionStorage 与用户端 localStorage 隔离）
+- **页面入口**：`VITE_ADMIN_BASE_PATH`
+- **REST 前缀**：运行时 `admin_api_path`，见 `service/api/admin/base.ts`
+
+### 前端关键目录与模块
+
+| 目录 | 说明 |
+|------|------|
+| `src/components/common/` | 通用组件：PhoneInput、NovaIcon、TableColumnSelector、GeetestCaptcha、I18nMemoEditor、AnnouncementPreviewModal 等 |
+| `src/composables/` | 逻辑封装：usePresence（WS 心跳 + BroadcastChannel 选主 + 指数退避重连） |
+| `src/modules/` | 初始化模块：iconify-offline（注册 icon-park-outline）、i18n |
+| `src/store/auth.ts` | 认证：login/logout/refreshToken/admin-user 双 guard、login-as 窗口 |
+| `src/store/settings.ts` | 运行时配置：loadConfig → fetchAppConfig → setRuntimeAdminApiPath |
+| `src/store/app/index.ts` | UI 状态：主题/侧边栏宽度/语言/全屏/水印等 |
+| `src/store/router/index.ts` | 路由：initAuthRoute → admin/user 模式分别加载路由 |
+| `src/service/http/` | Alova 封装：request 实例、拦截器、handleServiceResult、token-refresh（单例去重） |
+| `src/service/api/admin/` | 管理端 API（懒加载代理 `adminApi`，16 个子模块） |
+| `src/service/api/user/` | 用户端 API（login、user-center、realname、announcement、logs） |
+| `src/service/api/app-config.ts` | 公开配置获取（含 admin_api_path 运行时注入） |
+| `src/layouts/` | 主布局：ProLayout + 侧边栏拖拽调宽 + 弹窗公告 + 移动端适配 |
+| `locales/` | i18n：zh_CN.json / en_US.json；命名空间见下方 |
+
+### 前端 i18n 命名空间速查
+
+| 命名空间 | 用途 | 示例 |
+|----------|------|------|
+| `common.*` | 通用操作（确认/取消/刷新/重置/启用/禁用/编辑/删除等） | `t('common.confirm')` |
+| `route.*` | 路由标题=侧边栏/面包屑/Tab（`route.<路由name>`） | `t('route.admin-users')` |
+| `login.*` | 登录/注册页 | `t('login.userName')` |
+| `adminXxx.*` | 管理端页面文案（按模块建命名空间） | `t('adminOnlineUsers.kick')` |
+| `route.xxx` | meta.title 语义 key（路由守卫设浏览器标题） | `route.userList` |
+
+### 管理端 API 懒加载代理（`admin/index.ts`）
+
+```typescript
+// 使用方式：首次调用任意方法时才 import() 对应模块
+import { adminApi } from '@/service/api/admin'
+const res = await adminApi.user.list({ page: 1 })
+
+// 已注册模块：user / log / apiLog / smsLog / emailLog / emailTemplate /
+//   smsTemplate / debug / settings / server / autoJob / dashboard /
+//   realname / payment / finance / announcement
+```
+
+新增 API 模块必须注册进此代理，否则无法通过 `adminApi.xxx` 访问。
 
 ## 文档同步（留档约定）
 
 各目录有 `留档.md`（backend/、frontend/、tools/、backend/internal/task/ 等），`doc/` 为知识库（索引：`doc/README.md`、`doc/文档索引与目录留档.md`）。重大功能改动后应同步更新对应留档与 doc 文档。
 
+### 留档与 doc 索引
+
+| 文档 | 位置 | 内容 |
+|------|------|------|
+| 后端总留档 | `backend/留档.md` | 目录结构、近期更新、测试与工具 |
+| 业务逻辑核心 | `backend/app/业务逻辑核心.md` | 分层调用、近期业务要点 |
+| 插件系统 | `backend/app/plugins/插件系统接口与管理逻辑.md` | Plugin 接口、注册/装载、gen_plugins |
+| 内部系统库 | `backend/internal/内部系统库.md` | appinit/migrate/task 说明 |
+| API 路由 | `backend/routes/API路由定义与分发规则.md` | 路由树、管理端前缀、Swagger |
+| 通用工具 | `backend/utils/通用工具函数库.md` | 响应/JWT/邮件/手机号/代理等 |
+| 全局配置 | `backend/pkg/config/全局配置管理与环境加载.md` | Config 结构、并发安全 API、.env 查找 |
+| 自动任务 | `backend/internal/task/留档.md` | handler/seed/运行要点/默认任务 |
+| 前端总留档 | `frontend/留档.md` | 环境变量、目录结构、两套管理路径 |
+| 前端源码核心 | `frontend/src/源代码核心.md` | 启动顺序、目录索引 |
+| 前端网络请求 | `frontend/src/service/网络请求与API定义.md` | Alova 封装、admin API 路径注入 |
+| 前端路由 | `frontend/src/router/路由配置与权限守卫.md` | 双模式、守卫、懒加载 |
+| 前端组件 | `frontend/src/components/通用UI组件与业务封装.md` | 通用组件列表 |
+| 工具脚本 | `tools/留档.md` | 运维/诊断脚本与单元测试的区别 |
+| 配置系统 | `doc/配置系统.md` | .env 加载与配置 |
+| 在线会话 | `doc/在线会话与Presence.md` | WS 在线心跳与强退 |
+| 管理端路径 | `doc/管理端路径与Swagger自适应.md` | 页面/API 路径分离与自适应 |
+| JWT 认证 | `doc/JWT认证.md` | Token 生成与验证 |
+| 邮件系统 | `doc/邮件系统.md` | 邮件发送与模板管理 |
+| 短信插件 | `doc/短信插件系统.md` | 短信多厂商 |
+| 支付订单 | `doc/支付订单系统.md` | 支付与回调 |
+| 提现流程 | `doc/提现流程与余额管理.md` | 提现状态机 |
+| 实名认证 | `doc/实名认证接入说明.md` | 实名审核 |
+| 插件开发 | `doc/插件系统.md` | 插件开发指南 |
+| 数据库模型 | `doc/数据库模型.md` | 数据模型 |
+| API 路由 | `doc/API路由.md` | 路由规则 |
+| 前端请求 | `doc/前端请求.md` | 前端请求封装 |
+
 ## 已知设计（勿当 Bug"修复"）
 
 - SQLite 库中 `verification_codes` 同时存在 `email` 与 `contact` 列属预期（SQLite 不可靠改名，采用加列拷贝并保留旧列），业务只读写 `contact`
 - `frontend/agents.md` 的 Stack 描述（shadcn-vue/tailwind 等）已过时，以 package.json 为准（Naive UI + UnoCSS + Alova）
+- `utils.Fail` 的业务码 400–599 同时作为 HTTP 状态码是设计意图（让网关/中间件按 c.Writer.Status() 统计 4xx/5xx 准确）
+- 支付通道密钥管理端列表/详情掩码，更新时 `***` 不覆盖真密钥——不是脱敏失败
+- API Key 库内存 SHA256，展示末 4 位，重新生成只返回一次明文——旧明文兼容回写哈希
