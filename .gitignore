@@ -47,6 +47,7 @@ frontend/*.local
 # 默认路径 /system-mgr，生产环境建议自定义
 frontend/system-mgr/
 frontend/admin/
+build/*
 
 # Windows 垃圾文件
 *nul*
