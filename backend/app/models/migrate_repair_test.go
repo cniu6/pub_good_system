@@ -80,4 +80,8 @@ CREATE TABLE verification_codes (
 	if contact != "a@b.com" {
 		t.Fatalf("contact 未从 email 拷贝, got=%q", contact)
 	}
+	// 旧表缺 attempts 时，repair 路径应一并补上（防猜解字段）
+	if !db.CheckColumnExists("verification_codes", "attempts") {
+		t.Fatal("迁移后仍缺 attempts")
+	}
 }

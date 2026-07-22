@@ -18,6 +18,7 @@ func InitVerificationCodeTable() {
 			expires_at TIMESTAMP NOT NULL COMMENT '过期时间',
 			is_used TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已使用:0=未使用,1=已使用',
 			is_deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否软删除:0=正常,1=已删除',
+			attempts INT NOT NULL DEFAULT 0 COMMENT '连续验证失败次数:达到上限后作废该码,防暴力猜解',
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 			INDEX idx_contact_type (contact, code_type),
@@ -95,6 +96,7 @@ func repairVerificationCodeTable() {
 		"expires_at": "ALTER TABLE verification_codes ADD COLUMN expires_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '过期时间'",
 		"is_used":    "ALTER TABLE verification_codes ADD COLUMN is_used TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已使用:0=未使用,1=已使用'",
 		"is_deleted": "ALTER TABLE verification_codes ADD COLUMN is_deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否软删除:0=正常,1=已删除'",
+		"attempts":   "ALTER TABLE verification_codes ADD COLUMN attempts INT NOT NULL DEFAULT 0 COMMENT '连续验证失败次数:达到上限后作废该码,防暴力猜解'",
 		"created_at": "ALTER TABLE verification_codes ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'",
 		"updated_at": "ALTER TABLE verification_codes ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'",
 	}
@@ -129,6 +131,7 @@ type VerificationCode struct {
 	ExpiresAt time.Time `db:"expires_at" json:"expires_at"`
 	IsUsed    int       `db:"is_used" json:"is_used"`
 	IsDeleted int       `db:"is_deleted" json:"is_deleted"`
+	Attempts  int       `db:"attempts" json:"attempts"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -182,7 +185,17 @@ func MarkVerificationCodeAsUsed(id uint64) error {
 	return err
 }
 
+// maxVerificationAttempts 单个验证码允许的最大验证失败次数。
+// 验证码为 6 位数字（100 万种组合），单纯靠 IP 限流不足以挡住多 IP/代理池的分布式猜解，
+// 因此在验证码本身维度做失败计数：连续失败达到上限后立即作废该码，
+// 攻击者必须重新申请验证码（受发码冷却限制，且新码只会发到真实持有者邮箱/手机）。
+const maxVerificationAttempts = 5
+
+// ConsumeVerificationCode 校验并消费验证码。
+// 命中：原子置为已使用并返回 true（天然幂等、防并发重复消费）。
+// 未命中：对当前有效验证码累加失败次数，达到上限即作废，防止暴力猜解。
 func ConsumeVerificationCode(contact, code, codeType string) (bool, error) {
+	// 1) 先尝试原子命中并消费匹配的验证码。
 	result, err := db.Exec(
 		`UPDATE verification_codes
 		 SET is_used = 1
@@ -202,7 +215,33 @@ func ConsumeVerificationCode(contact, code, codeType string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return rows > 0, nil
+	if rows > 0 {
+		return true, nil
+	}
+
+	// 2) 未命中（验证码错误或已失效）：对当前有效验证码原子累加失败次数，
+	//    达到上限同时软删作废，堵住持续猜解（一步完成，避免 +1 与作废之间的竞态窗口）。
+	//    双层子查询是 MySQL「不能在 UPDATE 中直接子查询同表」的既有规避写法，SQLite 同样适用。
+	//    is_deleted 表达式写在 attempts 赋值之前，并用「旧 attempts+1」判断：
+	//    MySQL 单表 UPDATE 自左向右、SQLite 全程用旧值，两种方言下结果一致。
+	//    仅当存在有效验证码时才会真正改行；无有效码时不影响任何行，避免无意义计数。
+	if _, err := db.Exec(
+		`UPDATE verification_codes
+		 SET is_deleted = CASE WHEN attempts + 1 >= ? THEN 1 ELSE is_deleted END,
+		     attempts = attempts + 1
+		 WHERE id = (
+		 	SELECT id FROM (
+		 		SELECT id FROM verification_codes
+		 		WHERE contact = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND expires_at > NOW()
+		 		ORDER BY created_at DESC LIMIT 1
+		 	) AS latest
+		 )`,
+		maxVerificationAttempts, contact, codeType,
+	); err != nil {
+		return false, err
+	}
+
+	return false, nil
 }
 
 // MarkVerificationCodeAsDeleted 软删除验证码

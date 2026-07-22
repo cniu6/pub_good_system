@@ -212,22 +212,26 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 		return
 	}
 
-	// 检查用户名是否存在
-	if _, err := models.GetUserByUsername(req.Username); err == nil {
-		utils.Fail(c, 400, "Username already exists")
-		return
-	}
-
-	// 检查邮箱是否存在
-	if _, err := models.GetUserByEmail(req.Email); err == nil {
-		utils.Fail(c, 400, "Email already exists")
-		return
-	}
-
-	// 极验验证
+	// 极验验证。
+	// 顺序很关键：必须在任何"是否已存在"的探测性数据库查询之前完成，
+	// 否则攻击者不需要过人机验证就能批量试探用户名/邮箱是否已被注册（枚举攻击），
+	// 极验会形同摆设。
 	geetestConfig := services.GetGlobalGeetestRuntimeConfig()
 	if err := utils.ValidateGeetestFromHeaders(c, geetestConfig.CaptchaID, geetestConfig.CaptchaKey, geetestConfig.Enabled); err != nil {
 		utils.Fail(c, 403, "Captcha validation failed")
+		return
+	}
+
+	// 检查用户名/邮箱是否存在。
+	// 安全考虑：统一说辞，避免用户名/邮箱枚举——无论是用户名还是邮箱已被占用，
+	// 都返回同一条模糊提示，让攻击者无法据此区分「用户名存在」还是「邮箱存在」。
+	if _, err := models.GetUserByUsername(req.Username); err == nil {
+		utils.Fail(c, 400, "Username or email already registered")
+		return
+	}
+
+	if _, err := models.GetUserByEmail(req.Email); err == nil {
+		utils.Fail(c, 400, "Username or email already registered")
 		return
 	}
 
