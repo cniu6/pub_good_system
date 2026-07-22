@@ -4,7 +4,6 @@
  */
 import { onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import { adminApi } from '@/service/api/admin'
 import type { GoroutineStatsResponse, RuntimeGoroutineInfo } from '@/service/api/admin/debug'
@@ -29,10 +28,9 @@ export interface PprofResultPanel {
 const activeTab = ref('monitor')
 const monitoringLoading = ref(false)
 const operationsLoading = ref(false)
-const savingRuntime = ref(false)
+const savingRateLimit = ref(false)
 const forcingGC = ref(false)
 const autoRefresh = ref(false)
-const restartLoading = ref(false)
 const debugAutoRefresh = ref(false)
 const debugLoading = reactive<Record<string, boolean>>({
   goroutineStats: false,
@@ -69,10 +67,8 @@ const debugResults = reactive({
   traceText: '',
 })
 
-const runtimeForm = reactive({
-  api_access_log_enabled: true,
-  api_log_query_days: 7,
-  api_log_max_count: 1000,
+/** 运维与限流页：仅全局/管理端限流配置（不含日志等其它设置） */
+const rateLimitForm = reactive({
   api_rate_limit_enabled: false,
   api_rate_limit_rate: 120,
   api_rate_limit_burst: 240,
@@ -165,7 +161,6 @@ export function normalizeActiveTab(value: unknown) {
 
 export function useServerManagement() {
   const message = useMessage()
-  const router = useRouter()
   const { t } = useI18n()
 
   function getRuntimeStateSummaryLabel(category: RuntimeStateCategory) {
@@ -202,26 +197,26 @@ export function useServerManagement() {
     }
   }
 
-  async function loadRuntimeConfig() {
+  async function loadRateLimitConfig() {
     try {
       const res = await adminApi.settings.list()
       if (!res.isSuccess) {
-        message.error(res.message || t('adminServer.loadRuntimeFailed'))
+        message.error(res.message || t('adminServer.loadRateLimitFailed'))
         return
       }
       const categories = res.data?.categories || []
       for (const category of categories) {
         for (const item of category.items) {
-          if (item.key in runtimeForm) {
-            ;(runtimeForm as any)[item.key] = item.type === 'boolean'
+          if (item.key in rateLimitForm) {
+            ;(rateLimitForm as any)[item.key] = item.type === 'boolean'
               ? parseBooleanSetting(item.value)
-              : parseNumberSetting(item.value, (runtimeForm as any)[item.key])
+              : parseNumberSetting(item.value, (rateLimitForm as any)[item.key])
           }
         }
       }
     }
     catch {
-      message.error(t('adminServer.loadRuntimeFailed'))
+      message.error(t('adminServer.loadRateLimitFailed'))
     }
   }
 
@@ -354,49 +349,28 @@ export function useServerManagement() {
     await Promise.all([loadMonitoring(), loadOperations()])
   }
 
-  async function saveRuntimeConfig() {
-    savingRuntime.value = true
+  async function saveRateLimitConfig() {
+    savingRateLimit.value = true
     try {
       const payload: Record<string, string> = {
-        api_access_log_enabled: String(runtimeForm.api_access_log_enabled),
-        api_log_query_days: String(Math.max(1, Math.floor(runtimeForm.api_log_query_days || 7))),
-        api_log_max_count: String(Math.max(100, Math.floor(runtimeForm.api_log_max_count || 1000))),
-        api_rate_limit_enabled: String(runtimeForm.api_rate_limit_enabled),
-        api_rate_limit_rate: String(Math.max(1, Math.floor(runtimeForm.api_rate_limit_rate || 120))),
-        api_rate_limit_burst: String(Math.max(1, Math.floor(runtimeForm.api_rate_limit_burst || 240))),
-        admin_rate_limit_enabled: String(runtimeForm.admin_rate_limit_enabled),
-        admin_rate_limit_rate: String(Math.max(1, Math.floor(runtimeForm.admin_rate_limit_rate || 60))),
-        admin_rate_limit_burst: String(Math.max(1, Math.floor(runtimeForm.admin_rate_limit_burst || 120))),
+        api_rate_limit_enabled: String(rateLimitForm.api_rate_limit_enabled),
+        api_rate_limit_rate: String(Math.max(1, Math.floor(rateLimitForm.api_rate_limit_rate || 120))),
+        api_rate_limit_burst: String(Math.max(1, Math.floor(rateLimitForm.api_rate_limit_burst || 240))),
+        admin_rate_limit_enabled: String(rateLimitForm.admin_rate_limit_enabled),
+        admin_rate_limit_rate: String(Math.max(1, Math.floor(rateLimitForm.admin_rate_limit_rate || 60))),
+        admin_rate_limit_burst: String(Math.max(1, Math.floor(rateLimitForm.admin_rate_limit_burst || 120))),
       }
       const res = await adminApi.settings.batchUpdate(payload)
       if (!res.isSuccess)
-        throw new Error(res.message || t('adminServer.saveRuntimeFailed'))
-      message.success(t('adminServer.saveRuntimeSuccess'))
+        throw new Error(res.message || t('adminServer.saveRateLimitFailed'))
+      message.success(t('adminServer.saveRateLimitSuccess'))
       await loadOperations()
     }
     catch (error: any) {
-      message.error(error?.message || t('adminServer.saveRuntimeFailed'))
+      message.error(error?.message || t('adminServer.saveRateLimitFailed'))
     }
     finally {
-      savingRuntime.value = false
-    }
-  }
-
-  function goToAutoJobs() {
-    router.push({ name: 'admin-auto-jobs' })
-  }
-
-  async function handleRestartBackend() {
-    restartLoading.value = true
-    try {
-      await adminApi.settings.restartBackend()
-      message.success(t('adminSettings.restartBackendRequested'))
-    }
-    catch {
-      message.error(t('adminSettings.restartBackendFailed'))
-    }
-    finally {
-      restartLoading.value = false
+      savingRateLimit.value = false
     }
   }
 
@@ -552,7 +526,7 @@ export function useServerManagement() {
   }
 
   async function initPage() {
-    await Promise.all([loadRuntimeConfig(), refreshAll(), loadGoroutineStats()])
+    await Promise.all([loadRateLimitConfig(), refreshAll(), loadGoroutineStats()])
   }
 
   /** 仅在外壳挂载一次，避免 Tab 重复注册卸载清理 */
@@ -573,10 +547,9 @@ export function useServerManagement() {
     activeTab,
     monitoringLoading,
     operationsLoading,
-    savingRuntime,
+    savingRateLimit,
     forcingGC,
     autoRefresh,
-    restartLoading,
     debugAutoRefresh,
     debugLoading,
     monitoring,
@@ -591,18 +564,16 @@ export function useServerManagement() {
     cpuSeconds,
     traceSeconds,
     debugResults,
-    runtimeForm,
+    rateLimitForm,
     getRuntimeStateSummaryLabel,
     getRuntimeStateSummaryTagType,
-    loadRuntimeConfig,
+    loadRateLimitConfig,
     downloadTraceProfile,
     previewTraceProfile,
     loadMonitoring,
     loadOperations,
     refreshAll,
-    saveRuntimeConfig,
-    goToAutoJobs,
-    handleRestartBackend,
+    saveRateLimitConfig,
     loadGoroutineStats,
     handleForceGC,
     captureProfile,

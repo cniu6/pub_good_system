@@ -1,10 +1,14 @@
 <script setup lang="ts">
+/**
+ * 服务器管理 · 运维与限流
+ * 只负责全局/管理端限流配置与运行时快照，不掺杂日志、任务、重启等其它能力。
+ */
 import { computed, h } from 'vue'
 import { useI18n } from 'vue-i18n'
-import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useTableColumnVisibility } from '@/hooks'
 import { NTag } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
+import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
+import { useTableColumnVisibility } from '@/hooks'
 import type { DynamicRateLimitSnapshot } from '@/service/api/admin/server'
 import { useServerManagement } from '../composables/useServerManagement'
 
@@ -12,33 +16,40 @@ const { t } = useI18n()
 const {
   operations,
   operationsLoading,
-  runtimeForm,
-  savingRuntime,
-  restartLoading,
-  saveRuntimeConfig,
-  handleRestartBackend,
-  goToAutoJobs,
+  rateLimitForm,
+  savingRateLimit,
+  loadOperations,
+  saveRateLimitConfig,
 } = useServerManagement()
 
 const rateLimits = computed(() => operations.value?.rate_limits || [])
 
-const rateLimitColumns: DataTableColumns<DynamicRateLimitSnapshot> = [
-  { title: t('adminServer.rateLimit.name'), key: 'name', minWidth: 130 },
+const rateLimitColumns = computed<DataTableColumns<DynamicRateLimitSnapshot>>(() => [
+  { title: t('adminServer.rateLimit.name'), key: 'name', minWidth: 140 },
   {
     title: t('adminServer.rateLimit.enabled'),
     key: 'enabled',
     width: 90,
     render(row) {
-      return h(NTag, { type: row.enabled ? 'success' : 'default', size: 'small' }, () => row.enabled ? t('common.enable') : t('common.disable'))
+      return h(
+        NTag,
+        { type: row.enabled ? 'success' : 'default', size: 'small', bordered: false },
+        () => (row.enabled ? t('common.enable') : t('common.disable')),
+      )
     },
   },
-  { title: t('adminServer.rateLimit.rate'), key: 'rate', width: 90 },
-  { title: t('adminServer.rateLimit.burst'), key: 'burst', width: 90 },
+  { title: t('adminServer.rateLimit.rate'), key: 'rate', width: 100 },
+  { title: t('adminServer.rateLimit.burst'), key: 'burst', width: 100 },
   { title: t('adminServer.rateLimit.allowed'), key: 'allowed_count', width: 100 },
   { title: t('adminServer.rateLimit.blocked'), key: 'blocked_count', width: 100 },
-  { title: t('adminServer.rateLimit.visitors'), key: 'active_visitors', width: 110 },
-  { title: t('adminServer.rateLimit.lastReload'), key: 'last_config_reload', minWidth: 180, render: row => row.last_config_reload || '-' },
-]
+  { title: t('adminServer.rateLimit.visitors'), key: 'active_visitors', width: 120 },
+  {
+    title: t('adminServer.rateLimit.lastReload'),
+    key: 'last_config_reload',
+    minWidth: 180,
+    render: row => row.last_config_reload || '-',
+  },
+])
 
 const rateLimitSelectableColumnOptions = computed(() => [
   { key: 'name', label: t('adminServer.rateLimit.name') },
@@ -70,63 +81,110 @@ const {
 
 <template>
   <NSpace vertical :size="16">
-    <NCard :title="t('adminServer.tasks.title')">
-      <NAlert type="info" :bordered="false" style="margin-bottom: 12px;">
-        {{ t('adminServer.tasks.movedHint') }}
+    <NCard :title="t('adminServer.rateLimit.configTitle')">
+      <NAlert type="info" :bordered="false" style="margin-bottom: 16px;">
+        {{ t('adminServer.rateLimit.hint') }}
       </NAlert>
-      <NButton type="primary" @click="goToAutoJobs">{{ t('adminServer.tasks.goToAutoJobs') }}</NButton>
-    </NCard>
 
-    <NCard :title="t('adminServer.rateLimit.title')">
-      <template #header-extra>
-        <TableColumnSelector
-          v-model="rateLimitSelectedColumnKeys"
-          :options="rateLimitColumnOptions"
-          :visible-count="rateLimitVisibleColumnCount"
-          :total-count="rateLimitTotalColumnCount"
-          :button-label="t('common.showFields')"
-          :title="t('common.visibleFields')"
-          :hint="t('common.columnVisibilityHint')"
-          :reset-label="t('common.restoreDefaultFields')"
-          @reset="resetRateLimitSelectedColumns"
-        />
-      </template>
-      <NDataTable :columns="rateLimitVisibleColumns" :data="rateLimits" :loading="operationsLoading" :pagination="false" :scroll-x="rateLimitTableScrollX" />
-    </NCard>
-
-    <NCard :title="t('adminServer.runtimeConfig.title')">
-      <NGrid cols="2" :x-gap="24" :y-gap="18">
+      <NGrid cols="1 s:2" :x-gap="24" :y-gap="18" responsive="screen">
         <NGi>
-          <NSpace vertical>
-            <NSpace align="center" justify="space-between"><NText strong>{{ t('adminServer.runtimeConfig.apiLog') }}</NText><NSwitch v-model:value="runtimeForm.api_access_log_enabled" /></NSpace>
-            <NSpace align="center" justify="space-between"><NText>{{ t('adminServer.runtimeConfig.queryDays') }}</NText><NInputNumber v-model:value="runtimeForm.api_log_query_days" :min="1" :max="365" /></NSpace>
-            <NSpace align="center" justify="space-between"><NText>{{ t('adminServer.runtimeConfig.maxCount') }}</NText><NInputNumber v-model:value="runtimeForm.api_log_max_count" :min="100" :max="200000" /></NSpace>
-          </NSpace>
-        </NGi>
-        <NGi>
-          <NSpace vertical>
-            <NSpace align="center" justify="space-between"><NText strong>{{ t('adminServer.runtimeConfig.globalRateLimit') }}</NText><NSwitch v-model:value="runtimeForm.api_rate_limit_enabled" /></NSpace>
-            <NSpace align="center" justify="space-between"><NText>{{ t('adminServer.rateLimit.rate') }}</NText><NInputNumber v-model:value="runtimeForm.api_rate_limit_rate" :min="1" :max="10000" /></NSpace>
-            <NSpace align="center" justify="space-between"><NText>{{ t('adminServer.rateLimit.burst') }}</NText><NInputNumber v-model:value="runtimeForm.api_rate_limit_burst" :min="1" :max="20000" /></NSpace>
-          </NSpace>
-        </NGi>
-        <NGi>
-          <NSpace vertical>
-            <NSpace align="center" justify="space-between"><NText strong>{{ t('adminServer.runtimeConfig.adminRateLimit') }}</NText><NSwitch v-model:value="runtimeForm.admin_rate_limit_enabled" /></NSpace>
-            <NSpace align="center" justify="space-between"><NText>{{ t('adminServer.rateLimit.rate') }}</NText><NInputNumber v-model:value="runtimeForm.admin_rate_limit_rate" :min="1" :max="10000" /></NSpace>
-            <NSpace align="center" justify="space-between"><NText>{{ t('adminServer.rateLimit.burst') }}</NText><NInputNumber v-model:value="runtimeForm.admin_rate_limit_burst" :min="1" :max="20000" /></NSpace>
-          </NSpace>
-        </NGi>
-        <NGi>
-          <NSpace vertical>
-            <NText depth="3">{{ t('adminServer.runtimeConfig.hint') }}</NText>
-            <NSpace>
-              <NButton type="primary" :loading="savingRuntime" @click="saveRuntimeConfig">{{ t('adminServer.runtimeConfig.save') }}</NButton>
-              <NButton :loading="restartLoading" @click="handleRestartBackend">{{ t('adminServer.runtimeConfig.restartBackend') }}</NButton>
+          <NCard size="small" :title="t('adminServer.rateLimit.globalRateLimit')" embedded>
+            <NSpace vertical :size="14">
+              <NSpace align="center" justify="space-between">
+                <NText>{{ t('adminServer.rateLimit.enabled') }}</NText>
+                <NSwitch v-model:value="rateLimitForm.api_rate_limit_enabled" />
+              </NSpace>
+              <NSpace align="center" justify="space-between">
+                <NText>{{ t('adminServer.rateLimit.rateWithUnit') }}</NText>
+                <NInputNumber
+                  v-model:value="rateLimitForm.api_rate_limit_rate"
+                  :min="1"
+                  :max="10000"
+                  :disabled="!rateLimitForm.api_rate_limit_enabled"
+                  style="width: 140px;"
+                />
+              </NSpace>
+              <NSpace align="center" justify="space-between">
+                <NText>{{ t('adminServer.rateLimit.burstWithUnit') }}</NText>
+                <NInputNumber
+                  v-model:value="rateLimitForm.api_rate_limit_burst"
+                  :min="1"
+                  :max="20000"
+                  :disabled="!rateLimitForm.api_rate_limit_enabled"
+                  style="width: 140px;"
+                />
+              </NSpace>
             </NSpace>
-          </NSpace>
+          </NCard>
+        </NGi>
+
+        <NGi>
+          <NCard size="small" :title="t('adminServer.rateLimit.adminRateLimit')" embedded>
+            <NSpace vertical :size="14">
+              <NSpace align="center" justify="space-between">
+                <NText>{{ t('adminServer.rateLimit.enabled') }}</NText>
+                <NSwitch v-model:value="rateLimitForm.admin_rate_limit_enabled" />
+              </NSpace>
+              <NSpace align="center" justify="space-between">
+                <NText>{{ t('adminServer.rateLimit.rateWithUnit') }}</NText>
+                <NInputNumber
+                  v-model:value="rateLimitForm.admin_rate_limit_rate"
+                  :min="1"
+                  :max="10000"
+                  :disabled="!rateLimitForm.admin_rate_limit_enabled"
+                  style="width: 140px;"
+                />
+              </NSpace>
+              <NSpace align="center" justify="space-between">
+                <NText>{{ t('adminServer.rateLimit.burstWithUnit') }}</NText>
+                <NInputNumber
+                  v-model:value="rateLimitForm.admin_rate_limit_burst"
+                  :min="1"
+                  :max="20000"
+                  :disabled="!rateLimitForm.admin_rate_limit_enabled"
+                  style="width: 140px;"
+                />
+              </NSpace>
+            </NSpace>
+          </NCard>
         </NGi>
       </NGrid>
+
+      <NSpace style="margin-top: 16px;">
+        <NButton type="primary" :loading="savingRateLimit" @click="saveRateLimitConfig">
+          {{ t('adminServer.rateLimit.save') }}
+        </NButton>
+      </NSpace>
+    </NCard>
+
+    <NCard :title="t('adminServer.rateLimit.snapshotTitle')">
+      <template #header-extra>
+        <NSpace>
+          <TableColumnSelector
+            v-model="rateLimitSelectedColumnKeys"
+            :options="rateLimitColumnOptions"
+            :visible-count="rateLimitVisibleColumnCount"
+            :total-count="rateLimitTotalColumnCount"
+            :button-label="t('common.showFields')"
+            :title="t('common.visibleFields')"
+            :hint="t('common.columnVisibilityHint')"
+            :reset-label="t('common.restoreDefaultFields')"
+            @reset="resetRateLimitSelectedColumns"
+          />
+          <NButton :loading="operationsLoading" @click="loadOperations">
+            {{ t('common.refresh') }}
+          </NButton>
+        </NSpace>
+      </template>
+
+      <NDataTable
+        :columns="rateLimitVisibleColumns"
+        :data="rateLimits"
+        :loading="operationsLoading"
+        :pagination="false"
+        :scroll-x="rateLimitTableScrollX"
+        :bordered="false"
+      />
     </NCard>
   </NSpace>
 </template>

@@ -1472,8 +1472,11 @@
     "success": "Success",
     "failed": "Failed",
     "idle": "Idle",
-    "loadRuntimeFailed": "Failed to load runtime config",
     "loadOperationsFailed": "Failed to load server operations status",
+    "loadRateLimitFailed": "Failed to load rate limit config",
+    "saveRateLimitFailed": "Failed to save rate limit config",
+    "saveRateLimitSuccess": "Rate limit config saved",
+    "loadRuntimeFailed": "Failed to load runtime config",
     "saveRuntimeFailed": "Failed to save runtime config",
     "saveRuntimeSuccess": "Runtime config saved",
     "debug": {
@@ -1481,8 +1484,6 @@
     },
     "tasks": {
       "title": "Background Tasks",
-      "movedHint": "Background task list and Run Now have moved to Auto Jobs. Manage them there.",
-      "goToAutoJobs": "Go to Auto Jobs",
       "name": "Task",
       "status": "Status",
       "interval": "Interval",
@@ -1497,25 +1498,28 @@
     },
     "rateLimit": {
       "title": "Rate Limit Snapshots",
+      "configTitle": "Rate Limit Config",
+      "snapshotTitle": "Rate Limit Snapshots",
       "name": "Limiter",
       "enabled": "Enabled",
       "rate": "Rate",
       "burst": "Burst",
+      "rateWithUnit": "Rate (req/s)",
+      "burstWithUnit": "Burst",
       "allowed": "Allowed",
       "blocked": "Blocked",
       "visitors": "Active Visitors",
-      "lastReload": "Last Reload"
+      "lastReload": "Last Reload",
+      "globalRateLimit": "Global API Rate Limit",
+      "adminRateLimit": "Admin Rate Limit",
+      "hint": "Settings are written to system_settings and take effect immediately—no restart required. Global API limit applies to public/user routes; admin limit applies only to admin REST.",
+      "save": "Save Rate Limit Config"
     },
     "runtimeConfig": {
-      "title": "Runtime Config",
       "apiLog": "API Logging",
       "queryDays": "Default Query Days",
       "maxCount": "Log Retention Limit",
-      "globalRateLimit": "Global API Rate Limit",
-      "adminRateLimit": "Admin Rate Limit",
-      "hint": "These settings are written to system_settings and take effect at runtime immediately. Restart is only needed for exceptional cases.",
-      "save": "Save Config",
-      "restartBackend": "Restart Backend"
+      "save": "Save Config"
     }
   },
   "userCenter": {

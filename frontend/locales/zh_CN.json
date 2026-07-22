@@ -717,8 +717,11 @@
     "success": "成功",
     "failed": "失败",
     "idle": "空闲",
-    "loadRuntimeFailed": "加载运行时配置失败",
     "loadOperationsFailed": "加载服务器运维状态失败",
+    "loadRateLimitFailed": "加载限流配置失败",
+    "saveRateLimitFailed": "保存限流配置失败",
+    "saveRateLimitSuccess": "限流配置已保存",
+    "loadRuntimeFailed": "加载运行时配置失败",
     "saveRuntimeFailed": "保存运行时配置失败",
     "saveRuntimeSuccess": "运行时配置已保存",
     "debug": {
@@ -726,8 +729,6 @@
     },
     "tasks": {
       "title": "自动任务管理",
-      "movedHint": "后台任务列表与「立即运行」已迁至「自动任务」页面，请前往统一管理。",
-      "goToAutoJobs": "前往自动任务",
       "name": "任务名称",
       "status": "状态",
       "interval": "执行间隔",
@@ -742,25 +743,28 @@
     },
     "rateLimit": {
       "title": "限流运行时快照",
+      "configTitle": "限流配置",
+      "snapshotTitle": "限流运行时快照",
       "name": "限流器",
       "enabled": "启用",
       "rate": "速率",
       "burst": "突发",
+      "rateWithUnit": "速率（次/秒）",
+      "burstWithUnit": "突发容量",
       "allowed": "已放行",
       "blocked": "已拦截",
       "visitors": "活跃访问者",
-      "lastReload": "最近刷新"
+      "lastReload": "最近刷新",
+      "globalRateLimit": "全局 API 限流",
+      "adminRateLimit": "管理端限流",
+      "hint": "配置写入 system_settings 后即时生效，无需重启。全局 API 限流作用于公开/用户接口；管理端限流仅作用于管理 REST。",
+      "save": "保存限流配置"
     },
     "runtimeConfig": {
-      "title": "运行时配置",
       "apiLog": "API 日志",
       "queryDays": "默认查询天数",
       "maxCount": "日志保留上限",
-      "globalRateLimit": "全局 API 限流",
-      "adminRateLimit": "管理端限流",
-      "hint": "以上配置写入 system_settings 后会即时作用到运行时，无需重启；重启按钮仅用于特殊场景。",
-      "save": "保存配置",
-      "restartBackend": "重启后端"
+      "save": "保存配置"
     }
   },
   "userCenter": {

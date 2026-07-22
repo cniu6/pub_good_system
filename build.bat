@@ -3,6 +3,7 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
+
 echo ============================================================
 echo   [FST] Production Build Tool
 echo ============================================================
@@ -89,7 +90,7 @@ set OUTDIR=build\%GOOS%_%GOARCH%
 echo   - Building: %LABEL%...
 mkdir %OUTDIR% >nul 2>&1
 
-REM 统一入口：仅使用项目根目录 main.go / main_embedded.go
+REM Single entry: root main.go / main_embedded.go only
 go build -tags embedded -ldflags "-X main.BuildMode=%BMODE% -s -w" -o "%OUTDIR%\fst%EXT%" .
 set GOOK=%ERRORLEVEL%
 
