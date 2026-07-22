@@ -6,12 +6,14 @@ import { adminOnlineApi, type OnlineSession, type OnlineSessionListParams, type 
 import { fetchSetting, updateSetting } from '@/service/api/admin/settings'
 import { useAuthStore, useSettingsStore } from '@/store'
 import { startPresence, stopPresence } from '@/composables/usePresence'
+import { useRequestGuard } from '@/hooks'
 
 const { t } = useI18n()
 const message = useMessage()
 const dialog = useDialog()
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
+const sessionsFetchGuard = useRequestGuard()
 const loading = ref(false)
 const stats = ref({ online_users: 0, online_sessions: 0 })
 const userRows = ref<OnlineUserRow[]>([])
@@ -211,6 +213,7 @@ async function fetchStats() {
 }
 
 async function fetchSessions() {
+  const token = sessionsFetchGuard.begin()
   loading.value = true
   try {
     const params = { ...query }
@@ -219,6 +222,8 @@ async function fetchSessions() {
     if (!params.client_type)
       delete params.client_type
     const res = await adminOnlineApi.sessions(params)
+    if (!sessionsFetchGuard.isLatest(token))
+      return
     if (res.isSuccess && res.data) {
       userRows.value = res.data.list || []
       pagination.itemCount = res.data.total || 0
@@ -228,10 +233,12 @@ async function fetchSessions() {
     }
   }
   catch {
-    message.error(t('adminOnlineUsers.loadFailed'))
+    if (sessionsFetchGuard.isLatest(token))
+      message.error(t('adminOnlineUsers.loadFailed'))
   }
   finally {
-    loading.value = false
+    if (sessionsFetchGuard.isLatest(token))
+      loading.value = false
   }
 }
 

@@ -108,23 +108,16 @@ func (ctrl *PaymentController) CreateOrder(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/user/payment/orders [get]
 func (ctrl *PaymentController) GetOrders(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
+	uid, ok := utils.GetUserID(c)
+	if !ok {
 		utils.Fail(c, 401, "用户未登录")
 		return
 	}
-	uid := userID.(uint64)
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize = utils.NormalizePagination(page, pageSize)
 	status, _ := strconv.Atoi(c.DefaultQuery("status", "-1"))
-
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
 
 	orders, total, err := models.GetPaymentOrderList(uid, page, pageSize, status, "")
 	if err != nil {

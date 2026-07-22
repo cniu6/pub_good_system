@@ -36,8 +36,8 @@ export interface AnnouncementUpsertPayload {
   type?: string
   priority?: number
   popup?: number
-  target_type?: string
-  target_value?: string
+  // 注：产品定调公告面向全体登录用户，不做管理员/用户分层定向，服务端固定写 target_type=all，
+  // 创建/编辑接口不再接收 target_type/target_value（传了也会被忽略）。
   start_at?: number
   end_at?: number
 }

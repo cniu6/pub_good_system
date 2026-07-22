@@ -159,7 +159,7 @@ import { NButton, NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useTableColumnVisibility } from '@/hooks'
+import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import {
   realnameStatusOptions,
   type RealnameVerification,
@@ -171,6 +171,7 @@ import type { UserSimpleInfo } from '@/service/api/admin/user'
 const router = useRouter()
 const message = useMessage()
 const { t } = useI18n()
+const listFetchGuard = useRequestGuard()
 const loading = ref(false)
 const verificationList = ref<RealnameVerification[]>([])
 const userMap = ref<Record<number, UserSimpleInfo>>({})
@@ -349,6 +350,7 @@ async function fetchUserInfos(verifications: RealnameVerification[]) {
 
 // 加载数据
 async function loadData() {
+  const token = listFetchGuard.begin()
   loading.value = true
   try {
     query.keyword = searchKeyword.value
@@ -356,6 +358,8 @@ async function loadData() {
     query.page = pagination.page
 
     const res = await adminApi.realname.list(query)
+    if (!listFetchGuard.isLatest(token))
+      return
     if (!res.isSuccess) {
       message.error(res.message || t('adminRealname.loadFailed'))
       verificationList.value = []
@@ -369,11 +373,14 @@ async function loadData() {
 
     await fetchUserInfos(verificationList.value)
   } catch (error) {
+    if (!listFetchGuard.isLatest(token))
+      return
     if (import.meta.env.DEV)
       console.error('[adminRealname] load data failed', error)
     message.error(t('adminRealname.loadFailed'))
   } finally {
-    loading.value = false
+    if (listFetchGuard.isLatest(token))
+      loading.value = false
   }
 }
 

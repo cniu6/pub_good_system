@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fst/backend/pkg/db"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -53,12 +54,15 @@ type SettingsGroup struct {
 func (s *SystemSetting) GetTypedValue() interface{} {
 	switch s.Type {
 	case "number":
-		var num float64
-		if _, err := json.Marshal(s.Value); err == nil {
-			json.Unmarshal([]byte(s.Value), &num)
-			return num
+		// 之前用 json.Marshal(s.Value)（对字符串几乎总能成功，判断没意义）+ 忽略 Unmarshal 错误，
+		// 非法数字会静默变 0，排查不到是「配置本来就是 0」还是「配置写错了解析失败」。
+		// 直接用 strconv.ParseFloat 解析，失败就明确按 0 兜底（GetTypedValue 签名不返回 error，
+		// 这里只能兜底，但至少不会被 json.Marshal 的假判断掩盖问题）。
+		num, err := strconv.ParseFloat(strings.TrimSpace(s.Value), 64)
+		if err != nil {
+			return float64(0)
 		}
-		return 0
+		return num
 	case "boolean":
 		return s.Value == "true" || s.Value == "1"
 	case "json":
@@ -130,6 +134,7 @@ var defaultSettings = []SystemSetting{
 	{Key: "register_code_expire_minutes", Value: "60", Type: "number", Category: "security", Label: "注册验证码有效期", Description: "注册验证码有效期（分钟）", IsPublic: false, IsEditable: true, SortOrder: 6},
 	{Key: "login_max_failure", Value: "5", Type: "number", Category: "security", Label: "登录失败锁定次数", Description: "连续登录失败多少次后锁定账户", IsPublic: false, IsEditable: true, SortOrder: 6},
 	{Key: "login_lock_duration", Value: "10", Type: "number", Category: "security", Label: "账户锁定时长", Description: "账户锁定时长（分钟）", IsPublic: false, IsEditable: true, SortOrder: 7},
+	{Key: "disable_web_login", Value: "false", Type: "boolean", Category: "security", Label: "禁止网页端登录", Description: "开启后，普通用户（非管理员）无法通过网页/浏览器直接登录；登录请求需带 client_type=app（如小程序/App）才能通过，管理员登录不受影响。适用于仅通过小程序/App 对外提供服务的场景。注意：client_type 由请求自报，不做客户端可信校验，这是一个引导前端 UX 的软限制，不构成强制安全边界", IsPublic: true, IsEditable: true, SortOrder: 8},
 	{Key: "operation_log_query_days", Value: "30", Type: "number", Category: "security", Label: "操作日志查询天数", Description: "操作日志默认查询范围（天）", IsPublic: false, IsEditable: true, SortOrder: 8},
 	{Key: "operation_log_max_count", Value: "1000", Type: "number", Category: "security", Label: "操作日志保留上限", Description: "操作日志自动保留的最大总条数", IsPublic: false, IsEditable: true, SortOrder: 9},
 	{Key: "operation_log_per_user_limit_enabled", Value: "false", Type: "boolean", Category: "security", Label: "操作日志每用户上限开关", Description: "开启后额外限制每个用户保留的操作日志条数", IsPublic: false, IsEditable: true, SortOrder: 9},
@@ -192,6 +197,7 @@ var defaultSettings = []SystemSetting{
 	{Key: "withdraw_min_amount", Value: "10", Type: "number", Category: "payment", Label: "最低提现金额", Description: "用户单次提现的最低金额", IsPublic: true, IsEditable: true, SortOrder: 3},
 	{Key: "withdraw_notify_text", Value: "", Type: "string", Category: "payment", Label: "提现提示语", Description: "显示在用户提现页面的说明文案（留空则使用系统默认多语言文案）", IsPublic: true, IsEditable: true, SortOrder: 4},
 	{Key: "withdraw_account_types", Value: "[\"bank\",\"alipay\",\"wechat\",\"usdt\"]", Type: "json", Category: "payment", Label: "支持收款方式", Description: "用户可选择的提现收款方式列表(JSON数组)", IsPublic: true, IsEditable: true, SortOrder: 5},
+	{Key: "withdraw_require_realname", Value: "false", Type: "boolean", Category: "payment", Label: "提现需要实名认证", Description: "开启后，用户提现前必须已完成实名认证并通过审核，否则拒绝提现申请；默认关闭，不影响未接入实名认证的现网", IsPublic: true, IsEditable: true, SortOrder: 6},
 
 	// ===== 实名认证设置 =====
 	{Key: "realname_enabled", Value: "true", Type: "boolean", Category: "security", Label: "实名认证功能", Description: "是否启用实名认证功能入口；仅控制站内实名入口，不代表已接第三方实名服务", IsPublic: true, IsEditable: true, SortOrder: 19},

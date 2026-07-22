@@ -123,7 +123,12 @@ export function normalizeAdminUserRole(role?: string): Entity.RoleType {
   return 'user'
 }
 
-export function toLoginInfo(user: AdminUser, token: string): Api.Login.Info {
+/**
+ * @param sessionRole 本次会话实际生效的角色（对应登录令牌的 auth_guard），
+ *   不传则回退到用户自身的 DB role；用于 login-as 场景避免「令牌是 user guard，
+ *   但展示的角色却是被登录用户的真实 admin 身份」的不一致
+ */
+export function toLoginInfo(user: AdminUser, token: string, sessionRole?: Entity.RoleType): Api.Login.Info {
   return {
     id: user.id,
     userName: user.username,
@@ -137,7 +142,7 @@ export function toLoginInfo(user: AdminUser, token: string): Api.Login.Info {
     money: user.money,
     score: user.score,
     level: user.level,
-    role: [normalizeAdminUserRole(user.role)],
+    role: [sessionRole ?? normalizeAdminUserRole(user.role)],
     lastLoginTime: user.last_login_time ?? null,
     lastLoginIp: user.last_login_ip,
     loginFailure: user.login_failure,
@@ -157,23 +162,30 @@ export function toLoginInfo(user: AdminUser, token: string): Api.Login.Info {
   }
 }
 
+export type LoginAsAuthGuard = 'user' | 'admin'
+
+/**
+ * @param authGuard 本次 login-as 令牌实际签发的 auth_guard；session 里的 role 必须与它一致，
+ *   不能用被登录用户的 DB role（否则用「user guard」登录一个 DB role=admin 的用户时，
+ *   前端会误判 role=admin 触发管理端跳转，而后端 token 其实只是 user guard，两边状态不一致）
+ */
 export function openLoginAsUserWindow(
   user: AdminUser,
   token: string,
   refreshToken?: string,
   expiresAt?: number,
   targetUrl = '/',
+  authGuard: LoginAsAuthGuard = 'user',
 ) {
+  const sessionRole: Entity.RoleType = authGuard === 'admin' ? 'admin' : 'user'
   return authStorage.openSessionWindow({
     accessToken: token,
     refreshToken,
     accessTokenExpiresAt: expiresAt,
-    role: [normalizeAdminUserRole(user.role)],
-    userInfo: toLoginInfo(user, token),
+    role: [sessionRole],
+    userInfo: toLoginInfo(user, token, sessionRole),
   }, targetUrl)
 }
-
-export type LoginAsAuthGuard = 'user' | 'admin'
 
 // 用户简要信息类型
 export interface UserSimpleInfo {

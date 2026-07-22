@@ -7,7 +7,6 @@ import (
 	"fst/backend/pkg/db"
 	"fst/backend/utils"
 	"math"
-	"strings"
 )
 
 // MoneyOperationRequest 统一余额操作请求
@@ -165,13 +164,41 @@ func OperateUserMoney(userID uint64, req MoneyOperationRequest) (*utils.BalanceR
 		return nil, errors.New("订单号不能为空")
 	}
 
-	// 订单已存在：直接走余额事务；订单不存在：建单+余额/订单更新必须同一事务，避免「已支付订单但未到账」
+	// 订单已存在：锁单后在同一事务内判断是否已处于目标状态，防止重复调用（重试/重复提交）时余额被再次加减；
+	// 订单不存在：建单+余额/订单更新必须同一事务，避免「已支付订单但未到账」
+	touchesBalance := opType == utils.OpChangeAndOrder || opType == utils.OpFull
 	order, err := models.GetPaymentOrderByOrderNo(req.OrderNo)
 	if err == nil {
 		if order.UserID != userID {
 			return nil, errors.New("订单不属于当前用户")
 		}
-		return utils.ExecuteBalanceOp(balanceReq, opType)
+
+		tx, err := db.DB.Begin()
+		if err != nil {
+			return nil, errors.New("开启事务失败: " + err.Error())
+		}
+		defer tx.Rollback()
+
+		locked, lockErr := models.GetPaymentOrderForUpdate(tx, req.OrderNo)
+		if lockErr != nil {
+			return nil, errors.New("订单不存在")
+		}
+		if locked.UserID != userID {
+			return nil, errors.New("订单不属于当前用户")
+		}
+		// 涉及余额变动且目标订单状态与当前一致：视为重复操作（重试/重复提交），拒绝再次入账/扣款
+		if touchesBalance && locked.Status == req.OrderStatus {
+			return nil, errors.New("订单已处于目标状态，为避免重复变更余额已拒绝本次操作")
+		}
+
+		result, err := utils.ExecuteBalanceOpTx(tx, balanceReq, opType)
+		if err != nil {
+			return nil, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, errors.New("提交事务失败: " + err.Error())
+		}
+		return result, nil
 	}
 
 	tx, err := db.DB.Begin()
@@ -203,10 +230,9 @@ func OperateUserMoney(userID uint64, req MoneyOperationRequest) (*utils.BalanceR
 
 // createOrderForMoneyOperationTx 在事务内补建缺失订单（与余额操作同事务）
 func createOrderForMoneyOperationTx(tx *sql.Tx, userID uint64, req MoneyOperationRequest) error {
-	amount := req.Amount
-	if amount < 0 {
-		amount = 0
-	}
+	// 订单金额记录本次操作的绝对金额（扣款为负数时取其绝对值），避免审计记录里显示为 0 元、丢失操作幅度；
+	// 加款/扣款方向已由 req.OrderStatus / 余额日志本身体现，订单表这里只需要金额大小。
+	amount := math.Abs(req.Amount)
 	subject := "管理员余额操作自动创建订单"
 	if req.Memo != "" {
 		subject = req.Memo
@@ -233,8 +259,7 @@ func createOrderForMoneyOperationTx(tx *sql.Tx, userID uint64, req MoneyOperatio
 	if err == nil {
 		return nil
 	}
-	lower := strings.ToLower(err.Error())
-	if strings.Contains(lower, "duplicate") || strings.Contains(lower, "unique constraint") {
+	if db.IsDuplicateKeyError(err) {
 		return nil
 	}
 	return errors.New("自动创建订单失败: " + err.Error())
@@ -390,4 +415,3 @@ func AddUserScoreLogOnly(userID uint64, amount int64, memo string) (*models.User
 
 	return logEntry, nil
 }
-

@@ -185,6 +185,7 @@ func (ctrl *AutoJobController) ListRuns(c *gin.Context) {
 	utils.SanitizeQueryParams(c)
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize = utils.NormalizePagination(page, pageSize)
 	keyword := strings.TrimSpace(c.Query("keyword"))
 	status := strings.TrimSpace(c.Query("status"))
 	category := strings.TrimSpace(c.Query("category"))

@@ -44,15 +44,7 @@ func (ctrl *EmailLogController) List(c *gin.Context) {
 		q.Status = -1
 	}
 
-	if q.Page <= 0 {
-		q.Page = 1
-	}
-	if q.PageSize <= 0 {
-		q.PageSize = 20
-	}
-	if q.PageSize > 100 {
-		q.PageSize = 100
-	}
+	q.Page, q.PageSize = utils.NormalizePagination(q.Page, q.PageSize)
 
 	logs, total, err := models.GetEmailLogList(&q)
 	if err != nil {

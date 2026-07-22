@@ -6,29 +6,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"fst/backend/app/controllers/admin"
 	"fst/backend/internal/testutil"
 	"fst/backend/routes"
 
 	"github.com/gin-gonic/gin"
 )
-
-func TestAdminControllers_Construct(t *testing.T) {
-	_ = admin.NewUserController()
-	_ = admin.NewDashboardController()
-	_ = admin.NewDebugController()
-	_ = admin.NewSettingsController()
-	_ = admin.NewPaymentController()
-	_ = admin.NewWithdrawController()
-	_ = admin.NewRealnameController()
-	_ = admin.NewLogController()
-	_ = admin.NewAPILogController()
-	_ = admin.NewEmailTemplateController()
-	_ = admin.NewEmailLogController()
-	_ = admin.NewSMSLogController()
-	_ = admin.NewUserMoneyScoreController()
-	_ = admin.NewAutoJobController()
-}
 
 func TestAdminRoutes_RequireAuthViaSetupRoutes(t *testing.T) {
 	cleanup := testutil.SetupSQLite(t)

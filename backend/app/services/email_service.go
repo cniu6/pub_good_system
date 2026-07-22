@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/pkg/config"
+	"fst/backend/pkg/panicsafe"
 	"fst/backend/utils"
 	"log"
 	"strings"
@@ -148,8 +149,8 @@ func (s *EmailService) SendVerificationCode(to, code, lang string, expire_minute
 	}
 
 	vars := map[string]string{
-		"code":            code,
-		"expire_minutes":  fmt.Sprintf("%d", expire_minutes),
+		"code":           code,
+		"expire_minutes": fmt.Sprintf("%d", expire_minutes),
 	}
 
 	return s.SendTemplateEmail(to, "register_code", lang, vars)
@@ -172,7 +173,7 @@ func (s *EmailService) SendPasswordReset(to, link, code, lang string) error {
 
 // SendEmailAsync 异步发送邮件
 func (s *EmailService) SendEmailAsync(to, subject, body string, callback func(SendResult)) {
-	go func() {
+	panicsafe.Go("EmailService.SendEmailAsync", func() {
 		err := s.SendEmail(to, subject, body)
 		if callback != nil {
 			callback(SendResult{
@@ -180,12 +181,12 @@ func (s *EmailService) SendEmailAsync(to, subject, body string, callback func(Se
 				Error:   err,
 			})
 		}
-	}()
+	})
 }
 
 // SendTemplateEmailAsync 异步发送模板邮件
 func (s *EmailService) SendTemplateEmailAsync(to, template_name, lang string, vars map[string]string, callback func(SendResult)) {
-	go func() {
+	panicsafe.Go("EmailService.SendTemplateEmailAsync", func() {
 		err := s.SendTemplateEmail(to, template_name, lang, vars)
 		if callback != nil {
 			callback(SendResult{
@@ -193,7 +194,7 @@ func (s *EmailService) SendTemplateEmailAsync(to, template_name, lang string, va
 				Error:   err,
 			})
 		}
-	}()
+	})
 }
 
 // buildDefaultVars 构建默认变量
@@ -380,4 +381,3 @@ func (s *EmailService) ValidateEmailConfig() error {
 func (s *EmailService) IsEmailConfigured() bool {
 	return s.ValidateEmailConfig() == nil
 }
-

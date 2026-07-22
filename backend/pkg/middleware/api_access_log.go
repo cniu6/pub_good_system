@@ -10,6 +10,7 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/pkg/config"
+	"fst/backend/pkg/panicsafe"
 	"io"
 	"log"
 	"net"
@@ -454,15 +455,15 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 			ResponseSize:        blw.written,
 		}
 
-		go func(item *models.APIAccessLog) {
-			if err := models.CreateAPIAccessLog(item); err != nil {
+		panicsafe.Go("APIAccessLog.write", func() {
+			if err := models.CreateAPIAccessLog(entry); err != nil {
 				log.Printf("[APIAccessLog] 保存失败: %v", err)
 				return
 			}
-			if err := models.RecordAPIAccessLogAggregate(item); err != nil {
+			if err := models.RecordAPIAccessLogAggregate(entry); err != nil {
 				log.Printf("[APIAccessLog] 汇总更新失败: %v", err)
 			}
 			scheduleAPIAccessLogRetentionCleanup()
-		}(entry)
+		})
 	}
 }

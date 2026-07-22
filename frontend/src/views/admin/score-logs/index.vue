@@ -1,34 +1,40 @@
 <script setup lang="ts">
 import { h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, useDialog, useMessage } from 'naive-ui'
+import { NButton, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 import { useTableColumnVisibility } from '@/hooks'
 import { adminScoreLogApi, adminUserApi } from '@/service/api/admin/user'
 import { parseMemo } from '@/utils/memo'
 import I18nMemoEditor from '@/components/common/I18nMemoEditor.vue'
+import { useLedgerLogPage } from '../composables/useLedgerLogPage'
 
 const message = useMessage()
 const dialog = useDialog()
 const { t } = useI18n()
-const loading = ref(false)
 const submitting = ref(false)
 
-const searchForm = reactive({
-  keyword: '',
-  user_id: null as number | null,
+const {
+  loading,
+  logList,
+  searchForm,
+  pagination,
+  fetchData,
+  handleSearch,
+  handleReset,
+  handlePageChange,
+  handlePageSizeChange,
+  handleDelete,
+} = useLedgerLogPage<Entity.UserScoreLog>({
+  fetchList: params => adminScoreLogApi.list(params),
+  deleteItem: id => adminScoreLogApi.delete(id),
+  fetchErrorMessage: t('moneyScore.fetchScoreFailed'),
+  deleteSuccessMessage: t('adminUsers.deleteSuccess'),
+  deleteFailedMessage: t('adminUsers.deleteFailed'),
+  deleteConfirmTitle: t('adminScoreLogs.confirmDeleteTitle'),
+  deleteConfirmContent: t('adminScoreLogs.confirmDeleteContent'),
 })
-
-const pagination = reactive({
-  page: 1,
-  pageSize: 20,
-  itemCount: 0,
-  showSizePicker: true,
-  pageSizes: [10, 20, 50, 100],
-})
-
-const logList = ref<Entity.UserScoreLog[]>([])
 
 const showModal = ref(false)
 const addForm = reactive({
@@ -115,54 +121,6 @@ const {
   minScrollX: 900,
 })
 
-async function fetchData() {
-  loading.value = true
-  try {
-    const res = await adminScoreLogApi.list({
-      page: pagination.page,
-      page_size: pagination.pageSize,
-      keyword: searchForm.keyword || undefined,
-      user_id: searchForm.user_id || undefined,
-    })
-    if (res.isSuccess) {
-      logList.value = res.data?.list || []
-      pagination.itemCount = res.data?.total || 0
-    }
-    else {
-      message.error(res.message || t('moneyScore.fetchScoreFailed'))
-    }
-  }
-  catch {
-    message.error(t('moneyScore.fetchScoreFailed'))
-  }
-  finally {
-    loading.value = false
-  }
-}
-
-function handleSearch() {
-  pagination.page = 1
-  fetchData()
-}
-
-function handleReset() {
-  searchForm.keyword = ''
-  searchForm.user_id = null
-  pagination.page = 1
-  fetchData()
-}
-
-function handlePageChange(page: number) {
-  pagination.page = page
-  fetchData()
-}
-
-function handlePageSizeChange(pageSize: number) {
-  pagination.pageSize = pageSize
-  pagination.page = 1
-  fetchData()
-}
-
 function handleAdd() {
   addForm.user_id = null
   addForm.score = 0
@@ -179,49 +137,39 @@ async function handleSubmit() {
     message.error(t('adminUsers.scoreCannotBeZero'))
     return
   }
-  submitting.value = true
-  try {
-    const memoStr = Object.keys(addForm.memo).length > 0 ? JSON.stringify(addForm.memo) : ''
-    const res = await adminUserApi.changeScore(addForm.user_id, {
-      score: addForm.score,
-      memo: memoStr,
-    })
-    if (res.isSuccess) {
-      message.success(res.message || t('adminUsers.scoreChangedSuccess'))
-      showModal.value = false
-      fetchData()
-    }
-    else {
-      message.error(res.message || t('adminUsers.scoreChangedFailed'))
-    }
-  }
-  catch (e: unknown) {
-    message.error((e instanceof Error ? e.message : null) || t('adminUsers.operationFailed'))
-  }
-  finally {
-    submitting.value = false
-  }
-}
-
-function handleDelete(id: number) {
+  const userId = addForm.user_id
+  const score = addForm.score
+  const memo = { ...addForm.memo }
   dialog.warning({
-    title: t('adminMoneyLogs.confirmDeleteTitle'),
-    content: t('adminScoreLogs.confirmDeleteContent'),
+    title: t('adminScoreLogs.confirmChangeTitle'),
+    content: t('adminScoreLogs.confirmChangeContent', {
+      userId,
+      score: `${score > 0 ? '+' : ''}${score}`,
+    }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
+      submitting.value = true
       try {
-        const res = await adminScoreLogApi.delete(id)
+        const memoStr = Object.keys(memo).length > 0 ? JSON.stringify(memo) : ''
+        const res = await adminUserApi.changeScore(userId, {
+          score,
+          memo: memoStr,
+        })
         if (res.isSuccess) {
-          message.success(res.message || t('adminUsers.deleteSuccess'))
+          message.success(res.message || t('adminUsers.scoreChangedSuccess'))
+          showModal.value = false
           fetchData()
         }
         else {
-          message.error(res.message || t('adminUsers.deleteFailed'))
+          message.error(res.message || t('adminUsers.scoreChangedFailed'))
         }
       }
-      catch {
-        message.error(t('adminUsers.deleteFailed'))
+      catch (e: unknown) {
+        message.error((e instanceof Error ? e.message : null) || t('adminUsers.operationFailed'))
+      }
+      finally {
+        submitting.value = false
       }
     },
   })

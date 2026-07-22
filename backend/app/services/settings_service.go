@@ -133,17 +133,6 @@ func (s *SettingsService) GetBoolWithDefault(key string, defaultValue bool) bool
 	return val == "true" || val == "1"
 }
 
-// GetInt returns int setting value. Missing keys return 0.
-func (s *SettingsService) GetInt(key string) int {
-	val, ok := s.Get(key)
-	if !ok {
-		return 0
-	}
-	var result int
-	_ = json.Unmarshal([]byte(val), &result)
-	return result
-}
-
 // GetIntWithDefault returns int setting value or fallback.
 func (s *SettingsService) GetIntWithDefault(key string, defaultValue int) int {
 	val, ok := s.Get(key)
@@ -235,10 +224,14 @@ type PublicAppConfig struct {
 	WithdrawMinAmount  float64  `json:"withdraw_min_amount"`
 	WithdrawNotifyText string   `json:"withdraw_notify_text"`
 	WithdrawAccountTypes []string `json:"withdraw_account_types"`
+	// WithdrawRequireRealname 提现前是否必须已完成实名认证并通过审核，默认 false
+	WithdrawRequireRealname bool `json:"withdraw_require_realname"`
 	// AdminAPIPath 管理端 REST API 在 /api/v1 下的前缀（来自 env ADMIN_API_PATH，默认 /admin）
 	AdminAPIPath string `json:"admin_api_path"`
 	// OnlineReportIntervalSeconds 在线心跳上报周期（秒），前端 Presence 心跳按此间隔发送
 	OnlineReportIntervalSeconds int `json:"online_report_interval_seconds"`
+	// WebLoginDisabled 是否禁止普通用户网页端登录（仅小程序/App 场景使用），默认 false；不影响管理员登录
+	WebLoginDisabled bool `json:"web_login_disabled"`
 }
 
 // VerifyConfig 验证码功能开关运行时配置
@@ -711,6 +704,16 @@ func GetGlobalAllowDeleteAccount() bool {
 	return getDirectSettingBool("allow_delete_account", false)
 }
 
+// GetGlobalDisableWebLogin 是否禁止普通用户网页端登录（默认 false）。
+// 开启后 AuthService.Login 会拒绝 authGuard=user 且 client_type 归一化为 web 的登录请求，
+// 仅允许 App/小程序等在登录请求带上 client_type=app 的客户端登录；管理员登录不受影响。
+func GetGlobalDisableWebLogin() bool {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.getRuntimeBool("disable_web_login", false)
+	}
+	return getDirectSettingBool("disable_web_login", false)
+}
+
 func GetGlobalPaymentEnabled() bool {
 	if GlobalSettingsService != nil {
 		return GlobalSettingsService.getRuntimeBool("payment_enabled", false)
@@ -865,8 +868,10 @@ func (s *SettingsService) GetPublicAppConfig() *PublicAppConfig {
 		WithdrawMinAmount:  parseJSONFloatWithDefault(s.GetWithDefault("withdraw_min_amount", "10"), 10),
 		WithdrawNotifyText: s.GetWithDefault("withdraw_notify_text", ""),
 		WithdrawAccountTypes: parseJSONStringArrayWithDefault(s.GetWithDefault("withdraw_account_types", "[\"bank\",\"alipay\",\"wechat\",\"usdt\"]"), []string{"bank", "alipay", "wechat", "usdt"}),
+		WithdrawRequireRealname: s.GetBoolWithDefault("withdraw_require_realname", false),
 		AdminAPIPath:       adminAPIPath,
 		OnlineReportIntervalSeconds: s.GetOnlinePresenceRuntimeConfig().ReportIntervalSeconds,
+		WebLoginDisabled:   s.GetBoolWithDefault("disable_web_login", false),
 	}
 }
 

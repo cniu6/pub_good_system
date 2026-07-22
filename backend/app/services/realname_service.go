@@ -82,6 +82,13 @@ func (s *RealnameService) Submit(userID uint64, req *RealnameSubmitRequest) erro
 		return err
 	}
 
+	if err := validateCertificateImageURL(req.CertificateFront, "证件正面照"); err != nil {
+		return err
+	}
+	if err := validateCertificateImageURL(req.CertificateBack, "证件背面照"); err != nil {
+		return err
+	}
+
 	verification := &models.RealnameVerification{
 		UserID:           userID,
 		RealName:         realName,
@@ -123,6 +130,15 @@ func (s *RealnameService) Submit(userID uint64, req *RealnameSubmitRequest) erro
 		if err := models.SoftDeleteRealnameVerificationTx(tx, existing.ID); err != nil {
 			return errors.New("处理旧记录失败，请重试")
 		}
+	}
+
+	// 证件号跨用户查重：避免同一证件号被多个账号占用实名认证
+	dupCount, err := models.CountOtherUsersByCertificateNoTx(tx, verification.CertificateNo, userID)
+	if err != nil {
+		return errors.New("查重失败，请重试")
+	}
+	if dupCount > 0 {
+		return NewClientError("该证件号已被其他账号实名认证，请核对后重试")
 	}
 
 	if err := models.CreateRealnameVerificationTx(tx, verification); err != nil {
@@ -198,6 +214,23 @@ func (s *RealnameService) Review(adminID uint64, req *RealnameReviewRequest) err
 	}
 
 	return tx.Commit()
+}
+
+// validateCertificateImageURL 校验证件照 URL 协议，只允许 http(s)，
+// 防止 javascript: / data: 等恶意 scheme 被存入数据库并在管理端渲染时执行。
+func validateCertificateImageURL(rawURL, fieldName string) error {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return NewClientError(fieldName + "不能为空")
+	}
+	if len(rawURL) > 1024 {
+		return NewClientError(fieldName + "地址过长")
+	}
+	lower := strings.ToLower(rawURL)
+	if !strings.HasPrefix(lower, "http://") && !strings.HasPrefix(lower, "https://") {
+		return NewClientError(fieldName + "地址协议不合法，仅支持 http/https")
+	}
+	return nil
 }
 
 // validateCertificateType 验证证件类型
@@ -312,4 +345,3 @@ func (s *RealnameService) validateOfficerCert(certNo string) error {
 	}
 	return nil
 }
-

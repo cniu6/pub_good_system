@@ -1,34 +1,40 @@
 <script setup lang="ts">
 import { h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, useDialog, useMessage } from 'naive-ui'
+import { NButton, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
+import { useTableColumnVisibility } from '@/hooks'
 import { adminMoneyLogApi, adminUserApi } from '@/service/api/admin/user'
 import { parseMemo } from '@/utils/memo'
 import I18nMemoEditor from '@/components/common/I18nMemoEditor.vue'
+import { useLedgerLogPage } from '../composables/useLedgerLogPage'
 
 const message = useMessage()
 const dialog = useDialog()
 const { t } = useI18n()
-const loading = ref(false)
 const submitting = ref(false)
 
-const searchForm = reactive({
-  keyword: '',
-  user_id: null as number | null,
+const {
+  loading,
+  logList,
+  searchForm,
+  pagination,
+  fetchData,
+  handleSearch,
+  handleReset,
+  handlePageChange,
+  handlePageSizeChange,
+  handleDelete,
+} = useLedgerLogPage<Entity.UserMoneyLog>({
+  fetchList: params => adminMoneyLogApi.list(params),
+  deleteItem: id => adminMoneyLogApi.delete(id),
+  fetchErrorMessage: t('moneyScore.fetchMoneyFailed'),
+  deleteSuccessMessage: t('adminUsers.deleteSuccess'),
+  deleteFailedMessage: t('adminUsers.deleteFailed'),
+  deleteConfirmTitle: t('adminMoneyLogs.confirmDeleteTitle'),
+  deleteConfirmContent: t('adminMoneyLogs.confirmDeleteContent'),
 })
-
-const pagination = reactive({
-  page: 1,
-  pageSize: 20,
-  itemCount: 0,
-  showSizePicker: true,
-  pageSizes: [10, 20, 50, 100],
-})
-
-const logList = ref<Entity.UserMoneyLog[]>([])
 
 const showModal = ref(false)
 const addForm = reactive({
@@ -115,61 +121,6 @@ const {
   minScrollX: 900,
 })
 
-const listFetchGuard = useRequestGuard()
-
-async function fetchData() {
-  const token = listFetchGuard.begin()
-  loading.value = true
-  try {
-    const res = await adminMoneyLogApi.list({
-      page: pagination.page,
-      page_size: pagination.pageSize,
-      keyword: searchForm.keyword || undefined,
-      user_id: searchForm.user_id || undefined,
-    })
-    if (!listFetchGuard.isLatest(token))
-      return
-    if (res.isSuccess) {
-      logList.value = res.data?.list || []
-      pagination.itemCount = res.data?.total || 0
-    }
-    else {
-      message.error(res.message || t('moneyScore.fetchMoneyFailed'))
-    }
-  }
-  catch {
-    if (listFetchGuard.isLatest(token))
-      message.error(t('moneyScore.fetchMoneyFailed'))
-  }
-  finally {
-    if (listFetchGuard.isLatest(token))
-      loading.value = false
-  }
-}
-
-function handleSearch() {
-  pagination.page = 1
-  fetchData()
-}
-
-function handleReset() {
-  searchForm.keyword = ''
-  searchForm.user_id = null
-  pagination.page = 1
-  fetchData()
-}
-
-function handlePageChange(page: number) {
-  pagination.page = page
-  fetchData()
-}
-
-function handlePageSizeChange(pageSize: number) {
-  pagination.pageSize = pageSize
-  pagination.page = 1
-  fetchData()
-}
-
 function handleAdd() {
   addForm.user_id = null
   addForm.money = 0
@@ -186,49 +137,39 @@ async function handleSubmit() {
     message.error(t('adminMoneyLogs.amountCannotBeZero'))
     return
   }
-  submitting.value = true
-  try {
-    const memoStr = Object.keys(addForm.memo).length > 0 ? JSON.stringify(addForm.memo) : ''
-    const res = await adminUserApi.changeMoney(addForm.user_id, {
-      money: addForm.money,
-      memo: memoStr,
-    })
-    if (res.isSuccess) {
-      message.success(res.message || t('adminMoneyLogs.changeSuccess'))
-      showModal.value = false
-      fetchData()
-    }
-    else {
-      message.error(res.message || t('adminMoneyLogs.changeFailed'))
-    }
-  }
-  catch (e: unknown) {
-    message.error((e instanceof Error ? e.message : null) || t('adminUsers.operationFailed'))
-  }
-  finally {
-    submitting.value = false
-  }
-}
-
-function handleDelete(id: number) {
+  const userId = addForm.user_id
+  const money = addForm.money
+  const memo = { ...addForm.memo }
   dialog.warning({
-    title: t('adminMoneyLogs.confirmDeleteTitle'),
-    content: t('adminMoneyLogs.confirmDeleteContent'),
+    title: t('adminMoneyLogs.confirmChangeTitle'),
+    content: t('adminMoneyLogs.confirmChangeContent', {
+      userId,
+      amount: `${money > 0 ? '+' : ''}¥${money.toFixed(2)}`,
+    }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
+      submitting.value = true
       try {
-        const res = await adminMoneyLogApi.delete(id)
+        const memoStr = Object.keys(memo).length > 0 ? JSON.stringify(memo) : ''
+        const res = await adminUserApi.changeMoney(userId, {
+          money,
+          memo: memoStr,
+        })
         if (res.isSuccess) {
-          message.success(res.message || t('adminUsers.deleteSuccess'))
+          message.success(res.message || t('adminMoneyLogs.changeSuccess'))
+          showModal.value = false
           fetchData()
         }
         else {
-          message.error(res.message || t('adminUsers.deleteFailed'))
+          message.error(res.message || t('adminMoneyLogs.changeFailed'))
         }
       }
-      catch {
-        message.error(t('adminUsers.deleteFailed'))
+      catch (e: unknown) {
+        message.error((e instanceof Error ? e.message : null) || t('adminUsers.operationFailed'))
+      }
+      finally {
+        submitting.value = false
       }
     },
   })

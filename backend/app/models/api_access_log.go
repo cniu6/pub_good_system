@@ -329,79 +329,15 @@ func DeleteAPIAccessLogsBefore(beforeTime int64) (int64, error) {
 	return result.RowsAffected()
 }
 
+// CleanExcessAPIAccessLogs 清理超出全局上限的旧 API 访问日志（只保留最新 maxCount 条）
 func CleanExcessAPIAccessLogs(maxCount int) (int64, error) {
-	if maxCount <= 0 {
-		return 0, nil
-	}
-	var total int64
-	if err := db.DB.Get(&total, "SELECT COUNT(*) FROM api_access_logs"); err != nil {
-		return 0, err
-	}
-	if total <= int64(maxCount) {
-		return 0, nil
-	}
-
-	var cutoff struct {
-		ID         uint64 `db:"id"`
-		CreateTime int64  `db:"create_time"`
-	}
-	if err := db.DB.Get(&cutoff, "SELECT id, create_time FROM api_access_logs ORDER BY create_time DESC, id DESC LIMIT 1 OFFSET ?", maxCount-1); err != nil {
-		return 0, err
-	}
-
-	result, err := db.Exec(
-		"DELETE FROM api_access_logs WHERE create_time < ? OR (create_time = ? AND id < ?)",
-		cutoff.CreateTime,
-		cutoff.CreateTime,
-		cutoff.ID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+	return cleanExcessRowsGeneric("api_access_logs", "create_time", maxCount)
 }
 
 // CleanExcessAPIAccessLogsPerUser 按用户清理超出上限的 API 访问日志
+// 仅清理已登录用户的日志；user_id=0（未鉴权）不按用户限制
 func CleanExcessAPIAccessLogsPerUser(maxPerUser int) (int64, error) {
-	if maxPerUser <= 0 {
-		return 0, nil
-	}
-	var groups []struct {
-		UserID uint64 `db:"user_id"`
-		Cnt    int64  `db:"cnt"`
-	}
-	// 仅清理已登录用户的日志；user_id=0（未鉴权）不按用户限制
-	if err := db.DB.Select(&groups,
-		"SELECT user_id, COUNT(*) AS cnt FROM api_access_logs WHERE user_id > 0 GROUP BY user_id HAVING COUNT(*) > ?",
-		maxPerUser,
-	); err != nil {
-		return 0, err
-	}
-
-	var totalAffected int64
-	for _, g := range groups {
-		var cutoff struct {
-			ID         uint64 `db:"id"`
-			CreateTime int64  `db:"create_time"`
-		}
-		if err := db.DB.Get(&cutoff,
-			"SELECT id, create_time FROM api_access_logs WHERE user_id = ? ORDER BY create_time DESC, id DESC LIMIT 1 OFFSET ?",
-			g.UserID, maxPerUser-1,
-		); err != nil {
-			continue
-		}
-		result, err := db.Exec(
-			"DELETE FROM api_access_logs WHERE user_id = ? AND (create_time < ? OR (create_time = ? AND id < ?))",
-			g.UserID, cutoff.CreateTime, cutoff.CreateTime, cutoff.ID,
-		)
-		if err != nil {
-			continue
-		}
-		if n, _ := result.RowsAffected(); n > 0 {
-			totalAffected += n
-		}
-	}
-	return totalAffected, nil
+	return cleanExcessRowsPerGroupGeneric[uint64]("api_access_logs", "user_id", "create_time", maxPerUser, "user_id > 0")
 }
 
 type APIAccessLogStats struct {

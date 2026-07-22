@@ -268,6 +268,20 @@ func CreateRealnameVerificationTx(tx *sql.Tx, verification *RealnameVerification
 	return nil
 }
 
+// CountOtherUsersByCertificateNoTx 在事务中统计「其他用户」使用同一证件号且状态为待审核/已通过的记录数，
+// 用于提交前查重，防止同一证件号被多个账号占用实名认证。
+func CountOtherUsersByCertificateNoTx(tx *sql.Tx, certificateNo string, excludeUserID uint64) (int64, error) {
+	var count int64
+	err := tx.QueryRow(
+		db.Q("SELECT COUNT(*) FROM user_realname_verifications WHERE certificate_no = ? AND user_id != ? AND status IN (0, 1) AND delete_time IS NULL"),
+		certificateNo, excludeUserID,
+	).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 // GetUserRealnameVerifications 获取用户的实名认证记录列表
 func GetUserRealnameVerifications(userID uint64) ([]RealnameVerification, error) {
 	var list []RealnameVerification
@@ -356,4 +370,3 @@ func GetRealnameVerificationList(query *RealnameVerificationListQuery) (*Realnam
 		PageSize: query.PageSize,
 	}, nil
 }
-

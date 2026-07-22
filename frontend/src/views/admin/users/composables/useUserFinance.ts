@@ -3,7 +3,7 @@
  */
 import { computed, h, reactive, ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NTag, useMessage } from 'naive-ui'
+import { NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { adminUserApi } from '@/service/api/admin/user'
 import type { AdminUser, UserSimpleInfo } from '@/service/api/admin/user'
@@ -28,6 +28,7 @@ export function useUserFinance(options: {
   onSuccess?: () => void
 }) {
   const message = useMessage()
+  const dialog = useDialog()
   const { t } = useI18n()
 
   const balanceForm = reactive({
@@ -211,6 +212,7 @@ export function useUserFinance(options: {
     if (options.submitting.value)
       return
 
+    const user = options.selectedUser.value
     const isOrder = ['order_only', 'balance_order', 'log_order', 'both'].includes(balanceForm.operation)
     const needsAmount = balanceForm.operation !== 'order_only'
 
@@ -228,33 +230,47 @@ export function useUserFinance(options: {
       return
     }
 
-    try {
-      options.submitting.value = true
+    const money = Number(balanceForm.amount || 0)
+    const payload: MoneyOperationPayload = {
+      money,
+      memo: balanceForm.memo,
+      operation: balanceForm.operation as MoneyOperationPayload['operation'],
+      order_no: balanceForm.orderNo || undefined,
+      trade_no: balanceForm.tradeNo || undefined,
+      order_status: isOrder ? balanceForm.orderStatus : undefined,
+    }
 
-      const response: any = await adminApi.finance.operateUserMoney(options.selectedUser.value.id, {
-        money: Number(balanceForm.amount || 0),
-        memo: balanceForm.memo,
-        operation: balanceForm.operation as MoneyOperationPayload['operation'],
-        order_no: balanceForm.orderNo || undefined,
-        trade_no: balanceForm.tradeNo || undefined,
-        order_status: isOrder ? balanceForm.orderStatus : undefined,
-      })
-
-      if (response.isSuccess) {
-        message.success(t('adminUsers.balanceOperationSuccess'))
-        options.onSuccess?.()
-      }
-      else {
-        message.error(response.message || t('adminUsers.balanceOperationFailed'))
-      }
-    }
-    catch (error) {
-      reportAdminUsersError('[adminUsers] balance operation failed', error)
-      message.error(t('adminUsers.operationFailed'))
-    }
-    finally {
-      options.submitting.value = false
-    }
+    dialog.warning({
+      title: t('adminMoneyLogs.confirmChangeTitle'),
+      content: t('adminMoneyLogs.confirmChangeContent', {
+        userId: user.id,
+        amount: needsAmount ? `${money > 0 ? '+' : ''}¥${money.toFixed(2)}` : balanceForm.operation,
+      }),
+      positiveText: t('common.confirm'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: async () => {
+        if (options.submitting.value)
+          return
+        try {
+          options.submitting.value = true
+          const response: any = await adminApi.finance.operateUserMoney(user.id, payload)
+          if (response.isSuccess) {
+            message.success(t('adminUsers.balanceOperationSuccess'))
+            options.onSuccess?.()
+          }
+          else {
+            message.error(response.message || t('adminUsers.balanceOperationFailed'))
+          }
+        }
+        catch (error) {
+          reportAdminUsersError('[adminUsers] balance operation failed', error)
+          message.error(t('adminUsers.operationFailed'))
+        }
+        finally {
+          options.submitting.value = false
+        }
+      },
+    })
   }
 
   /**
@@ -303,43 +319,61 @@ export function useUserFinance(options: {
       return
     }
 
-    try {
-      options.submitting.value = true
+    const user = options.selectedUser.value
+    const score = Number(scoreForm.amount)
+    const operation = scoreForm.operation
+    const memo = scoreForm.memo
 
-      if (scoreForm.operation === 'modify') {
-        const response: any = await adminUserApi.changeScore(options.selectedUser.value.id, {
-          score: scoreForm.amount,
-          memo: scoreForm.memo,
-        })
-        if (response.isSuccess) {
-          message.success(t('adminUsers.scoreChangedSuccess'))
-          options.onSuccess?.()
+    dialog.warning({
+      title: t('adminScoreLogs.confirmChangeTitle'),
+      content: t('adminScoreLogs.confirmChangeContent', {
+        userId: user.id,
+        score: `${score > 0 ? '+' : ''}${score}`,
+      }),
+      positiveText: t('common.confirm'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: async () => {
+        if (options.submitting.value)
+          return
+        try {
+          options.submitting.value = true
+
+          if (operation === 'modify') {
+            const response: any = await adminUserApi.changeScore(user.id, {
+              score,
+              memo,
+            })
+            if (response.isSuccess) {
+              message.success(t('adminUsers.scoreChangedSuccess'))
+              options.onSuccess?.()
+            }
+            else {
+              message.error(response.message || t('adminUsers.scoreChangedFailed'))
+            }
+          }
+          else if (operation === 'log') {
+            const response: any = await adminApi.finance.addScoreLog(user.id, {
+              score,
+              memo,
+            })
+            if (response.isSuccess) {
+              message.success(t('adminUsers.scoreLogAddedSuccess'))
+              options.onSuccess?.()
+            }
+            else {
+              message.error(response.message || t('adminUsers.scoreLogAddedFailed'))
+            }
+          }
         }
-        else {
-          message.error(response.message || t('adminUsers.scoreChangedFailed'))
+        catch (error) {
+          reportAdminUsersError('[adminUsers] score operation failed', error)
+          message.error(t('adminUsers.operationFailed'))
         }
-      }
-      else if (scoreForm.operation === 'log') {
-        const response: any = await adminApi.finance.addScoreLog(options.selectedUser.value.id, {
-          score: scoreForm.amount,
-          memo: scoreForm.memo,
-        })
-        if (response.isSuccess) {
-          message.success(t('adminUsers.scoreLogAddedSuccess'))
-          options.onSuccess?.()
+        finally {
+          options.submitting.value = false
         }
-        else {
-          message.error(response.message || t('adminUsers.scoreLogAddedFailed'))
-        }
-      }
-    }
-    catch (error) {
-      reportAdminUsersError('[adminUsers] score operation failed', error)
-      message.error(t('adminUsers.operationFailed'))
-    }
-    finally {
-      options.submitting.value = false
-    }
+      },
+    })
   }
 
   return {

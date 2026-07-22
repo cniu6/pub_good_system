@@ -6,6 +6,7 @@ import (
 	sms_plugin "fst/backend/app/plugins/sms"
 	"fst/backend/app/services"
 	"fst/backend/pkg/config"
+	"fst/backend/pkg/panicsafe"
 	"log"
 	"strconv"
 	"strings"
@@ -352,7 +353,7 @@ func (ctrl *SettingsController) refreshRuntimeConfig() {
 	}
 
 	// 保存配置后立即触发各类日志保留清理（异步，互不影响）
-	go func() {
+	panicsafe.Go("Settings.postSaveCleanup", func() {
 		apiLogConfig := services.GetGlobalAPILogRuntimeConfig()
 		if apiLogConfig.MaxCount > 0 {
 			if _, err := models.CleanExcessAPIAccessLogs(apiLogConfig.MaxCount); err != nil {
@@ -402,5 +403,5 @@ func (ctrl *SettingsController) refreshRuntimeConfig() {
 				log.Printf("[EmailLog] 应用运行时配置后按收件人清理失败: %v", err)
 			}
 		}
-	}()
+	})
 }

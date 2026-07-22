@@ -5,7 +5,6 @@ import (
 	"fst/backend/app/services"
 	"fst/backend/utils"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -36,52 +35,20 @@ func (c *LogController) List(ctx *gin.Context) {
 		return
 	}
 
+	// 注意：保留清理不在这里做。写日志时已经异步节流触发过 scheduleOperationLogRetentionCleanup
+	// （见 models/operation_log.go），管理端浏览列表只是查询，不应该有「顺手清理」的副作用——
+	// 之前这里同步调用清理，高并发刷列表页会重复触发 DELETE，且没有节流。
 	defaultQueryDays := 30
-	defaultMaxCount := 1000
 	opCfg := services.GetGlobalOperationLogRuntimeConfig()
 	if opCfg.QueryDays > 0 {
 		defaultQueryDays = opCfg.QueryDays
 	}
-	if opCfg.MaxCount > 0 {
-		defaultMaxCount = opCfg.MaxCount
-	}
 
-	if defaultQueryDays > 365 {
-		defaultQueryDays = 365
-	}
-	if defaultMaxCount > 100000 {
-		defaultMaxCount = 100000
-	}
+	query.Page, query.PageSize = utils.NormalizePagination(query.Page, query.PageSize)
 
-	// 自动清理超出上限的旧日志（总量 + 可选每用户）
-	if cleaned, cleanErr := models.CleanExcessOperationLogs(defaultMaxCount); cleanErr == nil && cleaned > 0 {
-		_ = cleaned
-	}
-	if opCfg.PerUserLimitEnabled && opCfg.PerUserMaxCount > 0 {
-		if cleaned, cleanErr := models.CleanExcessOperationLogsPerUser(opCfg.PerUserMaxCount); cleanErr == nil && cleaned > 0 {
-			_ = cleaned
-		}
-	}
-
-	// 设置默认分页
-	if query.Page <= 0 {
-		query.Page = 1
-	}
-	if query.PageSize <= 0 {
-		query.PageSize = 20
-	}
-	if query.PageSize > 100 {
-		query.PageSize = 100
-	}
-
-	now := time.Now().Unix()
-	if query.EndTime <= 0 {
-		query.EndTime = now
-	}
-	if query.StartTime <= 0 {
-		query.StartTime = query.EndTime - int64(defaultQueryDays*24*60*60)
-	}
-	if query.StartTime > query.EndTime {
+	var rangeErr error
+	query.StartTime, query.EndTime, rangeErr = utils.NormalizeTimeRange(query.StartTime, query.EndTime, defaultQueryDays, 365)
+	if rangeErr != nil {
 		utils.Fail(ctx, 400, "参数错误")
 		return
 	}

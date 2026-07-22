@@ -71,26 +71,16 @@ func (ctrl *ProfileController) GetUserStats(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/user/money-logs [get]
 func (ctrl *ProfileController) GetMoneyLogs(c *gin.Context) {
-	user_id, exists := c.Get("userID")
-	if !exists {
-		utils.Fail(c, 401, "User not logged in")
-		return
-	}
-	uid, ok := user_id.(uint64)
+	uid, ok := utils.GetUserID(c)
 	if !ok {
-		utils.Fail(c, 401, "Invalid user session")
+		utils.Fail(c, 401, "User not logged in")
 		return
 	}
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize = utils.NormalizePagination(page, pageSize)
 	keyword := c.DefaultQuery("keyword", "")
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
 
 	logs, total, err := services.GetUserMoneyLogList(uid, page, pageSize, keyword)
 	if err != nil {
@@ -113,26 +103,16 @@ func (ctrl *ProfileController) GetMoneyLogs(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/user/score-logs [get]
 func (ctrl *ProfileController) GetScoreLogs(c *gin.Context) {
-	user_id, exists := c.Get("userID")
-	if !exists {
-		utils.Fail(c, 401, "User not logged in")
-		return
-	}
-	uid, ok := user_id.(uint64)
+	uid, ok := utils.GetUserID(c)
 	if !ok {
-		utils.Fail(c, 401, "Invalid user session")
+		utils.Fail(c, 401, "User not logged in")
 		return
 	}
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize = utils.NormalizePagination(page, pageSize)
 	keyword := c.DefaultQuery("keyword", "")
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
 
 	logs, total, err := services.GetUserScoreLogList(uid, page, pageSize, keyword)
 	if err != nil {

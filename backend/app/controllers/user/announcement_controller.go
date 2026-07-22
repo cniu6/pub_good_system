@@ -21,22 +21,7 @@ func NewAnnouncementController() *AnnouncementController {
 }
 
 func userIDFromCtx(c *gin.Context) (uint64, bool) {
-	v, ok := c.Get("userID")
-	if !ok {
-		return 0, false
-	}
-	switch id := v.(type) {
-	case uint64:
-		return id, true
-	case int64:
-		return uint64(id), true
-	case float64:
-		return uint64(id), true
-	case int:
-		return uint64(id), true
-	default:
-		return 0, false
-	}
+	return utils.GetUserID(c)
 }
 
 func (ctrl *AnnouncementController) userRole(uid uint64) string {

@@ -74,6 +74,10 @@ const BACKEND_MESSAGE_RULES: LocalizedBackendMessageRule[] = [
     localeKey: 'http.backendMessage.accountInactive',
   },
   {
+    aliases: ['Web login is disabled'],
+    localeKey: 'http.backendMessage.webLoginDisabled',
+  },
+  {
     aliases: ['incorrect old password'],
     localeKey: 'http.backendMessage.incorrectOldPassword',
   },
@@ -357,8 +361,15 @@ export async function handleRefreshToken() {
     return
   }
 
+  // 记录发起刷新时的会话代际，避免"请求发出后用户登出/重新登录，刷新结果晚点才回来"
+  // 时把已登出的会话重新救活（详见 store/auth.ts 的 authGeneration 说明）。
+  const generation = authStore.authGeneration
+
   // 刷新token
   const data = await refreshAuthToken(authStorage.get('refreshToken'))
+  if (authStore.authGeneration !== generation)
+    return
+
   if (data) {
     authStore.applyRefreshedLoginInfo(data)
     return

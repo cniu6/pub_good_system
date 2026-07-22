@@ -27,6 +27,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
+import { useRequestGuard } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 import type {
   AutoJobDefinition,
@@ -37,6 +38,7 @@ import type {
 } from '@/service/api/admin/auto-job'
 
 const message = useMessage()
+const runsFetchGuard = useRequestGuard()
 const { t } = useI18n()
 
 const loading = ref(false)
@@ -214,6 +216,7 @@ async function loadJobs() {
 }
 
 async function loadRuns() {
+  const token = runsFetchGuard.begin()
   try {
     const params: Record<string, string | number> = {
       page: runQuery.page,
@@ -228,11 +231,14 @@ async function loadRuns() {
     if (runQuery.job_code)
       params.job_code = runQuery.job_code
     const res = await adminApi.autoJob.listRuns(params)
+    if (!runsFetchGuard.isLatest(token))
+      return
     runList.value = res.data?.list || []
     runTotal.value = res.data?.total || 0
   }
   catch {
-    message.error(t('adminAutoJobs.loadFailed'))
+    if (runsFetchGuard.isLatest(token))
+      message.error(t('adminAutoJobs.loadFailed'))
   }
 }
 

@@ -3,6 +3,7 @@ package admin
 import (
 	"fmt"
 	"fst/backend/app/models"
+	"log"
 	"time"
 
 	"fst/backend/pkg/db"
@@ -97,38 +98,57 @@ type dashboardRealnameStats struct {
 	RejectedCount int64 `db:"rejected_count"`
 }
 
-func loadDashboardCountMap(database *sqlx.DB, query string, args ...any) map[string]int64 {
+func loadDashboardCountMap(database *sqlx.DB, query string, args ...any) (map[string]int64, error) {
 	rows := make([]dashboardCountRow, 0)
 	if err := database.Select(&rows, query, args...); err != nil {
-		return map[string]int64{}
+		log.Printf("[Dashboard] 趋势计数查询失败: %v", err)
+		return map[string]int64{}, err
 	}
 	result := make(map[string]int64, len(rows))
 	for _, row := range rows {
 		result[row.Day] = row.Value
 	}
-	return result
+	return result, nil
 }
 
-func loadDashboardAmountMap(database *sqlx.DB, query string, args ...any) map[string]float64 {
+func loadDashboardAmountMap(database *sqlx.DB, query string, args ...any) (map[string]float64, error) {
 	rows := make([]dashboardAmountRow, 0)
 	if err := database.Select(&rows, query, args...); err != nil {
-		return map[string]float64{}
+		log.Printf("[Dashboard] 趋势金额查询失败: %v", err)
+		return map[string]float64{}, err
 	}
 	result := make(map[string]float64, len(rows))
 	for _, row := range rows {
 		result[row.Day] = row.Value
 	}
-	return result
+	return result, nil
 }
 
-func buildDashboardTrends(database *sqlx.DB, start time.Time, days int) []DashboardTrendPoint {
+// buildDashboardTrends 任一子查询失败时仍返回已拼好的趋势点（失败项为 0），并带回 error 供 tracker 上报。
+func buildDashboardTrends(database *sqlx.DB, start time.Time, days int) ([]DashboardTrendPoint, error) {
 	startUnix := start.Unix()
+	var firstErr error
 	// db.Q：SQLite 下 DATE(FROM_UNIXTIME(...)) → date(..., 'unixepoch')
-	newUsers := loadDashboardCountMap(database, db.Q("SELECT DATE(FROM_UNIXTIME(create_time)) AS day, COUNT(*) AS value FROM users WHERE create_time >= ? GROUP BY DATE(FROM_UNIXTIME(create_time))"), startUnix)
-	activeUsers := loadDashboardCountMap(database, db.Q("SELECT DATE(FROM_UNIXTIME(last_login_time)) AS day, COUNT(*) AS value FROM users WHERE last_login_time >= ? GROUP BY DATE(FROM_UNIXTIME(last_login_time))"), startUnix)
-	paidOrders := loadDashboardCountMap(database, db.Q(fmt.Sprintf("SELECT DATE(FROM_UNIXTIME(paid_at)) AS day, COUNT(*) AS value FROM payment_orders WHERE status = ? AND paid_at IS NOT NULL AND %s AND paid_at >= ? GROUP BY DATE(FROM_UNIXTIME(paid_at))", models.RealPaidOrderFilterSQL)), models.PaymentStatusPaid, startUnix)
-	paidAmount := loadDashboardAmountMap(database, db.Q(fmt.Sprintf("SELECT DATE(FROM_UNIXTIME(paid_at)) AS day, COALESCE(SUM(pay_amount), 0) AS value FROM payment_orders WHERE status = ? AND paid_at IS NOT NULL AND %s AND paid_at >= ? GROUP BY DATE(FROM_UNIXTIME(paid_at))", models.RealPaidOrderFilterSQL)), models.PaymentStatusPaid, startUnix)
-	operationLogs := loadDashboardCountMap(database, db.Q("SELECT DATE(FROM_UNIXTIME(create_time)) AS day, COUNT(*) AS value FROM operation_logs WHERE create_time >= ? GROUP BY DATE(FROM_UNIXTIME(create_time))"), startUnix)
+	newUsers, err := loadDashboardCountMap(database, db.Q("SELECT DATE(FROM_UNIXTIME(create_time)) AS day, COUNT(*) AS value FROM users WHERE create_time >= ? GROUP BY DATE(FROM_UNIXTIME(create_time))"), startUnix)
+	if err != nil && firstErr == nil {
+		firstErr = err
+	}
+	activeUsers, err := loadDashboardCountMap(database, db.Q("SELECT DATE(FROM_UNIXTIME(last_login_time)) AS day, COUNT(*) AS value FROM users WHERE last_login_time >= ? GROUP BY DATE(FROM_UNIXTIME(last_login_time))"), startUnix)
+	if err != nil && firstErr == nil {
+		firstErr = err
+	}
+	paidOrders, err := loadDashboardCountMap(database, db.Q(fmt.Sprintf("SELECT DATE(FROM_UNIXTIME(paid_at)) AS day, COUNT(*) AS value FROM payment_orders WHERE status = ? AND paid_at IS NOT NULL AND %s AND paid_at >= ? GROUP BY DATE(FROM_UNIXTIME(paid_at))", models.RealPaidOrderFilterSQL)), models.PaymentStatusPaid, startUnix)
+	if err != nil && firstErr == nil {
+		firstErr = err
+	}
+	paidAmount, err := loadDashboardAmountMap(database, db.Q(fmt.Sprintf("SELECT DATE(FROM_UNIXTIME(paid_at)) AS day, COALESCE(SUM(pay_amount), 0) AS value FROM payment_orders WHERE status = ? AND paid_at IS NOT NULL AND %s AND paid_at >= ? GROUP BY DATE(FROM_UNIXTIME(paid_at))", models.RealPaidOrderFilterSQL)), models.PaymentStatusPaid, startUnix)
+	if err != nil && firstErr == nil {
+		firstErr = err
+	}
+	operationLogs, err := loadDashboardCountMap(database, db.Q("SELECT DATE(FROM_UNIXTIME(create_time)) AS day, COUNT(*) AS value FROM operation_logs WHERE create_time >= ? GROUP BY DATE(FROM_UNIXTIME(create_time))"), startUnix)
+	if err != nil && firstErr == nil {
+		firstErr = err
+	}
 
 	trends := make([]DashboardTrendPoint, 0, days)
 	for i := 0; i < days; i++ {
@@ -144,10 +164,10 @@ func buildDashboardTrends(database *sqlx.DB, start time.Time, days int) []Dashbo
 			OperationLogs: operationLogs[dayKey],
 		})
 	}
-	return trends
+	return trends, firstErr
 }
 
-func loadDashboardUsers(database *sqlx.DB, orderBy string) []RecentUser {
+func loadDashboardUsers(database *sqlx.DB, orderBy string) ([]RecentUser, error) {
 	users := make([]RecentUser, 0)
 	query := fmt.Sprintf(`SELECT
 		u.id,
@@ -171,13 +191,31 @@ func loadDashboardUsers(database *sqlx.DB, orderBy string) []RecentUser {
 	WHERE u.delete_time IS NULL
 	ORDER BY %s
 	LIMIT 5`, models.RealPaidOrderFilterSQL, orderBy)
-	_ = database.Select(&users, query, models.PaymentStatusPaid)
-	return users
+	if err := database.Select(&users, query, models.PaymentStatusPaid); err != nil {
+		log.Printf("[Dashboard] 最近用户列表查询失败: %v", err)
+		return users, err
+	}
+	return users, nil
 }
 
 // NewDashboardController 创建仪表盘控制器实例
 func NewDashboardController() *DashboardController {
 	return &DashboardController{}
+}
+
+// dashboardErrTracker 统一记录各指标查询失败：之前每条 `_ = database.Get(...)` 都静默吞错误，
+// DB 故障时接口仍返回 200 + 全零统计，运维/前端没法区分「真没数据」和「查库失败」。
+// 现在失败会打日志，并通过响应里的 partial_ok / failed_metrics 告知前端。
+type dashboardErrTracker struct {
+	database *sqlx.DB
+	failed   []string
+}
+
+func (t *dashboardErrTracker) get(name string, dest any, query string, args ...any) {
+	if err := t.database.Get(dest, query, args...); err != nil {
+		log.Printf("[Dashboard] 查询指标 %s 失败: %v", name, err)
+		t.failed = append(t.failed, name)
+	}
 }
 
 // GetDashboard 获取仪表盘统计数据
@@ -202,23 +240,25 @@ func (ctrl *DashboardController) GetDashboard(ctx *gin.Context) {
 	todayStartUnix := todayStart.Unix()
 	sevenDaysAgoUnix := sevenDaysAgo.Unix()
 
+	tracker := &dashboardErrTracker{database: database}
+
 	// 用户统计
-	_ = database.Get(&stats.TotalUsers, "SELECT COUNT(*) FROM users")
-	_ = database.Get(&stats.TodayNewUsers, "SELECT COUNT(*) FROM users WHERE create_time >= ?", todayStartUnix)
-	_ = database.Get(&stats.TodayActiveUsers, "SELECT COUNT(*) FROM users WHERE last_login_time >= ?", todayStartUnix)
-	_ = database.Get(&stats.ActiveUsers7d, "SELECT COUNT(*) FROM users WHERE last_login_time >= ?", sevenDaysAgoUnix)
-	_ = database.Get(&stats.TotalUserBalance, "SELECT COALESCE(SUM(money), 0) FROM users WHERE delete_time IS NULL")
+	tracker.get("total_users", &stats.TotalUsers, "SELECT COUNT(*) FROM users")
+	tracker.get("today_new_users", &stats.TodayNewUsers, "SELECT COUNT(*) FROM users WHERE create_time >= ?", todayStartUnix)
+	tracker.get("today_active_users", &stats.TodayActiveUsers, "SELECT COUNT(*) FROM users WHERE last_login_time >= ?", todayStartUnix)
+	tracker.get("active_users_7d", &stats.ActiveUsers7d, "SELECT COUNT(*) FROM users WHERE last_login_time >= ?", sevenDaysAgoUnix)
+	tracker.get("total_user_balance", &stats.TotalUserBalance, "SELECT COALESCE(SUM(money), 0) FROM users WHERE delete_time IS NULL")
 
 	// 日志统计
-	_ = database.Get(&stats.TotalMoneyLogs, "SELECT COUNT(*) FROM user_money_logs")
-	_ = database.Get(&stats.TotalScoreLogs, "SELECT COUNT(*) FROM user_score_logs")
+	tracker.get("total_money_logs", &stats.TotalMoneyLogs, "SELECT COUNT(*) FROM user_money_logs")
+	tracker.get("total_score_logs", &stats.TotalScoreLogs, "SELECT COUNT(*) FROM user_score_logs")
 
 	// 操作日志
-	_ = database.Get(&stats.TotalOperationLogs, "SELECT COUNT(*) FROM operation_logs")
-	_ = database.Get(&stats.TodayOperationLogs, "SELECT COUNT(*) FROM operation_logs WHERE create_time >= ?", todayStartUnix)
+	tracker.get("total_operation_logs", &stats.TotalOperationLogs, "SELECT COUNT(*) FROM operation_logs")
+	tracker.get("today_operation_logs", &stats.TodayOperationLogs, "SELECT COUNT(*) FROM operation_logs WHERE create_time >= ?", todayStartUnix)
 
 	// 活跃会话
-	_ = database.Get(&stats.ActiveSessions, "SELECT COUNT(*) FROM user_sessions WHERE expires_at > ?", now.Unix())
+	tracker.get("active_sessions", &stats.ActiveSessions, "SELECT COUNT(*) FROM user_sessions WHERE expires_at > ?", now.Unix())
 
 	if paymentStats, err := models.GetPaymentStats(); err == nil && paymentStats != nil {
 		stats.TotalPaymentOrders = paymentStats.TotalOrders
@@ -229,6 +269,9 @@ func (ctrl *DashboardController) GetDashboard(ctx *gin.Context) {
 		stats.TodayPaymentAmount = paymentStats.TodayAmount
 		stats.MonthPaymentAmount = paymentStats.MonthAmount
 		stats.YearPaymentAmount = paymentStats.YearAmount
+	} else if err != nil {
+		log.Printf("[Dashboard] 查询指标 payment_stats 失败: %v", err)
+		tracker.failed = append(tracker.failed, "payment_stats")
 	}
 
 	if withdrawStats, err := models.GetWithdrawRequestStats(&models.WithdrawListQuery{}); err == nil && withdrawStats != nil {
@@ -236,10 +279,13 @@ func (ctrl *DashboardController) GetDashboard(ctx *gin.Context) {
 		stats.ApprovedWithdrawCount = withdrawStats.ApprovedCount
 		stats.PaidWithdrawCount = withdrawStats.PaidCount
 		stats.PaidWithdrawAmount = withdrawStats.PaidAmount
+	} else if err != nil {
+		log.Printf("[Dashboard] 查询指标 withdraw_stats 失败: %v", err)
+		tracker.failed = append(tracker.failed, "withdraw_stats")
 	}
 
 	realnameStats := dashboardRealnameStats{}
-	_ = database.Get(&realnameStats, `SELECT
+	tracker.get("realname_stats", &realnameStats, `SELECT
 		COUNT(*) AS total_count,
 		COALESCE(SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END), 0) AS pending_count,
 		COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) AS approved_count,
@@ -251,14 +297,27 @@ func (ctrl *DashboardController) GetDashboard(ctx *gin.Context) {
 	stats.ApprovedRealnameCount = realnameStats.ApprovedCount
 	stats.RejectedRealnameCount = realnameStats.RejectedCount
 
-	recentUsers := loadDashboardUsers(database, "u.create_time DESC")
-	recentLoginUsers := loadDashboardUsers(database, "u.last_login_time DESC, u.create_time DESC")
-	trends := buildDashboardTrends(database, trendStart, 7)
+	recentUsers, err := loadDashboardUsers(database, "u.create_time DESC")
+	if err != nil {
+		tracker.failed = append(tracker.failed, "recent_users")
+	}
+	recentLoginUsers, err := loadDashboardUsers(database, "u.last_login_time DESC, u.create_time DESC")
+	if err != nil {
+		tracker.failed = append(tracker.failed, "recent_login_users")
+	}
+	trends, err := buildDashboardTrends(database, trendStart, 7)
+	if err != nil {
+		tracker.failed = append(tracker.failed, "trends")
+	}
 
 	utils.Success(ctx, gin.H{
 		"statistics":         stats,
 		"recent_users":       recentUsers,
 		"recent_login_users": recentLoginUsers,
 		"trends":             trends,
+		// partial_ok=false 时表示部分指标查询失败（已用 0 兜底展示），failed_metrics 列出具体哪些，
+		// 前端可据此提示「部分数据可能不准确」，而不是让运维误以为「就是没数据」。
+		"partial_ok":     len(tracker.failed) == 0,
+		"failed_metrics": tracker.failed,
 	})
 }

@@ -22,12 +22,13 @@ import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 import { useTableColumnVisibility } from '@/hooks'
 import {
   adminEmailTemplateApi,
+
   fetchEmailTemplateList,
   fetchPreviewEmailTemplate,
   fetchResetEmailTemplate,
   fetchUpdateEmailTemplate,
-  type EmailTemplate,
 } from '@/service/api/admin/email-template'
+import type { EmailTemplate } from '@/service/api/admin/email-template'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -106,7 +107,7 @@ const testTemplateId = ref<number | null>(null)
 const testSending = ref(false)
 
 const templateOptions = computed(() => {
-  const opts: { label: string; value: number }[] = []
+  const opts: { label: string, value: number }[] = []
   templates.value.forEach((tpl) => {
     const name = templateNameMap.value[tpl.name] || tpl.name
     const lang = langMap.value[tpl.lang] || tpl.lang
@@ -551,8 +552,12 @@ onMounted(async () => {
               </NFormItem>
               <NFormItem :label="text.status" style="margin-bottom: 8px;">
                 <NRadioGroup v-model:value="formValue.status">
-                  <NRadioButton :value="1">{{ text.enabled }}</NRadioButton>
-                  <NRadioButton :value="0">{{ text.disabled }}</NRadioButton>
+                  <NRadioButton :value="1">
+                    {{ text.enabled }}
+                  </NRadioButton>
+                  <NRadioButton :value="0">
+                    {{ text.disabled }}
+                  </NRadioButton>
                 </NRadioGroup>
               </NFormItem>
 
@@ -589,8 +594,8 @@ onMounted(async () => {
               v-if="previewHtml"
               class="preview-iframe"
               :srcdoc="previewHtml"
-              sandbox="allow-same-origin allow-scripts"
-            ></iframe>
+              sandbox=""
+            />
             <div v-else class="preview-empty">
               {{ text.loadingMsg }}
             </div>

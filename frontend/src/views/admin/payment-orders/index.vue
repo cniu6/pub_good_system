@@ -133,13 +133,15 @@ import { useI18n } from 'vue-i18n'
 import { NButton, NTag, NSpace as NSpaceComp, useMessage, useDialog } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useTableColumnVisibility } from '@/hooks'
+import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import { adminPaymentApi } from '@/service/api/admin/payment'
 import type { PaymentOrder, PaymentStats } from '@/service/api/admin/payment'
 
 const message = useMessage()
 const dialog = useDialog()
 const { t } = useI18n()
+const listFetchGuard = useRequestGuard()
+const detailFetchGuard = useRequestGuard()
 const loading = ref(false)
 const submitting = ref(false)
 
@@ -283,7 +285,7 @@ const columns: DataTableColumns<PaymentOrder> = [
           type: 'default',
           text: true,
           onClick: () => handleCancel(row),
-        }, { default: () => t('recharge.cancelled') }))
+        }, { default: () => t('adminPaymentOrders.cancelOrder') }))
       }
 
       buttons.push(h(NButton, {
@@ -327,6 +329,7 @@ const columns: DataTableColumns<PaymentOrder> = [
 
 // 数据加载
 async function fetchData() {
+  const token = listFetchGuard.begin()
   loading.value = true
   try {
     const res = await adminPaymentApi.listOrders({
@@ -336,6 +339,8 @@ async function fetchData() {
       user_id: searchForm.user_id || undefined,
       status: searchForm.status ?? -1,
     })
+    if (!listFetchGuard.isLatest(token))
+      return
     if (res.isSuccess) {
       orderList.value = res.data?.list || []
       pagination.itemCount = res.data?.total || 0
@@ -343,9 +348,11 @@ async function fetchData() {
       message.error(res.message || t('adminPaymentOrders.fetchListFailed'))
     }
   } catch {
-    message.error(t('adminPaymentOrders.fetchListFailed'))
+    if (listFetchGuard.isLatest(token))
+      message.error(t('adminPaymentOrders.fetchListFailed'))
   } finally {
-    loading.value = false
+    if (listFetchGuard.isLatest(token))
+      loading.value = false
   }
 }
 
@@ -382,23 +389,31 @@ function handlePageSizeChange(pageSize: number) {
   fetchData()
 }
 
-// 详情
+// 详情（带请求序号保护：快速连点不同订单时丢弃过期响应）
 async function handleViewDetail(row: PaymentOrder) {
+  const token = detailFetchGuard.begin()
   detailOrder.value = row
   showDetail.value = true
   detailLoading.value = true
   try {
     const res = await adminPaymentApi.orderDetail(row.id)
+    if (!detailFetchGuard.isLatest(token))
+      return
     if (res.isSuccess && res.data) {
       detailOrder.value = res.data
     }
     else {
       message.error(res.message || t('recharge.fetchOrderDetailFailed'))
     }
-  } catch {
+  }
+  catch {
+    if (!detailFetchGuard.isLatest(token))
+      return
     message.error(t('recharge.fetchOrderDetailFailed'))
-  } finally {
-    detailLoading.value = false
+  }
+  finally {
+    if (detailFetchGuard.isLatest(token))
+      detailLoading.value = false
   }
 }
 

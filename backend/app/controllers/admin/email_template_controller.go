@@ -1,10 +1,10 @@
 package admin
 
 import (
+	"errors"
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
-	"fst/backend/pkg/db"
 	"fst/backend/utils"
 	"log"
 	"strconv"
@@ -35,15 +35,11 @@ func NewEmailTemplateController() *EmailTemplateController {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/admin/email-templates [get]
 func (ctrl *EmailTemplateController) List(c *gin.Context) {
-	// 查询所有模板
-	var templates []models.EmailTemplate
-	query := "SELECT * FROM email_templates ORDER BY name, lang"
-
-	if err := db.DB.Select(&templates, query); err != nil {
+	templates, err := models.ListAllEmailTemplates()
+	if err != nil {
 		utils.Fail(c, 500, "Failed to fetch templates")
 		return
 	}
-
 	utils.Success(c, templates)
 }
 
@@ -58,16 +54,14 @@ func (ctrl *EmailTemplateController) List(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/admin/email-templates/{id} [get]
 func (ctrl *EmailTemplateController) Detail(c *gin.Context) {
-	id_str := c.Param("id")
-	id, err := strconv.ParseUint(id_str, 10, 64)
+	id, err := parseEmailTemplateID(c)
 	if err != nil {
 		utils.Fail(c, 400, "Invalid template ID")
 		return
 	}
 
-	var template models.EmailTemplate
-	query := "SELECT * FROM email_templates WHERE id = ?"
-	if err := db.DB.Get(&template, query, id); err != nil {
+	template, err := models.GetEmailTemplateByID(id)
+	if err != nil {
 		utils.Fail(c, 404, "Template not found")
 		return
 	}
@@ -95,8 +89,7 @@ type EmailTemplateUpdateRequest struct {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/admin/email-templates/{id} [put]
 func (ctrl *EmailTemplateController) Update(c *gin.Context) {
-	id_str := c.Param("id")
-	id, err := strconv.ParseUint(id_str, 10, 64)
+	id, err := parseEmailTemplateID(c)
 	if err != nil {
 		utils.Fail(c, 400, "Invalid template ID")
 		return
@@ -113,22 +106,18 @@ func (ctrl *EmailTemplateController) Update(c *gin.Context) {
 	req.Description = utils.Clean_XSS(req.Description)
 	// Content 不需要过滤，因为是HTML邮件内容
 
-	// 检查模板是否存在
-	var existing models.EmailTemplate
-	check_query := "SELECT * FROM email_templates WHERE id = ?"
-	if err := db.DB.Get(&existing, check_query, id); err != nil {
+	existing, err := models.GetEmailTemplateByID(id)
+	if err != nil {
 		utils.Fail(c, 404, "Template not found")
 		return
 	}
 
-	// 更新模板
-	update_query := `UPDATE email_templates SET subject = ?, content = ?, description = ?, status = ? WHERE id = ?`
 	status := existing.Status
 	if req.Status != nil {
 		status = *req.Status
 	}
 
-	if _, err := db.Exec(update_query, req.Subject, req.Content, req.Description, status, id); err != nil {
+	if err := models.UpdateEmailTemplate(id, req.Subject, req.Content, req.Description, status); err != nil {
 		utils.Fail(c, 500, "Failed to update template")
 		return
 	}
@@ -154,8 +143,7 @@ type EmailPreviewRequest struct {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/admin/email-templates/{id}/preview [post]
 func (ctrl *EmailTemplateController) Preview(c *gin.Context) {
-	id_str := c.Param("id")
-	id, err := strconv.ParseUint(id_str, 10, 64)
+	id, err := parseEmailTemplateID(c)
 	if err != nil {
 		utils.Fail(c, 400, "Invalid template ID")
 		return
@@ -167,10 +155,8 @@ func (ctrl *EmailTemplateController) Preview(c *gin.Context) {
 		return
 	}
 
-	// 获取模板
-	var template models.EmailTemplate
-	query := "SELECT * FROM email_templates WHERE id = ?"
-	if err := db.DB.Get(&template, query, id); err != nil {
+	template, err := models.GetEmailTemplateByID(id)
+	if err != nil {
 		utils.Fail(c, 404, "Template not found")
 		return
 	}
@@ -187,8 +173,8 @@ func (ctrl *EmailTemplateController) Preview(c *gin.Context) {
 	// 替换变量
 	for k, v := range req.Vars {
 		placeholder := "{" + k + "}"
-		content = strings.ReplaceAll(content, placeholder, toString(v))
-		subject = strings.ReplaceAll(subject, placeholder, toString(v))
+		content = strings.ReplaceAll(content, placeholder, utils.InterfaceToString(v))
+		subject = strings.ReplaceAll(subject, placeholder, utils.InterfaceToString(v))
 	}
 
 	// 使用 HTML 布局包装预览内容
@@ -212,86 +198,27 @@ func (ctrl *EmailTemplateController) Preview(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /api/v1/admin/email-templates/{id}/reset [post]
 func (ctrl *EmailTemplateController) Reset(c *gin.Context) {
-	id_str := c.Param("id")
-	id, err := strconv.ParseUint(id_str, 10, 64)
+	id, err := parseEmailTemplateID(c)
 	if err != nil {
 		utils.Fail(c, 400, "Invalid template ID")
 		return
 	}
 
-	// 获取模板名称和语言
-	var template models.EmailTemplate
-	query := "SELECT * FROM email_templates WHERE id = ?"
-	if err := db.DB.Get(&template, query, id); err != nil {
+	if _, err := models.GetEmailTemplateByID(id); err != nil {
 		utils.Fail(c, 404, "Template not found")
 		return
 	}
 
-	// 默认模板内容
-	registerCodeZH := `<p style="margin:0 0 16px 0;">您好，感谢您的注册！请使用以下验证码完成验证：</p>` +
-		`<div style="text-align:center;margin:28px 0;">` +
-		`<div style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:32px;font-weight:700;letter-spacing:8px;padding:16px 40px;border-radius:12px;">{code}</div>` +
-		`</div>` +
-		`<p style="margin:0 0 8px 0;">⏱ 验证码有效期为 <strong>{expire_minutes} 分钟</strong>，请尽快使用。</p>` +
-		`<p style="margin:0;color:#a0a0b8;font-size:13px;">如果这不是您本人的操作，请忽略此邮件。请勿将验证码透露给任何人。</p>`
-
-	registerCodeEN := `<p style="margin:0 0 16px 0;">Hello! Thank you for signing up. Please use the following code to verify your account:</p>` +
-		`<div style="text-align:center;margin:28px 0;">` +
-		`<div style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:32px;font-weight:700;letter-spacing:8px;padding:16px 40px;border-radius:12px;">{code}</div>` +
-		`</div>` +
-		`<p style="margin:0 0 8px 0;">⏱ This code is valid for <strong>{expire_minutes} minutes</strong>.</p>` +
-		`<p style="margin:0;color:#a0a0b8;font-size:13px;">If you did not request this, please ignore this email. Never share your code with anyone.</p>`
-
-	resetPasswordZH := `<p style="margin:0 0 16px 0;">您好，我们收到了您的密码重置请求。请点击下方按钮重置密码：</p>` +
-		`<div style="text-align:center;margin:28px 0;">` +
-		`<a href="{link}" style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 48px;border-radius:10px;">重置密码</a>` +
-		`</div>` +
-		`<p style="margin:0 0 8px 0;">如果按钮无法点击，您也可以使用以下验证码：</p>` +
-		`<div style="text-align:center;margin:20px 0;">` +
-		`<div style="display:inline-block;background:#f0f2f5;font-size:28px;font-weight:700;letter-spacing:6px;padding:14px 36px;border-radius:10px;color:#1a1a2e;border:2px dashed #667eea;">{code}</div>` +
-		`</div>` +
-		`<p style="margin:0 0 8px 0;">⏱ 有效期为 <strong>15 分钟</strong>，请尽快操作。</p>` +
-		`<p style="margin:0;color:#a0a0b8;font-size:13px;">如果这不是您本人的操作，请忽略此邮件，您的密码不会被更改。</p>`
-
-	resetPasswordEN := `<p style="margin:0 0 16px 0;">Hello, we received a request to reset your password. Click the button below to proceed:</p>` +
-		`<div style="text-align:center;margin:28px 0;">` +
-		`<a href="{link}" style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 48px;border-radius:10px;">Reset Password</a>` +
-		`</div>` +
-		`<p style="margin:0 0 8px 0;">If the button doesn't work, you can also use this verification code:</p>` +
-		`<div style="text-align:center;margin:20px 0;">` +
-		`<div style="display:inline-block;background:#f0f2f5;font-size:28px;font-weight:700;letter-spacing:6px;padding:14px 36px;border-radius:10px;color:#1a1a2e;border:2px dashed #667eea;">{code}</div>` +
-		`</div>` +
-		`<p style="margin:0 0 8px 0;">⏱ Valid for <strong>15 minutes</strong>.</p>` +
-		`<p style="margin:0;color:#a0a0b8;font-size:13px;">If you did not request a password reset, please ignore this email. Your password will remain unchanged.</p>`
-
-	default_templates := map[string]map[string]struct {
-		Subject string
-		Content string
-	}{
-		"register_code": {
-			"zh-CN": {Subject: "【{app_name}】注册验证码", Content: registerCodeZH},
-			"en-US": {Subject: "[{app_name}] Registration Code", Content: registerCodeEN},
-		},
-		"reset_password": {
-			"zh-CN": {Subject: "【{app_name}】密码重置请求", Content: resetPasswordZH},
-			"en-US": {Subject: "[{app_name}] Password Reset Request", Content: resetPasswordEN},
-		},
-	}
-
-	// 获取默认模板
-	if templates, ok := default_templates[template.Name]; ok {
-		if default_tpl, ok := templates[template.Lang]; ok {
-			update_query := "UPDATE email_templates SET subject = ?, content = ? WHERE id = ?"
-			if _, err := db.Exec(update_query, default_tpl.Subject, default_tpl.Content, id); err != nil {
-				utils.Fail(c, 500, "Failed to reset template")
-				return
-			}
-			utils.Success(c, gin.H{"message": "Template reset successfully"})
+	if err := models.ResetEmailTemplateToDefault(id); err != nil {
+		if errors.Is(err, models.ErrEmailTemplateNoDefault) {
+			utils.Fail(c, 400, "No default template available for this template")
 			return
 		}
+		utils.Fail(c, 500, "Failed to reset template")
+		return
 	}
 
-	utils.Fail(c, 400, "No default template available for this template")
+	utils.Success(c, gin.H{"message": "Template reset successfully"})
 }
 
 // EmailSendTestRequest 发件测试请求
@@ -323,9 +250,8 @@ func (ctrl *EmailTemplateController) SendTest(c *gin.Context) {
 
 	if req.TemplateID > 0 {
 		// 使用模板发送
-		var tpl models.EmailTemplate
-		query := "SELECT * FROM email_templates WHERE id = ?"
-		if err := db.DB.Get(&tpl, query, req.TemplateID); err != nil {
+		tpl, err := models.GetEmailTemplateByID(req.TemplateID)
+		if err != nil {
 			utils.Fail(c, 404, "模板不存在")
 			return
 		}
@@ -371,17 +297,7 @@ func (ctrl *EmailTemplateController) SendTest(c *gin.Context) {
 	utils.Success(c, gin.H{"message": "测试邮件已发送"})
 }
 
-// 辅助函数
-func toString(v interface{}) string {
-	switch val := v.(type) {
-	case string:
-		return val
-	case float64:
-		return strconv.FormatFloat(val, 'f', -1, 64)
-	case int:
-		return strconv.Itoa(val)
-	default:
-		return ""
-	}
+func parseEmailTemplateID(c *gin.Context) (uint64, error) {
+	return strconv.ParseUint(c.Param("id"), 10, 64)
 }
 

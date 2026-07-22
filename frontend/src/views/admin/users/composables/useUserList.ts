@@ -73,7 +73,7 @@ export function useUserList(options?: {
       ? `${buildAdminEntryUrl('/dashboard')}?_t=${Date.now()}`
       : `/user/dashboard?_t=${Date.now()}`
 
-    openLoginAsUserWindow(res.data.user, res.data.token, res.data.refreshToken, res.data.expiresAt, targetUrl)
+    openLoginAsUserWindow(res.data.user, res.data.token, res.data.refreshToken, res.data.expiresAt, targetUrl, authGuard)
     message.success(
       authGuard === 'admin'
         ? t('adminUsers.openedAdminConsole')

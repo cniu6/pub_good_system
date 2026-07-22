@@ -304,12 +304,26 @@ func CountUnreadAnnouncements(userID uint64, userRole string) (int, error) {
 	return n, err
 }
 
-// MarkAnnouncementRead 标记单条已读（幂等）
+// MarkAnnouncementRead 标记单条已读（幂等）。
+// 该表是复合唯一键 (user_id, announcement_id)，不能走 db.Q 的 ON DUPLICATE KEY 通用适配
+// （适配器按“首列即唯一键”会误生成 ON CONFLICT(user_id)，在 SQLite 下因不匹配唯一约束而报错）。
+// 改为可移植的 UPDATE-then-INSERT：先更新，未命中再插入，靠唯一约束兜并发；MySQL/SQLite 一致。
 func MarkAnnouncementRead(userID, announcementID uint64) error {
 	now := time.Now().Unix()
-	_, err := db.DB.Exec(db.Q(`INSERT INTO user_announcement_reads (user_id, announcement_id, read_at)
-		VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE read_at=VALUES(read_at)`),
+	res, err := db.DB.Exec(`UPDATE user_announcement_reads SET read_at=? WHERE user_id=? AND announcement_id=?`,
+		now, userID, announcementID)
+	if err != nil {
+		return err
+	}
+	if affected, _ := res.RowsAffected(); affected > 0 {
+		return nil
+	}
+	_, err = db.DB.Exec(`INSERT INTO user_announcement_reads (user_id, announcement_id, read_at) VALUES (?, ?, ?)`,
 		userID, announcementID, now)
+	if db.IsDuplicateKeyError(err) {
+		// 并发下另一个请求已抢先插入：唯一约束触发，视为已成功标记。
+		return nil
+	}
 	return err
 }
 

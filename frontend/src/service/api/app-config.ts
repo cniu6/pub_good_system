@@ -44,6 +44,8 @@ export interface AppConfig {
   withdraw_min_amount: number
   withdraw_notify_text: string
   withdraw_account_types: string[]
+  /** 提现前是否必须已完成实名认证并通过审核，默认 false */
+  withdraw_require_realname?: boolean
 
   /**
    * 管理端 REST API 在 /api/v1 下的前缀（来自后端 ADMIN_API_PATH，默认 /admin）
@@ -53,6 +55,12 @@ export interface AppConfig {
 
   /** 在线心跳上报周期（秒），Presence 心跳按此间隔发送，默认30秒 */
   online_report_interval_seconds?: number
+
+  /**
+   * 是否禁止普通用户网页端登录（默认 false）。开启后仅登录请求带 client_type=app 的客户端
+   * （如小程序/App）才能登录，管理员登录不受影响；用于「仅通过小程序/App 对外提供服务」的场景。
+   */
+  web_login_disabled?: boolean
 }
 
 /**

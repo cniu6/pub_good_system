@@ -64,6 +64,10 @@ export interface AdminDashboardResponse {
   recent_users: AdminDashboardRecentUser[]
   recent_login_users: AdminDashboardRecentUser[]
   trends: AdminDashboardTrendPoint[]
+  /** 是否所有指标都查询成功；false 表示 failed_metrics 里的指标查询失败、当前用 0 兜底展示 */
+  partial_ok?: boolean
+  /** 查询失败的指标名列表，partial_ok=false 时非空 */
+  failed_metrics?: string[]
 }
 
 export const adminDashboardApi = {

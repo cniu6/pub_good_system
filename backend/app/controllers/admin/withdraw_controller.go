@@ -35,6 +35,7 @@ type PayWithdrawBody struct {
 func (ctrl *WithdrawController) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize = utils.NormalizePagination(page, pageSize)
 	userID, _ := strconv.ParseUint(c.DefaultQuery("user_id", "0"), 10, 64)
 	keyword := utils.Clean_XSS(c.DefaultQuery("keyword", ""))
 

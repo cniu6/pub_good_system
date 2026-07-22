@@ -160,7 +160,7 @@ func (ctrl *SMSTemplateController) Preview(c *gin.Context) {
 		"app_name": "TestApp",
 	}
 	for k, v := range req.Vars {
-		val := smsPreviewToString(v)
+		val := utils.InterfaceToString(v)
 		if strings.TrimSpace(val) != "" {
 			sample[k] = val
 		}
@@ -286,17 +286,4 @@ func (ctrl *SMSTemplateController) SendTest(c *gin.Context) {
 
 func parseSMSTemplateID(c *gin.Context) (uint64, error) {
 	return strconv.ParseUint(c.Param("id"), 10, 64)
-}
-
-func smsPreviewToString(v interface{}) string {
-	switch val := v.(type) {
-	case string:
-		return val
-	case float64:
-		return strconv.FormatFloat(val, 'f', -1, 64)
-	case int:
-		return strconv.Itoa(val)
-	default:
-		return ""
-	}
 }

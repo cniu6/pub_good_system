@@ -420,24 +420,16 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 	}
 
 	cfg := config.CloneGlobalConfig()
-	// 代登录仅签发短时 access token（最长 15 分钟），并缩短 refresh 生命周期
-	accessTTL := 15 * time.Minute
+	// 代登录仅签发短时 access/refresh token（上限 15/30 分钟）；该上限与 RefreshToken 续期时
+	// 复用同一份 services.CapImpersonationTTL 规则，避免代登会话 refresh 续期后变成长会话。
+	var configuredAccess, configuredRefresh time.Duration
 	if cfg != nil && cfg.JWTAccessExpire > 0 {
-		configured := time.Duration(cfg.JWTAccessExpire) * time.Second
-		if configured < accessTTL {
-			accessTTL = configured
-		}
+		configuredAccess = time.Duration(cfg.JWTAccessExpire) * time.Second
 	}
-	refreshTTL := 30 * time.Minute
 	if cfg != nil && cfg.JWTRefreshExpire > 0 {
-		configured := time.Duration(cfg.JWTRefreshExpire) * time.Second
-		if configured < refreshTTL {
-			refreshTTL = configured
-		}
+		configuredRefresh = time.Duration(cfg.JWTRefreshExpire) * time.Second
 	}
-	if refreshTTL < accessTTL {
-		refreshTTL = accessTTL
-	}
+	accessTTL, refreshTTL := services.CapImpersonationTTL(configuredAccess, configuredRefresh)
 
 	token, err := utils.GenerateTokenForGuardWithTTL(user.ID, user.Role, authGuard, accessTTL)
 	if err != nil {
@@ -456,18 +448,8 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 	refreshExpiresAt := time.Now().Add(refreshTTL).Unix()
 
 	// 审计：操作管理员 + 目标用户（不落 token 明文）
-	var adminID uint64
+	adminID, _ := utils.GetUserID(ctx)
 	var adminName string
-	if uid, ok := ctx.Get("userID"); ok {
-		switch v := uid.(type) {
-		case uint64:
-			adminID = v
-		case int:
-			adminID = uint64(v)
-		case int64:
-			adminID = uint64(v)
-		}
-	}
 	if uname, ok := ctx.Get("username"); ok {
 		if s, ok2 := uname.(string); ok2 {
 			adminName = s
@@ -477,7 +459,7 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 		adminID, adminName, user.ID, user.Username, authGuard, clientIP, accessTTL)
 	reqBody := fmt.Sprintf(`{"target_user_id":%d,"target_username":%q,"auth_guard":%q,"access_ttl_sec":%d}`, user.ID, user.Username, authGuard, int(accessTTL.Seconds()))
 	respBody := `{"result":"ok","impersonation":true}`
-	_ = models.CreateOperationLog(&models.OperationLog{
+	if err := models.CreateOperationLog(&models.OperationLog{
 		UserID:       adminID,
 		Username:     adminName,
 		Module:       "admin_user",
@@ -491,9 +473,12 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 		ResponseBody: &respBody,
 		StatusCode:   200,
 		Duration:     0,
-	})
+	}); err != nil {
+		// login-as 是高敏感操作，审计落库失败必须有感知（哪怕只是日志），不能悄悄丢掉
+		log.Printf("[SECURITY AUDIT] 写入 login_as 审计日志失败 admin_id=%d target_user_id=%d: %v", adminID, user.ID, err)
+	}
 
-	if err := models.CreateUserSession(user.ID, authGuard, utils.HashToken(token), utils.HashToken(refreshToken), clientIP, userAgent, "Admin Impersonation", "web", "", expiresAt, refreshExpiresAt); err != nil {
+	if err := models.CreateUserSession(user.ID, authGuard, utils.HashToken(token), utils.HashToken(refreshToken), clientIP, userAgent, models.ImpersonationDeviceLabel, "web", "", expiresAt, refreshExpiresAt); err != nil {
 		utils.Fail(ctx, 500, "创建登录会话失败")
 		return
 	}

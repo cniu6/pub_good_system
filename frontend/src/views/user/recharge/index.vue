@@ -20,6 +20,7 @@ import {
   NSpin,
   NTag,
   NText,
+  useDialog,
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns, PaginationProps, SelectOption } from 'naive-ui'
@@ -37,6 +38,7 @@ import { useAuthStore } from '@/store'
 import { useRequestGuard } from '@/hooks'
 
 const message = useMessage()
+const dialog = useDialog()
 const authStore = useAuthStore()
 const { t } = useI18n()
 const ordersFetchGuard = useRequestGuard()
@@ -407,6 +409,20 @@ function stopAutoRefresh() {
 }
 
 // ========== 创建充值订单 ==========
+function amountToFen(yuan: number): number {
+  return Math.round(Number(yuan) * 100)
+}
+
+/** 待支付列表里找最近一笔同金额订单（amount / pay_amount 任一匹配） */
+function findSameAmountPendingOrder(amountYuan: number, pendingOrders: PaymentOrder[]): PaymentOrder | null {
+  const fen = amountToFen(amountYuan)
+  for (const order of pendingOrders) {
+    if (amountToFen(order.amount) === fen || amountToFen(order.pay_amount) === fen)
+      return order
+  }
+  return null
+}
+
 async function createRechargeOrder() {
   if (!selectedGateway.value) {
     message.warning(t('recharge.selectGateway'))
@@ -427,60 +443,93 @@ async function createRechargeOrder() {
     return
   }
 
+  // 有同金额待支付单则二次确认：去支付旧单 / 继续创建新单
+  try {
+    const pendingRes = await fetchPaymentOrders({ page: 1, page_size: 50, status: 0 })
+    const existing = pendingRes.isSuccess
+      ? findSameAmountPendingOrder(finalAmount.value, pendingRes.data?.list || [])
+      : null
+    if (existing) {
+      dialog.warning({
+        title: t('recharge.sameAmountPendingTitle'),
+        content: t('recharge.sameAmountPendingContent', {
+          amount: finalAmount.value.toFixed(2),
+          orderNo: existing.order_no,
+        }),
+        positiveText: t('recharge.goPayExisting'),
+        negativeText: t('recharge.continueCreate'),
+        onPositiveClick: () => {
+          showPaymentModal.value = false
+          void handleViewDetails(existing)
+        },
+        onNegativeClick: () => {
+          void doCreateRechargeOrder()
+        },
+      })
+      return
+    }
+  }
+  catch {
+    // 检测失败不阻断建单
+  }
+
+  await doCreateRechargeOrder()
+}
+
+async function doCreateRechargeOrder() {
+  const gw = selectedGateway.value
+  if (!gw)
+    return
+
   creating.value = true
   try {
     const res = await createPaymentOrder({
       gateway_id: gw.id,
       amount: finalAmount.value,
     })
-    if (res.isSuccess && res.data) {
-      showPaymentModal.value = false
-      message.success(t('recharge.orderCreated'))
+    if (!res.isSuccess || !res.data) {
+      message.error((res as { message?: string }).message || t('recharge.createOrderFailed'))
+      return
+    }
 
-      // 刷新订单列表
-      await fetchOrders()
+    showPaymentModal.value = false
+    message.success(t('recharge.orderCreated'))
+    await fetchOrders()
 
-      // 优先通过详情接口拿完整订单，避免依赖列表刷新时序或分页命中。
-      const createdOrder = orderData.value.find(o => o.order_no === res.data!.order_no)
-      if (createdOrder) {
-        const detailRes = await fetchPaymentOrderDetail(createdOrder.id)
-        if (detailRes.isSuccess && detailRes.data) {
-          selectedOrder.value = detailRes.data
-        }
-        else {
-          selectedOrder.value = { ...createdOrder, pay_url: res.data.pay_url || createdOrder.pay_url }
-        }
-      }
-      else {
-        selectedOrder.value = {
-          id: 0,
-          user_id: authStore.userInfo?.id || 0,
-          gateway_id: gw.id,
-          trade_no: '',
-          payment_channel: gw.type,
-          payment_type: res.data.payment_type || gw.pay_type,
-          amount: res.data.amount,
-          fee: res.data.fee,
-          pay_amount: res.data.pay_amount,
-          subject: '',
-          status: 0,
-          notify_count: 0,
-          pay_url: res.data.pay_url,
-          paid_at: null,
-          expire_at: res.data.expire_at,
-          client_ip: '',
-          create_time: Math.floor(Date.now() / 1000),
-          update_time: Math.floor(Date.now() / 1000),
-          order_no: res.data.order_no,
-        }
-      }
-
-      showOrderDetail.value = true
-      startAutoRefresh()
+    // 优先详情接口拿完整订单，列表未命中时用建单响应兜底
+    const createdOrder = orderData.value.find(o => o.order_no === res.data!.order_no)
+    if (createdOrder) {
+      const detailRes = await fetchPaymentOrderDetail(createdOrder.id)
+      selectedOrder.value = detailRes.isSuccess && detailRes.data
+        ? detailRes.data
+        : { ...createdOrder, pay_url: res.data.pay_url || createdOrder.pay_url }
     }
     else {
-      message.error((res as any).message || t('recharge.createOrderFailed'))
+      selectedOrder.value = {
+        id: 0,
+        user_id: authStore.userInfo?.id || 0,
+        gateway_id: gw.id,
+        trade_no: '',
+        payment_channel: gw.type,
+        payment_type: res.data.payment_type || gw.pay_type,
+        amount: res.data.amount,
+        fee: res.data.fee,
+        pay_amount: res.data.pay_amount,
+        subject: '',
+        status: 0,
+        notify_count: 0,
+        pay_url: res.data.pay_url,
+        paid_at: null,
+        expire_at: res.data.expire_at,
+        client_ip: '',
+        create_time: Math.floor(Date.now() / 1000),
+        update_time: Math.floor(Date.now() / 1000),
+        order_no: res.data.order_no,
+      }
     }
+
+    showOrderDetail.value = true
+    startAutoRefresh()
   }
   catch {
     message.error(t('recharge.createOrderRetry'))

@@ -83,28 +83,12 @@ func (ctrl *APILogController) List(c *gin.Context) {
 	if defaultQueryDays <= 0 {
 		defaultQueryDays = 7
 	}
-	if defaultQueryDays > 365 {
-		defaultQueryDays = 365
-	}
 
-	if query.Page <= 0 {
-		query.Page = 1
-	}
-	if query.PageSize <= 0 {
-		query.PageSize = 20
-	}
-	if query.PageSize > 100 {
-		query.PageSize = 100
-	}
+	query.Page, query.PageSize = utils.NormalizePagination(query.Page, query.PageSize)
 
-	now := time.Now().Unix()
-	if query.EndTime <= 0 {
-		query.EndTime = now
-	}
-	if query.StartTime <= 0 {
-		query.StartTime = query.EndTime - int64(defaultQueryDays*24*60*60)
-	}
-	if query.StartTime > query.EndTime {
+	var rangeErr error
+	query.StartTime, query.EndTime, rangeErr = utils.NormalizeTimeRange(query.StartTime, query.EndTime, defaultQueryDays, 365)
+	if rangeErr != nil {
 		utils.Fail(c, 400, "参数错误")
 		return
 	}

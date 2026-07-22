@@ -47,7 +47,10 @@ export function createRoutes(routes: AppRoute.RowRoute[]) {
   let resultRouter = standardizedRoutes(routes)
 
   // Generate routes, no need to import files for those with redirect
-  const modules = import.meta.glob('@/views/**/*.vue')
+  // 排除 admin 目录：管理端页面统一由 admin.routes.ts 用直接 import() 静态声明并单独分包，
+  // 这份 glob 只服务 user/静态/动态路由的 componentPath 映射，收窄范围避免管理端 chunk
+  // 被此处的全量扫描连带打进用户端可解析的依赖图，破坏管理端/用户端代码隔离。
+  const modules = import.meta.glob(['@/views/**/*.vue', '!@/views/admin/**'])
   resultRouter = resultRouter.map((item: AppRoute.Route) => {
     if (item.componentPath && !item.redirect)
       item.component = modules[`/src/views${item.componentPath}`]

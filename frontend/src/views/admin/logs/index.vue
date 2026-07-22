@@ -22,16 +22,17 @@ import {
 import type { DataTableColumns } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useEcharts, useTableColumnVisibility } from '@/hooks'
+import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 import { adminLogApi, type OperationLogStats } from '@/service/api/admin/log'
 import type { UserSimpleInfo } from '@/service/api/admin/user'
-import { parseBooleanSetting, parseNumberSetting } from '@/utils'
+import { normalizeLogMaxCount, normalizeLogPerUserMaxCount, normalizeLogQueryDays, parseBooleanSetting } from '@/utils'
 
 const router = useRouter()
 const message = useMessage()
 const { t } = useI18n()
+const logsFetchGuard = useRequestGuard()
 
 const loading = ref(false)
 const runtimeLoading = ref(false)
@@ -111,18 +112,6 @@ function formatPayload(raw?: string) {
 
 const formattedRequestBody = computed(() => formatPayload(detailData.value?.request_body))
 const formattedResponseBody = computed(() => formatPayload(detailData.value?.response_body))
-
-function normalizeRuntimeQueryDays(value: unknown) {
-  return Math.min(365, Math.max(1, Math.floor(parseNumberSetting(value, 30))))
-}
-
-function normalizeRuntimeMaxCount(value: unknown) {
-  return Math.min(200000, Math.max(100, Math.floor(parseNumberSetting(value, 1000))))
-}
-
-function normalizePerUserMaxCount(value: unknown) {
-  return Math.min(200000, Math.max(1, Math.floor(parseNumberSetting(value, 1000))))
-}
 
 function applyDateRange(days = runtimeForm.operation_log_query_days) {
   const now = Math.floor(Date.now() / 1000)
@@ -300,19 +289,24 @@ async function fetchUserInfos(logs: any[]) {
 }
 
 async function fetchLogs() {
+  const token = logsFetchGuard.begin()
   loading.value = true
   try {
     const res = await adminLogApi.list(query)
+    if (!logsFetchGuard.isLatest(token))
+      return
     logList.value = res.data?.list || []
     total.value = res.data?.total || 0
     pagination.itemCount = res.data?.total || 0
     await fetchUserInfos(logList.value)
   }
   catch {
-    message.error(t('adminLogs.fetchLogsFailed'))
+    if (logsFetchGuard.isLatest(token))
+      message.error(t('adminLogs.fetchLogsFailed'))
   }
   finally {
-    loading.value = false
+    if (logsFetchGuard.isLatest(token))
+      loading.value = false
   }
 }
 
@@ -334,13 +328,13 @@ async function loadRuntimeConfig() {
     for (const category of categories) {
       for (const item of category.items) {
         if (item.key === 'operation_log_query_days')
-          runtimeForm.operation_log_query_days = normalizeRuntimeQueryDays(item.value)
+          runtimeForm.operation_log_query_days = normalizeLogQueryDays(item.value)
         if (item.key === 'operation_log_max_count')
-          runtimeForm.operation_log_max_count = normalizeRuntimeMaxCount(item.value)
+          runtimeForm.operation_log_max_count = normalizeLogMaxCount(item.value)
         if (item.key === 'operation_log_per_user_limit_enabled')
           runtimeForm.operation_log_per_user_limit_enabled = parseBooleanSetting(item.value, false)
         if (item.key === 'operation_log_per_user_max_count')
-          runtimeForm.operation_log_per_user_max_count = normalizePerUserMaxCount(item.value)
+          runtimeForm.operation_log_per_user_max_count = normalizeLogPerUserMaxCount(item.value)
       }
     }
   }
@@ -356,9 +350,9 @@ async function loadRuntimeConfig() {
 async function handleSaveRuntimeConfig() {
   runtimeSaving.value = true
   try {
-    runtimeForm.operation_log_query_days = normalizeRuntimeQueryDays(runtimeForm.operation_log_query_days)
-    runtimeForm.operation_log_max_count = normalizeRuntimeMaxCount(runtimeForm.operation_log_max_count)
-    runtimeForm.operation_log_per_user_max_count = normalizePerUserMaxCount(runtimeForm.operation_log_per_user_max_count)
+    runtimeForm.operation_log_query_days = normalizeLogQueryDays(runtimeForm.operation_log_query_days)
+    runtimeForm.operation_log_max_count = normalizeLogMaxCount(runtimeForm.operation_log_max_count)
+    runtimeForm.operation_log_per_user_max_count = normalizeLogPerUserMaxCount(runtimeForm.operation_log_per_user_max_count)
 
     const res = await adminApi.settings.batchUpdate({
       operation_log_query_days: String(runtimeForm.operation_log_query_days),

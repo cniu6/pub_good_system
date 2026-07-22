@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fst/backend/app/models"
+	"fst/backend/pkg/panicsafe"
 	"io"
 	"log"
 	"strings"
@@ -68,11 +69,11 @@ func SimpleLogMiddleware(module string) gin.HandlerFunc {
 			Duration:     int(duration),
 		}
 
-		go func(entry *models.OperationLog) {
-			if err := models.CreateOperationLog(entry); err != nil {
+		panicsafe.Go("OperationLog.write", func() {
+			if err := models.CreateOperationLog(record); err != nil {
 				log.Printf("[OperationLog] 保存失败: %v", err)
 			}
-		}(record)
+		})
 	}
 }
 

@@ -6,6 +6,7 @@ import { getAdminBasePath } from '@/router/constants'
 import { staticRoutes } from '@/router/routes.static'
 import { fetchUserRoutes } from '@/service'
 import { $t, authStorage } from '@/utils'
+import { useAuthStore } from '../auth'
 import { createAdminMenus, createMenus, createRoutes, generateCacheRoutes } from './helper'
 import type { AdminMenuRoute } from './helper'
 
@@ -73,8 +74,14 @@ export const useRouteStore = defineStore('route-store', {
     async initRouteInfo() {
       if (import.meta.env.VITE_ROUTE_LOAD_MODE === 'dynamic') {
         try {
+          // 动态路由模式必须用当前登录用户的 id 去后端换取专属路由，
+          // 而不是硬编码 id:1（否则所有用户都会拿到同一份/错误用户的路由）
+          const currentUserId = useAuthStore().userInfo?.id
+          if (!currentUserId) {
+            throw new Error('Failed to initialize route info: missing current user id')
+          }
           const result = await fetchUserRoutes({
-            id: 1,
+            id: currentUserId,
           })
 
           if (!result.isSuccess || !result.data) {

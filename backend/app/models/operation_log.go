@@ -2,9 +2,8 @@ package models
 
 import (
 	"fst/backend/pkg/db"
+	"fst/backend/pkg/panicsafe"
 	"log"
-	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -144,70 +143,19 @@ func CreateOperationLog(item *OperationLog) error {
 	item.ID = uint64(id)
 
 	// 异步更新聚合统计 + 触发保留清理（节流）；明细清理不会回减累计统计
-	go func(op *OperationLog) {
-		if aggErr := RecordOperationLogAggregate(op); aggErr != nil {
+	panicsafe.Go("OperationLog.aggregate", func() {
+		if aggErr := RecordOperationLogAggregate(item); aggErr != nil {
 			log.Printf("[OperationLog] 汇总更新失败: %v", aggErr)
 		}
 		scheduleOperationLogRetentionCleanup()
-	}(item)
+	})
 
 	return nil
 }
 
 func scheduleOperationLogRetentionCleanup() {
-	now := time.Now().UnixNano()
-	nextAt := operationLogCleanupNextAt.Load()
-	if nextAt > now {
-		return
-	}
-	if !operationLogCleanupNextAt.CompareAndSwap(nextAt, now+int64(30*time.Second)) {
-		return
-	}
-
-	cfg := loadOperationLogRetentionConfig()
-	if cfg.MaxCount > 0 {
-		if _, err := CleanExcessOperationLogs(cfg.MaxCount); err != nil {
-			log.Printf("[OperationLog] 自动清理超限日志失败: %v", err)
-		}
-	}
-	if cfg.PerUserLimitEnabled && cfg.PerUserMaxCount > 0 {
-		if _, err := CleanExcessOperationLogsPerUser(cfg.PerUserMaxCount); err != nil {
-			log.Printf("[OperationLog] 按用户清理超限日志失败: %v", err)
-		}
-	}
-}
-
-type operationLogRetentionConfig struct {
-	MaxCount            int
-	PerUserLimitEnabled bool
-	PerUserMaxCount     int
-}
-
-func loadOperationLogRetentionConfig() operationLogRetentionConfig {
-	cfg := operationLogRetentionConfig{MaxCount: 1000, PerUserMaxCount: 1000}
-	settingsMap, err := GetSettingsMap([]string{
-		"operation_log_max_count",
-		"operation_log_per_user_limit_enabled",
-		"operation_log_per_user_max_count",
-	})
-	if err != nil {
-		return cfg
-	}
-	if v, ok := settingsMap["operation_log_max_count"]; ok {
-		if n, parseErr := strconv.Atoi(strings.TrimSpace(v)); parseErr == nil && n > 0 {
-			cfg.MaxCount = n
-		}
-	}
-	if v, ok := settingsMap["operation_log_per_user_limit_enabled"]; ok {
-		lower := strings.ToLower(strings.TrimSpace(v))
-		cfg.PerUserLimitEnabled = lower == "true" || lower == "1"
-	}
-	if v, ok := settingsMap["operation_log_per_user_max_count"]; ok {
-		if n, parseErr := strconv.Atoi(strings.TrimSpace(v)); parseErr == nil && n > 0 {
-			cfg.PerUserMaxCount = n
-		}
-	}
-	return cfg
+	scheduleLogRetentionCleanupGeneric(&operationLogCleanupNextAt, "operation_log", "OperationLog",
+		CleanExcessOperationLogs, CleanExcessOperationLogsPerUser)
 }
 
 // GetOperationLogByID 根据ID获取日志
@@ -322,81 +270,12 @@ func DeleteOperationLogsBefore(before_time int64) (int64, error) {
 
 // CleanExcessOperationLogs 清理超出上限的旧日志，只保留最新的 maxCount 条
 func CleanExcessOperationLogs(maxCount int) (int64, error) {
-	if maxCount <= 0 {
-		return 0, nil
-	}
-	// 先查总数
-	var total int64
-	if err := db.DB.Get(&total, "SELECT COUNT(*) FROM operation_logs"); err != nil {
-		return 0, err
-	}
-	if total <= int64(maxCount) {
-		return 0, nil
-	}
-
-	var cutoff struct {
-		ID         uint64 `db:"id"`
-		CreateTime int64  `db:"create_time"`
-	}
-	if err := db.DB.Get(&cutoff,
-		"SELECT id, create_time FROM operation_logs ORDER BY create_time DESC, id DESC LIMIT 1 OFFSET ?",
-		maxCount-1,
-	); err != nil {
-		return 0, err
-	}
-
-	result, err := db.Exec(
-		"DELETE FROM operation_logs WHERE create_time < ? OR (create_time = ? AND id < ?)",
-		cutoff.CreateTime,
-		cutoff.CreateTime,
-		cutoff.ID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+	return cleanExcessRowsGeneric("operation_logs", "create_time", maxCount)
 }
 
 // CleanExcessOperationLogsPerUser 按用户清理超出上限的操作日志（每个用户最多保留 maxPerUser 条）
 func CleanExcessOperationLogsPerUser(maxPerUser int) (int64, error) {
-	if maxPerUser <= 0 {
-		return 0, nil
-	}
-	var groups []struct {
-		UserID uint64 `db:"user_id"`
-		Cnt    int64  `db:"cnt"`
-	}
-	if err := db.DB.Select(&groups,
-		"SELECT user_id, COUNT(*) AS cnt FROM operation_logs GROUP BY user_id HAVING COUNT(*) > ?",
-		maxPerUser,
-	); err != nil {
-		return 0, err
-	}
-
-	var totalAffected int64
-	for _, g := range groups {
-		var cutoff struct {
-			ID         uint64 `db:"id"`
-			CreateTime int64  `db:"create_time"`
-		}
-		if err := db.DB.Get(&cutoff,
-			"SELECT id, create_time FROM operation_logs WHERE user_id = ? ORDER BY create_time DESC, id DESC LIMIT 1 OFFSET ?",
-			g.UserID, maxPerUser-1,
-		); err != nil {
-			continue
-		}
-		result, err := db.Exec(
-			"DELETE FROM operation_logs WHERE user_id = ? AND (create_time < ? OR (create_time = ? AND id < ?))",
-			g.UserID, cutoff.CreateTime, cutoff.CreateTime, cutoff.ID,
-		)
-		if err != nil {
-			continue
-		}
-		if n, _ := result.RowsAffected(); n > 0 {
-			totalAffected += n
-		}
-	}
-	return totalAffected, nil
+	return cleanExcessRowsPerGroupGeneric[uint64]("operation_logs", "user_id", "create_time", maxPerUser, "")
 }
 
 // GetOperationLogStats 获取操作日志统计
@@ -449,4 +328,3 @@ func GetOperationLogStats() (*LogStats, error) {
 
 	return stats, nil
 }
-

@@ -15,6 +15,7 @@ const {
   statistics,
   recentUsers,
   recentLoginUsers,
+  dashboardFailedMetrics,
   monitoring,
   operations,
   topSummaryCards,
@@ -86,6 +87,11 @@ const {
         </n-flex>
       </n-flex>
     </n-card>
+
+    <!-- 部分统计指标查库失败时的提示：数值仍会用 0 兜底展示，避免误以为「真的没有数据」 -->
+    <n-alert v-if="dashboardFailedMetrics.length > 0" type="warning" closable>
+      {{ t('adminDashboard.partialDataWarning', { metrics: dashboardFailedMetrics.join(', ') }) }}
+    </n-alert>
 
     <n-grid :x-gap="16" :y-gap="16" :cols="3" item-responsive responsive="screen">
       <n-gi v-for="card in topSummaryCards" :key="card.key" span="3 m:1">

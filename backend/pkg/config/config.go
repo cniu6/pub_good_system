@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -565,16 +566,34 @@ func parsePositiveIntValue(raw string, fallback int) int {
 
 func buildDSN() string {
 	driver := strings.ToLower(strings.TrimSpace(getEnv("DB_DRIVER", "mysql")))
-	if driver == "sqlite" || driver == "sqlite3" {
+	switch driver {
+	case "sqlite", "sqlite3":
 		return buildSQLiteDSN()
+	case "postgres", "postgresql", "pg":
+		return buildPostgresDSN()
+	default:
+		user := getEnv("DB_USER", "root")
+		pass := getEnv("DB_PASSWORD", "")
+		host := getEnv("DB_HOST", "127.0.0.1")
+		port := getEnv("DB_PORT", "3306")
+		name := getEnv("DB_NAME", "fst_platform")
+
+		return user + ":" + pass + "@tcp(" + host + ":" + port + ")/" + name + "?charset=utf8mb4&parseTime=True&loc=Local"
 	}
-	user := getEnv("DB_USER", "root")
+}
+
+// buildPostgresDSN 组装 PostgreSQL DSN（pgx 认识的 key=value 或 URL 均可，这里用更易读的 URL 形式）。
+// DB_SSLMODE 默认 disable，本地/内网部署最常见；生产连公网 Postgres 建议在 .env 里显式设成 require。
+func buildPostgresDSN() string {
+	user := getEnv("DB_USER", "postgres")
 	pass := getEnv("DB_PASSWORD", "")
 	host := getEnv("DB_HOST", "127.0.0.1")
-	port := getEnv("DB_PORT", "3306")
+	port := getEnv("DB_PORT", "5432")
 	name := getEnv("DB_NAME", "fst_platform")
+	sslMode := getEnv("DB_SSLMODE", "disable")
 
-	return user + ":" + pass + "@tcp(" + host + ":" + port + ")/" + name + "?charset=utf8mb4&parseTime=True&loc=Local"
+	return "postgres://" + url.QueryEscape(user) + ":" + url.QueryEscape(pass) +
+		"@" + host + ":" + port + "/" + name + "?sslmode=" + url.QueryEscape(sslMode)
 }
 
 // buildSQLiteDSN 组装 SQLite DSN（modernc.org/sqlite）。

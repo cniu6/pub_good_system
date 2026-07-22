@@ -182,8 +182,10 @@ var renumberMu sync.Mutex
 // 注意：不能「保留巨大旧 id 的同时让新行从 1 起」——InnoDB 要求自增 ≥ MAX(id)+1。
 // 正常路径跑完才 INSERT runs，故无需检查 runs.status=running。
 func MaybeRenumberRunIDsIfNearLimit() (did bool, newCount int64, err error) {
-	// SQLite 无 CREATE TABLE LIKE / RENAME TABLE 多表语法；本地临时库跳过重编号（id 也远不到上限）
-	if db.IsSQLite() {
+	// SQLite / PostgreSQL 都没有 MySQL 的 CREATE TABLE ... LIKE / RENAME TABLE ... TO ... 多表语法，
+	// 也没有 information_schema.TABLES.AUTO_INCREMENT 这个字段；这里只是 BIGINT id 快到上限时的
+	// 极端兜底（正常运行几十年都碰不到），非 MySQL 直接跳过，不做 Postgres 专属重写实现。
+	if db.IsSQLite() || db.IsPostgres() {
 		return false, 0, nil
 	}
 	ai, maxID, err := runsIDWatermark()

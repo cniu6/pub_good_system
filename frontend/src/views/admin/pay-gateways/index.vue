@@ -153,7 +153,7 @@ import { useI18n } from 'vue-i18n'
 import { useMessage, useDialog, NTag, NButton, NSpace, NImage } from 'naive-ui'
 import type { DataTableColumns, FormRules } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useTableColumnVisibility } from '@/hooks'
+import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import {
   fetchPayGateways,
   createPayGateway,
@@ -165,6 +165,7 @@ import type { PayGateway, PayGatewayCreateRequest } from '@/service/api/admin/pa
 const message = useMessage()
 const dialog = useDialog()
 const { t } = useI18n()
+const listFetchGuard = useRequestGuard()
 
 const loading = ref(false)
 const list = ref<PayGateway[]>([])
@@ -335,9 +336,12 @@ const columns: DataTableColumns<PayGateway> = [
  })
 
 async function loadList() {
+  const token = listFetchGuard.begin()
   loading.value = true
   try {
     const res = await fetchPayGateways({ page: pagination.page, page_size: pagination.pageSize, keyword: keyword.value })
+    if (!listFetchGuard.isLatest(token))
+      return
     if (res.isSuccess) {
       list.value = res.data?.list || []
       pagination.itemCount = res.data?.total || 0
@@ -348,7 +352,8 @@ async function loadList() {
     // 网络异常：alova onError 已提示
   }
   finally {
-    loading.value = false
+    if (listFetchGuard.isLatest(token))
+      loading.value = false
   }
 }
 

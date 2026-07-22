@@ -174,15 +174,9 @@ func (ctrl *UserMoneyScoreController) OperateMoney(c *gin.Context) {
 func (ctrl *UserMoneyScoreController) MoneyLogList(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize = utils.NormalizePagination(page, pageSize)
 	keyword := c.DefaultQuery("keyword", "")
 	userIDFilter, _ := strconv.ParseUint(c.DefaultQuery("user_id", "0"), 10, 64)
-
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
 
 	logs, total, err := services.GetUserMoneyLogList(userIDFilter, page, pageSize, keyword)
 	if err != nil {
@@ -320,15 +314,9 @@ func (ctrl *UserMoneyScoreController) AddScoreLog(c *gin.Context) {
 func (ctrl *UserMoneyScoreController) ScoreLogList(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize = utils.NormalizePagination(page, pageSize)
 	keyword := c.DefaultQuery("keyword", "")
 	userIDFilter, _ := strconv.ParseUint(c.DefaultQuery("user_id", "0"), 10, 64)
-
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
 
 	logs, total, err := services.GetUserScoreLogList(userIDFilter, page, pageSize, keyword)
 	if err != nil {

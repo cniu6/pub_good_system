@@ -353,9 +353,12 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 		return err
 	}
 
-	// 检查邮箱是否被其他用户使用
+	// 检查邮箱是否被其他用户使用（DB 查询本身出错要直接拒绝，不能当成「邮箱不存在」放过）
 	if req.Email != nil && *req.Email != user.Email {
-		existing, _ := models.GetUserByEmail(*req.Email)
+		existing, err := models.GetUserByEmail(*req.Email)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return errors.New("检查邮箱失败: " + err.Error())
+		}
 		if existing != nil && existing.ID != user.ID {
 			return NewClientError("邮箱已被使用")
 		}
@@ -483,12 +486,6 @@ func normalizeUserRole(role string) (string, error) {
 	return "", NewClientError("无效的用户角色，仅支持 user 或 admin")
 }
 
-// validateUserRole 仅允许系统内置角色，防止任意字符串写入导致鉴权语义混乱
-func validateUserRole(role string) error {
-	_, err := normalizeUserRole(role)
-	return err
-}
-
 // Delete 软删除用户（同时禁用账号状态，并撤销其所有会话）
 func (s *UserService) Delete(user_id uint64) error {
 	user, err := models.GetUserByID(user_id)
@@ -550,23 +547,15 @@ func ensureAdminPrivilegeSafe(target *models.User, newRole string, newStatus *ui
 	return nil
 }
 
-// BatchDelete 批量软删除用户，同时撤销会话
+// BatchDelete 批量软删除用户。
+// 之前的实现只改 delete_time，不像 Delete 一样同步禁用 status=0、也不做「最后一个管理员」保护，
+// 行为和单条删除不一致（历史遗留、当前无 controller 暴露）。现在直接复用 Delete 逐条校验+删除，
+// 保证批量删除和单条删除的语义完全一致（包括会逐条检查是否会删空管理员）。
 func (s *UserService) BatchDelete(user_ids []uint64) error {
-	if len(user_ids) == 0 {
-		return nil
-	}
-
-	now := time.Now().Unix()
-	query := "UPDATE users SET delete_time = ? WHERE id IN (?)"
-	query, args, err := sqlx.In(query, now, user_ids)
-	if err != nil {
-		return err
-	}
-	if _, err = db.Exec(query, args...); err != nil {
-		return err
-	}
 	for _, uid := range user_ids {
-		revokeAllGuardSessions(uid)
+		if err := s.Delete(uid); err != nil {
+			return fmt.Errorf("删除用户 %d 失败: %w", uid, err)
+		}
 	}
 	return nil
 }

@@ -15,13 +15,28 @@ func IsMySQL() bool {
 	return strings.EqualFold(activeDriver, "mysql")
 }
 
-// Q 按当前驱动适配 SQL：MySQL 原样返回；SQLite 下做常见 DML 方言转换。
+// IsPostgres 当前全局连接是否为 PostgreSQL。
+func IsPostgres() bool {
+	return strings.EqualFold(activeDriver, "postgres")
+}
+
+// Q 按当前驱动适配 SQL：MySQL 原样返回；SQLite/PostgreSQL 下做常见 DML 方言转换。
 // 业务里凡含 FOR UPDATE / NOW() / FROM_UNIXTIME / ON DUPLICATE KEY 等，请走本函数再执行。
+//
+// 注意：PostgreSQL 下即使不显式调用本函数，占位符 ?→$N、反引号剥除等转换也会在
+// 驱动层（见 pg_shim.go）统一兜底，所以历史上大量未经 Q() 直接 db.DB.Exec("... ?") /
+// tx.Exec("... ?") 的写法在 Postgres 下依然能跑；但 Q() 里的函数级转换（FROM_UNIXTIME 等）
+// 只在业务显式调用 Q()/Exec() 时生效，直接绕过 db.Exec() 手写 tx.Exec 的语句如果用了
+// MySQL 专属函数，仍需要显式包一层 Q()。
 func Q(query string) string {
-	if !IsSQLite() {
+	switch {
+	case IsSQLite():
+		return AdaptMySQLQueryToSQLite(query)
+	case IsPostgres():
+		return AdaptMySQLQueryToPostgres(query)
+	default:
 		return query
 	}
-	return AdaptMySQLQueryToSQLite(query)
 }
 
 var (
@@ -53,6 +68,9 @@ var (
 	// ON DUPLICATE KEY UPDATE → ON CONFLICT(first_col) DO UPDATE SET
 	reOnDuplicate = regexp.MustCompile(`(?is)\bON\s+DUPLICATE\s+KEY\s+UPDATE\b`)
 	reInsertCols  = regexp.MustCompile(`(?is)INSERT\s+INTO\s+[a-zA-Z0-9_` + "`" + `]+\s*\(\s*([a-zA-Z0-9_` + "`" + `,.\s]+?)\s*\)`)
+	// MySQL upsert 里的 VALUES(col) 在 SQLite 应写作 excluded.col（仅 ON CONFLICT DO UPDATE 场景）。
+	// 只匹配括号内是标识符的情形，INSERT 的 VALUES(?, ?) 占位符不会被误伤。
+	reValuesRef = regexp.MustCompile("(?i)\\bVALUES\\s*\\(\\s*`?([A-Za-z_][A-Za-z0-9_]*)`?\\s*\\)")
 )
 
 // AdaptMySQLQueryToSQLite 把业务里常见的 MySQL DML 转成 SQLite 可执行语句。
@@ -103,6 +121,8 @@ func AdaptMySQLQueryToSQLite(mysqlSQL string) string {
 
 // adaptOnDuplicateKey 将 ON DUPLICATE KEY UPDATE 转为 ON CONFLICT(首列) DO UPDATE SET。
 // 本项目 upsert 约定：INSERT 列清单的第一列即唯一键（stat_key / day_key / route_path 等）。
+// 注意：若表是复合唯一键（如 user_announcement_reads 的 user_id+announcement_id），
+// “首列”启发不成立，不能走本通用适配；那类语句请在业务层改写为可移植写法。
 func adaptOnDuplicateKey(sql string) string {
 	conflictCol := ""
 	if m := reInsertCols.FindStringSubmatch(sql); len(m) >= 2 {
@@ -116,7 +136,10 @@ func adaptOnDuplicateKey(sql string) string {
 		// 解析失败时无法安全转换；保持原样让错误暴露，便于排查
 		return sql
 	}
-	return reOnDuplicate.ReplaceAllString(sql, "ON CONFLICT("+conflictCol+") DO UPDATE SET")
+	out := reOnDuplicate.ReplaceAllString(sql, "ON CONFLICT("+conflictCol+") DO UPDATE SET")
+	// SET 子句里 MySQL 的 VALUES(col) 在 SQLite upsert 中应为 excluded.col。
+	out = reValuesRef.ReplaceAllString(out, "excluded.$1")
+	return out
 }
 
 var (
@@ -186,9 +209,17 @@ func AdaptMySQLDDLToSQLite(mysqlSQL string) []string {
 }
 
 func adaptCreateTable(mysqlSQL string) []string {
+	return adaptCreateTableGeneric(mysqlSQL, cleanMySQLTypeNoise)
+}
+
+// adaptCreateTableGeneric 通用 CREATE TABLE 结构拆解：把表内联的 UNIQUE KEY/INDEX/KEY
+// 拆成独立的 CREATE INDEX 语句（SQLite / Postgres 都不支持 MySQL 那种表内联索引写法），
+// 列定义本身的类型/修饰清洗交给 colClean 按各方言实现（SQLite 用 cleanMySQLTypeNoise，
+// Postgres 用 cleanMySQLTypeNoiseForPostgres，见 dialect_postgres.go）。
+func adaptCreateTableGeneric(mysqlSQL string, colClean func(string) string) []string {
 	m := reCreateTable.FindStringSubmatch(mysqlSQL)
 	if m == nil {
-		return []string{cleanMySQLTypeNoise(mysqlSQL)}
+		return []string{colClean(mysqlSQL)}
 	}
 	ifNotExists := m[1]
 	tableName := m[2]
@@ -225,11 +256,11 @@ func adaptCreateTable(mysqlSQL string) []string {
 		}
 		// PRIMARY KEY (cols) 单独行：保留
 		if strings.HasPrefix(up, "PRIMARY KEY") {
-			colDefs = append(colDefs, cleanMySQLTypeNoise(p))
+			colDefs = append(colDefs, colClean(p))
 			continue
 		}
 
-		colDefs = append(colDefs, cleanMySQLTypeNoise(p))
+		colDefs = append(colDefs, colClean(p))
 	}
 
 	create := "CREATE TABLE " + ifNotExists + tableName + " (\n\t" + strings.Join(colDefs, ",\n\t") + "\n)"

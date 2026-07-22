@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"log"
 	"strconv"
 	"strings"
 
@@ -20,19 +21,8 @@ func NewAnnouncementController() *AnnouncementController {
 }
 
 func adminUserID(c *gin.Context) uint64 {
-	v, _ := c.Get("userID")
-	switch id := v.(type) {
-	case uint64:
-		return id
-	case int64:
-		return uint64(id)
-	case float64:
-		return uint64(id)
-	case int:
-		return uint64(id)
-	default:
-		return 0
-	}
+	id, _ := utils.GetUserID(c)
+	return id
 }
 
 func parseAnnouncementID(c *gin.Context) (uint64, error) {
@@ -48,18 +38,6 @@ func normalizeAnnouncementType(t string) string {
 	}
 }
 
-func normalizeTarget(targetType, targetValue string) (string, string) {
-	tt := strings.ToLower(strings.TrimSpace(targetType))
-	if tt != "role" {
-		return "all", ""
-	}
-	tv := strings.ToLower(strings.TrimSpace(targetValue))
-	if tv != "admin" && tv != "user" {
-		tv = "user"
-	}
-	return "role", tv
-}
-
 // List 公告列表
 // @Summary 管理端公告列表
 // @Tags Admin-公告
@@ -68,6 +46,7 @@ func normalizeTarget(targetType, targetValue string) (string, string) {
 func (ctrl *AnnouncementController) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize = utils.NormalizePagination(page, pageSize)
 	keyword := strings.TrimSpace(c.Query("keyword"))
 	typ := strings.TrimSpace(c.Query("type"))
 	var statusPtr *uint8
@@ -100,17 +79,23 @@ func (ctrl *AnnouncementController) Detail(c *gin.Context) {
 	utils.Success(c, a)
 }
 
+// announcementTargetType/announcementTargetValue：产品定调公告面向全体登录用户，不做管理员/用户分层。
+// DB 的 target_type/target_value 列与读取路径（ListVisibleAnnouncementsForUser 等）仍支持按角色定向，
+// 只是当前创建/编辑入口固定写 "all"/""，先不在 API/前端暴露这两个字段，避免出现「传了但被服务端忽略」的死字段。
+const (
+	announcementTargetType  = "all"
+	announcementTargetValue = ""
+)
+
 type announcementUpsertReq struct {
-	Title       string `json:"title" binding:"required"`
-	Summary     string `json:"summary"` // 列表预览，可选；空则从正文截取
-	Content     string `json:"content" binding:"required"`
-	Type        string `json:"type"`
-	Priority    int    `json:"priority"`
-	Popup       *uint8 `json:"popup"`
-	TargetType  string `json:"target_type"`
-	TargetValue string `json:"target_value"`
-	StartAt     int64  `json:"start_at"`
-	EndAt       int64  `json:"end_at"`
+	Title    string `json:"title" binding:"required"`
+	Summary  string `json:"summary"` // 列表预览，可选；空则从正文截取
+	Content  string `json:"content" binding:"required"`
+	Type     string `json:"type"`
+	Priority int    `json:"priority"`
+	Popup    *uint8 `json:"popup"`
+	StartAt  int64  `json:"start_at"`
+	EndAt    int64  `json:"end_at"`
 }
 
 // Create 创建草稿
@@ -120,9 +105,6 @@ func (ctrl *AnnouncementController) Create(c *gin.Context) {
 		utils.Fail(c, 400, err.Error())
 		return
 	}
-	tt, tv := normalizeTarget(req.TargetType, req.TargetValue)
-	// 产品定调：公告面向全体，不做管理员/用户分层
-	tt, tv = "all", ""
 	popup := uint8(0)
 	if req.Popup != nil {
 		popup = *req.Popup
@@ -136,8 +118,8 @@ func (ctrl *AnnouncementController) Create(c *gin.Context) {
 		Status:      models.AnnouncementStatusDraft,
 		Priority:    req.Priority,
 		Popup:       popup,
-		TargetType:  tt,
-		TargetValue: tv,
+		TargetType:  announcementTargetType,
+		TargetValue: announcementTargetValue,
 		StartAt:     req.StartAt,
 		EndAt:       req.EndAt,
 		CreatedBy:   adminID,
@@ -173,9 +155,6 @@ func (ctrl *AnnouncementController) Update(c *gin.Context) {
 		utils.Fail(c, 400, err.Error())
 		return
 	}
-	tt, tv := normalizeTarget(req.TargetType, req.TargetValue)
-	// 产品定调：公告面向全体，不做管理员/用户分层
-	tt, tv = "all", ""
 	existing.Title = strings.TrimSpace(req.Title)
 	existing.Summary = strings.TrimSpace(req.Summary)
 	existing.Content = req.Content
@@ -184,8 +163,8 @@ func (ctrl *AnnouncementController) Update(c *gin.Context) {
 	if req.Popup != nil {
 		existing.Popup = *req.Popup
 	}
-	existing.TargetType = tt
-	existing.TargetValue = tv
+	existing.TargetType = announcementTargetType
+	existing.TargetValue = announcementTargetValue
 	existing.StartAt = req.StartAt
 	existing.EndAt = req.EndAt
 	existing.UpdatedBy = adminUserID(c)
@@ -217,10 +196,15 @@ func (ctrl *AnnouncementController) Publish(c *gin.Context) {
 	}
 	// 发布即自动打开总开关，避免「发了但用户端空白」
 	if !models.IsAnnouncementEnabled() {
+		var enableErr error
 		if services.GlobalSettingsService != nil {
-			_ = services.GlobalSettingsService.UpdateSingleSettingWithCache("announcement_enabled", "true")
+			enableErr = services.GlobalSettingsService.UpdateSingleSettingWithCache("announcement_enabled", "true")
 		} else {
-			_ = models.UpdateSetting("announcement_enabled", "true")
+			enableErr = models.UpdateSetting("announcement_enabled", "true")
+		}
+		if enableErr != nil {
+			// 公告已发布，开关落库失败不回滚发布，但必须可观测，否则会出现「已发布但用户端空白」难排查
+			log.Printf("[Announcement] 发布成功但自动开启 announcement_enabled 失败: id=%d, err=%v", id, enableErr)
 		}
 	}
 	a, _ := models.GetAnnouncementByID(id)

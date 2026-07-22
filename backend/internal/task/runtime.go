@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -12,6 +13,13 @@ import (
 
 // OnConfigSaved 配置写入后回调（由 services 注入刷新 settings 缓存）
 var OnConfigSaved func()
+
+var (
+	// ErrSchedulerDisabled 全局自动任务开关关闭（调度触发被忽略，属正常）
+	ErrSchedulerDisabled = errors.New("全局自动任务已关闭")
+	// ErrJobBusy 任务已在本进程执行中（调度重复派发时忽略，属正常）
+	ErrJobBusy = errors.New("任务正在执行中")
+)
 
 var (
 	schedOnce    sync.Once
@@ -135,7 +143,8 @@ func tickOnce() {
 				}
 			}()
 			if _, err := Trigger(code, RunOptions{Trigger: TriggerSchedule}); err != nil {
-				if !strings.Contains(err.Error(), "正在执行") && !strings.Contains(err.Error(), "已关闭") {
+				// 正在执行 / 全局关闭：调度层正常竞态，不刷错误日志
+				if !errors.Is(err, ErrJobBusy) && !errors.Is(err, ErrSchedulerDisabled) {
 					log.Printf("[AutoJob] schedule %s: %v", code, err)
 				}
 			}
@@ -267,7 +276,7 @@ func Trigger(jobCode string, opts RunOptions) (*JobRun, error) {
 	}
 	cfg := LoadGlobalConfig()
 	if !opts.Force && opts.Trigger == TriggerSchedule && !cfg.Enabled {
-		return nil, fmt.Errorf("全局自动任务已关闭")
+		return nil, ErrSchedulerDisabled
 	}
 
 	def, err := GetDefinition(jobCode)
@@ -283,7 +292,7 @@ func Trigger(jobCode string, opts RunOptions) (*JobRun, error) {
 
 	mu := jobMutex(jobCode)
 	if !mu.TryLock() {
-		return nil, fmt.Errorf("任务正在执行中")
+		return nil, ErrJobBusy
 	}
 	// 正常路径由 defer 解锁；超时路径把锁移交给后台（等 handler 真跑完再 Unlock）
 	unlockByDefer := true
@@ -299,7 +308,7 @@ func Trigger(jobCode string, opts RunOptions) (*JobRun, error) {
 		return nil, err
 	}
 	if !ok {
-		return nil, fmt.Errorf("任务正在执行中")
+		return nil, ErrJobBusy
 	}
 
 	handler, ok := GetHandler(def.HandlerKey)

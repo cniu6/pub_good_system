@@ -28,15 +28,16 @@ import {
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useEcharts, useTableColumnVisibility } from '@/hooks'
+import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 import { adminEmailLogApi, type EmailLog, type EmailLogListParams, type EmailLogStats } from '@/service/api/admin/email-log'
-import { parseBooleanSetting, parseNumberSetting } from '@/utils'
+import { normalizeLogMaxCount, normalizeLogPerUserMaxCount, parseBooleanSetting } from '@/utils'
 
 const router = useRouter()
 const message = useMessage()
 const { t } = useI18n()
+const listFetchGuard = useRequestGuard()
 
 const loading = ref(false)
 const runtimeLoading = ref(false)
@@ -91,14 +92,6 @@ const statusOptions = [
 
 const topTemplateItems = computed(() => (statsData.value.top_templates || []).slice(0, 8))
 const topTemplateChartItems = computed(() => [...topTemplateItems.value].reverse())
-
-function normalizeRuntimeMaxCount(value: unknown) {
-  return Math.min(200000, Math.max(100, Math.floor(parseNumberSetting(value, 1000))))
-}
-
-function normalizePerUserMaxCount(value: unknown) {
-  return Math.min(200000, Math.max(1, Math.floor(parseNumberSetting(value, 1000))))
-}
 
 function formatTopTemplateAxisLabel(value: string) {
   const normalized = value || '-'
@@ -209,6 +202,7 @@ const {
 })
 
 async function fetchList() {
+  const token = listFetchGuard.begin()
   loading.value = true
   try {
     if (dateRange.value) {
@@ -233,15 +227,19 @@ async function fetchList() {
       delete params.end_time
 
     const res = await adminEmailLogApi.list(params)
+    if (!listFetchGuard.isLatest(token))
+      return
     logList.value = res.data?.list || []
     total.value = res.data?.total || 0
     pagination.itemCount = total.value
   }
   catch {
-    message.error(t('adminEmailLogs.fetchListFailed'))
+    if (listFetchGuard.isLatest(token))
+      message.error(t('adminEmailLogs.fetchListFailed'))
   }
   finally {
-    loading.value = false
+    if (listFetchGuard.isLatest(token))
+      loading.value = false
   }
 }
 
@@ -270,11 +268,11 @@ async function loadRuntimeConfig() {
     for (const category of categories) {
       for (const item of category.items) {
         if (item.key === 'email_log_max_count')
-          runtimeForm.email_log_max_count = normalizeRuntimeMaxCount(item.value)
+          runtimeForm.email_log_max_count = normalizeLogMaxCount(item.value)
         if (item.key === 'email_log_per_user_limit_enabled')
           runtimeForm.email_log_per_user_limit_enabled = parseBooleanSetting(item.value, false)
         if (item.key === 'email_log_per_user_max_count')
-          runtimeForm.email_log_per_user_max_count = normalizePerUserMaxCount(item.value)
+          runtimeForm.email_log_per_user_max_count = normalizeLogPerUserMaxCount(item.value)
       }
     }
   }
@@ -289,8 +287,8 @@ async function loadRuntimeConfig() {
 async function handleSaveRuntimeConfig() {
   runtimeSaving.value = true
   try {
-    runtimeForm.email_log_max_count = normalizeRuntimeMaxCount(runtimeForm.email_log_max_count)
-    runtimeForm.email_log_per_user_max_count = normalizePerUserMaxCount(runtimeForm.email_log_per_user_max_count)
+    runtimeForm.email_log_max_count = normalizeLogMaxCount(runtimeForm.email_log_max_count)
+    runtimeForm.email_log_per_user_max_count = normalizeLogPerUserMaxCount(runtimeForm.email_log_per_user_max_count)
 
     const res = await adminApi.settings.batchUpdate({
       email_log_max_count: String(runtimeForm.email_log_max_count),

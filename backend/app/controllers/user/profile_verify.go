@@ -185,7 +185,9 @@ func (ctrl *ProfileController) VerifyEmailChange(c *gin.Context) {
 		utils.Fail(c, 400, "Invalid or expired verification code")
 		return
 	}
-	_ = models.DeleteVerificationCodesByContact(req.NewEmail, "change_email")
+	if err := models.DeleteVerificationCodesByContact(req.NewEmail, "change_email"); err != nil {
+		log.Printf("[PROFILE] cleanup change_email verification codes failed: email=%s err=%v", req.NewEmail, err)
+	}
 
 	// 更新邮箱
 	update_req := &services.UserUpdateRequest{
@@ -309,13 +311,17 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 
 	// 通过 SMS 服务发送验证码
 	if services.GlobalSMSService == nil {
-		_ = models.DeleteVerificationCodesByContact(req.NewMobile, "change_phone")
+		if delErr := models.DeleteVerificationCodesByContact(req.NewMobile, "change_phone"); delErr != nil {
+			log.Printf("[PROFILE] 清理验证码失败 mobile=%s type=change_phone: %v", models.MaskPhone(req.NewMobile), delErr)
+		}
 		utils.Fail(c, 500, "SMS service unavailable")
 		return
 	}
 	providerName := services.GlobalSMSService.GetProviderName()
 	if providerName == "none" || (providerName != "console" && !services.GlobalSMSService.IsConfigured()) || (providerName == "console" && config.IsProductionMode()) {
-		_ = models.DeleteVerificationCodesByContact(req.NewMobile, "change_phone")
+		if delErr := models.DeleteVerificationCodesByContact(req.NewMobile, "change_phone"); delErr != nil {
+			log.Printf("[PROFILE] 清理验证码失败 mobile=%s type=change_phone: %v", models.MaskPhone(req.NewMobile), delErr)
+		}
 		utils.Fail(c, 500, "SMS service not configured")
 		return
 	}
@@ -332,7 +338,9 @@ func (ctrl *ProfileController) SendPhoneChangeCode(c *gin.Context) {
 	}
 	if err := services.GlobalSMSService.SendCode(req.NewMobile, code, 10, smsTemplateParams, smsLang); err != nil {
 		log.Printf("[SMS] failed to send code to %s via %s: %v", models.MaskPhone(req.NewMobile), providerName, err)
-		_ = models.DeleteVerificationCodesByContact(req.NewMobile, "change_phone")
+		if delErr := models.DeleteVerificationCodesByContact(req.NewMobile, "change_phone"); delErr != nil {
+			log.Printf("[PROFILE] 清理验证码失败 mobile=%s type=change_phone: %v", models.MaskPhone(req.NewMobile), delErr)
+		}
 		utils.Fail(c, 500, "Failed to send verification code")
 		return
 	}
@@ -383,9 +391,9 @@ func (ctrl *ProfileController) VerifyPhoneChange(c *gin.Context) {
 		utils.Fail(c, 400, "Invalid or expired verification code")
 		return
 	}
-	_ = models.DeleteVerificationCodesByContact(req.NewMobile, "change_phone")
-
-	// 更新手机号
+	if err := models.DeleteVerificationCodesByContact(req.NewMobile, "change_phone"); err != nil {
+		log.Printf("[PROFILE] cleanup change_phone verification codes failed: mobile=%s err=%v", models.MaskPhone(req.NewMobile), err)
+	}
 	update_req := &services.UserUpdateRequest{
 		ID: uid,
 	}

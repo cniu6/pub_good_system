@@ -77,6 +77,7 @@ func SetupHTTP(router *gin.Engine, disableSlashRedirect bool) *plugins.Manager {
 	// 请求日志统一走 LoggerMiddleware（可配置跳过路径），不再叠加 gin.Logger
 	router.Use(gin.Recovery())
 	router.SetTrustedProxies(nil)
+	router.Use(middleware.SecurityHeadersMiddleware())
 	router.Use(middleware.CorsMiddleware())
 	router.Use(middleware.LoggerMiddleware())
 	router.Use(middleware.APIAccessLogMiddleware())

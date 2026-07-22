@@ -30,7 +30,7 @@ import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 import { adminSMSLogApi, type SMSLog, type SMSLogListParams, type SMSLogStats } from '@/service/api/admin/sms-log'
-import { parseBooleanSetting, parseNumberSetting } from '@/utils'
+import { normalizeLogMaxCount, normalizeLogPerUserMaxCount, parseBooleanSetting } from '@/utils'
 
 const router = useRouter()
 const message = useMessage()
@@ -129,14 +129,6 @@ const formattedResponse = computed(() => {
 
 const topTemplateItems = computed(() => (statsData.value.top_templates || []).slice(0, 8))
 const topTemplateChartItems = computed(() => [...topTemplateItems.value].reverse())
-
-function normalizeRuntimeMaxCount(value: unknown) {
-  return Math.min(200000, Math.max(100, Math.floor(parseNumberSetting(value, 1000))))
-}
-
-function normalizePerUserMaxCount(value: unknown) {
-  return Math.min(200000, Math.max(1, Math.floor(parseNumberSetting(value, 1000))))
-}
 
 function formatTopTemplateAxisLabel(value: string) {
   const normalized = value || '-'
@@ -359,11 +351,11 @@ async function loadRuntimeConfig() {
     for (const category of categories) {
       for (const item of category.items) {
         if (item.key === 'sms_log_max_count')
-          runtimeForm.sms_log_max_count = normalizeRuntimeMaxCount(item.value)
+          runtimeForm.sms_log_max_count = normalizeLogMaxCount(item.value)
         if (item.key === 'sms_log_per_user_limit_enabled')
           runtimeForm.sms_log_per_user_limit_enabled = parseBooleanSetting(item.value, false)
         if (item.key === 'sms_log_per_user_max_count')
-          runtimeForm.sms_log_per_user_max_count = normalizePerUserMaxCount(item.value)
+          runtimeForm.sms_log_per_user_max_count = normalizeLogPerUserMaxCount(item.value)
       }
     }
   }
@@ -378,8 +370,8 @@ async function loadRuntimeConfig() {
 async function handleSaveRuntimeConfig() {
   runtimeSaving.value = true
   try {
-    runtimeForm.sms_log_max_count = normalizeRuntimeMaxCount(runtimeForm.sms_log_max_count)
-    runtimeForm.sms_log_per_user_max_count = normalizePerUserMaxCount(runtimeForm.sms_log_per_user_max_count)
+    runtimeForm.sms_log_max_count = normalizeLogMaxCount(runtimeForm.sms_log_max_count)
+    runtimeForm.sms_log_per_user_max_count = normalizeLogPerUserMaxCount(runtimeForm.sms_log_per_user_max_count)
 
     const res = await adminApi.settings.batchUpdate({
       sms_log_max_count: String(runtimeForm.sms_log_max_count),

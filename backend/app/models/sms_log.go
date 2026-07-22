@@ -2,8 +2,8 @@ package models
 
 import (
 	"fst/backend/pkg/db"
+	"fst/backend/pkg/panicsafe"
 	"log"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -17,12 +17,12 @@ type SMSLog struct {
 	Provider     string    `db:"provider" json:"provider"` // aliyun, tencent, custom
 	TemplateCode string    `db:"template_code" json:"template_code"`
 	TemplateName string    `db:"template_name" json:"template_name"`
-	Lang         string    `db:"lang" json:"lang"`                 // zh-CN, en-US, etc.
-	Content      string    `db:"content" json:"content"`           // 实际发送的短信内容（脱敏）
-	Status       uint8     `db:"status" json:"status"`             // 1=成功, 0=失败
-	ErrorMsg     string    `db:"error_msg" json:"error_msg"`       // 错误信息
-	RequestID    string    `db:"request_id" json:"request_id"`     // 服务商返回的请求ID
-	Response     string    `db:"response" json:"response"`         // 完整响应（JSON）
+	Lang         string    `db:"lang" json:"lang"`             // zh-CN, en-US, etc.
+	Content      string    `db:"content" json:"content"`       // 实际发送的短信内容（脱敏）
+	Status       uint8     `db:"status" json:"status"`         // 1=成功, 0=失败
+	ErrorMsg     string    `db:"error_msg" json:"error_msg"`   // 错误信息
+	RequestID    string    `db:"request_id" json:"request_id"` // 服务商返回的请求ID
+	Response     string    `db:"response" json:"response"`     // 完整响应（JSON）
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 }
 
@@ -91,70 +91,19 @@ func CreateSMSLog(logEntry *SMSLog) error {
 	logEntry.CreatedAt = time.Now()
 
 	// 异步更新聚合统计 + 触发保留清理（节流）
-	go func(item *SMSLog) {
-		if aggErr := RecordSMSLogAggregate(item); aggErr != nil {
+	panicsafe.Go("SMSLog.aggregate", func() {
+		if aggErr := RecordSMSLogAggregate(logEntry); aggErr != nil {
 			log.Printf("[SMSLog] 汇总更新失败: %v", aggErr)
 		}
 		scheduleSMSLogRetentionCleanup()
-	}(logEntry)
+	})
 
 	return nil
 }
 
 func scheduleSMSLogRetentionCleanup() {
-	now := time.Now().UnixNano()
-	nextAt := smsLogCleanupNextAt.Load()
-	if nextAt > now {
-		return
-	}
-	if !smsLogCleanupNextAt.CompareAndSwap(nextAt, now+int64(30*time.Second)) {
-		return
-	}
-
-	cfg := loadSMSLogRetentionConfig()
-	if cfg.MaxCount > 0 {
-		if _, err := CleanExcessSMSLogs(cfg.MaxCount); err != nil {
-			log.Printf("[SMSLog] 自动清理超限日志失败: %v", err)
-		}
-	}
-	if cfg.PerUserLimitEnabled && cfg.PerUserMaxCount > 0 {
-		if _, err := CleanExcessSMSLogsPerRecipient(cfg.PerUserMaxCount); err != nil {
-			log.Printf("[SMSLog] 按收件人清理超限日志失败: %v", err)
-		}
-	}
-}
-
-type smsLogRetentionConfig struct {
-	MaxCount            int
-	PerUserLimitEnabled bool
-	PerUserMaxCount     int
-}
-
-func loadSMSLogRetentionConfig() smsLogRetentionConfig {
-	cfg := smsLogRetentionConfig{MaxCount: 1000, PerUserMaxCount: 1000}
-	settingsMap, err := GetSettingsMap([]string{
-		"sms_log_max_count",
-		"sms_log_per_user_limit_enabled",
-		"sms_log_per_user_max_count",
-	})
-	if err != nil {
-		return cfg
-	}
-	if v, ok := settingsMap["sms_log_max_count"]; ok {
-		if n, parseErr := strconv.Atoi(strings.TrimSpace(v)); parseErr == nil && n > 0 {
-			cfg.MaxCount = n
-		}
-	}
-	if v, ok := settingsMap["sms_log_per_user_limit_enabled"]; ok {
-		lower := strings.ToLower(strings.TrimSpace(v))
-		cfg.PerUserLimitEnabled = lower == "true" || lower == "1"
-	}
-	if v, ok := settingsMap["sms_log_per_user_max_count"]; ok {
-		if n, parseErr := strconv.Atoi(strings.TrimSpace(v)); parseErr == nil && n > 0 {
-			cfg.PerUserMaxCount = n
-		}
-	}
-	return cfg
+	scheduleLogRetentionCleanupGeneric(&smsLogCleanupNextAt, "sms_log", "SMSLog",
+		CleanExcessSMSLogs, CleanExcessSMSLogsPerRecipient)
 }
 
 // SMSLogQuery 短信日志查询参数
@@ -256,80 +205,14 @@ func DeleteSMSLogsBefore(before string) (int64, error) {
 	return result.RowsAffected()
 }
 
-// CleanExcessSMSLogs 清理超出全局上限的旧短信日志
+// CleanExcessSMSLogs 清理超出全局上限的旧短信日志（只保留最新 maxCount 条）
 func CleanExcessSMSLogs(maxCount int) (int64, error) {
-	if maxCount <= 0 {
-		return 0, nil
-	}
-	var total int64
-	if err := db.DB.Get(&total, "SELECT COUNT(*) FROM sms_logs"); err != nil {
-		return 0, err
-	}
-	if total <= int64(maxCount) {
-		return 0, nil
-	}
-
-	var cutoff struct {
-		ID        uint64    `db:"id"`
-		CreatedAt time.Time `db:"created_at"`
-	}
-	if err := db.DB.Get(&cutoff,
-		"SELECT id, created_at FROM sms_logs ORDER BY created_at DESC, id DESC LIMIT 1 OFFSET ?",
-		maxCount-1,
-	); err != nil {
-		return 0, err
-	}
-
-	result, err := db.Exec(
-		"DELETE FROM sms_logs WHERE created_at < ? OR (created_at = ? AND id < ?)",
-		cutoff.CreatedAt, cutoff.CreatedAt, cutoff.ID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+	return cleanExcessRowsGeneric("sms_logs", "created_at", maxCount)
 }
 
-// CleanExcessSMSLogsPerRecipient 按手机号清理超出上限的短信日志
+// CleanExcessSMSLogsPerRecipient 按手机号清理超出上限的短信日志（每个手机号最多保留 maxPerRecipient 条）
 func CleanExcessSMSLogsPerRecipient(maxPerRecipient int) (int64, error) {
-	if maxPerRecipient <= 0 {
-		return 0, nil
-	}
-	var groups []struct {
-		Phone string `db:"phone"`
-		Cnt   int64  `db:"cnt"`
-	}
-	if err := db.DB.Select(&groups,
-		"SELECT phone, COUNT(*) AS cnt FROM sms_logs WHERE phone != '' GROUP BY phone HAVING COUNT(*) > ?",
-		maxPerRecipient,
-	); err != nil {
-		return 0, err
-	}
-
-	var totalAffected int64
-	for _, g := range groups {
-		var cutoff struct {
-			ID        uint64    `db:"id"`
-			CreatedAt time.Time `db:"created_at"`
-		}
-		if err := db.DB.Get(&cutoff,
-			"SELECT id, created_at FROM sms_logs WHERE phone = ? ORDER BY created_at DESC, id DESC LIMIT 1 OFFSET ?",
-			g.Phone, maxPerRecipient-1,
-		); err != nil {
-			continue
-		}
-		result, err := db.Exec(
-			"DELETE FROM sms_logs WHERE phone = ? AND (created_at < ? OR (created_at = ? AND id < ?))",
-			g.Phone, cutoff.CreatedAt, cutoff.CreatedAt, cutoff.ID,
-		)
-		if err != nil {
-			continue
-		}
-		if n, _ := result.RowsAffected(); n > 0 {
-			totalAffected += n
-		}
-	}
-	return totalAffected, nil
+	return cleanExcessRowsPerGroupGeneric[string]("sms_logs", "phone", "created_at", maxPerRecipient, "phone != ''")
 }
 
 // GetSMSLogStats 短信日志统计（兼容旧接口，优先读聚合表）

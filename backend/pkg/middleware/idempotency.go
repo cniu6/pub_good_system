@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-sql-driver/mysql"
 )
 
 // staleProcessingSeconds processing 状态超过该秒数视为僵死锁，允许同 key 重新占坑
@@ -115,10 +114,8 @@ func RequireIdempotency(scope string, ttl time.Duration) gin.HandlerFunc {
 		err = models.CreateIdempotencyKeyTx(tx, idemKey, userID, scope, requestHash, expireAt)
 		if err != nil {
 			_ = tx.Rollback()
-			var mysqlErr *mysql.MySQLError
-			// MySQL 1062 / SQLite UNIQUE：同 key 并发写入视为重复提交
-			if (errors.As(err, &mysqlErr) && mysqlErr.Number == 1062) ||
-				strings.Contains(strings.ToLower(err.Error()), "unique constraint failed") {
+			// MySQL 1062 / SQLite UNIQUE / Postgres 23505：同 key 并发写入视为重复提交
+			if db.IsDuplicateKeyError(err) {
 				utils.Fail(c, 409, "请勿重复提交")
 			} else {
 				utils.Fail(c, 500, "幂等校验失败")

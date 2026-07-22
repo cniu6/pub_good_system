@@ -32,6 +32,7 @@ func (ctrl *OnlineController) Stats(c *gin.Context) {
 func (ctrl *OnlineController) ListSessions(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize = utils.NormalizePagination(page, pageSize)
 	// 按用户归并：一行多设备，便于管理端展示
 	rows, total, err := models.ListOnlineUsersGrouped(
 		strings.TrimSpace(c.Query("keyword")),

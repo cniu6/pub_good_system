@@ -10,6 +10,7 @@ const {
   restartingBackend,
   handleUpdateGeetestEnabled,
   handleUpdateAllowDeleteAccount,
+  handleUpdateDisableWebLogin,
   handleUpdateRealnameEnabled,
   handleUpdateRealnameReviewRequired,
   handleSaveSecurity,
@@ -27,7 +28,9 @@ const {
             :loading="switchLoading.geetest_enabled"
             @update:value="handleUpdateGeetestEnabled"
           />
-          <n-text depth="3">{{ securityForm.geetest_enabled ? t('adminSettings.enabled') : t('adminSettings.disabled') }}</n-text>
+          <n-text depth="3">
+            {{ securityForm.geetest_enabled ? t('adminSettings.enabled') : t('adminSettings.disabled') }}
+          </n-text>
         </n-space>
       </n-form-item>
       <n-form-item :label="t('adminSettings.allowDeleteAccount')">
@@ -37,8 +40,25 @@ const {
             :loading="switchLoading.allow_delete_account"
             @update:value="handleUpdateAllowDeleteAccount"
           />
-          <n-text depth="3">{{ securityForm.allow_delete_account ? t('adminSettings.allowDeleteAccountEnabled') : t('adminSettings.allowDeleteAccountDisabled') }}</n-text>
+          <n-text depth="3">
+            {{ securityForm.allow_delete_account ? t('adminSettings.allowDeleteAccountEnabled') : t('adminSettings.allowDeleteAccountDisabled') }}
+          </n-text>
         </n-space>
+      </n-form-item>
+      <n-form-item :label="t('adminSettings.disableWebLogin')">
+        <n-space align="center">
+          <n-switch
+            :value="securityForm.disable_web_login"
+            :loading="switchLoading.disable_web_login"
+            @update:value="handleUpdateDisableWebLogin"
+          />
+          <n-text depth="3">
+            {{ securityForm.disable_web_login ? t('adminSettings.disableWebLoginEnabled') : t('adminSettings.disableWebLoginDisabled') }}
+          </n-text>
+        </n-space>
+        <n-text depth="3" style="display: block; margin-top: 4px; font-size: 12px;">
+          {{ t('adminSettings.disableWebLoginHint') }}
+        </n-text>
       </n-form-item>
       <n-form-item :label="t('adminSettings.geetestCaptchaId')">
         <n-input
@@ -77,7 +97,9 @@ const {
             :loading="switchLoading.realname_enabled"
             @update:value="handleUpdateRealnameEnabled"
           />
-          <n-text depth="3">{{ securityForm.realname_enabled ? t('adminSettings.realnameEnabledText') : t('adminSettings.realnameDisabledText') }}</n-text>
+          <n-text depth="3">
+            {{ securityForm.realname_enabled ? t('adminSettings.realnameEnabledText') : t('adminSettings.realnameDisabledText') }}
+          </n-text>
         </n-space>
       </n-form-item>
       <n-form-item :label="t('adminSettings.realnameReview')">
@@ -87,7 +109,9 @@ const {
             :loading="switchLoading.realname_review_required"
             @update:value="handleUpdateRealnameReviewRequired"
           />
-          <n-text depth="3">{{ securityForm.realname_review_required ? t('adminSettings.realnameReviewRequired') : t('adminSettings.realnameReviewNotRequired') }}</n-text>
+          <n-text depth="3">
+            {{ securityForm.realname_review_required ? t('adminSettings.realnameReviewRequired') : t('adminSettings.realnameReviewNotRequired') }}
+          </n-text>
         </n-space>
       </n-form-item>
       <n-form-item :label="t('adminSettings.realnameNotifyText')">
@@ -100,8 +124,12 @@ const {
       </n-form-item>
       <n-form-item>
         <n-space>
-          <n-button type="primary" :loading="savingSecurity" @click="handleSaveSecurity">{{ t('adminSettings.saveSettings') }}</n-button>
-          <n-button type="warning" :loading="restartingBackend" @click="handleRestartBackend">{{ t('adminSettings.restartBackend') }}</n-button>
+          <n-button type="primary" :loading="savingSecurity" @click="handleSaveSecurity">
+            {{ t('adminSettings.saveSettings') }}
+          </n-button>
+          <n-button type="warning" :loading="restartingBackend" @click="handleRestartBackend">
+            {{ t('adminSettings.restartBackend') }}
+          </n-button>
         </n-space>
       </n-form-item>
     </n-form>

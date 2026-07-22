@@ -67,3 +67,42 @@ func TestCorsAndAuthMiddleware(t *testing.T) {
 		}
 	})
 }
+
+func TestSecurityHeadersMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("设置基线安全头", func(t *testing.T) {
+		r := gin.New()
+		r.Use(middleware.SecurityHeadersMiddleware())
+		r.GET("/x", func(c *gin.Context) { c.String(200, "ok") })
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/x", nil)
+		r.ServeHTTP(w, req)
+		if got := w.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+			t.Fatalf("X-Content-Type-Options=%q, want nosniff", got)
+		}
+		if got := w.Header().Get("Referrer-Policy"); got != "strict-origin-when-cross-origin" {
+			t.Fatalf("Referrer-Policy=%q", got)
+		}
+		if got := w.Header().Get("Content-Security-Policy"); got != "object-src 'none'; base-uri 'self'" {
+			t.Fatalf("CSP=%q", got)
+		}
+	})
+
+	t.Run("不覆盖上游已设置的同名头", func(t *testing.T) {
+		r := gin.New()
+		r.Use(func(c *gin.Context) { c.Header("Referrer-Policy", "no-referrer"); c.Next() })
+		r.Use(middleware.SecurityHeadersMiddleware())
+		r.GET("/x", func(c *gin.Context) { c.String(200, "ok") })
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/x", nil)
+		r.ServeHTTP(w, req)
+		if got := w.Header().Get("Referrer-Policy"); got != "no-referrer" {
+			t.Fatalf("上游 Referrer-Policy 不应被覆盖，实际=%q", got)
+		}
+		// nosniff 仍应补齐
+		if got := w.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+			t.Fatalf("X-Content-Type-Options=%q, want nosniff", got)
+		}
+	})
+}

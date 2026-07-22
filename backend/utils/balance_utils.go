@@ -12,6 +12,16 @@ import (
 )
 
 // ========================================
+// Sentinel 错误
+// ========================================
+
+// ErrInsufficientBalance 扣款金额超出用户余额（调用方可用 errors.Is 判断，避免脆弱的字符串匹配）
+var ErrInsufficientBalance = errors.New("扣款金额超出用户余额")
+
+// ErrCreditLimitExceeded 充值金额超出上限
+var ErrCreditLimitExceeded = errors.New("充值金额超出上限")
+
+// ========================================
 // 余额操作模式
 // ========================================
 
@@ -179,10 +189,10 @@ func ExecuteBalanceOpTx(tx *sql.Tx, req *BalanceReq, opType BalanceOpType) (*Bal
 
 		// 边界校验（按分）
 		if amountFen < 0 && afterFen < 0 {
-			return nil, errors.New("扣款金额超出用户余额")
+			return nil, ErrInsufficientBalance
 		}
 		if amountFen > 0 && afterFen > MoneyMaxFen {
-			return nil, errors.New("充值金额超出上限")
+			return nil, ErrCreditLimitExceeded
 		}
 
 		beforeYuan := FenToYuan(beforeFen)
@@ -226,4 +236,3 @@ func ExecuteBalanceOpTx(tx *sql.Tx, req *BalanceReq, opType BalanceOpType) (*Bal
 
 	return result, nil
 }
-

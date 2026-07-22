@@ -51,9 +51,12 @@ func handlePruneAutoJobRuns(ctx context.Context, job *JobDefinition) (*HandlerRe
 	if err := errIfCanceled(ctx); err != nil {
 		return nil, err
 	}
+	var warnings []string
+
 	repaired, rerr := RepairBadRunUIDs()
 	if rerr != nil {
 		log.Printf("[AutoJob] 修复 run_uid 失败: %v", rerr)
+		warnings = append(warnings, fmt.Sprintf("修复 run_uid 失败: %v", rerr))
 	}
 	if err := errIfCanceled(ctx); err != nil {
 		return nil, err
@@ -61,6 +64,7 @@ func handlePruneAutoJobRuns(ctx context.Context, job *JobDefinition) (*HandlerRe
 	renumbered, kept, rerr := MaybeRenumberRunIDsIfNearLimit()
 	if rerr != nil {
 		log.Printf("[AutoJob] id 重编号检测失败: %v", rerr)
+		warnings = append(warnings, fmt.Sprintf("id 重编号检测失败: %v", rerr))
 	}
 	n, _ := CountRuns()
 	msg := fmt.Sprintf("修剪删除 %d 条，当前 %d/%d", deleted, n, cfg.RunMaxCount)
@@ -74,10 +78,16 @@ func handlePruneAutoJobRuns(ctx context.Context, job *JobDefinition) (*HandlerRe
 		detail["id_renumbered"] = true
 		detail["id_renumbered_count"] = kept
 	}
+	// 子步骤失败之前只打日志，主 handler 仍返回 success，运维在任务运行记录里看不出「部分失败」。
+	// 这两步都是维护性兜底操作（非致命），失败了不应该让整个任务标记失败，但要能在 detail 里看到。
+	if len(warnings) > 0 {
+		msg += fmt.Sprintf("；有 %d 项子步骤失败，见 warnings", len(warnings))
+		detail["warnings"] = warnings
+	}
 	return &HandlerResult{
 		Message: msg,
 		Detail:  detail,
-		Quiet:   deleted == 0 && repaired == 0 && !renumbered,
+		Quiet:   deleted == 0 && repaired == 0 && !renumbered && len(warnings) == 0,
 	}, nil
 }
 

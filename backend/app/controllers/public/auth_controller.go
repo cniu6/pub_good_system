@@ -89,6 +89,19 @@ func registrationAllowed() bool {
 	return services.GetGlobalAllowRegister()
 }
 
+// resolveClientType 解析登录请求的客户端类型：body(clientType) > Header(X-Client-Type) > Query(client_type)。
+// 供「禁止网页端登录」拦截与会话记录（user_sessions.client_type）共用同一份解析结果。
+func resolveClientType(c *gin.Context, bodyClientType string) string {
+	clientType := bodyClientType
+	if clientType == "" {
+		clientType = c.GetHeader("X-Client-Type")
+	}
+	if clientType == "" {
+		clientType = c.Query("client_type")
+	}
+	return clientType
+}
+
 // ========================================
 // 控制器方法
 // ========================================
@@ -136,12 +149,15 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	// 获取客户端IP
 	clientIP := utils.GetClientIP(c)
 
+	// 客户端类型：body > Header(X-Client-Type) > Query，登录拦截（禁止网页端登录开关）与会话记录共用同一份解析结果
+	clientType := resolveClientType(c, req.ClientType)
+
 	// 调用服务层登录
 	authGuard := req.AuthGuard
 	if authGuard == "" {
 		authGuard = utils.UserAuthGuard
 	}
-	result, err := ctrl.auth_svc.Login(username, req.Password, authGuard, clientIP)
+	result, err := ctrl.auth_svc.Login(username, req.Password, authGuard, clientType, clientIP)
 	if err != nil {
 		if isNonProductionMode() {
 			log.Printf("[AUTH] login failed: code=%d, message=%s", err.Code, err.Message)
@@ -155,22 +171,15 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	device := utils.ParseDeviceFromUserAgent(userAgent)
 	accessTokenHash := utils.HashToken(result.AccessToken)
 	refreshTokenHash := utils.HashToken(result.RefreshToken)
-	clientType := req.ClientType
-	if clientType == "" {
-		clientType = c.GetHeader("X-Client-Type")
-	}
-	if clientType == "" {
-		clientType = c.Query("client_type")
-	}
 	browserID := strings.TrimSpace(c.GetHeader("X-Browser-Id"))
 	if browserID == "" {
 		browserID = strings.TrimSpace(c.Query("browser_id"))
 	}
 	if err := models.CreateUserSession(result.ID, authGuard, accessTokenHash, refreshTokenHash, clientIP, userAgent, device, models.NormalizeClientType(clientType), browserID, result.ExpiresAt, result.RefreshExpiresAt); err != nil {
-		if isNonProductionMode() {
-			log.Printf("[AUTH] create login session failed: user_id=%d, err=%v", result.ID, err)
-		}
-		utils.Fail(c, 500, "Failed to create login session")
+		// 密码已验证通过、Token 已签发，但会话落库失败：这是需要排查的后端问题，
+		// 无论生产/非生产环境都必须记录日志（此前仅非生产环境打日志，生产环境会静默丢失该错误）。
+		log.Printf("[AUTH] create login session failed: user_id=%d, auth_guard=%s, err=%v", result.ID, authGuard, err)
+		utils.Fail(c, 500, "登录会话创建失败，请重新登录重试")
 		return
 	}
 
@@ -262,8 +271,8 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 		return
 	}
 
-	if err := models.DeleteVerificationCodesByContact(req.Email, "register"); err != nil && isNonProductionMode() {
-		log.Printf("[AUTH] cleanup register verification codes failed: %v", err)
+	if err := models.DeleteVerificationCodesByContact(req.Email, "register"); err != nil {
+		log.Printf("[AUTH] cleanup register verification codes failed: email=%s err=%v", req.Email, err)
 	}
 
 	utils.Success(c, gin.H{"message": "User registered successfully"})
@@ -457,7 +466,10 @@ func (ctrl *AuthController) ResetPasswordConfirm(c *gin.Context) {
 		utils.Fail(c, 400, "Invalid or expired reset token")
 		return
 	}
-	_ = models.DeleteVerificationCodesByContact(req.Email, "reset_password")
+	if err := models.DeleteVerificationCodesByContact(req.Email, "reset_password"); err != nil {
+		// 密码已重置成功，清理失败不影响主流程，但需可观测避免验证码堆积
+		log.Printf("[AUTH] cleanup reset_password verification codes failed: email=%s err=%v", req.Email, err)
+	}
 
 	// 获取用户
 	user, err := models.GetUserByEmail(req.Email)

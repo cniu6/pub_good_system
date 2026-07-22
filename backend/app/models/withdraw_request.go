@@ -16,25 +16,25 @@ const (
 )
 
 type WithdrawRequest struct {
-	ID              uint64   `db:"id" json:"id"`
-	UserID          uint64   `db:"user_id" json:"user_id"`
-	Amount          float64  `db:"amount" json:"amount"`
-	AccountType     string   `db:"account_type" json:"account_type"`
-	AccountName     string   `db:"account_name" json:"account_name"`
-	AccountNo       string   `db:"account_no" json:"account_no"`
-	RealName        string   `db:"real_name" json:"real_name"`
-	Remark          string   `db:"remark" json:"remark"`
-	Status          uint8    `db:"status" json:"status"`
-	BalanceDeducted bool     `db:"balance_deducted" json:"balance_deducted"`
-	ReviewRemark    string   `db:"review_remark" json:"review_remark"`
-	TransferRemark  string   `db:"transfer_remark" json:"transfer_remark"`
-	ReviewedAt      *int64   `db:"reviewed_at" json:"reviewed_at"`
-	ReviewedBy      *uint64  `db:"reviewed_by" json:"reviewed_by"`
-	PaidAt          *int64   `db:"paid_at" json:"paid_at"`
-	PaidBy          *uint64  `db:"paid_by" json:"paid_by"`
-	CreateTime      int64    `db:"create_time" json:"create_time"`
-	UpdateTime      int64    `db:"update_time" json:"update_time"`
-	DeleteTime      *int64   `db:"delete_time" json:"delete_time,omitempty"`
+	ID              uint64  `db:"id" json:"id"`
+	UserID          uint64  `db:"user_id" json:"user_id"`
+	Amount          float64 `db:"amount" json:"amount"`
+	AccountType     string  `db:"account_type" json:"account_type"`
+	AccountName     string  `db:"account_name" json:"account_name"`
+	AccountNo       string  `db:"account_no" json:"account_no"`
+	RealName        string  `db:"real_name" json:"real_name"`
+	Remark          string  `db:"remark" json:"remark"`
+	Status          uint8   `db:"status" json:"status"`
+	BalanceDeducted bool    `db:"balance_deducted" json:"balance_deducted"`
+	ReviewRemark    string  `db:"review_remark" json:"review_remark"`
+	TransferRemark  string  `db:"transfer_remark" json:"transfer_remark"`
+	ReviewedAt      *int64  `db:"reviewed_at" json:"reviewed_at"`
+	ReviewedBy      *uint64 `db:"reviewed_by" json:"reviewed_by"`
+	PaidAt          *int64  `db:"paid_at" json:"paid_at"`
+	PaidBy          *uint64 `db:"paid_by" json:"paid_by"`
+	CreateTime      int64   `db:"create_time" json:"create_time"`
+	UpdateTime      int64   `db:"update_time" json:"update_time"`
+	DeleteTime      *int64  `db:"delete_time" json:"delete_time,omitempty"`
 }
 
 type WithdrawListQuery struct {
@@ -123,6 +123,29 @@ func CreateWithdrawRequest(req *WithdrawRequest) error {
 		return err
 	}
 	id, _ := result.LastInsertId()
+	req.ID = uint64(id)
+	return nil
+}
+
+// CreateWithdrawRequestTx 在已有事务中创建提现申请（与预扣余额同事务时用）
+func CreateWithdrawRequestTx(tx *sql.Tx, req *WithdrawRequest) error {
+	now := time.Now().Unix()
+	req.CreateTime = now
+	req.UpdateTime = now
+	result, err := tx.Exec(
+		`INSERT INTO withdraw_requests (user_id, amount, account_type, account_name, account_no, real_name, remark, status, balance_deducted, review_remark, transfer_remark, reviewed_at, reviewed_by, paid_at, paid_by, create_time, update_time, delete_time)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		req.UserID, req.Amount, req.AccountType, req.AccountName, req.AccountNo, req.RealName, req.Remark,
+		req.Status, req.BalanceDeducted, req.ReviewRemark, req.TransferRemark, req.ReviewedAt, req.ReviewedBy, req.PaidAt, req.PaidBy,
+		req.CreateTime, req.UpdateTime, req.DeleteTime,
+	)
+	if err != nil {
+		return err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
 	req.ID = uint64(id)
 	return nil
 }
@@ -241,8 +264,18 @@ func GetWithdrawRequestStats(query *WithdrawListQuery) (*WithdrawStatsResult, er
 	return &result, nil
 }
 
-func UpdateWithdrawReviewTx(tx *sql.Tx, id uint64, status uint8, reviewRemark string, adminID uint64) error {
+// UpdateWithdrawReviewTx 更新提现审核结果。
+// clearBalanceDeducted：拒绝且此前已预扣余额（并已在同事务中退回）时传 true，
+// 同步把 balance_deducted 清零，避免字段语义与实际余额状态不一致。
+func UpdateWithdrawReviewTx(tx *sql.Tx, id uint64, status uint8, reviewRemark string, adminID uint64, clearBalanceDeducted bool) error {
 	now := time.Now().Unix()
+	if clearBalanceDeducted {
+		_, err := tx.Exec(
+			"UPDATE withdraw_requests SET status = ?, review_remark = ?, reviewed_at = ?, reviewed_by = ?, balance_deducted = 0, update_time = ? WHERE id = ? AND delete_time IS NULL",
+			status, reviewRemark, now, adminID, now, id,
+		)
+		return err
+	}
 	_, err := tx.Exec(
 		"UPDATE withdraw_requests SET status = ?, review_remark = ?, reviewed_at = ?, reviewed_by = ?, update_time = ? WHERE id = ? AND delete_time IS NULL",
 		status, reviewRemark, now, adminID, now, id,
@@ -258,4 +291,3 @@ func MarkWithdrawPaidTx(tx *sql.Tx, id uint64, transferRemark string, adminID ui
 	)
 	return err
 }
-

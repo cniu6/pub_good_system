@@ -6,33 +6,34 @@ import { NTag, useDialog, useMessage } from 'naive-ui'
 import NovaIcon from '@/components/common/NovaIcon.vue'
 import { parseMemo } from '@/utils/memo'
 import {
-
   adminUserApi,
-
   deleteUser,
   resetUserApikey,
   resetUserPassword,
   updateUserStatus,
-
 } from '@/service/api/admin/user'
 import type { AdminUser, AdminUserRealnameSummary, UserSimpleInfo } from '@/service/api/admin/user'
 import { adminPaymentApi } from '@/service/api/admin/payment'
-import { adminOnlineApi, type OnlineSession } from '@/service/api/admin/online'
+import type { PaymentOrder } from '@/service/api/admin/payment'
+import { adminOnlineApi } from '@/service/api/admin/online'
+import type { OnlineSession } from '@/service/api/admin/online'
 import { adminApi } from '@/service/api/admin'
 import type { WithdrawRecord } from '@/service/api/admin/finance'
+import { useRequestGuard } from '@/hooks'
 import WithdrawDetailModal from './components/WithdrawDetailModal.vue'
 import {
   formatCurrency,
   formatLanguage,
   formatRechargeRetentionRatio,
   formatTime,
-  getAdminDisplayName as resolveAdminDisplayName,
   getRealnameStatusText,
   getRealnameStatusType,
   getWithdrawStatusMeta,
   maskAccountNo,
   maskCertificateNo,
+  getAdminDisplayName as resolveAdminDisplayName,
 } from './utils/userDisplay'
+import { setPendingUserEditId } from './utils/pendingEdit'
 
 const route = useRoute()
 const router = useRouter()
@@ -40,12 +41,19 @@ const message = useMessage()
 const dialog = useDialog()
 const { t } = useI18n()
 
-import { setPendingUserEditId } from './utils/pendingEdit'
+// 各 Tab 分页拉取各自独立的竞态保护（快速切页/切 Tab 时丢弃过期响应）
+const orderFetchGuard = useRequestGuard()
+const moneyFetchGuard = useRequestGuard()
+const scoreFetchGuard = useRequestGuard()
+const withdrawFetchGuard = useRequestGuard()
+const sessionFetchGuard = useRequestGuard()
 
-/** API Key 默认脱敏，点击后再完整展示，降低屏幕偷看/录屏风险。
+/**
+ * API Key 默认脱敏，点击后再完整展示，降低屏幕偷看/录屏风险。
  * 注意：后端 GET 接口现在始终只返回掩码（形如 ********xxxx，仅末4位），
  * 完整明文只会在「重置API密钥」成功的那一次响应里短暂出现在本地 user.apikey，
- * 刷新/重新拉取详情后即恢复为掩码，这里的显示/隐藏开关只对这种“本地临时明文”生效。 */
+ * 刷新/重新拉取详情后即恢复为掩码，这里的显示/隐藏开关只对这种“本地临时明文”生效。
+ */
 const showApiKey = ref(false)
 
 /** 判断当前值是否已经是后端下发的掩码格式（无需也不能再展示更多信息） */
@@ -83,7 +91,6 @@ const showWithdrawDetailModal = ref(false)
 // 用户数据
 const user = ref<AdminUser | null>(null)
 const realname = ref<AdminUserRealnameSummary | null>(null)
-const defaultAvatar = 'https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg'
 const withdrawDetail = ref<WithdrawRecord | null>(null)
 const adminUserMap = ref<Record<number, UserSimpleInfo>>({})
 
@@ -98,7 +105,7 @@ const newPassword = ref('')
 const resettingPassword = ref(false)
 
 // 订单数据
-const orderData = ref<any[]>([])
+const orderData = ref<PaymentOrder[]>([])
 const orderPagination = reactive({
   page: 1,
   pageSize: 10,
@@ -108,7 +115,7 @@ const orderPagination = reactive({
 })
 
 // 余额记录数据
-const moneyData = ref<any[]>([])
+const moneyData = ref<Entity.UserMoneyLog[]>([])
 const moneyPagination = reactive({
   page: 1,
   pageSize: 10,
@@ -118,7 +125,7 @@ const moneyPagination = reactive({
 })
 
 // 积分记录数据
-const scoreData = ref<any[]>([])
+const scoreData = ref<Entity.UserScoreLog[]>([])
 const scorePagination = reactive({
   page: 1,
   pageSize: 10,
@@ -147,21 +154,21 @@ const orderColumns = [
     title: t('adminUsersDetail.amount'),
     key: 'amount',
     width: 100,
-    render: (row: any) => `¥${(Number(row.amount) || 0).toFixed(2)}`,
+    render: (row: PaymentOrder) => `¥${(Number(row.amount) || 0).toFixed(2)}`,
   },
   {
     title: t('adminUsersDetail.status'),
     key: 'status',
     width: 100,
-    render: (row: any) => {
-      const statusMap: Record<string, { type: 'default' | 'error' | 'info' | 'success' | 'warning', label: string }> = {
+    render: (row: PaymentOrder) => {
+      const statusMap: Record<number, { type: 'default' | 'error' | 'info' | 'success' | 'warning', label: string }> = {
         0: { type: 'warning', label: t('adminUsersDetail.pendingPayment') },
         1: { type: 'success', label: t('adminUsersDetail.paid') },
         2: { type: 'default', label: t('adminUsersDetail.cancelled') },
         3: { type: 'info', label: t('adminUsersDetail.refunded') },
         4: { type: 'error', label: t('adminUsersDetail.paymentFailed') },
       }
-      const status = statusMap[row.status] || { type: 'default', label: row.status }
+      const status = statusMap[row.status] || { type: 'default' as const, label: String(row.status) }
       return h(NTag, { type: status.type }, () => status.label)
     },
   },
@@ -170,16 +177,7 @@ const orderColumns = [
     title: t('adminUsersDetail.createTime'),
     key: 'create_time',
     width: 180,
-    render: (row: any) => {
-      if (!row.create_time)
-        return '-'
-      try {
-        return new Date(row.create_time * 1000).toLocaleString()
-      }
-      catch {
-        return row.create_time
-      }
-    },
+    render: (row: PaymentOrder) => formatTime(row.create_time),
   },
 ]
 
@@ -190,7 +188,7 @@ const moneyColumns = [
     title: t('adminUsersDetail.moneyChange'),
     key: 'money',
     width: 120,
-    render: (row: any) => {
+    render: (row: Entity.UserMoneyLog) => {
       const money = Number(row.money) || 0
       const isPositive = money > 0
       return h(
@@ -209,29 +207,20 @@ const moneyColumns = [
     title: t('adminUsersDetail.beforeChange'),
     key: 'before',
     width: 120,
-    render: (row: any) => `¥${(Number(row.before) || 0).toFixed(2)}`,
+    render: (row: Entity.UserMoneyLog) => `¥${(Number(row.before) || 0).toFixed(2)}`,
   },
   {
     title: t('adminUsersDetail.afterChange'),
     key: 'after',
     width: 120,
-    render: (row: any) => `¥${(Number(row.after) || 0).toFixed(2)}`,
+    render: (row: Entity.UserMoneyLog) => `¥${(Number(row.after) || 0).toFixed(2)}`,
   },
-  { title: t('adminUsersDetail.remark'), key: 'memo', ellipsis: { tooltip: true }, render: (row: any) => parseMemo(row.memo) },
+  { title: t('adminUsersDetail.remark'), key: 'memo', ellipsis: { tooltip: true }, render: (row: Entity.UserMoneyLog) => parseMemo(row.memo) },
   {
     title: t('adminUsersDetail.createTime'),
     key: 'create_time',
     width: 180,
-    render: (row: any) => {
-      if (!row.create_time)
-        return '-'
-      try {
-        return new Date(row.create_time * 1000).toLocaleString()
-      }
-      catch {
-        return row.create_time
-      }
-    },
+    render: (row: Entity.UserMoneyLog) => formatTime(row.create_time),
   },
 ]
 
@@ -242,7 +231,7 @@ const scoreColumns = [
     title: t('adminUsersDetail.scoreChange'),
     key: 'score',
     width: 120,
-    render: (row: any) => {
+    render: (row: Entity.UserScoreLog) => {
       const score = Number(row.score) || 0
       const isPositive = score > 0
       return h(
@@ -261,29 +250,20 @@ const scoreColumns = [
     title: t('adminUsersDetail.beforeChange'),
     key: 'before',
     width: 120,
-    render: (row: any) => (Number(row.before) || 0).toString(),
+    render: (row: Entity.UserScoreLog) => (Number(row.before) || 0).toString(),
   },
   {
     title: t('adminUsersDetail.afterChange'),
     key: 'after',
     width: 120,
-    render: (row: any) => (Number(row.after) || 0).toString(),
+    render: (row: Entity.UserScoreLog) => (Number(row.after) || 0).toString(),
   },
-  { title: t('adminUsersDetail.remark'), key: 'memo', ellipsis: { tooltip: true }, render: (row: any) => parseMemo(row.memo) },
+  { title: t('adminUsersDetail.remark'), key: 'memo', ellipsis: { tooltip: true }, render: (row: Entity.UserScoreLog) => parseMemo(row.memo) },
   {
     title: t('adminUsersDetail.createTime'),
     key: 'create_time',
     width: 180,
-    render: (row: any) => {
-      if (!row.create_time)
-        return '-'
-      try {
-        return new Date(row.create_time * 1000).toLocaleString()
-      }
-      catch {
-        return row.create_time
-      }
-    },
+    render: (row: Entity.UserScoreLog) => formatTime(row.create_time),
   },
 ]
 
@@ -397,13 +377,16 @@ async function fetchOrderData() {
   if (!userId.value)
     return
 
+  const token = orderFetchGuard.begin()
   orderLoading.value = true
   try {
-    const response: any = await adminPaymentApi.listOrders({
+    const response = await adminPaymentApi.listOrders({
       page: orderPagination.page,
       page_size: orderPagination.pageSize,
       user_id: userId.value,
     })
+    if (!orderFetchGuard.isLatest(token))
+      return
 
     if (response.isSuccess) {
       orderData.value = response.data.list || []
@@ -414,12 +397,15 @@ async function fetchOrderData() {
     }
   }
   catch (error) {
+    if (!orderFetchGuard.isLatest(token))
+      return
     if (import.meta.env.DEV)
       console.error('[adminUsersDetail] fetch orders failed', error)
     message.error(t('adminUsersDetail.fetchOrdersFailed'))
   }
   finally {
-    orderLoading.value = false
+    if (orderFetchGuard.isLatest(token))
+      orderLoading.value = false
   }
 }
 
@@ -428,13 +414,16 @@ async function fetchMoneyData() {
   if (!userId.value)
     return
 
+  const token = moneyFetchGuard.begin()
   moneyLoading.value = true
   try {
-    const response: any = await adminApi.finance.fetchAllMoneyLogs({
+    const response = await adminApi.finance.fetchAllMoneyLogs({
       page: moneyPagination.page,
       page_size: moneyPagination.pageSize,
       user_id: userId.value,
     })
+    if (!moneyFetchGuard.isLatest(token))
+      return
 
     if (response.isSuccess) {
       moneyData.value = response.data.list || []
@@ -445,12 +434,15 @@ async function fetchMoneyData() {
     }
   }
   catch (error) {
+    if (!moneyFetchGuard.isLatest(token))
+      return
     if (import.meta.env.DEV)
       console.error('[adminUsersDetail] fetch money failed', error)
     message.error(t('adminUsersDetail.fetchMoneyFailed'))
   }
   finally {
-    moneyLoading.value = false
+    if (moneyFetchGuard.isLatest(token))
+      moneyLoading.value = false
   }
 }
 
@@ -459,13 +451,16 @@ async function fetchScoreData() {
   if (!userId.value)
     return
 
+  const token = scoreFetchGuard.begin()
   scoreLoading.value = true
   try {
-    const response: any = await adminApi.finance.fetchAllScoreLogs({
+    const response = await adminApi.finance.fetchAllScoreLogs({
       page: scorePagination.page,
       page_size: scorePagination.pageSize,
       user_id: userId.value,
     })
+    if (!scoreFetchGuard.isLatest(token))
+      return
 
     if (response.isSuccess) {
       scoreData.value = response.data.list || []
@@ -476,12 +471,15 @@ async function fetchScoreData() {
     }
   }
   catch (error) {
+    if (!scoreFetchGuard.isLatest(token))
+      return
     if (import.meta.env.DEV)
       console.error('[adminUsersDetail] fetch score failed', error)
     message.error(t('adminUsersDetail.fetchScoreFailed'))
   }
   finally {
-    scoreLoading.value = false
+    if (scoreFetchGuard.isLatest(token))
+      scoreLoading.value = false
   }
 }
 
@@ -490,13 +488,16 @@ async function fetchWithdrawData() {
   if (!userId.value)
     return
 
+  const token = withdrawFetchGuard.begin()
   withdrawLoading.value = true
   try {
-    const response: any = await adminApi.finance.fetchWithdrawRecords({
+    const response = await adminApi.finance.fetchWithdrawRecords({
       page: withdrawPagination.page,
       page_size: withdrawPagination.pageSize,
       user_id: userId.value,
     })
+    if (!withdrawFetchGuard.isLatest(token))
+      return
 
     if (response.isSuccess) {
       withdrawData.value = response.data.list || []
@@ -509,31 +510,41 @@ async function fetchWithdrawData() {
     }
   }
   catch (error) {
+    if (!withdrawFetchGuard.isLatest(token))
+      return
     if (import.meta.env.DEV)
       console.error('[adminUsersDetail] fetch withdraw failed', error)
     message.error(t('adminUsersDetail.fetchWithdrawFailed'))
   }
   finally {
-    withdrawLoading.value = false
+    if (withdrawFetchGuard.isLatest(token))
+      withdrawLoading.value = false
   }
 }
 
 async function fetchSessionData() {
   if (!userId.value)
     return
+  const token = sessionFetchGuard.begin()
   sessionLoading.value = true
   try {
     const response = await adminOnlineApi.userSessions(userId.value)
+    if (!sessionFetchGuard.isLatest(token))
+      return
+
     if (response.isSuccess)
       sessionData.value = response.data || []
     else
       message.error(response.message || t('adminUsersDetail.fetchSessionsFailed'))
   }
   catch {
+    if (!sessionFetchGuard.isLatest(token))
+      return
     message.error(t('adminUsersDetail.fetchSessionsFailed'))
   }
   finally {
-    sessionLoading.value = false
+    if (sessionFetchGuard.isLatest(token))
+      sessionLoading.value = false
   }
 }
 
@@ -676,7 +687,7 @@ function handleToggleStatus() {
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
-      const res: any = await updateUserStatus(user.value!.id, { status: newStatus })
+      const res = await updateUserStatus(user.value!.id, { status: newStatus })
       if (res.isSuccess) {
         message.success(t('adminUsersDetail.actionSuccess', { action }))
         fetchUserData()
@@ -699,7 +710,7 @@ function handleResetApikey() {
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
-      const res: any = await resetUserApikey(user.value!.id)
+      const res = await resetUserApikey(user.value!.id)
       if (res.isSuccess) {
         message.success(t('adminUsersDetail.apiKeyResetSuccess'))
         showApiKey.value = true
@@ -738,7 +749,7 @@ async function confirmResetPassword() {
 
   resettingPassword.value = true
   try {
-    const response: any = await resetUserPassword({
+    const response = await resetUserPassword({
       user_id: user.value.id,
       password: newPassword.value,
     })
@@ -779,7 +790,7 @@ function handleDelete() {
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       try {
-        const response: any = await deleteUser(user.value!.id)
+        const response = await deleteUser(user.value!.id)
         if (response.isSuccess) {
           message.success(t('adminUsersDetail.deleteSuccess'))
           goUserList()
@@ -830,7 +841,8 @@ onMounted(() => {
     <n-card class="user-info-card" :bordered="false" :loading="loading">
       <div v-if="user" class="user-info-content">
         <div class="user-avatar">
-          <n-avatar :size="80" :src="user.avatar" :fallback-src="defaultAvatar">
+          <!-- 不设外部占位图地址：加载失败/未设置头像时直接回退到用户名首字母，避免依赖外部图床 -->
+          <n-avatar :size="80" :src="user.avatar || undefined">
             {{ user.username?.charAt(0).toUpperCase() }}
           </n-avatar>
         </div>
@@ -1084,7 +1096,9 @@ onMounted(() => {
 
         <n-tab-pane name="sessions" :tab="t('adminUsersDetail.loginDevices')">
           <n-space justify="end" style="margin-bottom: 12px;">
-            <n-button size="small" @click="fetchSessionData">{{ t('common.refresh') }}</n-button>
+            <n-button size="small" @click="fetchSessionData">
+              {{ t('common.refresh') }}
+            </n-button>
             <n-button size="small" type="error" @click="handleRevokeAllSessions">
               {{ t('adminUsersDetail.revokeAllDevices') }}
             </n-button>

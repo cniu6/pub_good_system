@@ -28,7 +28,7 @@ import { adminApi } from '@/service/api/admin'
 import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { adminAPILogApi, type APIAccessLog, type APIAccessLogListParams, type APIAccessLogStats } from '@/service/api/admin/api-log'
-import { parseBooleanSetting, parseNumberSetting } from '@/utils'
+import { normalizeLogMaxCount, normalizeLogPerUserMaxCount, normalizeLogQueryDays, parseBooleanSetting } from '@/utils'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 
 const message = useMessage()
@@ -195,18 +195,6 @@ function formatByteSize(size?: number) {
   if (size < 1024 * 1024 * 1024)
     return `${(size / 1024 / 1024).toFixed(1)} MB`
   return `${(size / 1024 / 1024 / 1024).toFixed(1)} GB`
-}
-
-function normalizeRuntimeQueryDays(value: unknown) {
-  return Math.min(365, Math.max(1, Math.floor(parseNumberSetting(value, 7))))
-}
-
-function normalizeRuntimeMaxCount(value: unknown) {
-  return Math.min(200000, Math.max(100, Math.floor(parseNumberSetting(value, 1000))))
-}
-
-function normalizePerUserMaxCount(value: unknown) {
-  return Math.min(200000, Math.max(1, Math.floor(parseNumberSetting(value, 1000))))
 }
 
 function applyDefaultDateRange(days = runtimeForm.api_log_query_days) {
@@ -379,12 +367,12 @@ async function loadRuntimeConfig() {
     const apiLogConfig = res.data?.api_log
     if (apiLogConfig) {
       runtimeForm.api_access_log_enabled = parseBooleanSetting(apiLogConfig.enabled, true)
-      runtimeForm.api_log_query_days = normalizeRuntimeQueryDays(apiLogConfig.query_days)
-      runtimeForm.api_log_max_count = normalizeRuntimeMaxCount(apiLogConfig.max_count)
+      runtimeForm.api_log_query_days = normalizeLogQueryDays(apiLogConfig.query_days, 7)
+      runtimeForm.api_log_max_count = normalizeLogMaxCount(apiLogConfig.max_count)
       if (apiLogConfig.per_user_limit_enabled !== undefined)
         runtimeForm.api_log_per_user_limit_enabled = parseBooleanSetting(apiLogConfig.per_user_limit_enabled, false)
       if (apiLogConfig.per_user_max_count !== undefined)
-        runtimeForm.api_log_per_user_max_count = normalizePerUserMaxCount(apiLogConfig.per_user_max_count)
+        runtimeForm.api_log_per_user_max_count = normalizeLogPerUserMaxCount(apiLogConfig.per_user_max_count)
     }
 
     // 服务端 ops 若未返回 per-user 字段，则从系统设置兜底读取
@@ -395,7 +383,7 @@ async function loadRuntimeConfig() {
         if (item.key === 'api_log_per_user_limit_enabled')
           runtimeForm.api_log_per_user_limit_enabled = parseBooleanSetting(item.value, false)
         if (item.key === 'api_log_per_user_max_count')
-          runtimeForm.api_log_per_user_max_count = normalizePerUserMaxCount(item.value)
+          runtimeForm.api_log_per_user_max_count = normalizeLogPerUserMaxCount(item.value)
       }
     }
   }
@@ -459,9 +447,9 @@ async function fetchStats() {
 async function handleSaveRuntimeConfig() {
   runtimeSaving.value = true
   try {
-    runtimeForm.api_log_query_days = normalizeRuntimeQueryDays(runtimeForm.api_log_query_days)
-    runtimeForm.api_log_max_count = normalizeRuntimeMaxCount(runtimeForm.api_log_max_count)
-    runtimeForm.api_log_per_user_max_count = normalizePerUserMaxCount(runtimeForm.api_log_per_user_max_count)
+    runtimeForm.api_log_query_days = normalizeLogQueryDays(runtimeForm.api_log_query_days, 7)
+    runtimeForm.api_log_max_count = normalizeLogMaxCount(runtimeForm.api_log_max_count)
+    runtimeForm.api_log_per_user_max_count = normalizeLogPerUserMaxCount(runtimeForm.api_log_per_user_max_count)
 
     const res = await adminApi.settings.batchUpdate({
       api_access_log_enabled: String(runtimeForm.api_access_log_enabled),

@@ -117,6 +117,9 @@ export function useAdminDashboard() {
   const recentUsers = ref<AdminDashboardRecentUser[]>([])
   const recentLoginUsers = ref<AdminDashboardRecentUser[]>([])
   const trends = ref<AdminDashboardTrendPoint[]>([])
+  // 后端部分指标查库失败时会用 0 兜底但标记 partial_ok=false，这里透出给页面提示，
+  // 避免运维/管理员把「查库失败」误当成「真的没数据」。
+  const dashboardFailedMetrics = ref<string[]>([])
   const monitoring = ref<ServerMonitoringStatusResponse | null>(null)
   const operations = ref<ServerOperationsStatusResponse | null>(null)
   const debugEnabled = computed(() => mode !== 'production')
@@ -793,6 +796,7 @@ export function useAdminDashboard() {
           recentUsers.value = dashboardRes.data.recent_users || []
           recentLoginUsers.value = dashboardRes.data.recent_login_users || []
           trends.value = dashboardRes.data.trends || []
+          dashboardFailedMetrics.value = dashboardRes.data.failed_metrics || []
         }
       }
       else if (import.meta.env.DEV) {
@@ -856,6 +860,7 @@ export function useAdminDashboard() {
     statistics,
     recentUsers,
     recentLoginUsers,
+    dashboardFailedMetrics,
     monitoring,
     operations,
     topSummaryCards,

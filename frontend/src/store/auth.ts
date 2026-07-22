@@ -39,6 +39,12 @@ interface AuthStatus {
   accessTokenExpiresAt: number | null
   refreshTimer: ReturnType<typeof setTimeout> | null
   isLoggingOut: boolean
+  /**
+   * 会话代际计数器：每次登出/登录都会递增。
+   * 用于丢弃「登出前已发出、登出后才返回」的过期 token 刷新结果，
+   * 避免刷新竟态把已登出的会话重新救活（重新写回 storage / 重启 Presence 与定时器）。
+   */
+  authGeneration: number
 }
 export const useAuthStore = defineStore('auth-store', {
   state: (): AuthStatus => {
@@ -48,6 +54,7 @@ export const useAuthStore = defineStore('auth-store', {
       accessTokenExpiresAt: authStorage.get('accessTokenExpiresAt') || null,
       refreshTimer: null,
       isLoggingOut: false,
+      authGeneration: 0,
     }
   },
   getters: {
@@ -73,6 +80,8 @@ export const useAuthStore = defineStore('auth-store', {
       if (this.isLoggingOut)
         return
       this.isLoggingOut = true
+      // 递增会话代际：让登出前已发出、登出后才 resolve 的旧刷新结果失效，防止把已登出的会话救活
+      this.authGeneration += 1
       // 清除自动刷新定时器
       this.clearRefreshTimer()
       // 本地先断开，避免退出过程中仍继续发送 Presence 心跳。
@@ -147,6 +156,8 @@ export const useAuthStore = defineStore('auth-store', {
 
     /* 处理登录返回的数据 */
     async handleLoginInfo(data: LoginInfoPayload) {
+      // 递增会话代际：避免上一个会话遗留的旧刷新请求晚于本次登录 resolve 后覆盖新会话
+      this.authGeneration += 1
       // 与后端对齐：仅 admin/user；历史 super 视为 admin
       const rawRoles: string[] = Array.isArray(data.role) && data.role.length ? data.role as string[] : ['user']
       const roles: Entity.RoleType[] = rawRoles.map((r) => (r === 'admin' || r === 'super' ? 'admin' : 'user'))
@@ -295,6 +306,9 @@ export const useAuthStore = defineStore('auth-store', {
      * 静默刷新 Token
      */
     async refreshTokenSilently() {
+      // 记录发起刷新时的会话代际，resolve 后若代际已变（期间发生了登出/重新登录），
+      // 说明这是一次过期结果，直接丢弃，不能再写回 storage 或重启定时器/Presence。
+      const generation = this.authGeneration
       try {
         const refreshToken = authStorage.get('refreshToken')
         if (!refreshToken) {
@@ -303,6 +317,8 @@ export const useAuthStore = defineStore('auth-store', {
         }
 
         const nextLoginInfo = await refreshAuthToken(refreshToken)
+        if (this.authGeneration !== generation)
+          return
         if (!nextLoginInfo) {
           await this.logout()
           return
@@ -311,6 +327,8 @@ export const useAuthStore = defineStore('auth-store', {
         this.applyRefreshedLoginInfo(nextLoginInfo)
       }
       catch {
+        if (this.authGeneration !== generation)
+          return
         await this.logout()
       }
     },

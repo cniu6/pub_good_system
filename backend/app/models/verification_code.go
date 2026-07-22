@@ -50,16 +50,18 @@ func renameVerificationCodesEmailToContact() {
 		return
 	}
 
-	if db.IsSQLite() {
+	// SQLite / PostgreSQL 都不支持 MySQL 的 CHANGE COLUMN 语法，统一走「加列 + 拷贝」这条可移植路径
+	// （旧 email 列保留不删，业务只读写 contact，属既有设计，见 CLAUDE.md「已知设计」）。
+	if db.IsSQLite() || db.IsPostgres() {
 		if _, err := db.Exec("ALTER TABLE verification_codes ADD COLUMN contact VARCHAR(255) NOT NULL DEFAULT ''"); err != nil {
-			log.Printf("[Init] SQLite 补 verification_codes.contact 失败: %v", err)
+			log.Printf("[Init] 补 verification_codes.contact 失败: %v", err)
 			return
 		}
 		if _, err := db.Exec("UPDATE verification_codes SET contact = email WHERE contact = '' OR contact IS NULL"); err != nil {
-			log.Printf("[Init] SQLite 拷贝 email→contact 失败: %v", err)
+			log.Printf("[Init] 拷贝 email→contact 失败: %v", err)
 			return
 		}
-		log.Println("[Init] SQLite 已把 verification_codes.email 数据拷贝到 contact（旧 email 列保留）")
+		log.Println("[Init] 已把 verification_codes.email 数据拷贝到 contact（旧 email 列保留）")
 		return
 	}
 

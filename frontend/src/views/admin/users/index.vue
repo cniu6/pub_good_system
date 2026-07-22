@@ -20,18 +20,23 @@ import { takePendingUserEditId } from './utils/pendingEdit'
 const message = useMessage()
 const { t } = useI18n()
 
-/** 延后绑定：form/finance 回调里需要 list.fetchData */
-const listApi = { fetchData: () => {} }
+/**
+ * 三者存在构造期循环依赖：useUserForm/useUserFinance 的 onSuccess 需要调用
+ * useUserList 返回的 fetchData 来刷新列表；而 useUserList 的 onEdit 又依赖
+ * form/finance 提供的 handleEdit/resetForms。因此先用一个可变引用占位，
+ * 等 useUserList 构造完成后再回填真实的 fetchData 实现（见下方 `refreshList.current = fetchData`）。
+ */
+const refreshList = { current: () => {} }
 
 const form = useUserForm({
-  onSuccess: () => listApi.fetchData(),
+  onSuccess: () => refreshList.current(),
 })
 
 const finance = useUserFinance({
   selectedUser: form.selectedUser,
   submitting: form.submitting,
   onSuccess: () => {
-    listApi.fetchData()
+    refreshList.current()
     form.showUserModal.value = false
   },
 })
@@ -111,7 +116,7 @@ const {
   onEdit: handleEdit,
 })
 
-listApi.fetchData = fetchData
+refreshList.current = fetchData
 
 /** 防止重复打开 */
 let openingPendingEdit = false
@@ -132,7 +137,7 @@ async function tryOpenPendingEdit() {
   try {
     let user = userData.value.find(item => Number(item.id) === editId) || null
     if (!user) {
-      const res: any = await adminUserApi.detail(editId)
+      const res = await adminUserApi.detail(editId)
       if (res?.isSuccess && res.data?.user)
         user = res.data.user as AdminUser
     }

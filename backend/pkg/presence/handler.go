@@ -23,31 +23,36 @@ func HandlePresence(c *gin.Context) {
 	if origin != "" {
 		allowed, _ := middleware.IsOriginAllowed(origin, middleware.ResolveWSCorsAllowlist(c))
 		if !allowed {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "origin not allowed"})
+			c.Abort()
+			utils.Fail(c, http.StatusForbidden, "origin not allowed")
 			return
 		}
 	}
 
 	ip := c.ClientIP()
 	if !handshakeLimiter.allow(ip) {
-		c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many websocket handshakes"})
+		c.Abort()
+		utils.Fail(c, http.StatusTooManyRequests, "too many websocket handshakes")
 		return
 	}
 
 	token := strings.TrimSpace(c.Query("token"))
 	if token == "" {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token is required"})
+		c.Abort()
+		utils.Fail(c, http.StatusUnauthorized, "token is required")
 		return
 	}
 
 	claims, guard := parsePresenceToken(token)
 	if claims == nil {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
+		c.Abort()
+		utils.Fail(c, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 	session, err := models.GetActiveSessionByTokenHash(utils.HashToken(token))
 	if err != nil || session == nil || session.UserID != claims.UserID || session.AuthGuard != guard {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "session expired or revoked"})
+		c.Abort()
+		utils.Fail(c, http.StatusUnauthorized, "session expired or revoked")
 		return
 	}
 

@@ -1,10 +1,10 @@
 package models
 
 import (
+	"errors"
 	"fst/backend/pkg/db"
+	"fst/backend/pkg/panicsafe"
 	"log"
-	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -82,70 +82,19 @@ func CreateEmailLogWithUser(userID uint64, to, subject, content, tplName string,
 		entry.ID = uint64(id)
 	}
 
-	go func(item *EmailLog) {
-		if aggErr := RecordEmailLogAggregate(item); aggErr != nil {
+	panicsafe.Go("EmailLog.aggregate", func() {
+		if aggErr := RecordEmailLogAggregate(entry); aggErr != nil {
 			log.Printf("[EmailLog] 汇总更新失败: %v", aggErr)
 		}
 		scheduleEmailLogRetentionCleanup()
-	}(entry)
+	})
 
 	return nil
 }
 
 func scheduleEmailLogRetentionCleanup() {
-	now := time.Now().UnixNano()
-	nextAt := emailLogCleanupNextAt.Load()
-	if nextAt > now {
-		return
-	}
-	if !emailLogCleanupNextAt.CompareAndSwap(nextAt, now+int64(30*time.Second)) {
-		return
-	}
-
-	cfg := loadEmailLogRetentionConfig()
-	if cfg.MaxCount > 0 {
-		if _, err := CleanExcessEmailLogs(cfg.MaxCount); err != nil {
-			log.Printf("[EmailLog] 自动清理超限日志失败: %v", err)
-		}
-	}
-	if cfg.PerUserLimitEnabled && cfg.PerUserMaxCount > 0 {
-		if _, err := CleanExcessEmailLogsPerRecipient(cfg.PerUserMaxCount); err != nil {
-			log.Printf("[EmailLog] 按收件人清理超限日志失败: %v", err)
-		}
-	}
-}
-
-type emailLogRetentionConfig struct {
-	MaxCount            int
-	PerUserLimitEnabled bool
-	PerUserMaxCount     int
-}
-
-func loadEmailLogRetentionConfig() emailLogRetentionConfig {
-	cfg := emailLogRetentionConfig{MaxCount: 1000, PerUserMaxCount: 1000}
-	settingsMap, err := GetSettingsMap([]string{
-		"email_log_max_count",
-		"email_log_per_user_limit_enabled",
-		"email_log_per_user_max_count",
-	})
-	if err != nil {
-		return cfg
-	}
-	if v, ok := settingsMap["email_log_max_count"]; ok {
-		if n, parseErr := strconv.Atoi(strings.TrimSpace(v)); parseErr == nil && n > 0 {
-			cfg.MaxCount = n
-		}
-	}
-	if v, ok := settingsMap["email_log_per_user_limit_enabled"]; ok {
-		lower := strings.ToLower(strings.TrimSpace(v))
-		cfg.PerUserLimitEnabled = lower == "true" || lower == "1"
-	}
-	if v, ok := settingsMap["email_log_per_user_max_count"]; ok {
-		if n, parseErr := strconv.Atoi(strings.TrimSpace(v)); parseErr == nil && n > 0 {
-			cfg.PerUserMaxCount = n
-		}
-	}
-	return cfg
+	scheduleLogRetentionCleanupGeneric(&emailLogCleanupNextAt, "email_log", "EmailLog",
+		CleanExcessEmailLogs, CleanExcessEmailLogsPerRecipient)
 }
 
 // EmailLogQuery 邮件日志查询参数
@@ -237,80 +186,14 @@ func DeleteEmailLogsBefore(before string) (int64, error) {
 	return result.RowsAffected()
 }
 
-// CleanExcessEmailLogs 清理超出全局上限的旧邮件日志
+// CleanExcessEmailLogs 清理超出全局上限的旧邮件日志（只保留最新 maxCount 条）
 func CleanExcessEmailLogs(maxCount int) (int64, error) {
-	if maxCount <= 0 {
-		return 0, nil
-	}
-	var total int64
-	if err := db.DB.Get(&total, "SELECT COUNT(*) FROM email_logs"); err != nil {
-		return 0, err
-	}
-	if total <= int64(maxCount) {
-		return 0, nil
-	}
-
-	var cutoff struct {
-		ID        uint64    `db:"id"`
-		CreatedAt time.Time `db:"created_at"`
-	}
-	if err := db.DB.Get(&cutoff,
-		"SELECT id, created_at FROM email_logs ORDER BY created_at DESC, id DESC LIMIT 1 OFFSET ?",
-		maxCount-1,
-	); err != nil {
-		return 0, err
-	}
-
-	result, err := db.Exec(
-		"DELETE FROM email_logs WHERE created_at < ? OR (created_at = ? AND id < ?)",
-		cutoff.CreatedAt, cutoff.CreatedAt, cutoff.ID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+	return cleanExcessRowsGeneric("email_logs", "created_at", maxCount)
 }
 
-// CleanExcessEmailLogsPerRecipient 按收件邮箱清理超出上限的邮件日志
+// CleanExcessEmailLogsPerRecipient 按收件邮箱清理超出上限的邮件日志（每个收件邮箱最多保留 maxPerRecipient 条）
 func CleanExcessEmailLogsPerRecipient(maxPerRecipient int) (int64, error) {
-	if maxPerRecipient <= 0 {
-		return 0, nil
-	}
-	var groups []struct {
-		ToEmail string `db:"to_email"`
-		Cnt     int64  `db:"cnt"`
-	}
-	if err := db.DB.Select(&groups,
-		"SELECT to_email, COUNT(*) AS cnt FROM email_logs WHERE to_email != '' GROUP BY to_email HAVING COUNT(*) > ?",
-		maxPerRecipient,
-	); err != nil {
-		return 0, err
-	}
-
-	var totalAffected int64
-	for _, g := range groups {
-		var cutoff struct {
-			ID        uint64    `db:"id"`
-			CreatedAt time.Time `db:"created_at"`
-		}
-		if err := db.DB.Get(&cutoff,
-			"SELECT id, created_at FROM email_logs WHERE to_email = ? ORDER BY created_at DESC, id DESC LIMIT 1 OFFSET ?",
-			g.ToEmail, maxPerRecipient-1,
-		); err != nil {
-			continue
-		}
-		result, err := db.Exec(
-			"DELETE FROM email_logs WHERE to_email = ? AND (created_at < ? OR (created_at = ? AND id < ?))",
-			g.ToEmail, cutoff.CreatedAt, cutoff.CreatedAt, cutoff.ID,
-		)
-		if err != nil {
-			continue
-		}
-		if n, _ := result.RowsAffected(); n > 0 {
-			totalAffected += n
-		}
-	}
-	return totalAffected, nil
+	return cleanExcessRowsPerGroupGeneric[string]("email_logs", "to_email", "created_at", maxPerRecipient, "to_email != ''")
 }
 
 // GetEmailLogStats 邮件日志统计（兼容旧接口）
@@ -364,103 +247,163 @@ func UpdateEmailTemplateContent(name, lang, content string) error {
 	return err
 }
 
-// InitEmailTemplates 初始化默认邮件模板
+// defaultEmailTemplateSeed 默认邮件模板种子（Init / Reset 共用同一份内容，不再各写各的）
+type defaultEmailTemplateSeed struct {
+	Name        string
+	Lang        string
+	Title       string
+	Subject     string
+	Content     string
+	Description string
+	Variables   string
+}
+
+// GetDefaultEmailTemplateSeeds 返回全部默认邮件模板定义。
+// 注意：Controller 的 Reset 接口和这里的 Init 种子必须共用同一份数据，否则「系统默认」会有两套不一致的内容
+// （历史上 Controller.Reset 曾内嵌一份旧文案，和这里的种子已经不一样，属于真实 bug，见 backend/留档.md）。
+func GetDefaultEmailTemplateSeeds() []defaultEmailTemplateSeed {
+	return []defaultEmailTemplateSeed{
+		{
+			Name: "register_code", Lang: "zh-CN",
+			Title:   "注册验证码",
+			Subject: "【{app_name}】注册验证码",
+			Content: `<p style="margin:0 0 16px 0;">您好，感谢您的注册！请使用以下验证码完成验证：</p>` +
+				`<div style="text-align:center;margin:28px 0;">` +
+				`<div style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:32px;font-weight:700;letter-spacing:8px;padding:16px 40px;border-radius:12px;">{code}</div>` +
+				`</div>` +
+				`<p style="margin:0 0 8px 0;">⏱ 验证码有效期为 <strong>{expire_minutes} 分钟</strong>，请尽快使用。</p>` +
+				`<p style="margin:0;color:#a0a0b8;font-size:13px;">如果这不是您本人的操作，请忽略此邮件。请勿将验证码透露给任何人。</p>`,
+			Description: "用户注册时发送的验证码",
+			Variables:   "code, app_name, expire_minutes",
+		},
+		{
+			Name: "register_code", Lang: "en-US",
+			Title:   "Registration Code",
+			Subject: "[{app_name}] Registration Code",
+			Content: `<p style="margin:0 0 16px 0;">Hello! Thank you for signing up. Please use the following code to verify your account:</p>` +
+				`<div style="text-align:center;margin:28px 0;">` +
+				`<div style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:32px;font-weight:700;letter-spacing:8px;padding:16px 40px;border-radius:12px;">{code}</div>` +
+				`</div>` +
+				`<p style="margin:0 0 8px 0;">⏱ This code is valid for <strong>{expire_minutes} minutes</strong>.</p>` +
+				`<p style="margin:0;color:#a0a0b8;font-size:13px;">If you did not request this, please ignore this email. Never share your code with anyone.</p>`,
+			Description: "Verification code for user registration",
+			Variables:   "code, app_name, expire_minutes",
+		},
+		{
+			// 密码重置模板：验证码不放入链接，用户需在重置页面手动输入邮件正文中的验证码
+			Name: "reset_password", Lang: "zh-CN",
+			Title:   "密码重置",
+			Subject: "【{app_name}】密码重置请求",
+			Content: `<p style="margin:0 0 16px 0;">您好，我们收到了您的密码重置请求。请点击下方按钮打开重置页面，并输入下方验证码完成重置：</p>` +
+				`<div style="text-align:center;margin:28px 0;">` +
+				`<a href="{link}" style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 48px;border-radius:10px;">打开重置密码页面</a>` +
+				`</div>` +
+				`<p style="margin:0 0 8px 0;">请在重置页面手动输入以下验证码（出于安全考虑，验证码不会包含在链接中）：</p>` +
+				`<div style="text-align:center;margin:20px 0;">` +
+				`<div style="display:inline-block;background:#f0f2f5;font-size:28px;font-weight:700;letter-spacing:6px;padding:14px 36px;border-radius:10px;color:#1a1a2e;border:2px dashed #667eea;">{code}</div>` +
+				`</div>` +
+				`<p style="margin:0 0 8px 0;">⏱ 有效期为 <strong>15 分钟</strong>，请尽快操作。</p>` +
+				`<p style="margin:0;color:#a0a0b8;font-size:13px;">如果这不是您本人的操作，请忽略此邮件，您的密码不会被更改。</p>`,
+			Description: "用户重置密码时发送的链接和验证码",
+			Variables:   "link, code, app_name",
+		},
+		{
+			Name: "reset_password", Lang: "en-US",
+			Title:   "Password Reset",
+			Subject: "[{app_name}] Password Reset Request",
+			Content: `<p style="margin:0 0 16px 0;">Hello, we received a request to reset your password. Click the button below to open the reset page, then enter the verification code below to complete the reset:</p>` +
+				`<div style="text-align:center;margin:28px 0;">` +
+				`<a href="{link}" style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 48px;border-radius:10px;">Open Reset Page</a>` +
+				`</div>` +
+				`<p style="margin:0 0 8px 0;">Please enter this verification code on the reset page (for security, it is never included in the link):</p>` +
+				`<div style="text-align:center;margin:20px 0;">` +
+				`<div style="display:inline-block;background:#f0f2f5;font-size:28px;font-weight:700;letter-spacing:6px;padding:14px 36px;border-radius:10px;color:#1a1a2e;border:2px dashed #667eea;">{code}</div>` +
+				`</div>` +
+				`<p style="margin:0 0 8px 0;">⏱ Valid for <strong>15 minutes</strong>.</p>` +
+				`<p style="margin:0;color:#a0a0b8;font-size:13px;">If you did not request a password reset, please ignore this email. Your password will remain unchanged.</p>`,
+			Description: "Link and code for password reset",
+			Variables:   "link, code, app_name",
+		},
+	}
+}
+
+// GetDefaultEmailTemplateByNameLang 按 name+lang 取默认内容（Reset 用）
+func GetDefaultEmailTemplateByNameLang(name, lang string) (seed defaultEmailTemplateSeed, ok bool) {
+	for _, s := range GetDefaultEmailTemplateSeeds() {
+		if s.Name == name && s.Lang == lang {
+			return s, true
+		}
+	}
+	return defaultEmailTemplateSeed{}, false
+}
+
+// InitEmailTemplates 种子写入默认邮件模板（已存在则跳过，不覆盖管理员在后台改过的内容）。
+// 之前的实现对已存在的模板会无条件 UpdateEmailTemplateContent 覆盖回默认文案，导致管理员每次重启服务
+// 后台改的邮件模板内容都会被冲掉，是真实 bug，这里改成和 InitSMSTemplates 一致的「仅缺失时插入」。
 func InitEmailTemplates() {
 	EnsureEmailLogsUserIDColumn()
 
-	// 注册验证码模板
-	registerCodeZH := `<p style="margin:0 0 16px 0;">您好，感谢您的注册！请使用以下验证码完成验证：</p>` +
-		`<div style="text-align:center;margin:28px 0;">` +
-		`<div style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:32px;font-weight:700;letter-spacing:8px;padding:16px 40px;border-radius:12px;">{code}</div>` +
-		`</div>` +
-		`<p style="margin:0 0 8px 0;">⏱ 验证码有效期为 <strong>{expire_minutes} 分钟</strong>，请尽快使用。</p>` +
-		`<p style="margin:0;color:#a0a0b8;font-size:13px;">如果这不是您本人的操作，请忽略此邮件。请勿将验证码透露给任何人。</p>`
-
-	registerCodeEN := `<p style="margin:0 0 16px 0;">Hello! Thank you for signing up. Please use the following code to verify your account:</p>` +
-		`<div style="text-align:center;margin:28px 0;">` +
-		`<div style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:32px;font-weight:700;letter-spacing:8px;padding:16px 40px;border-radius:12px;">{code}</div>` +
-		`</div>` +
-		`<p style="margin:0 0 8px 0;">⏱ This code is valid for <strong>{expire_minutes} minutes</strong>.</p>` +
-		`<p style="margin:0;color:#a0a0b8;font-size:13px;">If you did not request this, please ignore this email. Never share your code with anyone.</p>`
-
-	if !CheckTemplateExists("register_code", "zh-CN") {
-		CreateEmailTemplate(&EmailTemplate{
-			Name:        "register_code",
-			Lang:        "zh-CN",
-			Title:       "注册验证码",
-			Subject:     "【{app_name}】注册验证码",
-			Content:     registerCodeZH,
-			Description: "用户注册时发送的验证码",
-			Variables:   "code, app_name, expire_minutes",
+	for _, s := range GetDefaultEmailTemplateSeeds() {
+		if CheckTemplateExists(s.Name, s.Lang) {
+			continue
+		}
+		if err := CreateEmailTemplate(&EmailTemplate{
+			Name:        s.Name,
+			Lang:        s.Lang,
+			Title:       s.Title,
+			Subject:     s.Subject,
+			Content:     s.Content,
+			Description: s.Description,
+			Variables:   s.Variables,
 			Status:      1,
-		})
-	} else {
-		_ = UpdateEmailTemplateContent("register_code", "zh-CN", registerCodeZH)
-	}
-	if !CheckTemplateExists("register_code", "en-US") {
-		CreateEmailTemplate(&EmailTemplate{
-			Name:        "register_code",
-			Lang:        "en-US",
-			Title:       "Registration Code",
-			Subject:     "[{app_name}] Registration Code",
-			Content:     registerCodeEN,
-			Description: "Verification code for user registration",
-			Variables:   "code, app_name, expire_minutes",
-			Status:      1,
-		})
-	} else {
-		_ = UpdateEmailTemplateContent("register_code", "en-US", registerCodeEN)
-	}
-
-	// 密码重置模板：验证码不放入链接，用户需在重置页面手动输入邮件正文中的验证码
-	resetPasswordZH := `<p style="margin:0 0 16px 0;">您好，我们收到了您的密码重置请求。请点击下方按钮打开重置页面，并输入下方验证码完成重置：</p>` +
-		`<div style="text-align:center;margin:28px 0;">` +
-		`<a href="{link}" style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 48px;border-radius:10px;">打开重置密码页面</a>` +
-		`</div>` +
-		`<p style="margin:0 0 8px 0;">请在重置页面手动输入以下验证码（出于安全考虑，验证码不会包含在链接中）：</p>` +
-		`<div style="text-align:center;margin:20px 0;">` +
-		`<div style="display:inline-block;background:#f0f2f5;font-size:28px;font-weight:700;letter-spacing:6px;padding:14px 36px;border-radius:10px;color:#1a1a2e;border:2px dashed #667eea;">{code}</div>` +
-		`</div>` +
-		`<p style="margin:0 0 8px 0;">⏱ 有效期为 <strong>15 分钟</strong>，请尽快操作。</p>` +
-		`<p style="margin:0;color:#a0a0b8;font-size:13px;">如果这不是您本人的操作，请忽略此邮件，您的密码不会被更改。</p>`
-
-	resetPasswordEN := `<p style="margin:0 0 16px 0;">Hello, we received a request to reset your password. Click the button below to open the reset page, then enter the verification code below to complete the reset:</p>` +
-		`<div style="text-align:center;margin:28px 0;">` +
-		`<a href="{link}" style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 48px;border-radius:10px;">Open Reset Page</a>` +
-		`</div>` +
-		`<p style="margin:0 0 8px 0;">Please enter this verification code on the reset page (for security, it is never included in the link):</p>` +
-		`<div style="text-align:center;margin:20px 0;">` +
-		`<div style="display:inline-block;background:#f0f2f5;font-size:28px;font-weight:700;letter-spacing:6px;padding:14px 36px;border-radius:10px;color:#1a1a2e;border:2px dashed #667eea;">{code}</div>` +
-		`</div>` +
-		`<p style="margin:0 0 8px 0;">⏱ Valid for <strong>15 minutes</strong>.</p>` +
-		`<p style="margin:0;color:#a0a0b8;font-size:13px;">If you did not request a password reset, please ignore this email. Your password will remain unchanged.</p>`
-
-	if !CheckTemplateExists("reset_password", "zh-CN") {
-		CreateEmailTemplate(&EmailTemplate{
-			Name:        "reset_password",
-			Lang:        "zh-CN",
-			Title:       "密码重置",
-			Subject:     "【{app_name}】密码重置请求",
-			Content:     resetPasswordZH,
-			Description: "用户重置密码时发送的链接和验证码",
-			Variables:   "link, code, app_name",
-			Status:      1,
-		})
-	} else {
-		_ = UpdateEmailTemplateContent("reset_password", "zh-CN", resetPasswordZH)
-	}
-	if !CheckTemplateExists("reset_password", "en-US") {
-		CreateEmailTemplate(&EmailTemplate{
-			Name:        "reset_password",
-			Lang:        "en-US",
-			Title:       "Password Reset",
-			Subject:     "[{app_name}] Password Reset Request",
-			Content:     resetPasswordEN,
-			Description: "Link and code for password reset",
-			Variables:   "link, code, app_name",
-			Status:      1,
-		})
-	} else {
-		_ = UpdateEmailTemplateContent("reset_password", "en-US", resetPasswordEN)
+		}); err != nil {
+			log.Printf("[Init] Failed to seed email template %s/%s: %v", s.Name, s.Lang, err)
+		}
 	}
 }
+
+// ListAllEmailTemplates 列出全部邮件模板
+func ListAllEmailTemplates() ([]EmailTemplate, error) {
+	var list []EmailTemplate
+	err := db.DB.Select(&list, "SELECT * FROM email_templates ORDER BY name, lang")
+	return list, err
+}
+
+// GetEmailTemplateByID 按 ID 获取
+func GetEmailTemplateByID(id uint64) (*EmailTemplate, error) {
+	var tpl EmailTemplate
+	err := db.DB.Get(&tpl, "SELECT * FROM email_templates WHERE id = ?", id)
+	if err != nil {
+		return nil, err
+	}
+	return &tpl, nil
+}
+
+// UpdateEmailTemplate 更新邮件模板可编辑字段
+func UpdateEmailTemplate(id uint64, subject, content, description string, status uint8) error {
+	_, err := db.Exec(
+		`UPDATE email_templates SET subject = ?, content = ?, description = ?, status = ? WHERE id = ?`,
+		subject, content, description, status, id,
+	)
+	return err
+}
+
+// ResetEmailTemplateToDefault 将指定模板重置为系统默认内容（与 InitEmailTemplates 共用同一份种子数据）
+func ResetEmailTemplateToDefault(id uint64) error {
+	tpl, err := GetEmailTemplateByID(id)
+	if err != nil {
+		return err
+	}
+	seed, ok := GetDefaultEmailTemplateByNameLang(tpl.Name, tpl.Lang)
+	if !ok {
+		return ErrEmailTemplateNoDefault
+	}
+	_, err = db.Exec(
+		`UPDATE email_templates SET subject = ?, content = ?, description = ?, variables = ?, status = 1 WHERE id = ?`,
+		seed.Subject, seed.Content, seed.Description, seed.Variables, id,
+	)
+	return err
+}
+
+// ErrEmailTemplateNoDefault 无对应默认模板
+var ErrEmailTemplateNoDefault = errors.New("no default template available")

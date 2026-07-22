@@ -14,6 +14,11 @@ import (
 // 见 services.GetGlobalOnlinePresenceRuntimeConfig；调用方应传入动态 graceSeconds，此常量仅作兜底）。
 const OnlineHeartbeatGraceSeconds int64 = 90
 
+// ImpersonationDeviceLabel 管理员代登录(login-as)会话在 user_sessions.device 中的固定标记。
+// 用于 RefreshToken 时识别「这是一个代登会话」，从而对 refresh 续期后的 TTL 做安全封顶
+// （否则代登 token 一次 refresh 就会变成与正常登录一样的长会话，参见 CLAUDE.md 已知问题修复记录）。
+const ImpersonationDeviceLabel = "Admin Impersonation"
+
 // UserSession 用户会话模型
 type UserSession struct {
 	ID               uint64 `db:"id" json:"id"`
@@ -250,6 +255,27 @@ func IsRefreshSessionActive(userID uint64, authGuard, refreshTokenHash string) (
 		`SELECT COUNT(*) FROM user_sessions
 		 WHERE user_id = ? AND auth_guard = ? AND refresh_token_hash = ? AND is_active = 1 AND refresh_expires_at > ?`,
 		userID, authGuard, refreshTokenHash, now,
+	)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// IsImpersonationSession 判断当前活跃 refresh 会话是否为管理员代登录(login-as)会话
+// （device 字段等于 ImpersonationDeviceLabel）。用于 RefreshToken 续期时对 TTL 做安全封顶，
+// 避免代登 token 通过 refresh 变成与正常登录一样的长会话。查不到会话时返回 false（由调用方
+// 的活跃性校验负责判定会话是否存在，这里只负责标记判断，不重复报错）。
+func IsImpersonationSession(userID uint64, authGuard, refreshTokenHash string) (bool, error) {
+	var count int
+	now := time.Now().Unix()
+	if authGuard == "" {
+		authGuard = "user"
+	}
+	err := db.DB.Get(&count,
+		`SELECT COUNT(*) FROM user_sessions
+		 WHERE user_id = ? AND auth_guard = ? AND refresh_token_hash = ? AND is_active = 1 AND refresh_expires_at > ? AND device = ?`,
+		userID, authGuard, refreshTokenHash, now, ImpersonationDeviceLabel,
 	)
 	if err != nil {
 		return false, err
@@ -600,13 +626,16 @@ func ListOnlineUsersGrouped(keyword, clientType, authGuard string, page, pageSiz
 		args = append(args, like, like, like, like, like, like)
 	}
 
-	// 先取全部匹配会话再归并分页（在线用户量通常不大；避免复杂 SQL 在 SQLite/MySQL 双方言差异）
+	// 先取全部匹配会话再归并分页（在线用户量通常不大；按用户+设备分组聚合在 SQLite/MySQL/PostgreSQL
+	// 三方言下语法差异较大，应用层归并更易保证跨方言一致；用 maxGroupedSessionRows 兜底防止极端情况下
+	// 活跃会话暴涨导致一次性拉取过多行占用内存）
+	const maxGroupedSessionRows = 5000
 	sessions := make([]UserSession, 0)
 	err := db.DB.Select(&sessions, `SELECT s.id, s.user_id, s.auth_guard, s.ip, s.user_agent, s.device, s.client_type, s.browser_id, s.is_active, s.login_at, s.last_seen_at, s.expires_at, s.created_at,
 		COALESCE(u.username, '') AS username, COALESCE(u.nickname, '') AS nickname
 		FROM user_sessions s
 		LEFT JOIN users u ON u.id = s.user_id`+where+
-		` ORDER BY s.last_seen_at DESC`, args...)
+		` ORDER BY s.last_seen_at DESC LIMIT ?`, append(append([]interface{}{}, args...), maxGroupedSessionRows)...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -656,4 +685,3 @@ func ListOnlineUsersGrouped(keyword, clientType, authGuard string, page, pageSiz
 	}
 	return result, total, nil
 }
-

@@ -117,6 +117,7 @@ func migrateCoreSchemas() {
 			expires_at TIMESTAMP NOT NULL COMMENT '过期时间',
 			is_used TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已使用:0=未使用,1=已使用',
 			is_deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否软删除:0=正常,1=已删除',
+			attempts INT NOT NULL DEFAULT 0 COMMENT '连续验证失败次数:达到上限后作废该码,防暴力猜解',
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 			INDEX idx_contact_type (contact, code_type),

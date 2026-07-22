@@ -45,6 +45,17 @@ func encodeRFC2047IfNeeded(s string) string {
 	return fmt.Sprintf("=?UTF-8?B?%s?=", encoded)
 }
 
+// stripEmailHeaderCRLF 剔除邮件头值里的 CR/LF/NUL，防止邮件头注入（CRLF injection）。
+// 背景：utils.Clean_XSS 不会剔除 \r\n，而 To/Subject 会被拼进邮件头（To 还兼作 SMTP RCPT），
+// 若含换行符即可被注入伪造头（额外收件人/BCC/伪造主题等）。当前调用方尚不可控，
+// 但在发送入口统一兜底净化，避免将来新增「自定义主题/收件人」类功能时埋隷。
+func stripEmailHeaderCRLF(s string) string {
+	s = strings.ReplaceAll(s, "\r", "")
+	s = strings.ReplaceAll(s, "\n", "")
+	s = strings.ReplaceAll(s, "\x00", "")
+	return strings.TrimSpace(s)
+}
+
 // SendEmail 发送邮件 (支持 SSL / STARTTLS)
 func SendEmail(msg EmailMessage) error {
 	cfg := config.GlobalConfig
@@ -54,6 +65,10 @@ func SendEmail(msg EmailMessage) error {
 	if cfg.SMTPHost == "" {
 		return fmt.Errorf("SMTP host not configured")
 	}
+
+	// 防邮件头注入：To/Subject 一律剔除 CR/LF，必须在构造邮件头与作为 RCPT 之前完成。
+	msg.To = stripEmailHeaderCRLF(msg.To)
+	msg.Subject = stripEmailHeaderCRLF(msg.Subject)
 
 	// 使用 SYSTEM_EMAIL_ADDRESS 作为发信人邮箱地址，如果为空则使用 SMTPUser
 	fromEmail := cfg.SystemEmail

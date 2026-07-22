@@ -2,6 +2,7 @@ package services
 
 import (
 	"fst/backend/app/models"
+	"fst/backend/internal/testutil"
 	"testing"
 	"time"
 )
@@ -165,6 +166,92 @@ func TestWithdrawServiceCreateRejectsIncompleteAccountInfoBeforeDB(t *testing.T)
 	}
 	if err.Error() != "请完整填写收款信息" {
 		t.Fatalf("error = %q, want %q", err.Error(), "请完整填写收款信息")
+	}
+}
+
+// TestWithdrawServiceCreateRejectsWithoutApprovedRealnameWhenRequired 开启 withdraw_require_realname 后，
+// 用户尚未完成实名认证（或未通过审核）时，提现申请应被拒绝。
+func TestWithdrawServiceCreateRejectsWithoutApprovedRealnameWhenRequired(t *testing.T) {
+	cleanup := testutil.SetupSQLite(t)
+	defer cleanup()
+
+	oldSettingsService := GlobalSettingsService
+	defer func() {
+		GlobalSettingsService = oldSettingsService
+	}()
+	GlobalSettingsService = &SettingsService{
+		cache: map[string]*models.SystemSetting{
+			"withdraw_enabled":          {Key: "withdraw_enabled", Value: "true"},
+			"withdraw_require_realname": {Key: "withdraw_require_realname", Value: "true"},
+		},
+		cacheTime: time.Now(),
+		ttl:       time.Hour,
+	}
+
+	user := testutil.CreateTestUser(t, "withdraw-no-realname")
+
+	svc := NewWithdrawService()
+	_, err := svc.Create(user.ID, &CreateWithdrawRequest{
+		Amount:      10,
+		AccountType: "bank",
+		AccountName: "test",
+		AccountNo:   "123456",
+		RealName:    "测试用户",
+	})
+	if err == nil {
+		t.Fatalf("期望未实名认证时提现被拒绝")
+	}
+	if !IsClientError(err) {
+		t.Fatalf("期望 client error，实际=%T", err)
+	}
+	if err.Error() != "请先完成实名认证并通过审核后再提现" {
+		t.Fatalf("error = %q, want %q", err.Error(), "请先完成实名认证并通过审核后再提现")
+	}
+}
+
+// TestWithdrawServiceCreateAllowsWithApprovedRealnameWhenRequired 开启 withdraw_require_realname 后，
+// 用户已有「已通过」的实名认证记录时，不应再被实名检查拦截（后续能正常走到提现创建流程）。
+func TestWithdrawServiceCreateAllowsWithApprovedRealnameWhenRequired(t *testing.T) {
+	cleanup := testutil.SetupSQLite(t)
+	defer cleanup()
+
+	oldSettingsService := GlobalSettingsService
+	defer func() {
+		GlobalSettingsService = oldSettingsService
+	}()
+	GlobalSettingsService = &SettingsService{
+		cache: map[string]*models.SystemSetting{
+			"withdraw_enabled":          {Key: "withdraw_enabled", Value: "true"},
+			"withdraw_require_realname": {Key: "withdraw_require_realname", Value: "true"},
+		},
+		cacheTime: time.Now(),
+		ttl:       time.Hour,
+	}
+
+	user := testutil.CreateTestUser(t, "withdraw-approved-realname")
+	if err := models.CreateRealnameVerification(&models.RealnameVerification{
+		UserID:          user.ID,
+		RealName:        "测试用户",
+		CertificateType: 1,
+		CertificateNo:   "110101199001010011",
+		Status:          RealnameStatusApproved,
+	}); err != nil {
+		t.Fatalf("创建实名认证记录失败: %v", err)
+	}
+
+	svc := NewWithdrawService()
+	result, err := svc.Create(user.ID, &CreateWithdrawRequest{
+		Amount:      10,
+		AccountType: "bank",
+		AccountName: "test",
+		AccountNo:   "123456",
+		RealName:    "测试用户",
+	})
+	if err != nil {
+		t.Fatalf("期望已实名认证通过时提现成功创建，实际报错: %v", err)
+	}
+	if result == nil {
+		t.Fatalf("期望返回提现记录")
 	}
 }
 

@@ -22,7 +22,7 @@ var DB *sqlx.DB
 var activeDriver string
 
 // InitDB 仅建立数据库连接与连接池，不执行表迁移。
-// 支持 DB_DRIVER=mysql（默认）与 DB_DRIVER=sqlite|sqlite3；不会在 MySQL 失败时偷偷切库。
+// 支持 DB_DRIVER=mysql（默认）/ sqlite|sqlite3 / postgres|postgresql；不会在 MySQL 失败时偷偷切库。
 func InitDB() {
 	cfg := config.GlobalConfig
 	if cfg == nil {
@@ -37,8 +37,10 @@ func InitDB() {
 		initMySQL(cfg)
 	case "sqlite":
 		initSQLite(cfg)
+	case "postgres":
+		initPostgres(cfg)
 	default:
-		log.Fatalf("[数据库配置错误] 不支持的 DB_DRIVER=%q，请使用 mysql 或 sqlite", cfg.DBDriver)
+		log.Fatalf("[数据库配置错误] 不支持的 DB_DRIVER=%q，请使用 mysql / sqlite / postgres", cfg.DBDriver)
 	}
 }
 
@@ -49,6 +51,8 @@ func normalizeDriver(raw string) string {
 		return "mysql"
 	case "sqlite", "sqlite3":
 		return "sqlite"
+	case "postgres", "postgresql", "pg":
+		return "postgres"
 	default:
 		return d
 	}
@@ -91,6 +95,22 @@ func initSQLite(cfg *config.Config) {
 	DB.SetMaxIdleConns(1)
 
 	log.Printf("[DB] SQLite 连接已建立（临时/本地模式，数据文件见 DB_PATH；生产请改用 MySQL）")
+}
+
+// initPostgres 建立 PostgreSQL 连接。走 pg-shim 驱动（见 pg_shim.go），
+// 对业务完全透明地把 MySQL 风格 SQL（? 占位符、反引号、ON DUPLICATE KEY 等）转换成 Postgres 可执行语句，
+// 不需要改动 models 层任何一行现有代码。
+func initPostgres(cfg *config.Config) {
+	var err error
+	DB, err = sqlx.Connect(pgShimDriverName, cfg.DBDSN)
+	if err != nil {
+		log.Fatalf("[数据库连接错误] 无法连接 PostgreSQL，请检查服务与配置后重试: %v", err)
+	}
+
+	DB.SetMaxOpenConns(100)
+	DB.SetMaxIdleConns(10)
+
+	log.Println("[DB] PostgreSQL 连接已建立（经 pg-shim 兼容层，MySQL 风格 SQL 自动转换）")
 }
 
 // logMySQLConnectFailure 打印中文失败原因 + 可改用 SQLite 的明确配置指引（不自动切库）。
@@ -149,15 +169,24 @@ func sanitizeSQLiteDSNForLog(dsn string) string {
 	return dsn
 }
 
-// Exec 执行 SQL。SQLite 下：DDL 做 MySQL→SQLite 适配；DML 走 Q() 做常见方言转换。
+// Exec 执行 SQL。SQLite/Postgres 下：DDL 做 MySQL→目标方言适配（可能拆成多条语句，
+// 比如表内联索引要拆成独立 CREATE INDEX）；DML 走 Q() 做常见方言转换。
 func Exec(query string, args ...interface{}) (sql.Result, error) {
 	if DB == nil {
 		return nil, fmt.Errorf("数据库未初始化")
 	}
-	if IsSQLite() && isDDL(query) {
-		stmts := AdaptMySQLDDLToSQLite(query)
+	if isDDL(query) {
+		var stmts []string
+		switch {
+		case IsSQLite():
+			stmts = AdaptMySQLDDLToSQLite(query)
+		case IsPostgres():
+			stmts = AdaptMySQLDDLToPostgres(query)
+		default:
+			return DB.Exec(query, args...)
+		}
 		if len(stmts) == 0 {
-			// 例如 CHANGE COLUMN：SQLite 临时模式直接跳过
+			// 例如 CHANGE COLUMN：SQLite/Postgres 临时模式直接跳过
 			return nil, nil
 		}
 		var res sql.Result
@@ -183,16 +212,25 @@ func CheckTableExists(tableName string) bool {
 	if DB == nil {
 		return false
 	}
-	if IsSQLite() {
+	switch {
+	case IsSQLite():
 		var name string
 		err := DB.Get(&name, `SELECT name FROM sqlite_master WHERE type='table' AND name=?`, tableName)
 		return err == nil && name != ""
+	case IsPostgres():
+		// Postgres 没有 DATABASE() 这个 MySQL 函数，用 current_schema() 限定到当前连接的 schema（默认 public）
+		var count int
+		query := `SELECT COUNT(*) FROM information_schema.tables
+				  WHERE table_schema = current_schema() AND table_name = ?`
+		err := DB.Get(&count, query, tableName)
+		return err == nil && count > 0
+	default:
+		var count int
+		query := `SELECT COUNT(*) FROM information_schema.tables 
+				  WHERE table_schema = DATABASE() AND table_name = ?`
+		err := DB.Get(&count, query, tableName)
+		return err == nil && count > 0
 	}
-	var count int
-	query := `SELECT COUNT(*) FROM information_schema.tables 
-			  WHERE table_schema = DATABASE() AND table_name = ?`
-	err := DB.Get(&count, query, tableName)
-	return err == nil && count > 0
 }
 
 // CheckColumnExists 指定表是否存在指定列。
@@ -200,19 +238,29 @@ func CheckColumnExists(tableName, columnName string) bool {
 	if DB == nil {
 		return false
 	}
-	if IsSQLite() {
+	switch {
+	case IsSQLite():
 		var count int
 		// pragma_table_info 可作为表值函数查询
 		err := DB.Get(&count, `SELECT COUNT(*) FROM pragma_table_info(?) WHERE name=?`, tableName, columnName)
 		return err == nil && count > 0
+	case IsPostgres():
+		var count int
+		query := `SELECT COUNT(*) FROM information_schema.columns
+				  WHERE table_schema = current_schema()
+				  AND table_name = ?
+				  AND column_name = ?`
+		err := DB.Get(&count, query, tableName, columnName)
+		return err == nil && count > 0
+	default:
+		var count int
+		query := `SELECT COUNT(*) FROM information_schema.columns 
+				  WHERE table_schema = DATABASE() 
+				  AND table_name = ? 
+				  AND column_name = ?`
+		err := DB.Get(&count, query, tableName, columnName)
+		return err == nil && count > 0
 	}
-	var count int
-	query := `SELECT COUNT(*) FROM information_schema.columns 
-			  WHERE table_schema = DATABASE() 
-			  AND table_name = ? 
-			  AND column_name = ?`
-	err := DB.Get(&count, query, tableName, columnName)
-	return err == nil && count > 0
 }
 
 // CheckIndexExists 指定表是否存在指定索引。
@@ -220,20 +268,32 @@ func CheckIndexExists(tableName, indexName string) bool {
 	if DB == nil {
 		return false
 	}
-	if IsSQLite() {
+	switch {
+	case IsSQLite():
 		var count int
 		err := DB.Get(&count,
 			`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=? AND tbl_name=?`,
 			indexName, tableName)
 		return err == nil && count > 0
+	case IsPostgres():
+		// Postgres 的索引名在同一 schema 下全局唯一（不像 MySQL 按表分区），
+		// 但这里仍带上 tablename 过滤，语义上与「指定表的指定索引」保持一致。
+		var count int
+		query := `SELECT COUNT(*) FROM pg_indexes
+				  WHERE schemaname = current_schema()
+				  AND tablename = ?
+				  AND indexname = ?`
+		err := DB.Get(&count, query, tableName, indexName)
+		return err == nil && count > 0
+	default:
+		var count int
+		query := `SELECT COUNT(*) FROM information_schema.statistics 
+				  WHERE table_schema = DATABASE() 
+				  AND table_name = ? 
+				  AND index_name = ?`
+		err := DB.Get(&count, query, tableName, indexName)
+		return err == nil && count > 0
 	}
-	var count int
-	query := `SELECT COUNT(*) FROM information_schema.statistics 
-			  WHERE table_schema = DATABASE() 
-			  AND table_name = ? 
-			  AND index_name = ?`
-	err := DB.Get(&count, query, tableName, indexName)
-	return err == nil && count > 0
 }
 
 // EnsureIndex 表存在且索引缺失时执行 ALTER/CREATE 补索引。

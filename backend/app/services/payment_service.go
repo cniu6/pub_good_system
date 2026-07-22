@@ -76,17 +76,11 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 		return nil, NewClientError(fmt.Sprintf("该通道最高充值金额为 ¥%.2f", gateway.MaxAmount))
 	}
 
-	// 5. 检查用户是否有过多未支付订单（防刷）
-	pendingOrders, _, err := models.GetPaymentOrderList(userID, 1, 100, models.PaymentStatusPending, "")
-	if err != nil {
-		return nil, errors.New("检查待支付订单失败，请稍后重试")
-	}
-	if len(pendingOrders) >= 10 {
-		return nil, NewClientError("您有过多未支付订单，请先支付或等待过期后重试")
-	}
-
-	// 6. 计算手续费
+	// 6. 计算手续费（费率配置异常，如包含模式下费率=100%，可能导致到账金额为 0，此时直接拒绝建单）
 	fee, payAmount, creditAmount := CalculateFee(req.Amount, gateway.FeeRate, gateway.FeeMode)
+	if creditAmount <= 0 {
+		return nil, NewClientError("手续费配置异常，到账金额为 0，请联系管理员")
+	}
 
 	// 7. 获取订单过期时间
 	expireMinutes := getOrderExpireMinutes()
@@ -98,7 +92,7 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 		subject = "余额充值"
 	}
 
-	// 9. 创建订单
+	// 9. 检查待支付订单数（防刷）+ 创建订单：同一事务内锁定用户行，防止并发请求绕过 10 单限制
 	order := &models.PaymentOrder{
 		OrderNo:        models.GenerateOrderNo(),
 		UserID:         userID,
@@ -113,10 +107,8 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 		ExpireAt:       expireAt,
 		ClientIP:       req.ClientIP,
 	}
-
-	if err := models.CreatePaymentOrder(order); err != nil {
-		log.Printf("[Payment] 创建订单失败: %v", err)
-		return nil, errors.New("创建订单失败，请稍后重试")
+	if err := createPaymentOrderWithPendingLimitTx(userID, order); err != nil {
+		return nil, err
 	}
 
 	// 10. 根据通道类型发起支付（由 pay_balance 插件注册的 PaymentChannel 分发）
@@ -145,10 +137,15 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 	}
 	order.TradeNo = models.NormalizeTradeNo(tradeNoFromRemote)
 
-	// 11. 保存支付链接到订单
+	// 11. 保存支付链接到订单；若落库失败，订单会卡在 pending 但无 pay_url 且无法支付，
+	// 因此这里失败时把订单标记为 failed（尽力而为，不影响主错误返回），避免留下无法处理的脏单，
+	// 占用用户「待支付订单数」配额；用户可重新发起充值创建新订单。
 	order.PayURL = payURL
 	if err := models.UpdatePaymentOrderPaymentInfo(order.OrderNo, order.TradeNo, payURL); err != nil {
 		log.Printf("[Payment] 保存支付链接失败: order_no=%s, err=%v", order.OrderNo, err)
+		if failErr := models.UpdatePaymentOrderStatus(order.OrderNo, models.PaymentStatusFailed, ""); failErr != nil {
+			log.Printf("[Payment] 标记脏单失败状态也失败: order_no=%s, err=%v", order.OrderNo, failErr)
+		}
 		return nil, errors.New("支付订单保存失败，请稍后重试")
 	}
 
@@ -168,6 +165,47 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 		GatewayName: gateway.Name,
 		PaymentType: gateway.PayType,
 	}, nil
+}
+
+// maxPendingOrdersPerUser 单用户允许同时存在的最大待支付订单数（防刷）
+const maxPendingOrdersPerUser = 10
+
+// createPaymentOrderWithPendingLimitTx 在同一事务内锁定用户行、统计待支付订单数并创建订单，
+// 避免「先查数量、再建单」两步之间的并发窗口导致限流被绕过（同一用户并发点击多次）。
+func createPaymentOrderWithPendingLimitTx(userID uint64, order *models.PaymentOrder) error {
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return fmt.Errorf("开启事务失败: %w", err)
+	}
+	defer tx.Rollback()
+
+	// 锁定用户行，串行化同一用户的并发建单请求
+	var lockedID uint64
+	if err := tx.QueryRow(db.Q("SELECT id FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE"), userID).Scan(&lockedID); err != nil {
+		if err == sql.ErrNoRows {
+			return NewClientError("用户不存在")
+		}
+		return err
+	}
+
+	// 允许同金额多笔待支付并存（网络重试等）；是否提示用户去付旧单由前端二次确认。
+	pendingCount, err := models.CountPendingOrdersByUserIDTx(tx, userID)
+	if err != nil {
+		return errors.New("检查待支付订单失败，请稍后重试")
+	}
+	if pendingCount >= maxPendingOrdersPerUser {
+		return NewClientError("您有过多未支付订单，请先支付或等待过期后重试")
+	}
+
+	if err := models.CreatePaymentOrderTx(tx, order); err != nil {
+		log.Printf("[Payment] 创建订单失败: %v", err)
+		return errors.New("创建订单失败，请稍后重试")
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("提交事务失败: %w", err)
+	}
+	return nil
 }
 
 func settleThirdPartyPaidOrderTx(tx *sql.Tx, orderNo, tradeNo, paymentType, moneyStr, source string) (*models.PaymentOrder, *utils.BalanceResult, bool, error) {
@@ -258,7 +296,9 @@ func HandlePaymentNotify(params map[string]string) (bool, error) {
 	// 5. 只处理 TRADE_SUCCESS 状态
 	if tradeStatus != "TRADE_SUCCESS" {
 		log.Printf("[Payment] 非成功状态回调: order_no=%s, status=%s", outTradeNo, tradeStatus)
-		models.IncrementNotifyCount(outTradeNo)
+		if countErr := models.IncrementNotifyCount(outTradeNo); countErr != nil {
+			log.Printf("[Payment] 更新回调通知次数失败: order_no=%s, err=%v", outTradeNo, countErr)
+		}
 		return true, nil
 	}
 
@@ -271,7 +311,9 @@ func HandlePaymentNotify(params map[string]string) (bool, error) {
 
 	order, balanceResult, changed, err := settleThirdPartyPaidOrderTx(tx, outTradeNo, tradeNo, callbackType, moneyStr, "支付回调")
 	if err != nil {
-		models.IncrementNotifyCount(outTradeNo)
+		if countErr := models.IncrementNotifyCount(outTradeNo); countErr != nil {
+			log.Printf("[Payment] 更新回调通知次数失败: order_no=%s, err=%v", outTradeNo, countErr)
+		}
 		return false, err
 	}
 
@@ -637,12 +679,3 @@ func validatePaymentOrderDeletion(status int) error {
 func getOrderExpireMinutes() int {
 	return GetGlobalPaymentOrderExpireMinutes()
 }
-
-// abs 浮点数绝对值
-func abs(x float64) float64 {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-

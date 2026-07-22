@@ -9,6 +9,7 @@ const {
   savingPayment,
   handleUpdatePaymentEnabled,
   handleUpdateWithdrawEnabled,
+  handleUpdateWithdrawRequireRealname,
   handleSavePayment,
 } = useAdminSettings()
 </script>
@@ -23,7 +24,9 @@ const {
             :loading="switchLoading.payment_enabled"
             @update:value="handleUpdatePaymentEnabled"
           />
-          <n-text depth="3">{{ paymentForm.payment_enabled ? t('adminSettings.enabled') : t('adminSettings.disabled') }}</n-text>
+          <n-text depth="3">
+            {{ paymentForm.payment_enabled ? t('adminSettings.enabled') : t('adminSettings.disabled') }}
+          </n-text>
         </n-space>
       </n-form-item>
       <n-divider />
@@ -38,7 +41,9 @@ const {
             :loading="switchLoading.withdraw_enabled"
             @update:value="handleUpdateWithdrawEnabled"
           />
-          <n-text depth="3">{{ paymentForm.withdraw_enabled ? t('adminSettings.withdrawEnabledText') : t('adminSettings.withdrawDisabledText') }}</n-text>
+          <n-text depth="3">
+            {{ paymentForm.withdraw_enabled ? t('adminSettings.withdrawEnabledText') : t('adminSettings.withdrawDisabledText') }}
+          </n-text>
         </n-space>
       </n-form-item>
       <n-form-item :label="t('adminSettings.withdrawMinAmount')">
@@ -60,8 +65,22 @@ const {
           :rows="3"
         />
       </n-form-item>
+      <n-form-item :label="t('adminSettings.withdrawRequireRealname')">
+        <n-space align="center">
+          <n-switch
+            :value="paymentForm.withdraw_require_realname"
+            :loading="switchLoading.withdraw_require_realname"
+            @update:value="handleUpdateWithdrawRequireRealname"
+          />
+          <n-text depth="3">
+            {{ t('adminSettings.withdrawRequireRealnameText') }}
+          </n-text>
+        </n-space>
+      </n-form-item>
       <n-form-item>
-        <n-button type="primary" :loading="savingPayment" @click="handleSavePayment">{{ t('adminSettings.saveSettings') }}</n-button>
+        <n-button type="primary" :loading="savingPayment" @click="handleSavePayment">
+          {{ t('adminSettings.saveSettings') }}
+        </n-button>
       </n-form-item>
     </n-form>
     <n-alert type="info" :title="t('adminSettings.configDesc')" :bordered="false">

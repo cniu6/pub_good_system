@@ -2,12 +2,12 @@ package services
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/pkg/db"
 	"fst/backend/utils"
 	"strings"
-	"time"
 	"unicode/utf8"
 )
 
@@ -59,6 +59,14 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 	}
 	if GlobalSettingsService != nil && !GlobalSettingsService.GetBoolWithDefault("withdraw_enabled", true) {
 		return nil, NewClientError("提现功能暂未开启")
+	}
+	// 「提现需要实名认证」开关：默认关闭，不影响未接入实名认证的现网；开启后必须已有
+	// 实名认证记录且状态为「已通过」才能提现，避免提现资金流向未经核实的身份信息。
+	if GlobalSettingsService != nil && GlobalSettingsService.GetBoolWithDefault("withdraw_require_realname", false) {
+		verification, err := models.GetRealnameVerificationByUserID(userID)
+		if err != nil || verification == nil || verification.Status != RealnameStatusApproved {
+			return nil, NewClientError("请先完成实名认证并通过审核后再提现")
+		}
 	}
 	if req.Amount <= 0 {
 		return nil, NewClientError("提现金额必须大于0")
@@ -170,42 +178,27 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 			"enUS": "Balance reserved for withdrawal request",
 		},
 	}, utils.OpChangeAndLog); err != nil {
-		if strings.Contains(err.Error(), "扣款金额超出用户余额") {
+		if errors.Is(err, utils.ErrInsufficientBalance) {
 			return nil, NewClientError("账户余额不足")
 		}
 		return nil, err
 	}
 
 	item := &models.WithdrawRequest{
-		UserID:      userID,
-		Amount:      req.Amount,
-		AccountType: accountType,
-		AccountName: accountName,
-		AccountNo:   accountNo,
-		RealName:    realName,
-		Remark:      remark,
-		Status:      models.WithdrawStatusPending,
+		UserID:          userID,
+		Amount:          req.Amount,
+		AccountType:     accountType,
+		AccountName:     accountName,
+		AccountNo:       accountNo,
+		RealName:        realName,
+		Remark:          remark,
+		Status:          models.WithdrawStatusPending,
 		BalanceDeducted: true,
 	}
-	now := time.Now().Unix()
-	item.CreateTime = now
-	item.UpdateTime = now
-
-	result, err := tx.Exec(
-		`INSERT INTO withdraw_requests (user_id, amount, account_type, account_name, account_no, real_name, remark, status, balance_deducted, review_remark, transfer_remark, reviewed_at, reviewed_by, paid_at, paid_by, create_time, update_time, delete_time)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		item.UserID, item.Amount, item.AccountType, item.AccountName, item.AccountNo, item.RealName, item.Remark,
-		item.Status, item.BalanceDeducted, item.ReviewRemark, item.TransferRemark, item.ReviewedAt, item.ReviewedBy, item.PaidAt, item.PaidBy,
-		item.CreateTime, item.UpdateTime, item.DeleteTime,
-	)
-	if err != nil {
+	// 复用 model 层统一的创建逻辑，避免与 CreateWithdrawRequest 重复维护同一份 INSERT SQL
+	if err := models.CreateWithdrawRequestTx(tx, item); err != nil {
 		return nil, err
 	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		return nil, err
-	}
-	item.ID = uint64(id)
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
@@ -254,7 +247,8 @@ func (s *WithdrawService) Review(adminID uint64, req *ReviewWithdrawRequest) err
 		return NewClientError("不能审核自己的提现申请")
 	}
 
-	if shouldRefundReservedBalance(req.Status, item.BalanceDeducted) {
+	refunded := shouldRefundReservedBalance(req.Status, item.BalanceDeducted)
+	if refunded {
 		if _, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
 			UserID: item.UserID,
 			Amount: item.Amount,
@@ -267,7 +261,8 @@ func (s *WithdrawService) Review(adminID uint64, req *ReviewWithdrawRequest) err
 		}
 	}
 
-	if err := models.UpdateWithdrawReviewTx(tx, req.ID, req.Status, reviewRemark, adminID); err != nil {
+	// 退回预扣余额后同步清零 balance_deducted，避免字段语义与实际余额状态不一致
+	if err := models.UpdateWithdrawReviewTx(tx, req.ID, req.Status, reviewRemark, adminID, refunded); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -307,7 +302,7 @@ func (s *WithdrawService) MarkPaid(adminID uint64, req *PayWithdrawRequest) erro
 				"enUS": fmt.Sprintf("Manual withdrawal payout - Request#%d", item.ID),
 			},
 		}, utils.OpChangeAndLog); err != nil {
-			if strings.Contains(err.Error(), "扣款金额超出用户余额") {
+			if errors.Is(err, utils.ErrInsufficientBalance) {
 				return NewClientError("用户当前余额不足，无法执行提现打款")
 			}
 			return err
@@ -319,4 +314,3 @@ func (s *WithdrawService) MarkPaid(adminID uint64, req *PayWithdrawRequest) erro
 	}
 	return tx.Commit()
 }
-

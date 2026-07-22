@@ -4,6 +4,7 @@ import { useAuthStore, useSettingsStore } from '@/store'
 import { authStorage, local } from '@/utils'
 import GeetestCaptcha from '@/components/common/GeetestCaptcha.vue'
 import { geetestManager } from '@/utils/geetest'
+import { getRuntimeRouteMode } from '@/router/runtime-mode'
 
 const emit = defineEmits(['update:modelValue'])
 
@@ -16,6 +17,10 @@ const isGeetestEnabled = computed(() => settingsStore.geetestEnabled)
 const hasCaptchaId = computed(() => Boolean(settingsStore.geetestCaptchaId))
 // 综合判断：后端启用 且 有配置 captchaId
 const shouldShowCaptcha = computed(() => isGeetestEnabled.value && hasCaptchaId.value)
+
+// 「禁止网页端登录」开关仅拦截普通用户（管理端路由模式不受影响）；
+// 命中时直接禁用登录表单，避免用户提交后才收到后端 403 提示。
+const isWebLoginDisabled = computed(() => getRuntimeRouteMode() !== 'admin' && settingsStore.webLoginDisabled)
 
 const isCaptchaVerified = ref(false)
 const captchaKey = ref(0)
@@ -49,6 +54,11 @@ const isLoading = ref(false)
 const formRef = ref<FormInst | null>(null)
 
 async function handleLogin() {
+  if (isWebLoginDisabled.value) {
+    window.$message.warning(t('login.webLoginDisabledTip'))
+    return
+  }
+
   // 只有当需要显示验证码且未验证时才提示
   if (shouldShowCaptcha.value && !isCaptchaVerified.value) {
     window.$message.warning(t('login.captchaRequired'))
@@ -148,7 +158,8 @@ function checkUserAccount() {
     <n-h2 depth="3" class="text-center">
       {{ $t('login.signInTitle') }}
     </n-h2>
-    <n-form ref="formRef" :rules="rules" :model="formValue" :show-label="false" size="large">
+    <n-alert v-if="isWebLoginDisabled" type="warning" :show-icon="true" class="mb-16" :title="$t('login.webLoginDisabledTip')" />
+    <n-form ref="formRef" :rules="rules" :model="formValue" :show-label="false" size="large" :disabled="isWebLoginDisabled">
       <!-- 账号 username / 密码 current-password：配合浏览器密码管理器，不写 localStorage 明文密码 -->
       <n-form-item path="account">
         <n-input v-model:value="formValue.account" clearable :placeholder="$t('login.accountOrEmailPlaceholder')" name="username" :input-props="{ autocomplete: 'username', name: 'username' }" />
@@ -168,15 +179,15 @@ function checkUserAccount() {
           <n-checkbox v-model:checked="isRemember">
             {{ $t('login.rememberMe') }}
           </n-checkbox>
-          <n-button type="primary" text @click="toOtherForm('resetPwd')">
+          <n-button type="primary" text :disabled="isWebLoginDisabled" @click="toOtherForm('resetPwd')">
             {{ $t('login.forgotPassword') }}
           </n-button>
         </div>
         <GeetestCaptcha v-if="shouldShowCaptcha" :key="captchaKey" @success="onGeetestSuccess" @error="onGeetestError" />
-        <n-button block type="primary" size="large" :loading="isLoading" :disabled="isLoading" @click="handleLogin">
+        <n-button block type="primary" size="large" :loading="isLoading" :disabled="isLoading || isWebLoginDisabled" @click="handleLogin">
           {{ $t('login.signIn') }}
         </n-button>
-        <n-flex>
+        <n-flex v-if="!isWebLoginDisabled">
           <n-text>{{ $t('login.noAccountText') }}</n-text>
           <n-button type="primary" text @click="toOtherForm('register')">
             {{ $t('login.signUp') }}

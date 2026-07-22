@@ -53,7 +53,15 @@ func ApplyAuthPageFrameHeaders(c *gin.Context, path string) {
 		return
 	}
 	c.Header("X-Frame-Options", "DENY")
-	c.Header("Content-Security-Policy", "frame-ancestors 'none'")
+	// 在基线 CSP（SecurityHeadersMiddleware 已设）后追加 frame-ancestors，
+	// 避免直接覆盖掉 object-src/base-uri 等基线指令。
+	existing := strings.TrimSpace(c.Writer.Header().Get("Content-Security-Policy"))
+	switch {
+	case existing == "":
+		c.Header("Content-Security-Policy", "frame-ancestors 'none'")
+	case !strings.Contains(existing, "frame-ancestors"):
+		c.Header("Content-Security-Policy", existing+"; frame-ancestors 'none'")
+	}
 }
 
 // isOriginAllowed 判断请求 Origin 是否在允许白名单内。
@@ -196,6 +204,31 @@ func deriveSameOriginAllowlist(c *gin.Context, cfg *config.Config) string {
 		return ""
 	}
 	return scheme + "://" + host
+}
+
+// SecurityHeadersMiddleware 统一给所有响应加基线安全头（纵深防御）。
+// 只设置对 SPA + 极验 + JSON API 都零破坏风险的头：
+//   - X-Content-Type-Options: nosniff——禁止 MIME 嗅探
+//   - Referrer-Policy: strict-origin-when-cross-origin——限制 Referer 泄露
+//   - Content-Security-Policy: object-src 'none'; base-uri 'self'——
+//     只堵 <base> 注入与插件型 XSS，不限制 script/style/connect，故不会白屏、不影响极验。
+// 更严格的 script-src/connect-src 与 HSTS 建议在 nginx 入口层按实际域名下发，避免在此写死域名导致白屏；
+// 登录/注册页的 frame-ancestors 'none' 仍由 ApplyAuthPageFrameHeaders 在此基线上追加。
+// 均用“未设才设”的方式，不覆盖业务/下游已显式设置的同名头。
+func SecurityHeadersMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		h := c.Writer.Header()
+		if h.Get("X-Content-Type-Options") == "" {
+			h.Set("X-Content-Type-Options", "nosniff")
+		}
+		if h.Get("Referrer-Policy") == "" {
+			h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		}
+		if h.Get("Content-Security-Policy") == "" {
+			h.Set("Content-Security-Policy", "object-src 'none'; base-uri 'self'")
+		}
+		c.Next()
+	}
 }
 
 // CorsMiddleware 处理跨域请求。

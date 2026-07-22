@@ -35,10 +35,12 @@ export const switchLoading = reactive({
   realname_enabled: false,
   realname_review_required: false,
   realname_api_enabled: false,
+  disable_web_login: false,
   email_verify_enabled: false,
   sms_verify_enabled: false,
   payment_enabled: false,
   withdraw_enabled: false,
+  withdraw_require_realname: false,
   mobile_cn_only: false,
   mobile_ip_country_detect: false,
 })
@@ -101,6 +103,7 @@ export const securityForm = reactive({
   login_max_failure: 5,
   login_lock_duration: 10,
   allow_delete_account: false,
+  disable_web_login: false,
   realname_enabled: true,
   realname_review_required: true,
   realname_notify_text: '',
@@ -121,6 +124,7 @@ export const paymentForm = reactive({
   withdraw_min_amount: 10,
   withdraw_notify_text: '',
   withdraw_account_types_text: '["bank","alipay","wechat","usdt"]',
+  withdraw_require_realname: false,
 })
 
 export const customSettings = ref<SettingDTO[]>([])

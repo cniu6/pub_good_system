@@ -71,14 +71,15 @@ func (ctrl *WithdrawController) Create(c *gin.Context) {
 }
 
 func (ctrl *WithdrawController) List(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
+	uid, ok := utils.GetUserID(c)
+	if !ok {
 		utils.Fail(c, 401, "用户未登录")
 		return
 	}
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize = utils.NormalizePagination(page, pageSize)
 	statusStr := c.Query("status")
 	var status *uint8
 	if statusStr != "" {
@@ -91,7 +92,7 @@ func (ctrl *WithdrawController) List(c *gin.Context) {
 	result, err := ctrl.withdrawService.GetList(&models.WithdrawListQuery{
 		Page:     page,
 		PageSize: pageSize,
-		UserID:   userID.(uint64),
+		UserID:   uid,
 		Status:   status,
 	})
 	if err != nil {

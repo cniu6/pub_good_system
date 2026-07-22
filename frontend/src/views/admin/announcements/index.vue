@@ -17,6 +17,7 @@ import {
   NSpace,
   NSwitch,
   NTag,
+  useDialog,
   useMessage,
   type DataTableColumns,
 } from 'naive-ui'
@@ -24,10 +25,13 @@ import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { adminAnnouncementApi, type AdminAnnouncement, type AnnouncementUpsertPayload } from '@/service/api/admin/announcement'
 import { useAppStore } from '@/store'
+import { useRequestGuard } from '@/hooks'
 
 const { t } = useI18n()
 const message = useMessage()
+const dialog = useDialog()
 const appStore = useAppStore()
+const listFetchGuard = useRequestGuard()
 const editorTheme = computed(() => (appStore.colorMode === 'dark' ? 'dark' : 'light'))
 
 const loading = ref(false)
@@ -48,8 +52,6 @@ const form = ref<AnnouncementUpsertPayload>({
   type: 'info',
   priority: 0,
   popup: 0,
-  target_type: 'all',
-  target_value: '',
   start_at: 0,
   end_at: 0,
 })
@@ -119,6 +121,7 @@ const columns = computed<DataTableColumns<AdminAnnouncement>>(() => [
 ])
 
 async function loadList() {
+  const token = listFetchGuard.begin()
   loading.value = true
   try {
     const res = await adminAnnouncementApi.list({
@@ -127,6 +130,8 @@ async function loadList() {
       keyword: keyword.value || undefined,
       status: statusFilter.value === null ? undefined : statusFilter.value,
     })
+    if (!listFetchGuard.isLatest(token))
+      return
     if (res.isSuccess && res.data) {
       list.value = res.data.list || []
       total.value = res.data.total || 0
@@ -136,12 +141,15 @@ async function loadList() {
     }
   }
   catch (e) {
+    if (!listFetchGuard.isLatest(token))
+      return
     if (import.meta.env.DEV)
       console.error(e)
     message.error(t('announcements.loadFailed'))
   }
   finally {
-    loading.value = false
+    if (listFetchGuard.isLatest(token))
+      loading.value = false
   }
 }
 
@@ -154,8 +162,6 @@ function openCreate() {
     type: 'info',
     priority: 0,
     popup: 0,
-    target_type: 'all',
-    target_value: '',
     start_at: 0,
     end_at: 0,
   }
@@ -171,8 +177,6 @@ function openEdit(row: AdminAnnouncement) {
     type: row.type || 'info',
     priority: row.priority,
     popup: row.popup,
-    target_type: row.target_type === 'role' ? (row.target_value || 'user') : 'all',
-    target_value: row.target_value,
     start_at: row.start_at,
     end_at: row.end_at,
   }
@@ -180,7 +184,8 @@ function openEdit(row: AdminAnnouncement) {
 }
 
 function buildPayload(): AnnouncementUpsertPayload {
-  // 公告面向全体登录用户，不做管理员/用户分层定向
+  // 公告面向全体登录用户，不做管理员/用户分层定向（target_type/target_value 由服务端固定写 all，
+  // 这里不再传，避免出现「传了但被服务端忽略」的死字段）
   return {
     title: form.value.title.trim(),
     summary: (form.value.summary || '').trim(),
@@ -188,8 +193,6 @@ function buildPayload(): AnnouncementUpsertPayload {
     type: form.value.type,
     priority: form.value.priority || 0,
     popup: form.value.popup ? 1 : 0,
-    target_type: 'all',
-    target_value: '',
     start_at: form.value.start_at || 0,
     end_at: form.value.end_at || 0,
   }
@@ -247,15 +250,23 @@ async function doUnpublish(id: number) {
   }
 }
 
-async function doDelete(id: number) {
-  const res = await adminAnnouncementApi.remove(id)
-  if (res.isSuccess) {
-    message.success(t('announcements.deleteSuccess'))
-    await loadList()
-  }
-  else {
-    message.error(res.message || t('announcements.actionFailed'))
-  }
+function doDelete(id: number) {
+  dialog.warning({
+    title: t('announcements.confirmDeleteTitle'),
+    content: t('announcements.confirmDeleteContent'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      const res = await adminAnnouncementApi.remove(id)
+      if (res.isSuccess) {
+        message.success(t('announcements.deleteSuccess'))
+        await loadList()
+      }
+      else {
+        message.error(res.message || t('announcements.actionFailed'))
+      }
+    },
+  })
 }
 
 onMounted(() => loadList())

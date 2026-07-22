@@ -337,8 +337,9 @@ func UpdatePaymentOrderStatus(orderNo string, status int, tradeNo string) error 
 }
 
 // IncrementNotifyCount 增加通知次数
-func IncrementNotifyCount(orderNo string) {
-	db.Exec("UPDATE payment_orders SET notify_count = notify_count + 1, update_time = ? WHERE order_no = ?", time.Now().Unix(), orderNo)
+func IncrementNotifyCount(orderNo string) error {
+	_, err := db.Exec("UPDATE payment_orders SET notify_count = notify_count + 1, update_time = ? WHERE order_no = ?", time.Now().Unix(), orderNo)
+	return err
 }
 
 // GetPaymentOrderList 分页获取订单列表
@@ -453,3 +454,12 @@ func CountPendingOrdersByGatewayID(gatewayID uint64) (int64, error) {
 	return count, nil
 }
 
+// CountPendingOrdersByUserIDTx 在事务中统计用户待支付订单数（配合用户行锁一起使用，防止并发建单绕过限流）
+func CountPendingOrdersByUserIDTx(tx *sql.Tx, userID uint64) (int64, error) {
+	var count int64
+	err := tx.QueryRow(db.Q("SELECT COUNT(*) FROM payment_orders WHERE user_id = ? AND status = ?"), userID, PaymentStatusPending).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}

@@ -88,6 +88,25 @@ func TestAdaptMySQLQuery_OnDuplicateKey(t *testing.T) {
 	}
 }
 
+// TestAdaptMySQLQuery_OnDuplicateValuesRef 覆盖 SET 子句里的 VALUES(col) → excluded.col，
+// 且 INSERT 行的 VALUES(?, ?, ?) 占位符不被误伤。
+func TestAdaptMySQLQuery_OnDuplicateValuesRef(t *testing.T) {
+	in := `INSERT INTO t (k, v, read_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE read_at=VALUES(read_at)`
+	out := AdaptMySQLQueryToSQLite(in)
+	if strings.Contains(strings.ToUpper(out), "ON DUPLICATE KEY") {
+		t.Fatalf("ON DUPLICATE 未转换: %s", out)
+	}
+	if !strings.Contains(out, "excluded.read_at") {
+		t.Fatalf("期望 VALUES(read_at) 转成 excluded.read_at: %s", out)
+	}
+	if strings.Contains(strings.ToUpper(out), "VALUES(READ_AT)") {
+		t.Fatalf("VALUES(read_at) 未替换: %s", out)
+	}
+	if !strings.Contains(out, "VALUES (?, ?, ?)") {
+		t.Fatalf("INSERT 占位符 VALUES 被误伤: %s", out)
+	}
+}
+
 func TestAdaptMySQLQuery_UUID(t *testing.T) {
 	out := AdaptMySQLQueryToSQLite("UPDATE api_access_logs SET request_id = LOWER(UUID()) WHERE request_id IS NULL")
 	if strings.Contains(strings.ToUpper(out), "UUID()") {

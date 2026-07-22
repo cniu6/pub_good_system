@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { fetchAppConfig, type AppConfig } from '@/service/api/app-config'
+import { computed, ref } from 'vue'
+import { fetchAppConfig } from '@/service/api/app-config'
+import type { AppConfig } from '@/service/api/app-config'
 import { getAdminApiPath, setRuntimeAdminApiPath } from '@/service/api/admin/base'
 import { geetestManager } from '@/utils/geetest'
 import { i18n } from '@/modules/i18n'
@@ -59,6 +60,9 @@ export const useSettingsStore = defineStore('settings-store', () => {
   // 是否允许注销账号
   const allowDeleteAccount = computed(() => config.value?.allow_delete_account ?? false)
 
+  // 是否禁止普通用户网页端登录（默认 false；仅小程序/App 场景使用，管理员登录不受影响）
+  const webLoginDisabled = computed(() => config.value?.web_login_disabled ?? false)
+
   // 默认语言
   const defaultLang = computed(() => config.value?.default_lang ?? import.meta.env.VITE_DEFAULT_LANG ?? 'zhCN')
 
@@ -98,6 +102,9 @@ export const useSettingsStore = defineStore('settings-store', () => {
   // 支持的提现收款方式
   const withdrawAccountTypes = computed(() => config.value?.withdraw_account_types ?? ['bank', 'alipay', 'wechat', 'usdt'])
 
+  // 提现前是否必须已完成实名认证并通过审核
+  const withdrawRequireRealname = computed(() => config.value?.withdraw_require_realname ?? false)
+
   // 管理端 REST API 前缀（运行时注入后与后端 ADMIN_API_PATH 一致）
   const adminApiPath = computed(() => getAdminApiPath())
 
@@ -122,7 +129,7 @@ export const useSettingsStore = defineStore('settings-store', () => {
 
     try {
       const response = await fetchAppConfig()
-      if (response.data) {
+      if (response.isSuccess && response.data) {
         config.value = response.data
         isLoaded.value = true
 
@@ -131,6 +138,13 @@ export const useSettingsStore = defineStore('settings-store', () => {
 
         // 注册极验启用检查函数
         geetestManager.setEnabledChecker(() => geetestEnabled.value)
+      }
+      else {
+        // 业务失败但未抛异常（如后端返回非 200 业务码）：与 catch 分支一致的兜底，
+        // 避免 admin_api_path 一直未注入、isLoaded 停留在 false 导致应用卡在加载态
+        loadError.value = response.message || 'Failed to load app config'
+        setRuntimeAdminApiPath(import.meta.env.VITE_ADMIN_API_PATH)
+        isLoaded.value = true
       }
     }
     catch (error: unknown) {
@@ -182,6 +196,7 @@ export const useSettingsStore = defineStore('settings-store', () => {
     allowRegister,
     announcementEnabled,
     allowDeleteAccount,
+    webLoginDisabled,
     defaultLang,
     geetestEnabled,
     geetestCaptchaId,
@@ -195,6 +210,7 @@ export const useSettingsStore = defineStore('settings-store', () => {
     withdrawMinAmount,
     withdrawNotifyText,
     withdrawAccountTypes,
+    withdrawRequireRealname,
     adminApiPath,
     onlineReportIntervalSeconds,
 
