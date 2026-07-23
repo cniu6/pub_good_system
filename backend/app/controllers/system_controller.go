@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fst/backend/app/models"
+	"fst/backend/app/services"
 	"fst/backend/internal/task"
 	"fst/backend/pkg/config"
 	"fst/backend/pkg/presence"
@@ -71,6 +72,11 @@ func (ctrl *SystemController) GetCleanupStatus(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Router /api/v1/system/ws-ticket [post]
 func (ctrl *SystemController) CreatePresenceTicket(c *gin.Context) {
+	// 总开关关闭时直接拒绝，前端也不应再请求 ws-ticket
+	if !services.GetGlobalPresenceEnabled() {
+		utils.Fail(c, 403, "在线状态功能未启用")
+		return
+	}
 	userIDVal, ok := c.Get("userID")
 	if !ok {
 		utils.Fail(c, 401, "未登录")

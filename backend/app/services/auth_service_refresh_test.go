@@ -46,6 +46,9 @@ func TestRefreshTokenNormalRotationSucceeds(t *testing.T) {
 	if result.RefreshToken == "" || result.RefreshToken == refreshToken {
 		t.Fatalf("刷新后应拿到新的 refresh token")
 	}
+	if result.AuthGuard != "user" {
+		t.Fatalf("刷新响应 authGuard 应为 user，实际=%q", result.AuthGuard)
+	}
 }
 
 // TestRefreshTokenReuseRevokesAllSessions 验证刷新令牌重放检测：

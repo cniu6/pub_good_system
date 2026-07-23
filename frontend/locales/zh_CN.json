@@ -1537,7 +1537,13 @@
     "langEnUS": "English",
     "announcementEnabled": "站内公告",
     "announcementSwitchUpdated": "公告开关已更新",
-    "announcementSwitchUpdateFailed": "公告开关更新失败"
+    "announcementSwitchUpdateFailed": "公告开关更新失败",
+    "presenceEnabled": "在线状态/WebSocket",
+    "presenceEnabledText": "已开启（心跳上报 + 在线用户）",
+    "presenceDisabledText": "已关闭（默认，不建 WebSocket）",
+    "presenceEnabledHint": "关闭后前端不再建立 Presence 连接与定时心跳；侧边栏「在线用户」入口也会隐藏。需要实时在线统计时再开启。",
+    "presenceSwitchUpdated": "在线状态开关已更新",
+    "presenceSwitchUpdateFailed": "在线状态开关更新失败"
   },
   "emailTemplates": {
     "pageTitle": "邮件模板管理",
@@ -2453,6 +2459,8 @@
     "kickSuccess": "已踢下线",
     "kickFailed": "踢下线失败",
     "loadFailed": "获取在线会话失败",
+    "featureDisabledTitle": "在线状态功能已关闭",
+    "featureDisabledDesc": "请到「系统设置 → 安全」开启「在线状态/WebSocket」后再使用本页。关闭期间前端不会建立 WebSocket 与心跳上报。",
     "multiDeviceHint": "同一用户的多台设备归并到一行展示；同一浏览器的多个标签页只保留一条在线会话。本列表仅展示当前在线用户。",
     "devices": "在线设备",
     "deviceCount": "设备数",

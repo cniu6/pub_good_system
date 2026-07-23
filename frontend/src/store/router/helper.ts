@@ -1,6 +1,7 @@
 import type { MenuOption } from 'naive-ui'
 import type { RouteRecordNameGeneric, RouteRecordRaw } from 'vue-router'
 import Layout from '@/layouts/index.vue'
+import { useSettingsStore } from '@/store/settings'
 import { $t, arrayToTree, renderIcon } from '@/utils'
 import { clone, min, omit, pick } from 'radash'
 import { h } from 'vue'
@@ -171,6 +172,8 @@ function transformAuthRoutesToMenus(userRoutes: AppRoute.Route[]) {
  */
 export function createAdminMenus(adminRoutes: AdminMenuRoute[]): MenuOption[] {
   const menus: MenuOption[] = []
+  // Presence 关闭时隐藏「在线用户」侧边栏入口（路由仍保留，深链进页会提示已关闭）
+  const presenceEnabled = useSettingsStore().presenceEnabled
 
   for (const route of adminRoutes) {
     if (!route.children)
@@ -186,7 +189,13 @@ export function createAdminMenus(adminRoutes: AdminMenuRoute[]): MenuOption[] {
       if (child.meta?.menuType === 'dir' && child.children?.length) {
         const dirPath = joinRoutePath(basePath, child.path)
         const subMenus: MenuOption[] = child.children
-          .filter(sub => !sub.meta?.hide)
+          .filter((sub) => {
+            if (sub.meta?.hide)
+              return false
+            if (!presenceEnabled && sub.name === 'admin-online-users')
+              return false
+            return true
+          })
           .map((sub) => {
             const fullPath = joinRoutePath(dirPath, sub.path)
             return {

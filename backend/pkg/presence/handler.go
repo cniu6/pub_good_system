@@ -19,6 +19,13 @@ const heartbeatPersistInterval = 20 * time.Second
 
 // HandlePresence 建立独立的在线状态 WebSocket；不挂通用 AuthMiddleware，避免 Header-only 鉴权限制。
 func HandlePresence(c *gin.Context) {
+	// 总开关关闭时拒绝握手，避免关闭后仍有残留客户端建连
+	if !services.GetGlobalPresenceEnabled() {
+		c.Abort()
+		utils.Fail(c, http.StatusForbidden, "在线状态功能未启用")
+		return
+	}
+
 	origin := strings.TrimSpace(c.GetHeader("Origin"))
 	if origin != "" {
 		allowed, _ := middleware.IsOriginAllowed(origin, middleware.ResolveWSCorsAllowlist(c))

@@ -60,13 +60,20 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
     const isLogin = Boolean(authStorage.get('accessToken'))
     const roleValue = authStorage.get('role')
     const roles = Array.isArray(roleValue) ? roleValue : (roleValue ? [roleValue] : [])
-    const hasAdminRole = roles.includes('admin')
+    // 管理端准入优先看会话 JWT auth_guard；旧会话没有该字段时回退到 role。
+    const storedGuard = authStorage.get('authGuard')
+    const hasAdminRole = storedGuard
+      ? storedGuard === 'admin'
+      : roles.includes('admin')
     // 用户端可能在其它标签刚完成登录；路由守卫读到 localStorage 后要同步 Pinia，
     // 否则路由虽放行，页面仍没有 userInfo / Presence / 自动刷新状态。
     if (mode === 'user' && isLogin) {
       if (!authStore.isLogin || authStore.token !== authStorage.get('accessToken'))
         authStore.hydrateFromStorage()
     }
+    // 管理端已登录但会话 guard 不是 admin：进不了受保护页，避免用 user token 打 admin API。
+    if (mode === 'admin' && isLogin && !authStore.isLogin)
+      authStore.hydrateFromStorage()
 
     routeStore.setMenuMode(to.path, mode)
 

@@ -55,6 +55,9 @@ export interface AppConfig {
    */
   admin_api_path?: string
 
+  /** Presence / 在线心跳总开关，默认 false（关闭后不建 WS、侧边栏隐藏在线用户） */
+  presence_enabled?: boolean
+
   /** 在线心跳上报周期（秒），Presence 心跳按此间隔发送，默认30秒 */
   online_report_interval_seconds?: number
 

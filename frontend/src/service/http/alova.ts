@@ -25,6 +25,7 @@ import {
   SessionRequestSuspendedError,
   trackProtectedRequest,
 } from './auth-expiration'
+import { useAuthStore } from '@/store'
 
 const { onAuthRequired, onResponseRefreshToken } = createServerTokenAuthentication<VueHookType>({
   // 服务端判定token过期
@@ -113,16 +114,29 @@ export function createAlovaInstance(
           if (localizedApiData[_backendConfig.codeKey] === _backendConfig.successCode)
             return handleServiceResult(localizedApiData)
 
+          // 刷新+重试后仍业务 401：无论上游判断如何，强制进入登录恢复弹窗，堵死静默失败。
+          const stillUnauthorized = Boolean(method.meta?.isExpired)
+            && Number(localizedApiData[_backendConfig.codeKey]) === 401
+          if (stillUnauthorized)
+            useAuthStore().requireReauthentication()
+
           // 业务请求失败
           const errorResult = handleBusinessError(
             localizedApiData,
             _backendConfig,
-            method.meta?.noErrorTip || method.meta?.sessionExpired,
+            method.meta?.noErrorTip || method.meta?.sessionExpired || stillUnauthorized,
           )
           return handleServiceResult(errorResult, false)
         }
+        // 刷新+重试后仍 HTTP 401：同上，强制恢复弹窗。
+        const stillUnauthorized = Boolean(method.meta?.isExpired) && status === 401
+        if (stillUnauthorized)
+          useAuthStore().requireReauthentication()
         // 接口请求失败
-        const errorResult = await handleResponseError(response, method.meta?.sessionExpired)
+        const errorResult = await handleResponseError(
+          response,
+          method.meta?.sessionExpired || stillUnauthorized,
+        )
         return handleServiceResult(errorResult, false)
       },
       onError: async (error, method) => {

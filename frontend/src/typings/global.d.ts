@@ -2,6 +2,8 @@
 declare namespace Entity {
   /** 与后端 users.role 对齐：仅 admin / user（已移除历史 super） */
   type RoleType = 'admin' | 'user'
+  /** 与后端 JWT auth_guard 对齐：本次会话签发上下文 */
+  type AuthGuardType = 'admin' | 'user'
 }
 
 /* 各类接口返回的数据类型， 具体内容在 ./api */
@@ -37,6 +39,8 @@ declare namespace Storage {
     refreshToken: string
     accessTokenExpiresAt: number
     role: Entity.RoleType[] | Entity.RoleType
+    /** 本次会话 JWT auth_guard，刷新与路由准入以此为准 */
+    authGuard: Entity.AuthGuardType
     authIsolation: boolean
   }
 
@@ -55,6 +59,8 @@ declare namespace Storage {
     lang: App.lang
     /* 存储用户角色 */
     role: Entity.RoleType[] | Entity.RoleType
+    /** 本次会话 JWT auth_guard，刷新与路由准入以此为准 */
+    authGuard: Entity.AuthGuardType
   }
 }
 

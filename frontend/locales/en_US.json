@@ -975,6 +975,8 @@
     "kickSuccess": "Device has been kicked",
     "kickFailed": "Failed to kick device",
     "loadFailed": "Failed to load online sessions",
+    "featureDisabledTitle": "Presence is disabled",
+    "featureDisabledDesc": "Enable Presence / WebSocket under System Settings → Security to use this page. While off, the frontend will not open WebSocket or send heartbeats.",
     "multiDeviceHint": "Multiple devices of the same user are shown in one row. Multiple tabs in the same browser share one online session. Only currently online users appear here.",
     "devices": "Devices",
     "deviceCount": "Count",
@@ -2328,7 +2330,13 @@
     "langEnUS": "English",
     "announcementEnabled": "Announcements",
     "announcementSwitchUpdated": "Announcement switch updated",
-    "announcementSwitchUpdateFailed": "Failed to update announcement switch"
+    "announcementSwitchUpdateFailed": "Failed to update announcement switch",
+    "presenceEnabled": "Presence / WebSocket",
+    "presenceEnabledText": "On (heartbeat + online users)",
+    "presenceDisabledText": "Off (default, no WebSocket)",
+    "presenceEnabledHint": "When off, the frontend will not open Presence or send heartbeat pings, and the Online Users menu is hidden. Turn on only if you need live online stats.",
+    "presenceSwitchUpdated": "Presence switch updated",
+    "presenceSwitchUpdateFailed": "Failed to update presence switch"
   },
   "emailTemplates": {
     "pageTitle": "Email Templates",

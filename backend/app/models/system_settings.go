@@ -214,7 +214,8 @@ var defaultSettings = []SystemSetting{
 	{Key: "realname_api_app_key", Value: "", Type: "string", Category: "security", Label: "实名API AppKey", Description: "第三方实名服务 AccessKey / AppKey", IsPublic: false, IsEditable: true, SortOrder: 24},
 	{Key: "realname_api_app_secret", Value: "", Type: "string", Category: "security", Label: "实名API AppSecret", Description: "第三方实名服务 Secret", IsPublic: false, IsEditable: true, SortOrder: 25},
 	{Key: "realname_api_endpoint", Value: "", Type: "string", Category: "security", Label: "实名API Endpoint", Description: "自定义实名接口地址；官方服务商可留空", IsPublic: false, IsEditable: true, SortOrder: 26},
-	{Key: "online_report_interval_seconds", Value: "30", Type: "number", Category: "security", Label: "在线心跳上报周期", Description: "客户端每隔多少秒上报一次在线心跳，默认30秒；判定离线的容忍窗口按此值的3倍换算", IsPublic: true, IsEditable: true, SortOrder: 27},
+	{Key: "presence_enabled", Value: "false", Type: "boolean", Category: "security", Label: "在线状态/WebSocket", Description: "关闭后不建立 Presence WebSocket、不上报在线心跳；管理端「在线用户」入口隐藏。默认关闭，避免多余连接与定时请求", IsPublic: true, IsEditable: true, SortOrder: 26},
+	{Key: "online_report_interval_seconds", Value: "30", Type: "number", Category: "security", Label: "在线心跳上报周期", Description: "仅在开启「在线状态/WebSocket」时生效：客户端每隔多少秒上报一次在线心跳，默认30秒；判定离线的容忍窗口按此值的3倍换算", IsPublic: true, IsEditable: true, SortOrder: 27},
 }
 
 // initDefaultSettings 初始化默认配置
@@ -260,6 +261,15 @@ func GetSettingByKey(key string) (*SystemSetting, error) {
 		return nil, err
 	}
 	return &setting, nil
+}
+
+// IsPresenceEnabled 读取系统开关 presence_enabled（默认关闭：缺 key / 读失败均视为关闭）
+func IsPresenceEnabled() bool {
+	s, err := GetSettingByKey("presence_enabled")
+	if err != nil || s == nil {
+		return false
+	}
+	return s.Value == "true" || s.Value == "1"
 }
 
 // GetSettingsByCategory 根据分类获取配置列表

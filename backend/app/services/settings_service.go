@@ -228,6 +228,8 @@ type PublicAppConfig struct {
 	WithdrawRequireRealname bool `json:"withdraw_require_realname"`
 	// AdminAPIPath 管理端 REST API 在 /api/v1 下的前缀（来自 env ADMIN_API_PATH，默认 /admin）
 	AdminAPIPath string `json:"admin_api_path"`
+	// PresenceEnabled 是否启用 Presence WebSocket / 在线心跳（默认 false）
+	PresenceEnabled bool `json:"presence_enabled"`
 	// OnlineReportIntervalSeconds 在线心跳上报周期（秒），前端 Presence 心跳按此间隔发送
 	OnlineReportIntervalSeconds int `json:"online_report_interval_seconds"`
 	// AllowUserLogin 是否允许普通用户密码登录（默认 true）；关闭后不发 JWT，管理员与 API Key 不受影响
@@ -545,6 +547,14 @@ func GetGlobalOnlinePresenceRuntimeConfig() OnlinePresenceRuntimeConfig {
 		return GlobalSettingsService.GetOnlinePresenceRuntimeConfig()
 	}
 	return OnlinePresenceRuntimeConfig{ReportIntervalSeconds: 30, GraceSeconds: 90}
+}
+
+// GetGlobalPresenceEnabled 是否启用 Presence（默认关闭；服务未就绪时也按关闭处理）。
+func GetGlobalPresenceEnabled() bool {
+	if GlobalSettingsService != nil {
+		return GlobalSettingsService.GetBoolWithDefault("presence_enabled", false)
+	}
+	return false
 }
 
 func GetGlobalMobileCNOnly() bool {
@@ -918,6 +928,7 @@ func (s *SettingsService) GetPublicAppConfig() *PublicAppConfig {
 		WithdrawAccountTypes:        parseJSONStringArrayWithDefault(s.GetWithDefault("withdraw_account_types", "[\"bank\",\"alipay\",\"wechat\",\"usdt\"]"), []string{"bank", "alipay", "wechat", "usdt"}),
 		WithdrawRequireRealname:     s.GetBoolWithDefault("withdraw_require_realname", false),
 		AdminAPIPath:                adminAPIPath,
+		PresenceEnabled:             s.GetBoolWithDefault("presence_enabled", false),
 		OnlineReportIntervalSeconds: s.GetOnlinePresenceRuntimeConfig().ReportIntervalSeconds,
 		UserAPILogVisible:           s.GetBoolWithDefault("user_api_log_visible", true),
 		UserOperationLogVisible:     s.GetBoolWithDefault("user_operation_log_visible", true),

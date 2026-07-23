@@ -61,6 +61,9 @@ type AppConfigResponse struct {
 	// 管理端 REST API 在 /api/v1 下的前缀（来自 env ADMIN_API_PATH，默认 /admin）
 	AdminAPIPath string `json:"admin_api_path"`
 
+	// Presence / 在线心跳总开关（默认 false）
+	PresenceEnabled bool `json:"presence_enabled"`
+
 	// 在线心跳上报周期（秒），前端 Presence 心跳按此间隔发送
 	OnlineReportIntervalSeconds int `json:"online_report_interval_seconds"`
 
@@ -120,6 +123,7 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 		WithdrawNotifyText: "提现申请提交后需管理员审核，通过后人工打款。",
 		WithdrawAccountTypes: []string{"bank", "alipay", "wechat", "usdt"},
 		AdminAPIPath:       "/admin",
+		PresenceEnabled:             false,
 		OnlineReportIntervalSeconds: 30,
 		UserAPILogVisible:       true,
 		UserOperationLogVisible: true,
@@ -227,6 +231,11 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 
 	response.GeetestEnabled = geetestConfig.Enabled && geetestConfig.CaptchaID != "" && geetestConfig.CaptchaKey != ""
 	response.GeetestCaptchaId = geetestConfig.CaptchaID
+	if v, ok := configMap["presence_enabled"]; ok {
+		response.PresenceEnabled = v == "true" || v == "1"
+	} else {
+		response.PresenceEnabled = false
+	}
 	response.OnlineReportIntervalSeconds = services.GetGlobalOnlinePresenceRuntimeConfig().ReportIntervalSeconds
 	if v, ok := configMap["user_api_log_visible"]; ok {
 		response.UserAPILogVisible = v == "true" || v == "1"

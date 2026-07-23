@@ -5,7 +5,11 @@ import { useI18n } from 'vue-i18n'
 import { useDialog, useMessage } from 'naive-ui'
 import { adminApi } from '@/service/api/admin'
 import type { SettingDTO, SettingType } from '@/service/api/admin/settings'
+import { useAuthStore } from '@/store/auth'
+import { useRouteStore } from '@/store/router'
 import { useSettingsStore } from '@/store/settings'
+import type { AdminMenuRoute } from '@/store/router/helper'
+import { createAdminMenus } from '@/store/router/helper'
 import { parseBooleanSetting } from '@/utils'
 import {
   addForm,
@@ -180,6 +184,8 @@ export function useSettingsActions() {
               securityForm.login_max_failure = Number(item.value) || 5
             if (item.key === 'login_lock_duration')
               securityForm.login_lock_duration = Number(item.value) || 10
+            if (item.key === 'presence_enabled')
+              securityForm.presence_enabled = parseBooleanSetting(item.value, false)
             if (item.key === 'realname_enabled')
               securityForm.realname_enabled = parseBooleanSetting(item.value)
             if (item.key === 'realname_review_required')
@@ -280,6 +286,35 @@ export function useSettingsActions() {
       () => settingsStore.updateConfig({ announcement_enabled: nextValue }),
       'adminSettings.announcementSwitchUpdated',
       'adminSettings.announcementSwitchUpdateFailed',
+    )
+  }
+
+  /** 按当前 presence_enabled 重建管理端侧边栏（显示/隐藏「在线用户」） */
+  async function refreshAdminMenusForPresence() {
+    try {
+      const { getAdminRoutes } = await import('@/router/admin.routes')
+      useRouteStore().setAdminMenus(createAdminMenus(getAdminRoutes() as AdminMenuRoute[]))
+    }
+    catch {
+      // 菜单刷新失败不影响开关本身
+    }
+  }
+
+  /** Presence 开关：同步 app-config、启停 WS、刷新管理端侧边栏「在线用户」入口 */
+  async function handleUpdatePresenceEnabled(nextValue: boolean) {
+    await toggleSetting(
+      'presence_enabled',
+      () => securityForm.presence_enabled,
+      (v) => { securityForm.presence_enabled = v },
+      nextValue,
+      () => {
+        settingsStore.updateConfig({ presence_enabled: nextValue })
+        // startPresence 内部会按开关决定建连或 stopPresence
+        useAuthStore().startPresence()
+        void refreshAdminMenusForPresence()
+      },
+      'adminSettings.presenceSwitchUpdated',
+      'adminSettings.presenceSwitchUpdateFailed',
     )
   }
 
@@ -887,6 +922,7 @@ export function useSettingsActions() {
     handleUpdateAllowRegister,
     handleUpdateAllowUserLogin,
     handleUpdateAnnouncementEnabled,
+    handleUpdatePresenceEnabled,
     handleUpdateAllowDeleteAccount,
     handleUpdateSmtpSSL,
     handleUpdateSmtpProxyEnabled,

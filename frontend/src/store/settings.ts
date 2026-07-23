@@ -108,6 +108,9 @@ export const useSettingsStore = defineStore('settings-store', () => {
   // 管理端 REST API 前缀（运行时注入后与后端 ADMIN_API_PATH 一致）
   const adminApiPath = computed(() => getAdminApiPath())
 
+  // Presence / 在线心跳总开关（默认关闭，避免多余 WS 与定时 ping）
+  const presenceEnabled = computed(() => config.value?.presence_enabled ?? false)
+
   // 在线心跳上报周期（秒），默认30秒；由管理端「在线用户」页可配置
   const onlineReportIntervalSeconds = computed(() => config.value?.online_report_interval_seconds ?? 30)
 
@@ -212,6 +215,7 @@ export const useSettingsStore = defineStore('settings-store', () => {
     withdrawAccountTypes,
     withdrawRequireRealname,
     adminApiPath,
+    presenceEnabled,
     onlineReportIntervalSeconds,
 
     // Actions

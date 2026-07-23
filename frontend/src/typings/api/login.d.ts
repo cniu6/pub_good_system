@@ -20,6 +20,11 @@ namespace Api {
       id: number
       /** 用户角色类型 */
       role: Entity.RoleType[]
+      /**
+       * 本次会话签发的 JWT auth_guard（user/admin）。
+       * 必须与后端 LoginResult.authGuard 一致；刷新与管理端准入以此为准，不可用 role 猜测。
+       */
+      authGuard: Entity.AuthGuardType
       /** 访问token */
       accessToken: string
       /** 访问token */

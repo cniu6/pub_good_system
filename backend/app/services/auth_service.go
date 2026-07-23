@@ -109,6 +109,8 @@ type LoginResult struct {
 	UserName         string               `json:"userName"`
 	Email            string               `json:"email"`
 	Role             []string             `json:"role"`
+	// AuthGuard 本次会话签发的认证上下文（user/admin），前端必须按此值存会话并刷新，不可用 role 猜测。
+	AuthGuard        string               `json:"authGuard"`
 	AccessToken      string               `json:"accessToken"`
 	RefreshToken     string               `json:"refreshToken"`
 	ExpiresAt        int64                `json:"expiresAt"`
@@ -252,6 +254,7 @@ func (s *AuthService) Login(username, password, authGuard, clientIP string) (*Lo
 		UserName:         user.Username,
 		Email:            user.Email,
 		Role:             []string{user.Role},
+		AuthGuard:        authGuard,
 		AccessToken:      accessToken,
 		RefreshToken:     refreshToken,
 		ExpiresAt:        time.Now().Unix() + int64(accessTTL.Seconds()),
@@ -399,6 +402,7 @@ func (s *AuthService) RefreshToken(refreshToken, authGuard, clientIP, userAgent,
 		UserName:         user.Username,
 		Email:            user.Email,
 		Role:             []string{user.Role},
+		AuthGuard:        authGuard,
 		AccessToken:      accessToken,
 		RefreshToken:     newRefreshToken,
 		ExpiresAt:        accessExpiresAt,

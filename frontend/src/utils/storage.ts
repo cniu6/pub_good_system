@@ -1,11 +1,11 @@
 const STORAGE_PREFIX = import.meta.env.VITE_STORAGE_PREFIX
 
-type AuthStorageKey = 'userInfo' | 'accessToken' | 'refreshToken' | 'accessTokenExpiresAt' | 'role'
+type AuthStorageKey = 'userInfo' | 'accessToken' | 'refreshToken' | 'accessTokenExpiresAt' | 'role' | 'authGuard'
 type AuthStorageScope = 'local' | 'session'
 type AuthStorageValueMap = Pick<Storage.Local, AuthStorageKey>
 type AuthStorageSnapshot = Partial<AuthStorageValueMap>
 
-const AUTH_STORAGE_KEYS: AuthStorageKey[] = ['userInfo', 'accessToken', 'refreshToken', 'accessTokenExpiresAt', 'role']
+const AUTH_STORAGE_KEYS: AuthStorageKey[] = ['userInfo', 'accessToken', 'refreshToken', 'accessTokenExpiresAt', 'role', 'authGuard']
 
 interface StorageData<T> {
   value: T

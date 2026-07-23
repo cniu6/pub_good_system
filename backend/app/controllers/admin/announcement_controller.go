@@ -226,8 +226,8 @@ func (ctrl *AnnouncementController) Publish(c *gin.Context) {
 		}
 	}
 	a, _ := models.GetAnnouncementByID(id)
-	// Presence 实时推送（在线用户）
-	if a != nil {
+	// Presence 实时推送（仅在开启在线状态时；关闭时用户仍可通过 HTTP 拉公告）
+	if a != nil && services.GetGlobalPresenceEnabled() {
 		presence.DefaultHub().BroadcastJSON(map[string]interface{}{
 			"type":  "announcement",
 			"id":    a.ID,

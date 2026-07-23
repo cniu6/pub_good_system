@@ -363,8 +363,8 @@ export function handleServiceResult<T extends object>(data: T, isSuccess: boolea
 }
 
 /**
- * @description: 处理接口token刷新
- * @return {*}
+ * @description: 处理接口 401 后的 token 恢复（只允许真正轮换成功后重试原请求一次）
+ * @return {*} 是否拿到了与失败前不同的新 access token
  */
 export async function handleRefreshToken() {
   const authStore = useAuthStore()
@@ -381,18 +381,19 @@ export async function handleRefreshToken() {
   // 记录发起刷新时的会话代际，避免"请求发出后用户登出/重新登录，刷新结果晚点才回来"
   // 时把已登出的会话重新救活（详见 store/auth.ts 的 authGeneration 说明）。
   const generation = authStore.authGeneration
+  // 把刚失败的 access token 传下去：刷新层禁止仅凭本地 expiresAt 把同一枚旧 token 当成成功。
+  const previousAccessToken = authStore.token
 
-  // 刷新token
-  const data = await refreshAuthToken()
+  const data = await refreshAuthToken(previousAccessToken)
   if (authStore.authGeneration !== generation)
     return false
 
-  if (data) {
+  // 必须拿到确实不同的新 token 才算恢复成功；否则一律进登录恢复弹窗。
+  if (data?.accessToken && data.accessToken !== previousAccessToken) {
     authStore.applyRefreshedLoginInfo(data)
     return true
   }
 
-  // 刷新失败，暂停当前会话并要求用户在当前页重新登录。
   requireReauthentication(authStore)
   return false
 }

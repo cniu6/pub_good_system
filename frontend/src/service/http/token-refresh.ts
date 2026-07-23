@@ -73,10 +73,17 @@ function buildLoginInfoFromStorage(): LoginTokenPayload | null {
 
   const userInfo = authStorage.get('userInfo')
   const expiresAt = authStorage.get('accessTokenExpiresAt')
+  const storedGuard = authStorage.get('authGuard')
+  const authGuard: Entity.AuthGuardType = storedGuard === 'admin' || storedGuard === 'user'
+    ? storedGuard
+    : (userInfo?.authGuard === 'admin' || userInfo?.authGuard === 'user'
+        ? userInfo.authGuard
+        : getCurrentAuthGuard())
   return {
     ...(userInfo || {}),
     accessToken,
     refreshToken,
+    authGuard,
     expiresAt: expiresAt ?? undefined,
   } as LoginTokenPayload
 }
@@ -99,10 +106,15 @@ function buildLoginInfoFromPayload(payload: LoginTokenPayload): LoginTokenPayloa
     ? payload.role
     : fallbackRoles
   const role = rawRoles.map(item => (item === 'admin' || item === 'super' ? 'admin' : 'user')) as Entity.RoleType[]
+  const storedGuard = authStorage.get('authGuard')
+  const authGuard: Entity.AuthGuardType = payload.authGuard === 'admin' || payload.authGuard === 'user'
+    ? payload.authGuard
+    : (storedGuard === 'admin' || storedGuard === 'user' ? storedGuard : getCurrentAuthGuard())
   return {
     ...(authStorage.get('userInfo') || {}),
     ...payload,
     role,
+    authGuard,
   } as LoginTokenPayload
 }
 
@@ -113,6 +125,8 @@ function persistRefreshedLoginInfo(payload: LoginTokenPayload) {
   authStorage.setActive('accessToken', loginInfo.accessToken)
   authStorage.setActive('refreshToken', loginInfo.refreshToken)
   authStorage.setActive('role', loginInfo.role)
+  if (loginInfo.authGuard === 'admin' || loginInfo.authGuard === 'user')
+    authStorage.setActive('authGuard', loginInfo.authGuard)
   authStorage.setActive('userInfo', loginInfo)
   if (loginInfo.expiresAt)
     authStorage.setActive('accessTokenExpiresAt', loginInfo.expiresAt)
@@ -282,10 +296,18 @@ async function withRefreshLock<T>(sessionKey: string, task: () => Promise<T>): P
   return withStorageLease(lockName, task)
 }
 
-async function executeRefreshWithLock(sessionKey: string): Promise<LoginTokenPayload | null> {
+/**
+ * @param sessionKey 当前 refresh token 指纹（用于跨标签互斥）
+ * @param previousAccessToken 401 恢复路径传入：必须证明 storage 里已不是刚失败的那枚 token，
+ *   才允许本地短路复用；定时静默续期不传此参数。
+ */
+async function executeRefreshWithLock(sessionKey: string, previousAccessToken?: string): Promise<LoginTokenPayload | null> {
   return withRefreshLock(sessionKey, async () => {
-    // 等待锁期间，其他标签页可能已完成刷新并写回 storage。
-    if (isAccessTokenStillFresh())
+    const storedAccessToken = authStorage.get('accessToken')
+    // 定时续期：本地未过期可复用，减少网络请求。
+    // 401 恢复：服务端已拒绝 previousAccessToken，绝不能仅凭本地 expiresAt「看起来新鲜」把同一枚旧 token 交回去。
+    // 只有 storage 里已经换成另一枚（其它标签刚刷完）时，才允许短路。
+    if (isAccessTokenStillFresh() && (!previousAccessToken || storedAccessToken !== previousAccessToken))
       return buildLoginInfoFromStorage()
 
     // 独立 sessionStorage 标签不共享 storage，但会收到同会话的刷新结果。
@@ -306,7 +328,12 @@ async function executeRefreshWithLock(sessionKey: string): Promise<LoginTokenPay
 
     try {
       broadcastRefreshStarted(sessionKey)
-      const result = await fetchUpdateToken({ refreshToken, authGuard: getCurrentAuthGuard() })
+      // 优先用会话快照里的 authGuard（与签发时一致）；缺失时才回退到当前页面模式。
+      const storedGuard = authStorage.get('authGuard')
+      const authGuard = storedGuard === 'admin' || storedGuard === 'user'
+        ? storedGuard
+        : getCurrentAuthGuard()
+      const result = await fetchUpdateToken({ refreshToken, authGuard })
       const data = result.data as LoginTokenPayload | null
       if (result.isSuccess && data) {
         persistRefreshedLoginInfo(data)
@@ -326,15 +353,18 @@ async function executeRefreshWithLock(sessionKey: string): Promise<LoginTokenPay
   })
 }
 
-// 统一刷新请求：同页去重 + 跨标签页互斥锁，避免并发轮换 refresh token 触发重放吊销。
-export async function refreshAuthToken(): Promise<LoginTokenPayload | null> {
+/**
+ * 统一刷新请求：同页去重 + 跨标签页互斥锁，避免并发轮换 refresh token 触发重放吊销。
+ * @param previousAccessToken 401 恢复时传入刚失败的 access token；定时续期不传。
+ */
+export async function refreshAuthToken(previousAccessToken?: string): Promise<LoginTokenPayload | null> {
   if (refreshPromise)
     return refreshPromise
 
   refreshPromise = getRefreshSessionKey().then((sessionKey) => {
     if (!sessionKey)
       return null
-    return executeRefreshWithLock(sessionKey)
+    return executeRefreshWithLock(sessionKey, previousAccessToken)
   }).finally(() => {
     refreshPromise = null
   })

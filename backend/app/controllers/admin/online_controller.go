@@ -2,6 +2,7 @@ package admin
 
 import (
 	"fst/backend/app/models"
+	"fst/backend/app/services"
 	"fst/backend/pkg/presence"
 	"fst/backend/utils"
 	"strconv"
@@ -15,7 +16,20 @@ type OnlineController struct{}
 
 func NewOnlineController() *OnlineController { return &OnlineController{} }
 
+// requirePresenceEnabled 在线列表/统计依赖心跳；总开关关闭时直接拒绝。
+// 用户详情里的会话列表/踢下线不走这里，仍可管理 JWT 会话。
+func requirePresenceEnabled(c *gin.Context) bool {
+	if services.GetGlobalPresenceEnabled() {
+		return true
+	}
+	utils.Fail(c, 403, "在线状态功能未启用")
+	return false
+}
+
 func (ctrl *OnlineController) Stats(c *gin.Context) {
+	if !requirePresenceEnabled(c) {
+		return
+	}
 	users, err := models.CountOnlineUsers()
 	if err != nil {
 		utils.Fail(c, 500, "Failed to count online users")
@@ -30,6 +44,9 @@ func (ctrl *OnlineController) Stats(c *gin.Context) {
 }
 
 func (ctrl *OnlineController) ListSessions(c *gin.Context) {
+	if !requirePresenceEnabled(c) {
+		return
+	}
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	page, pageSize = utils.NormalizePagination(page, pageSize)

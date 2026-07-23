@@ -133,6 +133,8 @@ export function normalizeAdminUserRole(role?: string): Entity.RoleType {
  *   但展示的角色却是被登录用户的真实 admin 身份」的不一致
  */
 export function toLoginInfo(user: AdminUser, token: string, sessionRole?: Entity.RoleType): Api.Login.Info {
+  // sessionRole 对应本次令牌实际 auth_guard；未传时回退到用户 DB role（仅兼容旧调用）。
+  const authGuard: Entity.AuthGuardType = sessionRole ?? normalizeAdminUserRole(user.role)
   return {
     id: user.id,
     userName: user.username,
@@ -146,7 +148,8 @@ export function toLoginInfo(user: AdminUser, token: string, sessionRole?: Entity
     money: user.money,
     score: user.score,
     level: user.level,
-    role: [sessionRole ?? normalizeAdminUserRole(user.role)],
+    role: [authGuard],
+    authGuard,
     lastLoginTime: user.last_login_time ?? null,
     lastLoginIp: user.last_login_ip,
     loginFailure: user.login_failure,
@@ -193,6 +196,7 @@ export function openLoginAsUserWindow(
     refreshToken,
     accessTokenExpiresAt: expiresAt,
     role: [sessionRole],
+    authGuard,
     userInfo: toLoginInfo(user, token, sessionRole),
   }, targetUrl)
 }

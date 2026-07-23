@@ -37,10 +37,27 @@ function isSafeInternalRedirect(path: string): boolean {
   return true
 }
 
+/** 规范化后端/本地 authGuard；非法值返回 null。 */
+function normalizeAuthGuard(value: unknown): Entity.AuthGuardType | null {
+  if (value === 'admin' || value === 'user')
+    return value
+  return null
+}
+
+/**
+ * 从登录/刷新载荷解析 authGuard。
+ * 优先用后端显式字段；缺失时（旧会话/过渡期）回退到当前页面模式，避免强制老用户重新登录。
+ */
+function resolveAuthGuardFromPayload(data: Partial<LoginInfoPayload>): Entity.AuthGuardType {
+  return normalizeAuthGuard(data.authGuard) ?? (getRuntimeRouteMode() === 'admin' ? 'admin' : 'user')
+}
+
 interface AuthStatus {
   userInfo: Api.Login.Info | null
   token: string
   accessTokenExpiresAt: number | null
+  /** 本次会话 JWT auth_guard，刷新与 Presence 以此为准 */
+  authGuard: Entity.AuthGuardType | null
   refreshTimer: ReturnType<typeof setTimeout> | null
   isLoggingOut: boolean
   /** 被动失效后显示全局登录恢复弹窗，保持当前页面不跳转。 */
@@ -50,7 +67,7 @@ interface AuthStatus {
   /**
    * 会话代际计数器：每次登出/登录都会递增。
    * 用于丢弃「登出前已发出、登出后才返回」的过期 token 刷新结果，
-   * 避免刷新竟态把已登出的会话重新救活（重新写回 storage / 重启 Presence 与定时器）。
+   * 避免刷新竟态把已登出的会话重新救活（重新写回 storage / 重启定时器）。
    */
   authGeneration: number
 }
@@ -60,6 +77,7 @@ export const useAuthStore = defineStore('auth-store', {
       userInfo: authStorage.get('userInfo'),
       token: authStorage.get('accessToken') || '',
       accessTokenExpiresAt: authStorage.get('accessTokenExpiresAt') || null,
+      authGuard: normalizeAuthGuard(authStorage.get('authGuard')),
       refreshTimer: null,
       isLoggingOut: false,
       needsReauthentication: false,
@@ -142,6 +160,7 @@ export const useAuthStore = defineStore('auth-store', {
       this.userInfo = null
       this.token = ''
       this.accessTokenExpiresAt = null
+      this.authGuard = null
       this.needsReauthentication = true
     },
     /**
@@ -158,9 +177,18 @@ export const useAuthStore = defineStore('auth-store', {
       if (!accessToken || !refreshToken || !userInfo)
         return false
 
+      // 旧会话没有 authGuard 字段：按当前页面模式回填一次，避免强制老用户重新登录。
+      let authGuard = normalizeAuthGuard(authStorage.get('authGuard'))
+        ?? normalizeAuthGuard(userInfo.authGuard)
+      if (!authGuard) {
+        authGuard = getRuntimeRouteMode() === 'admin' ? 'admin' : 'user'
+        authStorage.setActive('authGuard', authGuard)
+      }
+
       this.token = accessToken
-      this.userInfo = userInfo
+      this.userInfo = { ...userInfo, authGuard }
       this.accessTokenExpiresAt = authStorage.get('accessTokenExpiresAt') || null
+      this.authGuard = authGuard
       this.needsReauthentication = false
       this.reauthenticationUserId = null
       resetSessionExpired()
@@ -215,22 +243,24 @@ export const useAuthStore = defineStore('auth-store', {
       // 与后端对齐：仅 admin/user；历史 super 视为 admin
       const rawRoles: string[] = Array.isArray(data.role) && data.role.length ? data.role as string[] : ['user']
       const roles: Entity.RoleType[] = rawRoles.map(r => (r === 'admin' || r === 'super' ? 'admin' : 'user'))
-      const userInfo: LoginInfoPayload = { ...data, role: roles }
+      const authGuard = resolveAuthGuardFromPayload(data)
+      const userInfo: LoginInfoPayload = { ...data, role: roles, authGuard }
 
       // 将token和userInfo保存下来
       authStorage.setActive('userInfo', userInfo)
       authStorage.setActive('accessToken', userInfo.accessToken)
       authStorage.setActive('refreshToken', userInfo.refreshToken)
       authStorage.setActive('role', roles)
+      authStorage.setActive('authGuard', authGuard)
 
-      const isAdmin = roles.includes('admin')
+      const isAdmin = authGuard === 'admin' || roles.includes('admin')
       const routeMode = getRuntimeRouteMode()
       const isSameUser = this.reauthenticationUserId === userInfo.id
       // 只有同一账号且具备当前端权限时，才允许保留旧页面，避免泄露旧账号数据。
       const preserveCurrentPage = options?.preserveCurrentPage
         && this.needsReauthentication
         && isSameUser
-        && (routeMode !== 'admin' || isAdmin)
+        && (routeMode !== 'admin' || authGuard === 'admin')
 
       if (userInfo.expiresAt) {
         authStorage.setActive('accessTokenExpiresAt', userInfo.expiresAt)
@@ -239,6 +269,7 @@ export const useAuthStore = defineStore('auth-store', {
 
       this.token = userInfo.accessToken
       this.userInfo = userInfo
+      this.authGuard = authGuard
       this.needsReauthentication = false
       this.reauthenticationUserId = null
       this.startPresence()
@@ -298,15 +329,20 @@ export const useAuthStore = defineStore('auth-store', {
         ? data.role as string[]
         : ((this.userInfo?.role || ['user']) as string[])
       const roles: Entity.RoleType[] = rawRoles.map(r => (r === 'admin' || r === 'super' ? 'admin' : 'user'))
+      const authGuard = resolveAuthGuardFromPayload({
+        authGuard: data.authGuard ?? this.authGuard ?? this.userInfo?.authGuard,
+      })
       const nextUserInfo: LoginInfoPayload = {
         ...(this.userInfo || {} as LoginInfoPayload),
         ...data,
         role: roles,
+        authGuard,
       }
 
       authStorage.setActive('accessToken', nextUserInfo.accessToken)
       authStorage.setActive('refreshToken', nextUserInfo.refreshToken)
       authStorage.setActive('role', roles)
+      authStorage.setActive('authGuard', authGuard)
       if (nextUserInfo.expiresAt) {
         authStorage.setActive('accessTokenExpiresAt', nextUserInfo.expiresAt)
         this.accessTokenExpiresAt = nextUserInfo.expiresAt
@@ -314,6 +350,7 @@ export const useAuthStore = defineStore('auth-store', {
 
       this.token = nextUserInfo.accessToken
       this.userInfo = nextUserInfo
+      this.authGuard = authGuard
       authStorage.setActive('userInfo', nextUserInfo)
       this.startPresence()
       this.setupAutoRefresh()
@@ -322,13 +359,21 @@ export const useAuthStore = defineStore('auth-store', {
     startPresence() {
       if (!this.token)
         return
-      // 上报周期取管理端可配置的「在线心跳上报周期」（默认30秒），未加载完成时组合式函数内部兜底为30秒。
       const settingsStore = useSettingsStore()
+      // 总开关关闭：确保断开已有连接，且不再取 ticket / 建 WS / 定时 ping
+      if (!settingsStore.presenceEnabled) {
+        stopPresence()
+        return
+      }
+      // 上报周期取管理端可配置的「在线心跳上报周期」（默认30秒），未加载完成时组合式函数内部兜底为30秒。
       const intervalMs = settingsStore.onlineReportIntervalSeconds * 1000
       const userID = this.userInfo?.id
       if (!userID)
         return
-      const guard = getRuntimeRouteMode() === 'admin' ? 'admin' : 'user'
+      // Presence 必须跟 JWT auth_guard 一致；缺失时才回退到页面模式。
+      const guard = this.authGuard
+        ?? normalizeAuthGuard(authStorage.get('authGuard'))
+        ?? (getRuntimeRouteMode() === 'admin' ? 'admin' : 'user')
       startPresence(this.token, () => {
         this.requireReauthentication()
       }, userID, guard, intervalMs)

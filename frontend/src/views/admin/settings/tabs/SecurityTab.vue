@@ -10,6 +10,7 @@ const {
   restartingBackend,
   handleUpdateGeetestEnabled,
   handleUpdateAllowDeleteAccount,
+  handleUpdatePresenceEnabled,
   handleUpdateRealnameEnabled,
   handleUpdateRealnameReviewRequired,
   handleSaveSecurity,
@@ -72,6 +73,24 @@ const {
       </n-form-item>
       <n-form-item :label="t('adminSettings.loginLockDuration')">
         <n-input-number v-model:value="securityForm.login_lock_duration" :min="1" :max="1440" style="width: 100%;" />
+      </n-form-item>
+      <n-divider />
+      <n-form-item :label="t('adminSettings.presenceEnabled')">
+        <n-space vertical :size="4">
+          <n-space align="center">
+            <n-switch
+              :value="securityForm.presence_enabled"
+              :loading="switchLoading.presence_enabled"
+              @update:value="handleUpdatePresenceEnabled"
+            />
+            <n-text depth="3">
+              {{ securityForm.presence_enabled ? t('adminSettings.presenceEnabledText') : t('adminSettings.presenceDisabledText') }}
+            </n-text>
+          </n-space>
+          <n-text depth="3" style="font-size: 12px;">
+            {{ t('adminSettings.presenceEnabledHint') }}
+          </n-text>
+        </n-space>
       </n-form-item>
       <n-divider />
       <n-form-item :label="t('adminSettings.realnameEnabled')">

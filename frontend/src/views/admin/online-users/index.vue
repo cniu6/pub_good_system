@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import type { DataTableColumns } from 'naive-ui'
 import { NButton, NSpace, NTag, NText, NTooltip, useDialog, useMessage } from 'naive-ui'
 import { adminOnlineApi } from '@/service/api/admin/online'
@@ -13,6 +13,7 @@ const message = useMessage()
 const dialog = useDialog()
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
+const presenceEnabled = computed(() => settingsStore.presenceEnabled)
 const sessionsFetchGuard = useRequestGuard()
 const loading = ref(false)
 const stats = ref({ online_users: 0, online_sessions: 0 })
@@ -197,6 +198,8 @@ const columns: DataTableColumns<OnlineUserRow> = [
 ]
 
 async function fetchStats() {
+  if (!presenceEnabled.value)
+    return
   try {
     const res = await adminOnlineApi.stats()
     if (res.isSuccess && res.data)
@@ -208,6 +211,8 @@ async function fetchStats() {
 }
 
 async function fetchSessions() {
+  if (!presenceEnabled.value)
+    return
   const token = sessionsFetchGuard.begin()
   loading.value = true
   try {
@@ -287,90 +292,102 @@ function handleKick(session: OnlineSession, userRow?: OnlineUserRow) {
 }
 
 onMounted(() => {
+  if (!presenceEnabled.value)
+    return
   void Promise.all([fetchSessions(), fetchStats(), loadReportInterval()])
 })
 </script>
 
 <template>
   <div class="online-users-page">
-    <n-grid cols="2" :x-gap="12" :y-gap="12" style="margin-bottom: 16px;">
-      <n-gi>
-        <n-card size="small">
-          <n-statistic :label="t('adminOnlineUsers.onlineUsers')" :value="stats.online_users" />
-        </n-card>
-      </n-gi>
-      <n-gi>
-        <n-card size="small">
-          <n-statistic :label="t('adminOnlineUsers.onlineDevices')" :value="stats.online_sessions" />
-        </n-card>
-      </n-gi>
-    </n-grid>
+    <n-alert
+      v-if="!presenceEnabled"
+      type="warning"
+      :title="t('adminOnlineUsers.featureDisabledTitle')"
+      style="margin-bottom: 16px;"
+    >
+      {{ t('adminOnlineUsers.featureDisabledDesc') }}
+    </n-alert>
+    <div v-else>
+      <n-grid cols="2" :x-gap="12" :y-gap="12" style="margin-bottom: 16px;">
+        <n-gi>
+          <n-card size="small">
+            <n-statistic :label="t('adminOnlineUsers.onlineUsers')" :value="stats.online_users" />
+          </n-card>
+        </n-gi>
+        <n-gi>
+          <n-card size="small">
+            <n-statistic :label="t('adminOnlineUsers.onlineDevices')" :value="stats.online_sessions" />
+          </n-card>
+        </n-gi>
+      </n-grid>
 
-    <n-card :title="t('adminOnlineUsers.title')">
-      <template #header-extra>
-        <NButton size="small" type="primary" :loading="loading" @click="refreshAll">
-          {{ t('common.refresh') }}
-        </NButton>
-      </template>
-      <NSpace align="center" :wrap="true" style="margin-bottom: 12px;">
-        <n-input v-model:value="query.keyword" clearable size="small" :placeholder="t('adminOnlineUsers.keyword')" style="width: 180px;" @keyup.enter="handleSearch" />
-        <n-select
-          v-model:value="query.client_type"
-          size="small"
-          style="width: 120px;"
-          :options="[
-            { label: t('adminOnlineUsers.allClientTypes'), value: '' },
-            { label: t('adminOnlineUsers.web'), value: 'web' },
-            { label: t('adminOnlineUsers.app'), value: 'app' },
-          ]"
-          @update:value="handleSearch"
+      <n-card :title="t('adminOnlineUsers.title')">
+        <template #header-extra>
+          <NButton size="small" type="primary" :loading="loading" @click="refreshAll">
+            {{ t('common.refresh') }}
+          </NButton>
+        </template>
+        <NSpace align="center" :wrap="true" style="margin-bottom: 12px;">
+          <n-input v-model:value="query.keyword" clearable size="small" :placeholder="t('adminOnlineUsers.keyword')" style="width: 180px;" @keyup.enter="handleSearch" />
+          <n-select
+            v-model:value="query.client_type"
+            size="small"
+            style="width: 120px;"
+            :options="[
+              { label: t('adminOnlineUsers.allClientTypes'), value: '' },
+              { label: t('adminOnlineUsers.web'), value: 'web' },
+              { label: t('adminOnlineUsers.app'), value: 'app' },
+            ]"
+            @update:value="handleSearch"
+          />
+          <NButton size="small" type="primary" @click="handleSearch">
+            {{ t('adminOnlineUsers.search') }}
+          </NButton>
+          <NButton size="small" @click="handleReset">
+            {{ t('adminOnlineUsers.reset') }}
+          </NButton>
+        </NSpace>
+        <n-alert type="default" :show-icon="true" style="margin-bottom: 12px;">
+          {{ t('adminOnlineUsers.multiDeviceHint') }}
+        </n-alert>
+        <n-data-table
+          remote
+          :columns="columns"
+          :data="userRows"
+          :loading="loading"
+          :pagination="pagination"
+          :scroll-x="1100"
+          :row-key="row => `${row.user_id}-${row.auth_guard}`"
+          @update:page="handlePageChange"
         />
-        <NButton size="small" type="primary" @click="handleSearch">
-          {{ t('adminOnlineUsers.search') }}
-        </NButton>
-        <NButton size="small" @click="handleReset">
-          {{ t('adminOnlineUsers.reset') }}
-        </NButton>
-      </NSpace>
-      <n-alert type="default" :show-icon="true" style="margin-bottom: 12px;">
-        {{ t('adminOnlineUsers.multiDeviceHint') }}
-      </n-alert>
-      <n-data-table
-        remote
-        :columns="columns"
-        :data="userRows"
-        :loading="loading"
-        :pagination="pagination"
-        :scroll-x="1100"
-        :row-key="row => `${row.user_id}-${row.auth_guard}`"
-        @update:page="handlePageChange"
-      />
-    </n-card>
+      </n-card>
 
-    <n-card :title="t('adminOnlineUsers.reportIntervalTitle')" style="margin-top: 16px;" size="small">
-      <NSpace align="center" :wrap="true">
-        <span>{{ t('adminOnlineUsers.reportIntervalLabel') }}</span>
-        <n-input-number
-          v-model:value="reportInterval"
-          :min="10"
-          :max="300"
-          :step="5"
-          size="small"
-          style="width: 140px;"
-          :disabled="reportIntervalLoading"
-        >
-          <template #suffix>
-            {{ t('adminOnlineUsers.reportIntervalUnit') }}
-          </template>
-        </n-input-number>
-        <NButton size="small" type="primary" :loading="reportIntervalSaving" @click="saveReportInterval">
-          {{ t('adminOnlineUsers.reportIntervalSave') }}
-        </NButton>
-      </NSpace>
-      <NText depth="3" style="display: block; margin-top: 8px; font-size: 12px;">
-        {{ t('adminOnlineUsers.reportIntervalHint') }}
-      </NText>
-    </n-card>
+      <n-card :title="t('adminOnlineUsers.reportIntervalTitle')" style="margin-top: 16px;" size="small">
+        <NSpace align="center" :wrap="true">
+          <span>{{ t('adminOnlineUsers.reportIntervalLabel') }}</span>
+          <n-input-number
+            v-model:value="reportInterval"
+            :min="10"
+            :max="300"
+            :step="5"
+            size="small"
+            style="width: 140px;"
+            :disabled="reportIntervalLoading"
+          >
+            <template #suffix>
+              {{ t('adminOnlineUsers.reportIntervalUnit') }}
+            </template>
+          </n-input-number>
+          <NButton size="small" type="primary" :loading="reportIntervalSaving" @click="saveReportInterval">
+            {{ t('adminOnlineUsers.reportIntervalSave') }}
+          </NButton>
+        </NSpace>
+        <NText depth="3" style="display: block; margin-top: 8px; font-size: 12px;">
+          {{ t('adminOnlineUsers.reportIntervalHint') }}
+        </NText>
+      </n-card>
+    </div>
   </div>
 </template>
 
