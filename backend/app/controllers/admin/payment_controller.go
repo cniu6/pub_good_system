@@ -130,10 +130,7 @@ func (ctrl *PaymentController) CompleteOrder(c *gin.Context) {
 	}
 	req.Memo = utils.Clean_XSS(req.Memo)
 
-	adminID, _ := c.Get("userID")
-	adminUserID, _ := adminID.(uint64)
-
-	if err := services.AdminCompleteOrder(orderID, req.Memo, req.Force, adminUserID, false); err != nil {
+	if err := services.AdminCompleteOrder(orderID, req.Memo, req.Force); err != nil {
 		if services.IsClientError(err) {
 			utils.Fail(c, 400, err.Error())
 			return

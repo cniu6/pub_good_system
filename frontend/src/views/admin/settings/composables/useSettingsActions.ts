@@ -183,8 +183,6 @@ export function useSettingsActions() {
               paymentForm.withdraw_account_types_text = typeof item.value === 'string' ? item.value : JSON.stringify(item.value || ['bank', 'alipay', 'wechat', 'usdt'])
             if (item.key === 'withdraw_require_realname')
               paymentForm.withdraw_require_realname = parseBooleanSetting(item.value)
-            if (item.key === 'finance_dual_approval')
-              paymentForm.finance_dual_approval = parseBooleanSetting(item.value)
           }
           if (category.category === 'custom')
             customSettings.value = category.items
@@ -442,18 +440,6 @@ export function useSettingsActions() {
       () => settingsStore.updateConfig({ withdraw_require_realname: nextValue }),
       'adminSettings.withdrawRequireRealnameSwitchUpdated',
       'adminSettings.withdrawRequireRealnameSwitchUpdateFailed',
-    )
-  }
-
-  async function handleUpdateFinanceDualApproval(nextValue: boolean) {
-    await toggleSetting(
-      'finance_dual_approval',
-      () => paymentForm.finance_dual_approval,
-      (v) => { paymentForm.finance_dual_approval = v },
-      nextValue,
-      undefined,
-      'adminSettings.financeDualApprovalSwitchUpdated',
-      'adminSettings.financeDualApprovalSwitchUpdateFailed',
     )
   }
 
@@ -847,7 +833,6 @@ export function useSettingsActions() {
     handleUpdatePaymentEnabled,
     handleUpdateWithdrawEnabled,
     handleUpdateWithdrawRequireRealname,
-    handleUpdateFinanceDualApproval,
     handleSaveBasic,
     handleSaveEmail,
     handleTestEmail,

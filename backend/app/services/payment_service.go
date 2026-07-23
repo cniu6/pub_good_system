@@ -696,10 +696,7 @@ func reconcilePaymentOrder(order *models.PaymentOrder) (bool, error) {
 
 // AdminCompleteOrder 管理员手动补单。
 // force=true 时允许对 canceled/failed 强制补单（高危）；默认仅 pending，且优先应走网关对账。
-// adminUserID：操作人；skipDualCheck=true 表示审批通过后执行，不再二次进审。
-// 当 finance_dual_approval=true 且 force 且未 skip 时：只创建 pending 审批，不立即入账。
-// 当 finance_dual_approval=false 且 force 时：立即入账，并写一条 self-approved 审计记录（便于日后开双人复核）。
-func AdminCompleteOrder(orderID uint64, memo string, force bool, adminUserID uint64, skipDualCheck bool) error {
+func AdminCompleteOrder(orderID uint64, memo string, force bool) error {
 	order, err := models.GetPaymentOrderByID(orderID)
 	if err != nil {
 		return NewClientError("订单不存在")
@@ -728,56 +725,7 @@ func AdminCompleteOrder(orderID uint64, memo string, force bool, adminUserID uin
 		return NewClientError("当前订单状态不允许补单")
 	}
 
-	// 双人复核：强制补单先挂起审批
-	dualOn := false
-	if GlobalSettingsService != nil {
-		dualOn = GlobalSettingsService.GetBoolWithDefault("finance_dual_approval", false)
-	}
-	if force && dualOn && !skipDualCheck {
-		payload, _ := models.MarshalApprovalPayload(map[string]interface{}{
-			"order_id": orderID,
-			"order_no": order.OrderNo,
-			"memo":     memo,
-			"force":    true,
-		})
-		req := &models.ApprovalRequest{
-			Type:        models.ApprovalTypeForcePaymentComplete,
-			PayloadJSON: payload,
-			Status:      models.ApprovalStatusPending,
-			RequesterID: adminUserID,
-			Comment:     memo,
-		}
-		if err := models.CreateApprovalRequest(req); err != nil {
-			return fmt.Errorf("创建审批失败: %w", err)
-		}
-		return NewClientError(fmt.Sprintf("强制补单已提交审批(#%d)，等待另一管理员复核", req.ID))
-	}
-
-	if err := adminCompleteOrderExec(order, memo, force); err != nil {
-		return err
-	}
-
-	// 强制补单审计：未开双人复核时记一条 self-approved；审批通过路径不再重复写。
-	if force && adminUserID > 0 && !skipDualCheck {
-		payload, _ := models.MarshalApprovalPayload(map[string]interface{}{
-			"order_id": orderID,
-			"order_no": order.OrderNo,
-			"memo":     memo,
-			"force":    true,
-		})
-		now := time.Now().Unix()
-		rid := adminUserID
-		_ = models.CreateApprovalRequest(&models.ApprovalRequest{
-			Type:        models.ApprovalTypeForcePaymentComplete,
-			PayloadJSON: payload,
-			Status:      models.ApprovalStatusApproved,
-			RequesterID: adminUserID,
-			ReviewerID:  &rid,
-			Comment:     memo,
-			ReviewTime:  &now,
-		})
-	}
-	return nil
+	return adminCompleteOrderExec(order, memo, force)
 }
 
 // adminCompleteOrderExec 实际入账逻辑（原 AdminCompleteOrder 事务体）

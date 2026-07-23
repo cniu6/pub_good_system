@@ -25,7 +25,6 @@ func AllGormModels() []interface{} {
 		&IdempotencyKey{},
 		&Announcement{},
 		&UserAnnouncementRead{},
-		&ApprovalRequest{},
 		&Role{},
 		&Permission{},
 		&RolePermission{},

@@ -161,15 +161,6 @@ export function getAdminRoutes(): RouteRecordRaw[] {
                 icon: 'icon-park-outline:wallet-two',
               },
             },
-            {
-              path: 'approvals',
-              name: 'admin-approvals',
-              component: () => import('@/views/admin/approvals/index.vue'),
-              meta: {
-                title: 'route.adminApprovals',
-                icon: 'icon-park-outline:file-date',
-              },
-            },
           ],
         },
         // ── 系统设置（分组目录）──

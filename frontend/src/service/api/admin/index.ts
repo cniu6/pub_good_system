@@ -54,6 +54,5 @@ export const adminApi = {
   profile: createLazyModule(() => import('./profile').then(m => m.adminProfileApi)),
   todo: createLazyModule(() => import('./todo').then(m => m.adminTodoApi)),
   importExport: createLazyModule(() => import('./import-export').then(m => m.adminImportExportApi)),
-  approval: createLazyModule(() => import('./approval').then(m => m.adminApprovalApi)),
   rbac: createLazyModule(() => import('./rbac').then(m => m.adminRbacApi)),
 }

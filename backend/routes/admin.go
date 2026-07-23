@@ -128,6 +128,5 @@ func registerAdminRoutes(v1 *gin.RouterGroup) {
 	adminProfileCtrl.RegisterRoutes(adminGroup)        //管理员个人设置/TOTP
 	adminTodoCtrl.RegisterRoutes(adminGroup)           //待办聚合
 	adminExportCtrl.RegisterRoutes(adminGroup)         //导入导出
-	adminApprovalCtrl.RegisterRoutes(adminGroup)       //财务审批
 	}
 }

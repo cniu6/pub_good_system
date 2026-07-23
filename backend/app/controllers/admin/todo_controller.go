@@ -72,22 +72,6 @@ func (ctrl *TodoController) List(c *gin.Context) {
 		}
 	}
 
-	var pendingApprovals int64
-	if db.CheckTableExists("approval_requests") {
-		if err := db.DB.Model(&models.ApprovalRequest{}).
-			Where("status = ?", models.ApprovalStatusPending).
-			Count(&pendingApprovals).Error; err != nil {
-			log.Printf("[ADMIN][TODO] count pending approvals: %v", err)
-		} else if pendingApprovals > 0 {
-			items = append(items, TodoItem{
-				Type:  "pending_approval",
-				Title: "待审批财务操作",
-				Count: pendingApprovals,
-				Link:  "/finance/approvals",
-			})
-		}
-	}
-
 	var pendingWithdraw int64
 	if db.CheckTableExists("withdraw_requests") {
 		if err := db.DB.Model(&models.WithdrawRequest{}).

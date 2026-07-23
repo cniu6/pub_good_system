@@ -125,7 +125,6 @@ var defaultSettings = []SystemSetting{
 	{Key: "admin_rate_limit_rate", Value: "60", Type: "number", Category: "security", Label: "管理端每秒速率", Description: "管理员后台接口每秒允许请求数", IsPublic: false, IsEditable: true, SortOrder: 17},
 	{Key: "admin_rate_limit_burst", Value: "120", Type: "number", Category: "security", Label: "管理端突发上限", Description: "管理员后台接口限流突发流量上限", IsPublic: false, IsEditable: true, SortOrder: 18},
 	{Key: "api_key_auth_enabled", Value: "false", Type: "boolean", Category: "security", Label: "允许APIKey鉴权", Description: "关闭后所有 X-Api-Key 请求直接拒绝（仅允许 Authorization: Bearer 登录），默认关闭，需管理员主动开启", IsPublic: false, IsEditable: true, SortOrder: 19},
-	{Key: "finance_dual_approval", Value: "false", Type: "boolean", Category: "payment", Label: "财务双人复核", Description: "开启后强制补单等高危财务操作需另一管理员审批后才生效；默认关闭", IsPublic: false, IsEditable: true, SortOrder: 30},
 	{Key: "email_verify_enabled", Value: "true", Type: "boolean", Category: "email", Label: "邮箱验证码", Description: "是否启用邮箱验证码功能（关闭后修改邮箱无需验证）", IsPublic: true, IsEditable: true, SortOrder: 0},
 	{Key: "smtp_host", Value: "", Type: "string", Category: "email", Label: "SMTP服务器", Description: "SMTP邮件服务器地址", IsPublic: false, IsEditable: true, SortOrder: 1},
 	{Key: "smtp_port", Value: "587", Type: "number", Category: "email", Label: "SMTP端口", Description: "SMTP服务器端口", IsPublic: false, IsEditable: true, SortOrder: 2},

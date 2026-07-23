@@ -61,7 +61,6 @@ var (
 	adminProfileCtrl          *admin.ProfileController
 	adminTodoCtrl             *admin.TodoController
 	adminExportCtrl           *admin.ExportController
-	adminApprovalCtrl         *admin.ApprovalController
 )
 
 func initControllers() {
@@ -97,7 +96,6 @@ func initControllers() {
 	adminProfileCtrl = admin.NewProfileController()
 	adminTodoCtrl = admin.NewTodoController()
 	adminExportCtrl = admin.NewExportController()
-	adminApprovalCtrl = admin.NewApprovalController()
 }
 
 // SetupRoutes 汇总注册全部 HTTP 路由（详情拆在 public/user/admin 文件）。
