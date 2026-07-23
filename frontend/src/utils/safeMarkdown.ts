@@ -36,8 +36,8 @@ export function sanitizeMarkdownHtml(html: string): string {
   // 无 DOM 环境时做最粗暴的字符串剥离兜底
   if (typeof document === 'undefined') {
     return raw
-      .replace(/<\s*(script|iframe)[\s\S]*?>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
-      .replace(/<\s*(script|iframe)[^>]*\/?\s*>/gi, '')
+      .replace(/<\s*(?:script|iframe)[^>]*>[\s\S]*?<\s*\/\s*(?:script|iframe)\s*>/gi, '')
+      .replace(/<\s*(?:script|iframe)[^>]*>/gi, '')
       .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
   }
 
@@ -72,7 +72,7 @@ export function sanitizeMarkdownHtml(html: string): string {
           if (tag === 'a' && name === 'href') {
             const href = attr.value.trim()
             // 禁止 javascript: / data: 等危险协议
-            if (/^(javascript|data|vbscript):/i.test(href))
+            if (/^(?:javascript|data|vbscript):/i.test(href))
               el.removeAttribute(attr.name)
             else
               el.setAttribute('rel', 'noopener noreferrer')

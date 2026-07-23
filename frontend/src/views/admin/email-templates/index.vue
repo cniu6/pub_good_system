@@ -106,6 +106,16 @@ const testSubject = ref('')
 const testTemplateId = ref<number | null>(null)
 const testSending = ref(false)
 
+const langMap = computed<Record<string, string>>(() => ({
+  'zh-CN': t('adminUsersDetail.chinese'),
+  'en-US': t('adminUsersDetail.english'),
+}))
+
+const templateNameMap = computed<Record<string, string>>(() => ({
+  register_code: text.value.registerCode,
+  reset_password: text.value.resetPassword,
+}))
+
 const templateOptions = computed(() => {
   const opts: { label: string, value: number }[] = []
   templates.value.forEach((tpl) => {
@@ -131,11 +141,6 @@ const previewVars = ref<Record<string, string>>({})
 const previewLoading = ref(false)
 const resetStep = ref(0) // 0=idle, 1=first confirm, 2=second confirm
 
-const langMap = computed<Record<string, string>>(() => ({
-  'zh-CN': t('adminUsersDetail.chinese'),
-  'en-US': t('adminUsersDetail.english'),
-}))
-
 const statusMap = computed(() => ({
   0: { label: text.value.disabled, type: 'error' as const },
   1: { label: text.value.enabled, type: 'success' as const },
@@ -150,11 +155,6 @@ const groupedTemplates = computed(() => {
   })
   return groups
 })
-
-const templateNameMap = computed<Record<string, string>>(() => ({
-  register_code: text.value.registerCode,
-  reset_password: text.value.resetPassword,
-}))
 
 const columns = computed(() => [
   {

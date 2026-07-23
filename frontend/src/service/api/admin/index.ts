@@ -53,6 +53,7 @@ export const adminApi = {
   announcement: createLazyModule(() => import('./announcement').then(m => m.adminAnnouncementApi)),
   profile: createLazyModule(() => import('./profile').then(m => m.adminProfileApi)),
   todo: createLazyModule(() => import('./todo').then(m => m.adminTodoApi)),
-  importExport: createLazyModule(() => import('./import-export').then(m => m.adminImportExportApi)),
-  rbac: createLazyModule(() => import('./rbac').then(m => m.adminRbacApi)),
+  db: createLazyModule(() => import('./db').then(m => m.adminDbApi)),
+  terminal: createLazyModule(() => import('./terminal').then(m => m.adminTerminalApi)),
+  userLevel: createLazyModule(() => import('./user-level').then(m => m.adminUserLevelApi)),
 }

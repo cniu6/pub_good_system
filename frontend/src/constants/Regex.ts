@@ -15,6 +15,6 @@ export enum Regex {
   MobileE164 = '^\\+[1-9]\\d{7,14}$',
 
   RouteName = '^[\\w_!@#$%^&*~-]+$',
-  Username = '^[a-zA-Z0-9_]{3,50}$',
+  Username = '^[a-zA-Z0-9_]{3,64}$',
   Password = '^.{6,}$',
 }

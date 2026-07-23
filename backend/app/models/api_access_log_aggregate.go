@@ -65,7 +65,7 @@ func (APIAccessLogSceneStatRow) TableName() string { return "api_access_log_scen
 
 // APIAccessLogIPStatRow API 访问日志独立 IP 汇总
 type APIAccessLogIPStatRow struct {
-	IP          string `gorm:"column:ip;primaryKey;size:45"`
+	IP          string `gorm:"column:ip;primaryKey;size:64"`
 	FirstSeenAt int64  `gorm:"column:first_seen_at;not null;default:0"`
 	LastSeenAt  int64  `gorm:"column:last_seen_at;not null;default:0"`
 }
@@ -151,7 +151,7 @@ func rebuildAPIAccessLogAggregate(tx *gorm.DB) error {
 	}
 
 	if err := tx.Create(&APIAccessLogStat{
-		StatKey: apiAccessLogAggregateGlobalKey,
+		StatKey:    apiAccessLogAggregateGlobalKey,
 		TotalCount: global.TotalCount, SuccessCount: global.SuccessCount,
 		ClientErrorCount: global.ClientErrorCount, ServerErrorCount: global.ServerErrorCount,
 		TotalDuration: global.TotalDuration, UpdatedAt: now,
@@ -232,7 +232,7 @@ func RecordAPIAccessLogAggregate(item *APIAccessLog) error {
 		routePath := resolveAPIAccessLogAggregateRoute(item.RoutePath, item.Path)
 		method := resolveAPIAccessLogAggregateMethod(item.Method)
 		scene := resolveAPIAccessLogAggregateScene(item.Scene)
-		ip := strings.TrimSpace(item.IP)
+		ip := clampStoredIP(item.IP)
 
 		successCount := int64(0)
 		clientErrorCount := int64(0)
@@ -414,7 +414,7 @@ func resolveAPIAccessLogAggregateRoute(routePath, path string) string {
 	if normalized == "" {
 		return "/"
 	}
-	return normalized
+	return clampPath(normalized)
 }
 
 func resolveAPIAccessLogAggregateMethod(method string) string {
@@ -422,7 +422,7 @@ func resolveAPIAccessLogAggregateMethod(method string) string {
 	if normalized == "" {
 		return "UNKNOWN"
 	}
-	return normalized
+	return clampBytes(normalized, storedMethodLen)
 }
 
 func resolveAPIAccessLogAggregateScene(scene string) string {
@@ -430,5 +430,5 @@ func resolveAPIAccessLogAggregateScene(scene string) string {
 	if normalized == "" {
 		return "unknown"
 	}
-	return normalized
+	return clampBytes(normalized, storedSceneLen)
 }

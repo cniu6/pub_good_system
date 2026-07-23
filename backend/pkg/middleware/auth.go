@@ -139,6 +139,13 @@ func authenticateWithAPIKey(c *gin.Context, apiKey string, acceptGuards []string
 		return
 	}
 
+	// 用户等级能力：是否允许使用 API Key
+	if ok, msg := models.CheckUserLevelAllows(user.ID, "api_key"); !ok {
+		utils.Fail(c, 403, msg)
+		c.Abort()
+		return
+	}
+
 	// IP 白名单（用户级 apikey_allow_ips，逗号分隔；空=不限制）
 	if !apiKeyIPAllowed(user, c.ClientIP()) {
 		log.Printf("[SECURITY] API Key IP denied | user_id=%d ip=%s", user.ID, c.ClientIP())

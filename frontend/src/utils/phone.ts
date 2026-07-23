@@ -6,7 +6,8 @@
  * - false：允许国际 E.164（存 +国家码...）；UI 为国家选择 + 本地号码
  */
 import { Regex } from '@/constants/Regex'
-import { DIAL_COUNTRIES, getDialCountry, type DialCountry } from '@/constants/dialCodes'
+import { DIAL_COUNTRIES, getDialCountry } from '@/constants/dialCodes'
+import type { DialCountry } from '@/constants/dialCodes'
 
 /** 去掉空格/横线/括号，保留开头的 + */
 export function normalizePhoneInput(raw: string): string {

@@ -219,9 +219,9 @@ func (ctrl *ProfileController) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	// 长度限制
-	if len(req.Nickname) > 50 {
-		utils.Fail(c, 400, "昵称长度不能超过50个字符")
+	// 长度限制（昵称与库字段 size:64 对齐，按 rune 计数）
+	if err := utils.ValidateRuneLen(req.Nickname, "昵称", utils.MaxNicknameLength); err != nil {
+		utils.Fail(c, 400, err.Error())
 		return
 	}
 	if len(req.Avatar) > 500 {

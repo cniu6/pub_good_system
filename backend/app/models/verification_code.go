@@ -6,8 +6,6 @@ import (
 	"fst/backend/pkg/db"
 	"log"
 	"time"
-
-	"gorm.io/gorm"
 )
 
 // RepairVerificationCodeTable 存量库修复：email→contact 数据迁移、删除错误旧列，
@@ -149,16 +147,14 @@ func HasRecentVerificationCode(contact, codeType string, since time.Time) (bool,
 	return count > 0, nil
 }
 
-// GetValidVerificationCode 获取有效验证码（未使用、未过期、未软删）
+// GetValidVerificationCode 获取有效验证码（未使用、未过期、未软删）。
+// 查无是常态，用 FindOne 避免 First 刷 record not found。
 func GetValidVerificationCode(contact, codeType string) (*VerificationCode, error) {
 	var vc VerificationCode
-	err := db.DB.Where(
+	err := db.FindOne(db.DB.Where(
 		"contact = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND expires_at > ?",
 		contact, codeType, time.Now(),
-	).Order("created_at DESC").First(&vc).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, sql.ErrNoRows
-	}
+	).Order("created_at DESC"), &vc)
 	if err != nil {
 		return nil, err
 	}
@@ -250,14 +246,13 @@ func CleanupOldVerificationCodes() (int64, error) {
 	return result.RowsAffected, nil
 }
 
-// VerifyCode 验证验证码是否正确（直接匹配）
+// VerifyCode 验证验证码是否正确（直接匹配）。查无是常态，用 FindOne。
 func VerifyCode(contact, code, codeType string) (bool, uint64, error) {
 	var vc VerificationCode
-	err := db.DB.Select("id", "code", "expires_at").
+	err := db.FindOne(db.DB.Select("id", "code", "expires_at").
 		Where("contact = ? AND code = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0", contact, code, codeType).
-		Order("created_at DESC").
-		First(&vc).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+		Order("created_at DESC"), &vc)
+	if errors.Is(err, sql.ErrNoRows) {
 		return false, 0, sql.ErrNoRows
 	}
 	if err != nil {

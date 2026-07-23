@@ -19,8 +19,8 @@ type SMSTemplate struct {
 	Description string `gorm:"column:description;size:255;not null;default:''" json:"description"`
 	Variables   string `gorm:"column:variables;size:500;not null;default:''" json:"variables"`
 	Status      uint8  `gorm:"column:status;not null;default:1" json:"status"`
-	CreatedAt   string `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt   string `gorm:"column:updated_at" json:"updated_at"`
+	CreatedAt   string `gorm:"column:created_at;size:32" json:"created_at"`
+	UpdatedAt   string `gorm:"column:updated_at;size:32" json:"updated_at"`
 }
 
 // TableName 表名
@@ -159,14 +159,10 @@ func GetSMSTemplateByID(id uint64) (*SMSTemplate, error) {
 	return &tpl, nil
 }
 
-// GetSMSTemplateByNameLang 按 name+lang 获取（仅启用）
+// GetSMSTemplateByNameLang 按 name+lang 获取（仅启用；缺模板用 FindOne）
 func GetSMSTemplateByNameLang(name, lang string) (*SMSTemplate, error) {
 	var tpl SMSTemplate
-	err := db.DB.Where("name = ? AND lang = ? AND status = 1", name, lang).First(&tpl).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, sql.ErrNoRows
-	}
-	if err != nil {
+	if err := db.FindOne(db.DB.Where("name = ? AND lang = ? AND status = 1", name, lang), &tpl); err != nil {
 		return nil, err
 	}
 	return &tpl, nil

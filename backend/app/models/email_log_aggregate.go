@@ -35,7 +35,7 @@ func (EmailLogDailyStat) TableName() string { return "email_log_daily_stats" }
 
 // EmailLogTemplateStatRow 邮件日志按模板汇总
 type EmailLogTemplateStatRow struct {
-	TemplateName string `gorm:"column:template_name;primaryKey;size:64"`
+	TemplateName string `gorm:"column:template_name;primaryKey;size:100"`
 	TotalCount   int64  `gorm:"column:total_count;not null;default:0"`
 	SuccessCount int64  `gorm:"column:success_count;not null;default:0"`
 	FailCount    int64  `gorm:"column:fail_count;not null;default:0"`
@@ -301,5 +301,5 @@ func resolveEmailLogAggregateTemplate(name string) string {
 	if normalized == "" {
 		return "unknown"
 	}
-	return normalized
+	return clampBytes(normalized, storedModuleLen) // size:100
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fst/backend/app/models"
 	"fst/backend/pkg/panicsafe"
+	"fst/backend/utils"
 	"io"
 	"log"
 	"strings"
@@ -45,7 +46,7 @@ func SimpleLogMiddleware(module string) gin.HandlerFunc {
 
 		// 响应内容：安全截断（复用 API 访问日志的类型判断；管理端可见，不做字段脱敏）
 		responseContentType := normalizeContentType(blw.Header().Get("Content-Type"))
-		responseBody := sanitizeResponseBodyByType(blw.body.String(), responseContentType, "http", c.Writer.Status())
+		responseBody := sanitizeResponseBodyByType(blw.body.String(), responseContentType, "http", c.Writer.Status(), true)
 		requestBody = sanitizeOperationRequestContent(requestBody)
 
 		handlerName := truncateForLog(c.HandlerName(), 255)
@@ -59,8 +60,8 @@ func SimpleLogMiddleware(module string) gin.HandlerFunc {
 			Module:       module,
 			Action:       getActionByMethod(c.Request.Method),
 			Method:       c.Request.Method,
-			Path:         c.Request.URL.Path,
-			IP:           c.ClientIP(),
+			Path:         utils.ClampBytes(c.Request.URL.Path, maxLogPathLength),
+			IP:           utils.ClampBytes(c.ClientIP(), maxLogIPLength),
 			UserAgent:    truncateForLog(c.Request.UserAgent(), 1000),
 			HandlerName:  handlerName,
 			RequestBody:  &reqPtr,

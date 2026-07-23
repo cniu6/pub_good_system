@@ -21,15 +21,20 @@ function createAppRouter(mode: AppRouteMode): Router {
   })
 }
 
+// installRouter 会按 user/admin 模式重建 router，此处需可写导出供入口替换实例
+// eslint-disable-next-line import/no-mutable-exports -- 见上
 export let router: Router = createAppRouter('user')
 
 export async function installRouter(app: App, mode: AppRouteMode = 'user') {
   router = createAppRouter(mode)
   if (mode === 'admin') {
     // 管理端 hash 入口由 admin-root 接管，移除与管理端冲突的用户端路由
-    if (router.hasRoute('root')) router.removeRoute('root')
-    if (router.hasRoute('user-redirect')) router.removeRoute('user-redirect')
-    if (router.hasRoute('dashboard-redirect')) router.removeRoute('dashboard-redirect')
+    if (router.hasRoute('root'))
+      router.removeRoute('root')
+    if (router.hasRoute('user-redirect'))
+      router.removeRoute('user-redirect')
+    if (router.hasRoute('dashboard-redirect'))
+      router.removeRoute('dashboard-redirect')
   }
   setupRouterGuard(router, mode)
   app.use(router)

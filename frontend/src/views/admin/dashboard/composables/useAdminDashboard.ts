@@ -17,7 +17,7 @@ import {
   StarOutlined,
   UserOutlined,
 } from '@vicons/antd'
-import { useEcharts, useTableColumnVisibility } from '@/hooks'
+import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 import type {
@@ -82,6 +82,7 @@ export function useAdminDashboard() {
   const { t } = useI18n()
   const mode = import.meta.env.MODE
   const loading = ref(false)
+  const dashboardFetchGuard = useRequestGuard()
   const alertOnlyIssues = ref(false)
   const lastRefreshAt = ref<number | null>(null)
 
@@ -776,6 +777,7 @@ export function useAdminDashboard() {
   }
 
   async function fetchDashboard() {
+    const token = dashboardFetchGuard.begin()
     loading.value = true
     let hasData = false
     try {
@@ -784,6 +786,9 @@ export function useAdminDashboard() {
         adminApi.server.monitoring(),
         adminApi.server.operations(),
       ])
+
+      if (!dashboardFetchGuard.isLatest(token))
+        return false
 
       if (dashboardResult.status === 'fulfilled') {
         const dashboardRes = dashboardResult.value
@@ -831,12 +836,15 @@ export function useAdminDashboard() {
         lastRefreshAt.value = Math.floor(Date.now() / 1000)
     }
     catch (error) {
+      if (!dashboardFetchGuard.isLatest(token))
+        return false
       if (import.meta.env.DEV)
         console.error('[adminDashboard] fetch failed', error)
       message.error(t('adminDashboard.fetchFailed'))
     }
     finally {
-      loading.value = false
+      if (dashboardFetchGuard.isLatest(token))
+        loading.value = false
     }
     return hasData
   }

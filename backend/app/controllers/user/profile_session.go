@@ -9,8 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetApiKey 获取当前用户的 API Key（数据库仅存哈希，这里只返回掩码后的末4位；
-// 完整明文只在 ResetApiKey 生成时一次性返回，此接口任何时候都不下发明文）
+// GetApiKey 获取当前用户的 API Key 明文（用户中心随时查看/复制；前端用 password 眼睛控制显隐）。
 func (ctrl *ProfileController) GetApiKey(c *gin.Context) {
 	user_id, exists := c.Get("userID")
 	if !exists {
@@ -29,10 +28,10 @@ func (ctrl *ProfileController) GetApiKey(c *gin.Context) {
 		return
 	}
 
-	masked := user.MaskedApikey()
+	plain := user.PlainApikeyForOwner()
 	var apikeyValue any
-	if masked != "" {
-		apikeyValue = masked
+	if plain != "" {
+		apikeyValue = plain
 	}
 	utils.Success(c, gin.H{"apikey": apikeyValue})
 }

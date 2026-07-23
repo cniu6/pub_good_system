@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { unref } from 'vue'
+import { markSessionExpired, resetSessionExpired } from '@/service/http/auth-expiration'
 import { refreshAuthToken } from '@/service/http/token-refresh'
 import { router } from '@/router'
 import { buildAdminEntryUrl, getAdminBasePath } from '@/router/constants'
@@ -28,8 +29,11 @@ function isSafeInternalRedirect(path: string): boolean {
     return false
   if (trimmed.includes('://'))
     return false
-  if (/[\x00-\x1F\x7F]/.test(trimmed))
-    return false
+  for (let i = 0; i < trimmed.length; i++) {
+    const code = trimmed.charCodeAt(i)
+    if ((code >= 0 && code <= 31) || code === 127)
+      return false
+  }
   return true
 }
 
@@ -39,6 +43,10 @@ interface AuthStatus {
   accessTokenExpiresAt: number | null
   refreshTimer: ReturnType<typeof setTimeout> | null
   isLoggingOut: boolean
+  /** 被动失效后显示全局登录恢复弹窗，保持当前页面不跳转。 */
+  needsReauthentication: boolean
+  /** 触发被动失效前的账号 ID，用于避免新账号看到旧页面中的敏感数据。 */
+  reauthenticationUserId: number | null
   /**
    * 会话代际计数器：每次登出/登录都会递增。
    * 用于丢弃「登出前已发出、登出后才返回」的过期 token 刷新结果，
@@ -54,6 +62,8 @@ export const useAuthStore = defineStore('auth-store', {
       accessTokenExpiresAt: authStorage.get('accessTokenExpiresAt') || null,
       refreshTimer: null,
       isLoggingOut: false,
+      needsReauthentication: false,
+      reauthenticationUserId: null,
       authGeneration: 0,
     }
   },
@@ -115,6 +125,49 @@ export const useAuthStore = defineStore('auth-store', {
     clearAuthStorage() {
       authStorage.clearActive()
     },
+    /**
+     * 被动会话失效：停止所有认证能力并打开全局登录恢复弹窗。
+     * 不重置路由、标签和页面组件，避免用户正在编辑的数据丢失。
+     */
+    requireReauthentication() {
+      if (this.needsReauthentication || this.isLoggingOut)
+        return
+
+      markSessionExpired()
+      this.authGeneration += 1
+      this.clearRefreshTimer()
+      stopPresence()
+      this.reauthenticationUserId = this.userInfo?.id ?? null
+      this.clearAuthStorage()
+      this.userInfo = null
+      this.token = ''
+      this.accessTokenExpiresAt = null
+      this.needsReauthentication = true
+    },
+    /**
+     * 用户端 localStorage 被其它标签登录/退出后，Pinia 不会自动更新。
+     * 此处只从当前 active scope 回填内存态；管理端/login-as 的 sessionStorage 隔离不参与跨标签同步。
+     */
+    hydrateFromStorage() {
+      if (this.isLoggingOut)
+        return false
+
+      const accessToken = authStorage.get('accessToken')
+      const refreshToken = authStorage.get('refreshToken')
+      const userInfo = authStorage.get('userInfo')
+      if (!accessToken || !refreshToken || !userInfo)
+        return false
+
+      this.token = accessToken
+      this.userInfo = userInfo
+      this.accessTokenExpiresAt = authStorage.get('accessTokenExpiresAt') || null
+      this.needsReauthentication = false
+      this.reauthenticationUserId = null
+      resetSessionExpired()
+      this.startPresence()
+      this.setupAutoRefresh()
+      return true
+    },
     clearRefreshTimer() {
       if (this.refreshTimer) {
         clearTimeout(this.refreshTimer)
@@ -122,8 +175,8 @@ export const useAuthStore = defineStore('auth-store', {
       }
     },
 
-    /* 用户登录；管理端若启用 TOTP，返回 need_totp 而不落正式会话 */
-    async login(userName: string, password: string): Promise<{ status: 'ok' | 'need_totp' | 'fail', tempToken?: string }> {
+    /* 用户登录 */
+    async login(userName: string, password: string, options?: { preserveCurrentPage?: boolean }): Promise<{ status: 'ok' | 'fail' }> {
       try {
         const mode = getRuntimeRouteMode()
         const authGuard = mode === 'admin' ? 'admin' : 'user'
@@ -139,11 +192,7 @@ export const useAuthStore = defineStore('auth-store', {
           return { status: 'fail' }
         }
 
-        if (loginData.need_totp && loginData.temp_token) {
-          return { status: 'need_totp', tempToken: loginData.temp_token }
-        }
-
-        await this.handleLoginInfo(loginData)
+        await this.handleLoginInfo(loginData, options)
         return { status: 'ok' }
       }
       catch (error: unknown) {
@@ -157,35 +206,15 @@ export const useAuthStore = defineStore('auth-store', {
       }
     },
 
-    /** 管理端 TOTP 第二步：用临时令牌 + 动态码换正式会话 */
-    async loginWithTotp(tempToken: string, code: string): Promise<boolean> {
-      try {
-        const { fetchLoginTotp } = await import('@/service/api/user/login')
-        const result = await fetchLoginTotp({ temp_token: tempToken, code, clientType: 'web' })
-        if (!result.isSuccess || !result.data) {
-          window.$message?.error(result.message || $t('login.totpFailed'))
-          return false
-        }
-        await this.handleLoginInfo(result.data as LoginInfoPayload)
-        return true
-      }
-      catch (error: unknown) {
-        const tip = error && typeof error === 'object' && 'message' in error
-          && typeof (error as { message?: unknown }).message === 'string'
-          ? (error as { message: string }).message
-          : $t('login.totpFailed')
-        window.$message?.error(tip)
-        return false
-      }
-    },
-
     /* 处理登录返回的数据 */
-    async handleLoginInfo(data: LoginInfoPayload) {
+    async handleLoginInfo(data: LoginInfoPayload, options?: { preserveCurrentPage?: boolean }) {
       // 递增会话代际：避免上一个会话遗留的旧刷新请求晚于本次登录 resolve 后覆盖新会话
       this.authGeneration += 1
+      // 新会话已建立，解除旧会话过期期间对并发请求的保护状态。
+      resetSessionExpired()
       // 与后端对齐：仅 admin/user；历史 super 视为 admin
       const rawRoles: string[] = Array.isArray(data.role) && data.role.length ? data.role as string[] : ['user']
-      const roles: Entity.RoleType[] = rawRoles.map((r) => (r === 'admin' || r === 'super' ? 'admin' : 'user'))
+      const roles: Entity.RoleType[] = rawRoles.map(r => (r === 'admin' || r === 'super' ? 'admin' : 'user'))
       const userInfo: LoginInfoPayload = { ...data, role: roles }
 
       // 将token和userInfo保存下来
@@ -195,6 +224,13 @@ export const useAuthStore = defineStore('auth-store', {
       authStorage.setActive('role', roles)
 
       const isAdmin = roles.includes('admin')
+      const routeMode = getRuntimeRouteMode()
+      const isSameUser = this.reauthenticationUserId === userInfo.id
+      // 只有同一账号且具备当前端权限时，才允许保留旧页面，避免泄露旧账号数据。
+      const preserveCurrentPage = options?.preserveCurrentPage
+        && this.needsReauthentication
+        && isSameUser
+        && (routeMode !== 'admin' || isAdmin)
 
       if (userInfo.expiresAt) {
         authStorage.setActive('accessTokenExpiresAt', userInfo.expiresAt)
@@ -203,12 +239,24 @@ export const useAuthStore = defineStore('auth-store', {
 
       this.token = userInfo.accessToken
       this.userInfo = userInfo
+      this.needsReauthentication = false
+      this.reauthenticationUserId = null
       this.startPresence()
 
       // 添加路由和菜单
       const routeStore = useRouteStore()
-      const routeMode = getRuntimeRouteMode()
+      if (options?.preserveCurrentPage && !preserveCurrentPage) {
+        routeStore.resetRouteStore()
+        const tabStore = useTabStore()
+        tabStore.clearAllTabs()
+      }
       await routeStore.initAuthRoute(routeMode)
+
+      if (preserveCurrentPage) {
+        this.restoreLanguageFromBackend()
+        this.setupAutoRefresh()
+        return
+      }
 
       // 进行重定向跳转（仅允许站内相对路径，防 open redirect）
       const route = unref(router.currentRoute)
@@ -242,10 +290,14 @@ export const useAuthStore = defineStore('auth-store', {
     },
 
     applyRefreshedLoginInfo(data: LoginInfoPayload) {
+      // 广播消息可能与本页登出交错到达；登出中的会话不能被任何迟到刷新结果重新写回。
+      if (this.isLoggingOut || this.needsReauthentication || !data.accessToken || !data.refreshToken)
+        return
+
       const rawRoles: string[] = Array.isArray(data.role) && data.role.length
         ? data.role as string[]
         : ((this.userInfo?.role || ['user']) as string[])
-      const roles: Entity.RoleType[] = rawRoles.map((r) => (r === 'admin' || r === 'super' ? 'admin' : 'user'))
+      const roles: Entity.RoleType[] = rawRoles.map(r => (r === 'admin' || r === 'super' ? 'admin' : 'user'))
       const nextUserInfo: LoginInfoPayload = {
         ...(this.userInfo || {} as LoginInfoPayload),
         ...data,
@@ -274,8 +326,7 @@ export const useAuthStore = defineStore('auth-store', {
       const settingsStore = useSettingsStore()
       const intervalMs = settingsStore.onlineReportIntervalSeconds * 1000
       startPresence(this.token, () => {
-        window.$message.warning($t('securityTab.forcedLogout'))
-        void this.logout(false)
+        this.requireReauthentication()
       }, intervalMs)
     },
 
@@ -335,17 +386,16 @@ export const useAuthStore = defineStore('auth-store', {
       // 说明这是一次过期结果，直接丢弃，不能再写回 storage 或重启定时器/Presence。
       const generation = this.authGeneration
       try {
-        const refreshToken = authStorage.get('refreshToken')
-        if (!refreshToken) {
-          await this.logout()
+        if (!authStorage.get('refreshToken')) {
+          this.requireReauthentication()
           return
         }
 
-        const nextLoginInfo = await refreshAuthToken(refreshToken)
+        const nextLoginInfo = await refreshAuthToken()
         if (this.authGeneration !== generation)
           return
         if (!nextLoginInfo) {
-          await this.logout()
+          this.requireReauthentication()
           return
         }
 
@@ -354,7 +404,7 @@ export const useAuthStore = defineStore('auth-store', {
       catch {
         if (this.authGeneration !== generation)
           return
-        await this.logout()
+        this.requireReauthentication()
       }
     },
   },

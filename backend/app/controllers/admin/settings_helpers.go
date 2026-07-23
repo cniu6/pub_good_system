@@ -182,6 +182,11 @@ func (ctrl *SettingsController) resolveSettingValueForAdmin(setting models.Syste
 			return services.GetGlobalRegisterCodeExpireMinutes()
 		}
 		return setting.GetTypedValue()
+	case "register_default_level":
+		if strings.TrimSpace(setting.Value) == "" {
+			return services.GetGlobalRegisterDefaultLevel()
+		}
+		return setting.GetTypedValue()
 	case "jwt_access_expire":
 		if strings.TrimSpace(setting.Value) == "" {
 			if cfg.JWTAccessExpire > 0 {

@@ -1,6 +1,6 @@
 import type { Router } from 'vue-router'
 import type { AppRouteMode } from './index'
-import { useAppStore, useRouteStore, useTabStore } from '@/store'
+import { useAppStore, useAuthStore, useRouteStore, useTabStore } from '@/store'
 import { i18n } from '@/modules/i18n'
 import { authStorage, resolveI18nText } from '@/utils'
 import { buildAdminEntryUrl, getAdminBasePath } from './constants'
@@ -41,9 +41,16 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
   router.beforeEach(async (to, _from, next) => {
     const adminPath = getAdminBasePath()
     const isAdminRoute = isAdminRoutePath(to.path, mode, adminPath)
+    const authStore = useAuthStore()
 
     if (to.meta.href) {
       window.open(to.meta.href)
+      next(false)
+      return
+    }
+
+    // 会话恢复弹窗显示时保持当前路由，禁止守卫把用户带去独立登录页。
+    if (authStore.needsReauthentication) {
       next(false)
       return
     }
@@ -54,6 +61,12 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
     const roleValue = authStorage.get('role')
     const roles = Array.isArray(roleValue) ? roleValue : (roleValue ? [roleValue] : [])
     const hasAdminRole = roles.includes('admin')
+    // 用户端可能在其它标签刚完成登录；路由守卫读到 localStorage 后要同步 Pinia，
+    // 否则路由虽放行，页面仍没有 userInfo / Presence / 自动刷新状态。
+    if (mode === 'user' && isLogin) {
+      if (!authStore.isLogin || authStore.token !== authStorage.get('accessToken'))
+        authStore.hydrateFromStorage()
+    }
 
     routeStore.setMenuMode(to.path, mode)
 

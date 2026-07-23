@@ -6,7 +6,16 @@ import GeetestCaptcha from '@/components/common/GeetestCaptcha.vue'
 import { geetestManager } from '@/utils/geetest'
 import { getRuntimeRouteMode } from '@/router/runtime-mode'
 
-const emit = defineEmits(['update:modelValue'])
+const props = withDefaults(defineProps<{
+  preserveCurrentPage?: boolean
+}>(), {
+  preserveCurrentPage: false,
+})
+
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: 'login' | 'register' | 'resetPwd'): void
+  (e: 'success'): void
+}>()
 
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
@@ -18,14 +27,14 @@ const hasCaptchaId = computed(() => Boolean(settingsStore.geetestCaptchaId))
 // 综合判断：后端启用 且 有配置 captchaId
 const shouldShowCaptcha = computed(() => isGeetestEnabled.value && hasCaptchaId.value)
 
-// 「禁止网页端登录」开关仅拦截普通用户（管理端路由模式不受影响）；
-// 命中时直接禁用登录表单，避免用户提交后才收到后端 403 提示。
-const isWebLoginDisabled = computed(() => getRuntimeRouteMode() !== 'admin' && settingsStore.webLoginDisabled)
+// 关闭「允许用户登录」后禁用用户端登录表单（管理端不受影响）；注册入口单独看 allowRegister
+const isUserLoginDisabled = computed(() => getRuntimeRouteMode() !== 'admin' && !settingsStore.allowUserLogin)
+const showRegisterEntry = computed(() => settingsStore.allowRegister)
 
 const isCaptchaVerified = ref(false)
 const captchaKey = ref(0)
 
-function toOtherForm(type: any) {
+function toOtherForm(type: 'login' | 'register' | 'resetPwd') {
   emit('update:modelValue', type)
 }
 
@@ -50,16 +59,12 @@ const formValue = ref({
 })
 const isRemember = ref(false)
 const isLoading = ref(false)
-// 管理端 TOTP 第二步
-const needTotp = ref(false)
-const totpTempToken = ref('')
-const totpCode = ref('')
 
 const formRef = ref<FormInst | null>(null)
 
 async function handleLogin() {
-  if (isWebLoginDisabled.value) {
-    window.$message.warning(t('login.webLoginDisabledTip'))
+  if (isUserLoginDisabled.value) {
+    window.$message.warning(t('login.userLoginDisabledTip'))
     return
   }
 
@@ -86,16 +91,14 @@ async function handleLogin() {
   else local.remove('loginAccount')
 
   const hadToken = Boolean(authStorage.get('accessToken'))
-  const loginResult = await authStore.login(account, pwd)
-  if (loginResult.status === 'need_totp' && loginResult.tempToken) {
-    needTotp.value = true
-    totpTempToken.value = loginResult.tempToken
-    totpCode.value = ''
-    isLoading.value = false
-    return
-  }
+  const result = await authStore.login(account, pwd, {
+    preserveCurrentPage: props.preserveCurrentPage,
+  })
 
   const hasTokenNow = Boolean(authStorage.get('accessToken'))
+
+  if (result.status === 'ok')
+    emit('success')
 
   if (!hadToken && !hasTokenNow) {
     isCaptchaVerified.value = false
@@ -103,29 +106,6 @@ async function handleLogin() {
     captchaKey.value++ // 登录失败，重新渲染极验
   }
   isLoading.value = false
-}
-
-async function handleTotpLogin() {
-  if (!totpCode.value || !totpTempToken.value) {
-    window.$message.warning(t('login.totpRequired'))
-    return
-  }
-  isLoading.value = true
-  const ok = await authStore.loginWithTotp(totpTempToken.value, totpCode.value.trim())
-  if (!ok) {
-    isLoading.value = false
-    return
-  }
-  needTotp.value = false
-  totpTempToken.value = ''
-  totpCode.value = ''
-  isLoading.value = false
-}
-
-function cancelTotp() {
-  needTotp.value = false
-  totpTempToken.value = ''
-  totpCode.value = ''
 }
 
 async function onGeetestSuccess() {
@@ -191,30 +171,11 @@ function checkUserAccount() {
 <template>
   <div>
     <n-h2 depth="3" class="text-center">
-      {{ needTotp ? $t('login.totpTitle') : $t('login.signInTitle') }}
+      {{ $t('login.signInTitle') }}
     </n-h2>
-    <n-alert v-if="isWebLoginDisabled" type="warning" :show-icon="true" class="mb-16" :title="$t('login.webLoginDisabledTip')" />
+    <n-alert v-if="isUserLoginDisabled" type="warning" :show-icon="true" class="mb-16" :title="$t('login.userLoginDisabledTip')" />
 
-    <!-- 管理端 TOTP 第二步：输入动态码 -->
-    <n-space v-if="needTotp" vertical :size="20">
-      <n-alert type="info" :show-icon="true" :title="$t('login.totpHint')" />
-      <n-input
-        v-model:value="totpCode"
-        size="large"
-        maxlength="8"
-        :placeholder="$t('login.totpPlaceholder')"
-        :input-props="{ autocomplete: 'one-time-code', inputmode: 'numeric' }"
-        @keyup.enter="handleTotpLogin"
-      />
-      <n-button block type="primary" size="large" :loading="isLoading" :disabled="isLoading" @click="handleTotpLogin">
-        {{ $t('login.totpConfirm') }}
-      </n-button>
-      <n-button block quaternary :disabled="isLoading" @click="cancelTotp">
-        {{ $t('common.cancel') }}
-      </n-button>
-    </n-space>
-
-    <n-form v-else ref="formRef" :rules="rules" :model="formValue" :show-label="false" size="large" :disabled="isWebLoginDisabled">
+    <n-form ref="formRef" :rules="rules" :model="formValue" :show-label="false" size="large" :disabled="isUserLoginDisabled">
       <!-- 账号 username / 密码 current-password：配合浏览器密码管理器，不写 localStorage 明文密码 -->
       <n-form-item path="account">
         <n-input v-model:value="formValue.account" clearable :placeholder="$t('login.accountOrEmailPlaceholder')" name="username" :input-props="{ autocomplete: 'username', name: 'username' }" />
@@ -234,15 +195,15 @@ function checkUserAccount() {
           <n-checkbox v-model:checked="isRemember">
             {{ $t('login.rememberMe') }}
           </n-checkbox>
-          <n-button type="primary" text :disabled="isWebLoginDisabled" @click="toOtherForm('resetPwd')">
+          <n-button type="primary" text :disabled="isUserLoginDisabled" @click="toOtherForm('resetPwd')">
             {{ $t('login.forgotPassword') }}
           </n-button>
         </div>
         <GeetestCaptcha v-if="shouldShowCaptcha" :key="captchaKey" @success="onGeetestSuccess" @error="onGeetestError" />
-        <n-button block type="primary" size="large" :loading="isLoading" :disabled="isLoading || isWebLoginDisabled" @click="handleLogin">
+        <n-button block type="primary" size="large" :loading="isLoading" :disabled="isLoading || isUserLoginDisabled" @click="handleLogin">
           {{ $t('login.signIn') }}
         </n-button>
-        <n-flex v-if="!isWebLoginDisabled">
+        <n-flex v-if="showRegisterEntry">
           <n-text>{{ $t('login.noAccountText') }}</n-text>
           <n-button type="primary" text @click="toOtherForm('register')">
             {{ $t('login.signUp') }}
@@ -250,28 +211,26 @@ function checkUserAccount() {
         </n-flex>
       </n-space>
     </n-form>
-    <template v-if="!needTotp">
-      <n-divider>
-        <span op-80>{{ $t('login.or') }}</span>
-      </n-divider>
-      <n-space justify="center">
-        <n-button circle>
-          <template #icon>
-            <n-icon><icon-park-outline-wechat /></n-icon>
-          </template>
-        </n-button>
-        <n-button circle>
-          <template #icon>
-            <n-icon><icon-park-outline-tencent-qq /></n-icon>
-          </template>
-        </n-button>
-        <n-button circle>
-          <template #icon>
-            <n-icon><icon-park-outline-github-one /></n-icon>
-          </template>
-        </n-button>
-      </n-space>
-    </template>
+    <n-divider>
+      <span op-80>{{ $t('login.or') }}</span>
+    </n-divider>
+    <n-space justify="center">
+      <n-button circle>
+        <template #icon>
+          <n-icon><icon-park-outline-wechat /></n-icon>
+        </template>
+      </n-button>
+      <n-button circle>
+        <template #icon>
+          <n-icon><icon-park-outline-tencent-qq /></n-icon>
+        </template>
+      </n-button>
+      <n-button circle>
+        <template #icon>
+          <n-icon><icon-park-outline-github-one /></n-icon>
+        </template>
+      </n-button>
+    </n-space>
   </div>
 </template>
 

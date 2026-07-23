@@ -35,12 +35,14 @@ func RunAutoMigrate() {
 	// AutoMigrate 覆盖不到的存量补丁
 	models.EnsureRealnameCertUniqueConstraint()
 	models.RepairVerificationCodeTable()
+	models.RepairHashedApiKeys()
 	dropObsoleteFinanceApprovalArtifacts()
+	dropObsoleteRBACArtifacts()
 
 	// 业务种子与聚合表历史回填
 	models.SeedEmailTemplates()
 	models.SeedSystemSettings()
-	models.SeedRBACDefaults()
+	models.SeedUserLevelCaps()
 	models.SeedSMSTemplates()
 	models.BackfillAPIAccessLogAggregateIfNeeded()
 	models.BackfillEmailLogAggregateIfNeeded()

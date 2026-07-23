@@ -4,7 +4,9 @@
 import { request } from '../../http'
 import { getAdminApiBase } from './base'
 
-function baseUrl() { return `${getAdminApiBase()}/sms-templates` }
+function baseUrl() {
+  return `${getAdminApiBase()}/sms-templates`
+}
 
 export interface SMSTemplate {
   id: number
@@ -41,7 +43,7 @@ export const adminSMSTemplateApi = {
     content: string
     vars?: Record<string, any>
   }) {
-    return request.Post<Service.ResponseResult<{ content: string; sign_name: string }>>(`${baseUrl()}/${id}/preview`, data)
+    return request.Post<Service.ResponseResult<{ content: string, sign_name: string }>>(`${baseUrl()}/${id}/preview`, data)
   },
 
   reset(id: number) {
@@ -49,8 +51,8 @@ export const adminSMSTemplateApi = {
   },
 
   /** 短信发送测试（对齐邮件 email-send-test） */
-  sendTest(data: { phone: string; lang?: string }) {
-    return request.Post<Service.ResponseResult<{ message?: string; provider?: string; phone?: string }>>(
+  sendTest(data: { phone: string, lang?: string }) {
+    return request.Post<Service.ResponseResult<{ message?: string, provider?: string, phone?: string }>>(
       `${getAdminApiBase()}/sms-send-test`,
       data,
     )

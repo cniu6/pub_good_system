@@ -27,6 +27,7 @@ export const systemSubTab = ref('basic')
 
 export const switchLoading = reactive({
   allow_register: false,
+  allow_user_login: false,
   announcement_enabled: false,
   allow_delete_account: false,
   smtp_ssl: false,
@@ -35,7 +36,6 @@ export const switchLoading = reactive({
   realname_enabled: false,
   realname_review_required: false,
   realname_api_enabled: false,
-  disable_web_login: false,
   email_verify_enabled: false,
   sms_verify_enabled: false,
   payment_enabled: false,
@@ -54,6 +54,8 @@ export const basicForm = reactive({
   version: '',
   default_lang: 'zhCN',
   allow_register: true,
+  register_default_level: 1,
+  allow_user_login: true,
   announcement_enabled: true,
   frontend_url: '',
   backend_api_url: '',
@@ -103,7 +105,6 @@ export const securityForm = reactive({
   login_max_failure: 5,
   login_lock_duration: 10,
   allow_delete_account: false,
-  disable_web_login: false,
   realname_enabled: true,
   realname_review_required: true,
   realname_notify_text: '',

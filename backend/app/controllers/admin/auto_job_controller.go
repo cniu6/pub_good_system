@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"log"
 	"strconv"
 	"strings"
 
@@ -146,9 +147,10 @@ func (ctrl *AutoJobController) RunJob(c *gin.Context) {
 		utils.Fail(c, 400, err.Error())
 		return
 	}
-	// 失败也返回 run 详情
+	// 失败也返回 run 详情；对外用固定文案，内部错误写入 run.ErrorText / 日志
 	if err != nil {
-		utils.SuccessMsg(c, err.Error(), run)
+		log.Printf("[ADMIN][AUTOJOB] run failed job=%s: %v", code, err)
+		utils.SuccessMsg(c, "任务执行失败", run)
 		return
 	}
 	utils.Success(c, run)

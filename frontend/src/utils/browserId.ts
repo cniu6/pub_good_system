@@ -1,8 +1,13 @@
+import { authStorage } from './storage'
+
 /**
- * 浏览器实例 ID：同一浏览器（含多标签页）共享，存在 localStorage。
- * 用途：登录/在线心跳时告诉后端「这是同一台浏览器」，避免多标签各自登录产生多条在线会话。
+ * 浏览器会话 ID：
+ * - 用户端 localStorage 会话：同一浏览器多标签共享，避免重复创建用户会话。
+ * - 管理端 / login-as 的 sessionStorage 隔离会话：每个标签独立，避免后登录标签
+ *   被后端识别为“同一浏览器的新会话”而撤销此前标签的管理员 Token。
  */
-const BROWSER_ID_KEY = 'fst_browser_id'
+const LOCAL_BROWSER_ID_KEY = 'fst_browser_id'
+const SESSION_BROWSER_ID_KEY = 'fst_session_browser_id'
 
 function createBrowserId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
@@ -11,14 +16,19 @@ function createBrowserId() {
 }
 
 export function getBrowserId(): string {
-  if (typeof localStorage === 'undefined')
+  if (typeof window === 'undefined')
     return createBrowserId()
+
   try {
-    const existing = localStorage.getItem(BROWSER_ID_KEY)
+    const useSessionStorage = authStorage.getActiveScope() === 'session'
+    const storage = useSessionStorage ? window.sessionStorage : window.localStorage
+    const key = useSessionStorage ? SESSION_BROWSER_ID_KEY : LOCAL_BROWSER_ID_KEY
+    const existing = storage.getItem(key)
     if (existing && existing.trim())
       return existing.trim()
+
     const next = createBrowserId()
-    localStorage.setItem(BROWSER_ID_KEY, next)
+    storage.setItem(key, next)
     return next
   }
   catch {

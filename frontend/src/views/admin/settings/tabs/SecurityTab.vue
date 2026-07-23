@@ -10,7 +10,6 @@ const {
   restartingBackend,
   handleUpdateGeetestEnabled,
   handleUpdateAllowDeleteAccount,
-  handleUpdateDisableWebLogin,
   handleUpdateRealnameEnabled,
   handleUpdateRealnameReviewRequired,
   handleSaveSecurity,
@@ -44,21 +43,6 @@ const {
             {{ securityForm.allow_delete_account ? t('adminSettings.allowDeleteAccountEnabled') : t('adminSettings.allowDeleteAccountDisabled') }}
           </n-text>
         </n-space>
-      </n-form-item>
-      <n-form-item :label="t('adminSettings.disableWebLogin')">
-        <n-space align="center">
-          <n-switch
-            :value="securityForm.disable_web_login"
-            :loading="switchLoading.disable_web_login"
-            @update:value="handleUpdateDisableWebLogin"
-          />
-          <n-text depth="3">
-            {{ securityForm.disable_web_login ? t('adminSettings.disableWebLoginEnabled') : t('adminSettings.disableWebLoginDisabled') }}
-          </n-text>
-        </n-space>
-        <n-text depth="3" style="display: block; margin-top: 4px; font-size: 12px;">
-          {{ t('adminSettings.disableWebLoginHint') }}
-        </n-text>
       </n-form-item>
       <n-form-item :label="t('adminSettings.geetestCaptchaId')">
         <n-input

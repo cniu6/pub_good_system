@@ -36,7 +36,7 @@ type AdminUserListItem struct {
 	RealnameStatus   *uint8  `gorm:"column:realname_status" json:"realname_status"`
 	TotalPaidAmount  float64 `gorm:"column:total_paid_amount" json:"total_paid_amount"`
 	BalancePaidRatio float64 `gorm:"column:balance_paid_ratio" json:"balance_paid_ratio"`
-	// ApikeyMasked 管理端列表/详情展示用：仅末4位，数据库存的哈希/明文都不下发
+	// ApikeyMasked 管理端列表/详情展示用：仅末4位，不下发明文
 	ApikeyMasked string `gorm:"-" json:"apikey"`
 	// LastSeenAt 最近一次会话心跳时间（跨全部设备取最大值），来自 user_sessions；无会话记录时为 0。
 	// 仅供列表展示「上次在线」参考，不代表当前是否在线。
@@ -232,6 +232,25 @@ type UserCreateRequest struct {
 
 // Create 创建用户
 func (s *UserService) Create(req *UserCreateRequest) (*models.User, error) {
+	if err := validateClientRuneLen(req.Username, "用户名", utils.MaxUsernameLength); err != nil {
+		return nil, err
+	}
+	if err := validateClientRuneLen(req.Nickname, "昵称", utils.MaxNicknameLength); err != nil {
+		return nil, err
+	}
+	if err := validateClientRuneLen(req.Email, "邮箱", utils.MaxEmailLength); err != nil {
+		return nil, err
+	}
+	if err := validateClientRuneLen(req.AdminRemark, "管理员备注", utils.MaxAdminRemarkLength); err != nil {
+		return nil, err
+	}
+	if err := validateClientRuneLen(req.Country, "国家/地区", utils.MaxCountryLength); err != nil {
+		return nil, err
+	}
+	if err := validateClientRuneLen(req.Language, "语言", utils.MaxLanguageLength); err != nil {
+		return nil, err
+	}
+
 	// 检查用户名是否已存在（DB 故障不可吞掉，否则会跳过唯一性判断）
 	existing, err := models.GetUserByUsername(req.Username)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -354,6 +373,9 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 
 	// 检查邮箱是否被其他用户使用（DB 查询本身出错要直接拒绝，不能当成「邮箱不存在」放过）
 	if req.Email != nil && *req.Email != user.Email {
+		if err := validateClientRuneLen(*req.Email, "邮箱", utils.MaxEmailLength); err != nil {
+			return err
+		}
 		existing, err := models.GetUserByEmail(*req.Email)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return errors.New("检查邮箱失败: " + err.Error())
@@ -385,6 +407,9 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 	}
 
 	if req.Nickname != nil {
+		if err := validateClientRuneLen(*req.Nickname, "昵称", utils.MaxNicknameLength); err != nil {
+			return err
+		}
 		user.Nickname = *req.Nickname
 	}
 	if req.Avatar != nil {
@@ -403,12 +428,21 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 		user.BackGround = *req.BackGround
 	}
 	if req.Language != nil {
+		if err := validateClientRuneLen(*req.Language, "语言", utils.MaxLanguageLength); err != nil {
+			return err
+		}
 		user.Language = *req.Language
 	}
 	if req.Country != nil {
+		if err := validateClientRuneLen(*req.Country, "国家/地区", utils.MaxCountryLength); err != nil {
+			return err
+		}
 		user.Country = *req.Country
 	}
 	if req.AdminRemark != nil {
+		if err := validateClientRuneLen(*req.AdminRemark, "管理员备注", utils.MaxAdminRemarkLength); err != nil {
+			return err
+		}
 		user.AdminRemark = *req.AdminRemark
 	}
 	if req.Level != nil && *req.Level > 0 {
@@ -603,15 +637,9 @@ func revokeAllGuardSessions(user_id uint64) {
 	}
 }
 
-// UpdateLoginInfo 更新登录信息
+// UpdateLoginInfo 更新登录信息（委托 models，统一 IP 截断与 lock_until 清理）。
 func (s *UserService) UpdateLoginInfo(user_id uint64, ip string) error {
-	now := time.Now().Unix()
-	return db.DB.Model(&models.User{}).Where("id = ? AND delete_time IS NULL", user_id).Updates(map[string]interface{}{
-		"last_login_time": now,
-		"last_login_ip":   ip,
-		"login_failure":   0,
-		"update_time":     now,
-	}).Error
+	return models.UpdateLoginInfo(user_id, ip)
 }
 
 // IncrementLoginFailure 增加登录失败次数

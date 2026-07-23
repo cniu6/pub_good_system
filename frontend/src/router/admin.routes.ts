@@ -253,24 +253,6 @@ export function getAdminRoutes(): RouteRecordRaw[] {
                 icon: 'icon-park-outline:user',
               },
             },
-            {
-              path: 'import-export',
-              name: 'admin-import-export',
-              component: () => import('@/views/admin/import-export/index.vue'),
-              meta: {
-                title: 'route.adminImportExport',
-                icon: 'icon-park-outline:upload-one',
-              },
-            },
-            {
-              path: 'rbac',
-              name: 'admin-rbac',
-              component: () => import('@/views/admin/rbac/index.vue'),
-              meta: {
-                title: 'route.adminRbac',
-                icon: 'icon-park-outline:permissions',
-              },
-            },
           ],
         },
       ],

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, h, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   NAlert,
@@ -75,7 +75,6 @@ const selectedOrder = ref<PaymentOrder | null>(null)
 // ========== 订单数据 ==========
 const orderData = ref<PaymentOrder[]>([])
 const refreshingOrders = ref<Set<number>>(new Set())
-const autoRefreshTimer = ref<ReturnType<typeof setInterval> | null>(null)
 
 // ========== 支付回跳结果展示 ==========
 type PaymentReturnResult = 'success' | 'pending' | 'error'
@@ -380,34 +379,6 @@ async function fetchOrders() {
   }
 }
 
-// ========== 自动刷新 ==========
-function startAutoRefresh() {
-  stopAutoRefresh()
-  autoRefreshTimer.value = setInterval(async () => {
-    const currentOrder = selectedOrder.value
-    if (currentOrder && currentOrder.status === 0) {
-      await handleRefreshOrder(currentOrder.id)
-      const refreshedOrder = selectedOrder.value
-      if (refreshedOrder?.status === 1) {
-        stopAutoRefresh()
-        showOrderDetail.value = false
-        await refreshBalance()
-        message.success(t('recharge.paymentCompletedBalanceUpdated'))
-      }
-    }
-    else {
-      stopAutoRefresh()
-    }
-  }, 5000)
-}
-
-function stopAutoRefresh() {
-  if (autoRefreshTimer.value) {
-    clearInterval(autoRefreshTimer.value)
-    autoRefreshTimer.value = null
-  }
-}
-
 // ========== 创建充值订单 ==========
 function amountToFen(yuan: number): number {
   return Math.round(Number(yuan) * 100)
@@ -529,7 +500,6 @@ async function doCreateRechargeOrder() {
     }
 
     showOrderDetail.value = true
-    startAutoRefresh()
   }
   catch {
     message.error(t('recharge.createOrderRetry'))
@@ -558,22 +528,13 @@ async function handleViewDetails(order: PaymentOrder) {
     const res = await fetchPaymentOrderDetail(order.id)
     if (res.isSuccess && res.data) {
       selectedOrder.value = res.data
-      if (res.data.status === 0) {
-        startAutoRefresh()
-      }
     }
     else {
       message.error(res.message || t('recharge.fetchOrderDetailFailed'))
-      if (order.status === 0) {
-        startAutoRefresh()
-      }
     }
   }
   catch {
     message.error(t('recharge.fetchOrderDetailFailed'))
-    if (order.status === 0) {
-      startAutoRefresh()
-    }
   }
   finally {
     detailLoading.value = false
@@ -668,11 +629,6 @@ watch(() => showPaymentModal.value, (show) => {
     fetchGateways()
 })
 
-watch(() => showOrderDetail.value, (show) => {
-  if (!show)
-    stopAutoRefresh()
-})
-
 watch(
   () => [route.query.result, route.query.order_no, route.query.msg],
   () => {
@@ -680,10 +636,6 @@ watch(
   },
   { immediate: true },
 )
-
-onUnmounted(() => {
-  stopAutoRefresh()
-})
 
 onMounted(() => {
   refreshBalance()
@@ -926,15 +878,6 @@ onMounted(() => {
 
     <!-- 订单详情弹窗 -->
     <NModal v-model:show="showOrderDetail" preset="card" :title="t('recharge.orderDetail')" class="order-detail-modal">
-      <template #header-extra>
-        <NSpace v-if="selectedOrder?.status === 0 && autoRefreshTimer" align="center" :size="4">
-          <NSpin size="small" />
-          <NText depth="3" style="font-size: 12px">
-            {{ t('recharge.autoRefreshing') }}
-          </NText>
-        </NSpace>
-      </template>
-
       <NSpin :show="detailLoading">
         <div v-if="selectedOrder" class="order-detail">
           <!-- 二维码区域：仅待支付且有支付链接时显示 -->

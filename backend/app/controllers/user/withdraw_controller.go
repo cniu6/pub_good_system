@@ -37,6 +37,12 @@ func (ctrl *WithdrawController) Create(c *gin.Context) {
 		utils.Fail(c, 401, "用户未登录")
 		return
 	}
+	uid := userID.(uint64)
+	// 用户等级能力：提现开关
+	if ok, msg := models.CheckUserLevelAllows(uid, "withdraw"); !ok {
+		utils.Fail(c, 403, msg)
+		return
+	}
 
 	var req CreateWithdrawBody
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -50,7 +56,7 @@ func (ctrl *WithdrawController) Create(c *gin.Context) {
 	req.RealName = utils.Clean_XSS(req.RealName)
 	req.Remark = utils.Clean_XSS(req.Remark)
 
-	item, err := ctrl.withdrawService.Create(userID.(uint64), &services.CreateWithdrawRequest{
+	item, err := ctrl.withdrawService.Create(uid, &services.CreateWithdrawRequest{
 		Amount:      req.Amount,
 		AccountType: req.AccountType,
 		AccountName: req.AccountName,
@@ -63,7 +69,7 @@ func (ctrl *WithdrawController) Create(c *gin.Context) {
 			utils.Fail(c, 400, err.Error())
 			return
 		}
-		log.Printf("[WITHDRAW] create request failed for user_id=%d: %v", userID.(uint64), err)
+		log.Printf("[WITHDRAW] create request failed for user_id=%d: %v", uid, err)
 		utils.Fail(c, 500, "提现申请提交失败，请稍后重试")
 		return
 	}

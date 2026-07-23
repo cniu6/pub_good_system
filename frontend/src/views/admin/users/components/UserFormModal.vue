@@ -3,14 +3,14 @@
  * 新建/编辑用户弹窗（含详情 / 余额 / 积分 / 提现 tabs）
  * 状态与逻辑由父级 composable 传入，本组件只负责 UI
  */
-import type { FormInst, FormRules } from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
+import type { DataTableColumns, FormInst, FormRules } from 'naive-ui'
 import type { AdminUser } from '@/service/api/admin/user'
 import type { WithdrawRecord } from '@/service/api/admin/finance'
 import NovaIcon from '@/components/common/NovaIcon.vue'
 import PhoneInput from '@/components/common/PhoneInput.vue'
 import { useSettingsStore } from '@/store'
 
+/* eslint-disable vue/no-mutating-props -- 父组件传入共享表单对象，约定由本弹窗直接写入字段 */
 defineProps<{
   show: boolean
   isEdit: boolean
@@ -39,16 +39,16 @@ defineProps<{
 const emit = defineEmits<{
   'update:show': [value: boolean]
   'update:activeTab': [value: string]
-  setFormRef: [el: FormInst | null]
-  toggleFullscreen: []
-  submit: []
-  avatarError: []
-  balanceOperation: []
-  scoreOperation: []
-  autoFillNo: [field: 'order' | 'trade']
-  withdrawPageChange: [page: number]
-  withdrawPageSizeChange: [pageSize: number]
-  tabChange: [tab: string]
+  'setFormRef': [el: FormInst | null]
+  'toggleFullscreen': []
+  'submit': []
+  'avatarError': []
+  'balanceOperation': []
+  'scoreOperation': []
+  'autoFillNo': [field: 'order' | 'trade']
+  'withdrawPageChange': [page: number]
+  'withdrawPageSizeChange': [pageSize: number]
+  'tabChange': [tab: string]
 }>()
 
 const settingsStore = useSettingsStore()

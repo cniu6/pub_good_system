@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fst/backend/app/models"
 	"fst/backend/pkg/db"
+	"fst/backend/utils"
 	"regexp"
 	"strings"
 	"time"
@@ -150,7 +151,7 @@ func (s *RealnameService) Submit(userID uint64, req *RealnameSubmitRequest) erro
 func (s *RealnameService) GetUserVerification(userID uint64) (*models.RealnameVerification, error) {
 	verification, err := models.GetRealnameVerificationByUserID(userID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, sql.ErrNoRows
 		}
 		return nil, err
@@ -177,6 +178,9 @@ func (s *RealnameService) Review(adminID uint64, req *RealnameReviewRequest) err
 
 	if req.Status == RealnameStatusRejected && strings.TrimSpace(req.RejectReason) == "" {
 		return NewClientError("请填写拒绝原因")
+	}
+	if err := validateClientRuneLen(req.RejectReason, "拒绝原因", utils.MaxRejectReasonLength); err != nil {
+		return err
 	}
 
 	return db.DB.Transaction(func(tx *gorm.DB) error {
@@ -208,8 +212,8 @@ func validateCertificateImageURL(rawURL, fieldName string) error {
 	if rawURL == "" {
 		return NewClientError(fieldName + "不能为空")
 	}
-	if len(rawURL) > 1024 {
-		return NewClientError(fieldName + "地址过长")
+	if err := validateClientRuneLen(rawURL, fieldName, utils.MaxCertImageURLLength); err != nil {
+		return err
 	}
 	lower := strings.ToLower(rawURL)
 	if !strings.HasPrefix(lower, "http://") && !strings.HasPrefix(lower, "https://") {

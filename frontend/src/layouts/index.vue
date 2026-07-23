@@ -230,7 +230,7 @@ onMounted(() => {
         <div
           v-if="showSidebarResize"
           class="sidebar-resize-handle"
-          title="拖动调整侧边栏宽度"
+          :title="$t('app.sidebarWidthDrag')"
           @mousedown="onSidebarResizeStart"
         />
       </div>

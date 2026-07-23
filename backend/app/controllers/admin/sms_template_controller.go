@@ -93,6 +93,14 @@ func (ctrl *SMSTemplateController) Update(c *gin.Context) {
 	req.Description = utils.Clean_XSS(req.Description)
 	// Content 为纯文本短信内容，保留变量占位符，仅做 XSS 清理
 	req.Content = utils.Clean_XSS(req.Content)
+	if err := utils.ValidateRuneLen(req.SignName, "短信签名", utils.MaxSignNameLength); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+	if err := utils.ValidateRuneLen(req.Description, "描述", utils.MaxDescriptionLength); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
 
 	existing, err := models.GetSMSTemplateByID(id)
 	if err != nil {

@@ -4,12 +4,15 @@ import GeetestCaptcha from '@/components/common/GeetestCaptcha.vue'
 import { geetestManager } from '@/utils/geetest'
 import { fetchRegister, fetchSendRegisterCode } from '@/service'
 import { i18n } from '@/modules/i18n'
+import { useSettingsStore } from '@/store'
 
 const emit = defineEmits(['update:modelValue'])
 function toLogin() {
   emit('update:modelValue', 'login')
 }
 const { t } = useI18n()
+const settingsStore = useSettingsStore()
+const registerAllowed = computed(() => settingsStore.allowRegister)
 
 const isGeetestEnabled = computed(() => geetestManager.isEnabled())
 const isCaptchaVerified = ref(!geetestManager.isEnabled())
@@ -178,6 +181,10 @@ function openAgreement() {
 }
 
 async function handleRegister() {
+  if (!registerAllowed.value) {
+    window.$message.warning(t('http.backendMessage.registrationDisabled'))
+    return
+  }
   if (isGeetestEnabled.value && !isCaptchaVerified.value) {
     captchaPurpose.value = 'register'
     geetestRef.value?.showCaptcha()
@@ -241,7 +248,12 @@ watchEffect(() => {
     <n-h2 depth="3" class="text-center">
       {{ $t('login.registerTitle') }}
     </n-h2>
+    <n-alert v-if="!registerAllowed" type="warning" :show-icon="true" class="mb-16" :title="$t('http.backendMessage.registrationDisabled')" />
+    <n-button v-if="!registerAllowed" block type="primary" quaternary class="mb-16" @click="toLogin">
+      {{ $t('login.signIn') }}
+    </n-button>
     <n-form
+      v-else
       ref="formRef"
       :rules="rules"
       :model="formValue"

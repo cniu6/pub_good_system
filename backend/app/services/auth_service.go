@@ -114,9 +114,6 @@ type LoginResult struct {
 	ExpiresAt        int64                `json:"expiresAt"`
 	RefreshExpiresAt int64                `json:"-"`
 	Realname         LoginRealnameSummary `json:"realname,omitempty"`
-	// 管理端 TOTP 第二步：NeedTOTP=true 时只回 temp_token，不签发正式 access/refresh
-	NeedTOTP  bool   `json:"need_totp,omitempty"`
-	TempToken string `json:"temp_token,omitempty"`
 }
 
 func buildLoginRealnameSummary(userID uint64) LoginRealnameSummary {
@@ -190,21 +187,16 @@ func getAuthRuntimeDefaults() (loginMaxFailureCount, loginLockDurationMinutes, a
 }
 
 // Login 用户登录
-func (s *AuthService) Login(username, password, authGuard, clientType, clientIP string) (*LoginResult, *ServiceError) {
+func (s *AuthService) Login(username, password, authGuard, clientIP string) (*LoginResult, *ServiceError) {
 	var ok bool
 	authGuard, ok = normalizeAuthGuard(authGuard)
 	if !ok {
 		return nil, NewServiceError(400, "Invalid auth guard")
 	}
 
-	// 「禁止网页端登录」开关：仅拦截普通用户（非管理员）且客户端类型判定为 web 的登录请求；
-	// App/小程序等客户端只要在登录请求带上 client_type=app 即可绕过此限制，管理员登录完全不受影响。
-	// 用于「仅通过小程序/App 对外提供服务，网页面板只留管理员使用」的场景。
-	// 安全定位：client_type 由请求自身携带、不做客户端可信校验（无签名/证书校验），
-	// 这是一个引导前端 UX 的软限制（正规客户端不带这个参数登录就会被拦），不是安全边界，
-	// 不能用来防止「有意伪造 client_type=app 的攻击者」绕过网页限制。
-	if authGuard == utils.UserAuthGuard && models.NormalizeClientType(clientType) == "web" && GetGlobalDisableWebLogin() {
-		return nil, NewServiceError(403, "Web login is disabled")
+	// 关闭「允许用户登录」后：普通用户无法密码登录拿 JWT；管理员与 API Key 不受影响
+	if authGuard == utils.UserAuthGuard && !GetGlobalAllowUserLogin() {
+		return nil, NewServiceError(403, "User login is disabled")
 	}
 
 	// 查找用户
@@ -235,22 +227,6 @@ func (s *AuthService) Login(username, password, authGuard, clientType, clientIP 
 		loginMaxFailureCount, loginLockDurationMinutes, _, _ := getAuthRuntimeDefaults()
 		s.userService.IncrementLoginFailureWithLock(user.ID, loginMaxFailureCount, loginLockDurationMinutes)
 		return nil, NewServiceError(401, "Invalid account or password")
-	}
-
-	// 管理端已启用 TOTP：密码通过后不签发正式 Token，返回临时令牌走第二步
-	if authGuard == utils.AdminAuthGuard && user.TotpEnabled {
-		tempToken, terr := utils.GenerateTOTPPendingToken(user.ID, user.Role, 5*time.Minute)
-		if terr != nil {
-			return nil, NewServiceError(500, "Failed to generate temp token")
-		}
-		return &LoginResult{
-			ID:        user.ID,
-			UserName:  user.Username,
-			Email:     user.Email,
-			Role:      []string{user.Role},
-			NeedTOTP:  true,
-			TempToken: tempToken,
-		}, nil
 	}
 
 	// 更新登录信息
@@ -286,6 +262,16 @@ func (s *AuthService) Login(username, password, authGuard, clientType, clientIP 
 
 // Register 用户注册
 func (s *AuthService) Register(user *models.User) error {
+	if err := validateClientRuneLen(user.Username, "用户名", utils.MaxUsernameLength); err != nil {
+		return err
+	}
+	if err := validateClientRuneLen(user.Email, "邮箱", utils.MaxEmailLength); err != nil {
+		return err
+	}
+	if err := validateClientRuneLen(user.Nickname, "昵称", utils.MaxNicknameLength); err != nil {
+		return err
+	}
+
 	// 加密密码
 	hashedPassword, err := utils.HashPassword(user.Password)
 	if err != nil {
@@ -299,6 +285,10 @@ func (s *AuthService) Register(user *models.User) error {
 	}
 	if user.Status == 0 {
 		user.Status = 1
+	}
+	// 自助注册等级：后台「注册默认等级」，缺省 1（管理端建号可自行指定 level）
+	if user.Level == 0 {
+		user.Level = GetGlobalRegisterDefaultLevel()
 	}
 	// 注册时自动发放 API Key，避免用户中心显示「暂无」还要点重置
 	if user.Apikey == nil || strings.TrimSpace(*user.Apikey) == "" {

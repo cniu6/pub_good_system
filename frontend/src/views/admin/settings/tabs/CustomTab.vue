@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, h } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NSpace, type DataTableColumns } from 'naive-ui'
+import { NButton, NSpace } from 'naive-ui'
+import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 import { useTableColumnVisibility } from '@/hooks'
 import type { SettingDTO } from '@/service/api/admin/settings'
@@ -104,8 +105,8 @@ const {
 </script>
 
 <template>
-  <n-space vertical :size="16">
-    <n-space justify="end">
+  <NSpace vertical :size="16">
+    <NSpace justify="end">
       <TableColumnSelector
         v-model="customSelectedColumnKeys"
         :options="customColumnOptions"
@@ -117,15 +118,15 @@ const {
         :reset-label="t('common.restoreDefaultFields')"
         @reset="resetCustomSelectedColumns"
       />
-      <n-button type="primary" @click="showAddModal = true">
+      <NButton type="primary" @click="showAddModal = true">
         <template #icon>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 1em; height: 1em;">
             <path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2z" />
           </svg>
         </template>
         {{ t('adminSettings.addConfigItem') }}
-      </n-button>
-    </n-space>
+      </NButton>
+    </NSpace>
 
     <n-data-table :columns="customVisibleColumns" :data="customSettings" :pagination="false" :bordered="false" :scroll-x="customTableScrollX" />
 
@@ -153,14 +154,20 @@ const {
         </n-form-item>
         <n-form-item :label="t('adminSettings.isPublic')">
           <n-switch v-model:value="addForm.is_public" />
-          <n-text depth="3" style="margin-left: 8px;">{{ t('adminSettings.publicConfigHint') }}</n-text>
+          <n-text depth="3" style="margin-left: 8px;">
+            {{ t('adminSettings.publicConfigHint') }}
+          </n-text>
         </n-form-item>
       </n-form>
       <template #footer>
-        <n-space justify="end">
-          <n-button @click="showAddModal = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="primary" :loading="adding" @click="handleAddSetting">{{ t('adminSettings.add') }}</n-button>
-        </n-space>
+        <NSpace justify="end">
+          <NButton @click="showAddModal = false">
+            {{ t('common.cancel') }}
+          </NButton>
+          <NButton type="primary" :loading="adding" @click="handleAddSetting">
+            {{ t('adminSettings.add') }}
+          </NButton>
+        </NSpace>
       </template>
     </n-modal>
 
@@ -188,15 +195,21 @@ const {
         </n-form-item>
         <n-form-item :label="t('adminSettings.isPublic')">
           <n-switch v-model:value="editForm.is_public" />
-          <n-text depth="3" style="margin-left: 8px;">{{ t('adminSettings.publicConfigHint') }}</n-text>
+          <n-text depth="3" style="margin-left: 8px;">
+            {{ t('adminSettings.publicConfigHint') }}
+          </n-text>
         </n-form-item>
       </n-form>
       <template #footer>
-        <n-space justify="end">
-          <n-button @click="showEditModal = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="primary" :loading="savingEdit" @click="handleSaveSettingEdit">{{ t('common.save') }}</n-button>
-        </n-space>
+        <NSpace justify="end">
+          <NButton @click="showEditModal = false">
+            {{ t('common.cancel') }}
+          </NButton>
+          <NButton type="primary" :loading="savingEdit" @click="handleSaveSettingEdit">
+            {{ t('common.save') }}
+          </NButton>
+        </NSpace>
       </template>
     </n-modal>
-  </n-space>
+  </NSpace>
 </template>

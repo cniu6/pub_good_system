@@ -7,7 +7,7 @@
 import type { SelectOption } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/store'
-import { DIAL_COUNTRIES, dialCountryLabel, getDialCountry, countryFromLanguage, DEFAULT_DIAL_COUNTRY_CODE } from '@/constants/dialCodes'
+import { countryFromLanguage, DEFAULT_DIAL_COUNTRY_CODE, DIAL_COUNTRIES, dialCountryLabel, getDialCountry } from '@/constants/dialCodes'
 import { composeE164, normalizeAndValidateMobile, splitMobileToCountryNational } from '@/utils/phone'
 import { fetchPhoneCountryDetect } from '@/service/api/geo'
 
@@ -83,7 +83,9 @@ function applySplit(raw: string, fallbackCode: string) {
   const { country, national: nat } = splitMobileToCountryNational(raw, fallbackCode)
   countryCode.value = effectiveCnOnly.value ? 'CN' : country.code
   national.value = nat
-  nextTick(() => { syncingFromParent = false })
+  nextTick(() => {
+    syncingFromParent = false
+  })
 }
 
 async function detectDefaultCountry() {

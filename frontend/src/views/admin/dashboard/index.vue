@@ -76,14 +76,24 @@ const {
             </n-icon>
           </n-icon-wrapper>
           <n-flex vertical>
-            <n-text strong>{{ t('adminDashboard.welcomeBack') }}</n-text>
-            <n-text depth="3">{{ t('adminDashboard.systemOverview') }}</n-text>
+            <n-text strong>
+              {{ t('adminDashboard.welcomeBack') }}
+            </n-text>
+            <n-text depth="3">
+              {{ t('adminDashboard.systemOverview') }}
+            </n-text>
           </n-flex>
         </n-flex>
         <n-flex :size="8">
-          <n-button :loading="loading" @click="handleRefresh">{{ t('adminDashboard.refreshData') }}</n-button>
-          <n-button type="primary" @click="go_to('finance/payment-orders')">{{ t('route.paymentOrders') }}</n-button>
-          <n-button @click="go_to('settings/server-management')">{{ t('route.serverManagement') }}</n-button>
+          <n-button :loading="loading" @click="handleRefresh">
+            {{ t('adminDashboard.refreshData') }}
+          </n-button>
+          <n-button type="primary" @click="go_to('finance/payment-orders')">
+            {{ t('route.paymentOrders') }}
+          </n-button>
+          <n-button @click="go_to('settings/server-management')">
+            {{ t('route.serverManagement') }}
+          </n-button>
         </n-flex>
       </n-flex>
     </n-card>
@@ -103,12 +113,16 @@ const {
                   <component :is="card.icon" />
                 </n-icon>
               </n-icon-wrapper>
-              <n-text strong>{{ card.title }}</n-text>
+              <n-text strong>
+                {{ card.title }}
+              </n-text>
             </n-flex>
 
             <n-space vertical :size="12">
               <n-flex v-for="metric in card.metrics" :key="metric.key" justify="space-between" align="center" class="dashboard-summary-row">
-                <n-text depth="3">{{ metric.label }}</n-text>
+                <n-text depth="3">
+                  {{ metric.label }}
+                </n-text>
                 <div class="dashboard-summary-value">
                   <span v-if="metric.prefix">{{ metric.prefix }}</span>
                   <n-number-animation :from="0" :to="metric.value" :precision="metric.precision" show-separator />
@@ -132,7 +146,9 @@ const {
       <n-gi span="12 xl:4">
         <n-card :title="t('adminDashboard.verifyDistribution')" hoverable>
           <template #header-extra>
-            <n-text depth="3">{{ t('adminRealname.totalRecords', { total: statistics.total_realname_requests }) }}</n-text>
+            <n-text depth="3">
+              {{ t('adminRealname.totalRecords', { total: statistics.total_realname_requests }) }}
+            </n-text>
           </template>
           <div ref="verifyTrendRef" style="height: 320px;" />
         </n-card>
@@ -150,7 +166,9 @@ const {
             <div v-for="item in resourceRows" :key="item.label">
               <n-flex justify="space-between" align="center">
                 <n-text>{{ item.label }}</n-text>
-                <n-text depth="3">{{ item.detail }}</n-text>
+                <n-text depth="3">
+                  {{ item.detail }}
+                </n-text>
               </n-flex>
               <n-progress type="line" :percentage="item.percentage" :status="item.percentage >= 85 ? 'error' : item.percentage >= 70 ? 'warning' : 'success'" />
             </div>
@@ -184,14 +202,18 @@ const {
       <n-gi span="12 xl:4">
         <n-card :title="t('adminSettings.systemInfo')" hoverable>
           <template #header-extra>
-            <n-text depth="3">{{ t('adminSettings.lastRefreshed') }} {{ formatDateTime(monitoring?.generated_at) }}</n-text>
+            <n-text depth="3">
+              {{ t('adminSettings.lastRefreshed') }} {{ formatDateTime(monitoring?.generated_at) }}
+            </n-text>
           </template>
           <n-descriptions :column="1" label-placement="left" bordered size="small">
             <n-descriptions-item :label="t('adminSettings.appName')">
               {{ monitoring?.app.name || '-' }}
             </n-descriptions-item>
             <n-descriptions-item :label="t('adminSettings.appMode')">
-              <n-tag size="small" :type="mode === 'production' ? 'success' : 'warning'">{{ monitoring?.app.mode || mode }}</n-tag>
+              <n-tag size="small" :type="mode === 'production' ? 'success' : 'warning'">
+                {{ monitoring?.app.mode || mode }}
+              </n-tag>
             </n-descriptions-item>
             <n-descriptions-item :label="t('adminSettings.port')">
               {{ monitoring?.app.port || '-' }}
@@ -225,11 +247,17 @@ const {
               <n-space vertical :size="8">
                 <n-flex justify="space-between" align="center" wrap>
                   <n-space align="center" :size="8">
-                    <n-text strong>{{ service.name }}</n-text>
-                    <n-tag size="small" :type="getServiceTagType(service.status)">{{ getServiceStatusText(service.status) }}</n-tag>
+                    <n-text strong>
+                      {{ service.name }}
+                    </n-text>
+                    <n-tag size="small" :type="getServiceTagType(service.status)">
+                      {{ getServiceStatusText(service.status) }}
+                    </n-tag>
                   </n-space>
                 </n-flex>
-                <n-text depth="3">{{ formatServiceMeta(service) }}</n-text>
+                <n-text depth="3">
+                  {{ formatServiceMeta(service) }}
+                </n-text>
               </n-space>
             </n-card>
             <n-empty v-if="serviceItems.length === 0 && !loading" />
@@ -240,7 +268,9 @@ const {
       <n-gi span="12 xl:6">
         <n-card :title="t('adminDashboard.operationsOverview')" hoverable>
           <template #header-extra>
-            <n-button text type="primary" @click="go_to('settings/server-management')">{{ t('route.serverManagement') }}</n-button>
+            <n-button text type="primary" @click="go_to('settings/server-management')">
+              {{ t('route.serverManagement') }}
+            </n-button>
           </template>
           <n-space vertical :size="16">
             <n-grid :x-gap="12" :y-gap="12" :cols="2">
@@ -254,21 +284,35 @@ const {
             <n-divider style="margin: 0;" />
 
             <n-space vertical :size="10">
-              <n-text strong>{{ t('adminServer.tasks.title') }}</n-text>
+              <n-text strong>
+                {{ t('adminServer.tasks.title') }}
+              </n-text>
               <n-card v-for="task in taskHighlights" :key="task.key" size="small" embedded>
                 <n-space vertical :size="8">
                   <n-flex justify="space-between" align="center" wrap>
                     <n-space align="center" :size="8">
-                      <n-text strong>{{ task.label }}</n-text>
-                      <n-tag size="small" :type="getTaskTagType(task)">{{ getTaskStatusText(task) }}</n-tag>
+                      <n-text strong>
+                        {{ task.label }}
+                      </n-text>
+                      <n-tag size="small" :type="getTaskTagType(task)">
+                        {{ getTaskStatusText(task) }}
+                      </n-tag>
                     </n-space>
-                    <n-text depth="3">{{ task.interval_secs }}s</n-text>
+                    <n-text depth="3">
+                      {{ task.interval_secs }}s
+                    </n-text>
                   </n-flex>
                   <n-space :size="12" wrap>
-                    <n-text depth="3">{{ t('adminServer.tasks.lastRun') }}: {{ formatDateTime(task.last_run_time) }}</n-text>
-                    <n-text depth="3">{{ t('adminServer.tasks.duration') }}: {{ formatTaskDuration(task.last_duration_ms) }}</n-text>
+                    <n-text depth="3">
+                      {{ t('adminServer.tasks.lastRun') }}: {{ formatDateTime(task.last_run_time) }}
+                    </n-text>
+                    <n-text depth="3">
+                      {{ t('adminServer.tasks.duration') }}: {{ formatTaskDuration(task.last_duration_ms) }}
+                    </n-text>
                   </n-space>
-                  <n-text depth="3">{{ formatTaskMeta(task) }}</n-text>
+                  <n-text depth="3">
+                    {{ formatTaskMeta(task) }}
+                  </n-text>
                 </n-space>
               </n-card>
               <n-empty v-if="taskHighlights.length === 0 && !loading" />
@@ -278,7 +322,9 @@ const {
 
             <n-space vertical :size="10">
               <n-flex justify="space-between" align="center" wrap>
-                <n-text strong>{{ t('adminServer.rateLimit.title') }}</n-text>
+                <n-text strong>
+                  {{ t('adminServer.rateLimit.title') }}
+                </n-text>
                 <n-tag size="small" :type="operations?.api_log.enabled ? 'success' : 'default'">
                   {{ t('adminServer.runtimeConfig.apiLog') }}: {{ operations?.api_log.enabled ? t('common.enable') : t('common.disable') }}
                 </n-tag>
@@ -287,12 +333,20 @@ const {
                 <n-space vertical :size="8">
                   <n-flex justify="space-between" align="center" wrap>
                     <n-space align="center" :size="8">
-                      <n-text strong>{{ item.name }}</n-text>
-                      <n-tag size="small" :type="getRateLimitTagType(item)">{{ item.enabled ? t('common.enable') : t('common.disable') }}</n-tag>
+                      <n-text strong>
+                        {{ item.name }}
+                      </n-text>
+                      <n-tag size="small" :type="getRateLimitTagType(item)">
+                        {{ item.enabled ? t('common.enable') : t('common.disable') }}
+                      </n-tag>
                     </n-space>
-                    <n-text depth="3">R{{ item.rate }} / B{{ item.burst }}</n-text>
+                    <n-text depth="3">
+                      R{{ item.rate }} / B{{ item.burst }}
+                    </n-text>
                   </n-flex>
-                  <n-text depth="3">{{ formatRateLimitMeta(item) }}</n-text>
+                  <n-text depth="3">
+                    {{ formatRateLimitMeta(item) }}
+                  </n-text>
                 </n-space>
               </n-card>
               <n-empty v-if="rateLimitHighlights.length === 0 && !loading" />
@@ -305,19 +359,33 @@ const {
         <n-card :title="t('adminDashboard.alertCenter')" hoverable>
           <template #header-extra>
             <n-flex align="center" :size="8" wrap>
-              <n-text depth="3">{{ t('adminDashboard.lastUpdated') }} {{ formatDateTime(lastRefreshAt) }}</n-text>
-              <n-tag v-if="alertSeveritySummary.error" size="small" type="error">{{ t('adminDashboard.criticalLevel') }} {{ alertSeveritySummary.error }}</n-tag>
-              <n-tag v-if="alertSeveritySummary.warning" size="small" type="warning">{{ t('adminDashboard.warningLevel') }} {{ alertSeveritySummary.warning }}</n-tag>
-              <n-tag v-if="alertSeveritySummary.info" size="small" type="info">{{ t('adminDashboard.infoLevel') }} {{ alertSeveritySummary.info }}</n-tag>
-              <n-tag size="small" :type="alertCountTagType">{{ displayedAlertItems.length }}</n-tag>
-              <n-text depth="3">{{ t('adminDashboard.onlyIssues') }}</n-text>
+              <n-text depth="3">
+                {{ t('adminDashboard.lastUpdated') }} {{ formatDateTime(lastRefreshAt) }}
+              </n-text>
+              <n-tag v-if="alertSeveritySummary.error" size="small" type="error">
+                {{ t('adminDashboard.criticalLevel') }} {{ alertSeveritySummary.error }}
+              </n-tag>
+              <n-tag v-if="alertSeveritySummary.warning" size="small" type="warning">
+                {{ t('adminDashboard.warningLevel') }} {{ alertSeveritySummary.warning }}
+              </n-tag>
+              <n-tag v-if="alertSeveritySummary.info" size="small" type="info">
+                {{ t('adminDashboard.infoLevel') }} {{ alertSeveritySummary.info }}
+              </n-tag>
+              <n-tag size="small" :type="alertCountTagType">
+                {{ displayedAlertItems.length }}
+              </n-tag>
+              <n-text depth="3">
+                {{ t('adminDashboard.onlyIssues') }}
+              </n-text>
               <n-switch v-model:value="alertOnlyIssues" size="small" />
             </n-flex>
           </template>
           <n-space vertical :size="12">
             <n-alert v-for="item in displayedAlertItems" :key="item.key" :type="item.type" :title="item.title">
               <n-space vertical :size="8">
-                <n-tag size="small" :type="item.type === 'info' ? 'info' : item.type">{{ getAlertLevelLabel(item.type) }}</n-tag>
+                <n-tag size="small" :type="item.type === 'info' ? 'info' : item.type">
+                  {{ getAlertLevelLabel(item.type) }}
+                </n-tag>
                 <span>{{ item.detail }}</span>
                 <n-button v-if="item.path" size="tiny" tertiary type="primary" @click="handleAlertClick(item)">
                   {{ item.actionLabel || t('adminDashboard.viewDetails') }}
@@ -337,12 +405,16 @@ const {
                 <n-card size="small" embedded>
                   <n-space vertical :size="10">
                     <n-flex justify="space-between" align="center">
-                      <n-text strong>{{ action.label }}</n-text>
+                      <n-text strong>
+                        {{ action.label }}
+                      </n-text>
                       <n-icon>
                         <component :is="action.icon" />
                       </n-icon>
                     </n-flex>
-                    <n-text depth="3">{{ action.description }}</n-text>
+                    <n-text depth="3">
+                      {{ action.description }}
+                    </n-text>
                     <n-button block :type="action.type" tertiary @click="handleShortcutAction(action)">
                       {{ action.actionLabel }}
                     </n-button>
@@ -393,7 +465,9 @@ const {
                 :reset-label="t('common.restoreDefaultFields')"
                 @reset="resetRecentUserSelectedColumns"
               />
-              <n-button type="primary" quaternary @click="go_to('users')">{{ t('adminDashboard.viewAll') }}</n-button>
+              <n-button type="primary" quaternary @click="go_to('users')">
+                {{ t('adminDashboard.viewAll') }}
+              </n-button>
             </n-space>
           </template>
           <n-spin :show="loading">
@@ -426,7 +500,9 @@ const {
                 :reset-label="t('common.restoreDefaultFields')"
                 @reset="resetRecentLoginSelectedColumns"
               />
-              <n-button type="primary" quaternary @click="go_to('users')">{{ t('adminDashboard.viewAll') }}</n-button>
+              <n-button type="primary" quaternary @click="go_to('users')">
+                {{ t('adminDashboard.viewAll') }}
+              </n-button>
             </n-space>
           </template>
           <n-spin :show="loading">

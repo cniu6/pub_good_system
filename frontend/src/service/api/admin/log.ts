@@ -5,7 +5,9 @@
 import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
-function baseUrl() { return `${getAdminApiBase()}/logs` }
+function baseUrl() {
+  return `${getAdminApiBase()}/logs`
+}
 
 export interface OperationLogStats {
   total_count: number
@@ -14,17 +16,17 @@ export interface OperationLogStats {
   client_error_count: number
   server_error_count: number
   avg_duration: number
-  top_modules: Array<{ module: string; count: number }>
-  top_actions: Array<{ action: string; count: number }>
-  method_stats: Array<{ method: string; count: number }>
+  top_modules: Array<{ module: string, count: number }>
+  top_actions: Array<{ action: string, count: number }>
+  method_stats: Array<{ method: string, count: number }>
 }
 
 export const adminLogApi = {
   /**
    * 获取日志列表（分页）
    */
-  list(params?: { page?: number; page_size?: number; start_time?: number; end_time?: number }) {
-    return request.Get<Service.ResponseResult<{ list: any[]; total: number; page: number; page_size: number }>>(baseUrl(), { params })
+  list(params?: { page?: number, page_size?: number, start_time?: number, end_time?: number }) {
+    return request.Get<Service.ResponseResult<{ list: any[], total: number, page: number, page_size: number }>>(baseUrl(), { params })
   },
 
   detail(id: number) {

@@ -2,6 +2,7 @@ package admin
 
 import (
 	"database/sql"
+	"errors"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/pkg/middleware"
@@ -100,7 +101,7 @@ func (ctrl *WithdrawController) Detail(c *gin.Context) {
 	}
 	item, err := ctrl.withdrawService.GetByID(id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			utils.Fail(c, 404, "提现记录不存在")
 			return
 		}
@@ -205,8 +206,7 @@ func (ctrl *WithdrawController) RegisterRoutes(group *gin.RouterGroup) {
 		withdraw.GET("/stats", ctrl.Stats)
 		withdraw.GET("/legacy-risk", ctrl.LegacyRisk)
 		withdraw.GET("/:id", ctrl.Detail)
-		withdraw.POST("/:id/review", middleware.RequirePermission("finance:write"), middleware.RequireIdempotency("admin_withdraw_review", 10*time.Minute), ctrl.Review)
+		withdraw.POST("/:id/review", middleware.RequireIdempotency("admin_withdraw_review", 10*time.Minute), ctrl.Review)
 		withdraw.POST("/:id/pay", middleware.RequireIdempotency("admin_withdraw_pay", 10*time.Minute), ctrl.MarkPaid)
 	}
 }
-

@@ -2,10 +2,12 @@ package user
 
 import (
 	"database/sql"
+	"errors"
 	"fst/backend/app/services"
 	"fst/backend/utils"
-	"github.com/gin-gonic/gin"
 	"log"
+
+	"github.com/gin-gonic/gin"
 )
 
 // RealnameController 实名认证控制器
@@ -129,7 +131,7 @@ func (c *RealnameController) GetMyRealnameStatus(ctx *gin.Context) {
 
 	verification, err := c.realnameService.GetUserVerification(user_id.(uint64))
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			utils.Success(ctx, gin.H{
 				"hasVerification": false,
 				"status":          0,

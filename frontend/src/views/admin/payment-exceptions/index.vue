@@ -4,10 +4,12 @@ import type { DataTableColumns } from 'naive-ui'
 import { NButton, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import { adminApi } from '@/service/api/admin'
 import type { PaymentException } from '@/service/api/admin/payment'
+import { useRequestGuard } from '@/hooks'
 
 const { t } = useI18n()
 const message = useMessage()
 const dialog = useDialog()
+const listFetchGuard = useRequestGuard()
 const loading = ref(false)
 const list = ref<PaymentException[]>([])
 const query = reactive({ page: 1, page_size: 20, status: '' as number | '', exception_type: '', order_no: '' })
@@ -48,6 +50,7 @@ function statusTag(status: number) {
 }
 
 async function fetchList() {
+  const token = listFetchGuard.begin()
   loading.value = true
   try {
     const params: Record<string, any> = {
@@ -61,6 +64,8 @@ async function fetchList() {
     if (query.order_no)
       params.order_no = query.order_no
     const res = await adminApi.payment.listExceptions(params)
+    if (!listFetchGuard.isLatest(token))
+      return
     if (res.isSuccess && res.data) {
       list.value = res.data.list || []
       pagination.itemCount = res.data.total || 0
@@ -72,10 +77,12 @@ async function fetchList() {
     }
   }
   catch {
-    message.error(t('adminPaymentExceptions.fetchFailed'))
+    if (listFetchGuard.isLatest(token))
+      message.error(t('adminPaymentExceptions.fetchFailed'))
   }
   finally {
-    loading.value = false
+    if (listFetchGuard.isLatest(token))
+      loading.value = false
   }
 }
 
@@ -173,8 +180,8 @@ onMounted(fetchList)
 
 <template>
   <n-card :title="t('adminPaymentExceptions.title')">
-    <n-space vertical>
-      <n-space>
+    <NSpace vertical>
+      <NSpace>
         <n-input
           v-model:value="query.order_no"
           :placeholder="t('adminPaymentExceptions.orderNoPlaceholder')"
@@ -194,13 +201,13 @@ onMounted(fetchList)
           :placeholder="t('adminPaymentExceptions.exceptionType')"
           style="width: 200px"
         />
-        <n-button type="primary" @click="handleSearch">
+        <NButton type="primary" @click="handleSearch">
           {{ t('moneyScore.search') }}
-        </n-button>
-        <n-button @click="handleReset">
+        </NButton>
+        <NButton @click="handleReset">
           {{ t('common.reset') }}
-        </n-button>
-      </n-space>
+        </NButton>
+      </NSpace>
 
       <n-data-table
         :columns="columns"
@@ -214,6 +221,6 @@ onMounted(fetchList)
         @update:page="handlePageChange"
         @update:page-size="handlePageSizeChange"
       />
-    </n-space>
+    </NSpace>
   </n-card>
 </template>

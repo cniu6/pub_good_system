@@ -1,6 +1,6 @@
 # 网络请求与 API 定义 (Service)
 
-> 路径：`frontend/src/service/`  
+> 路径：`frontend/src/service/`
 > **最后更新**：2026-07-16
 
 ## 简介
@@ -55,6 +55,13 @@ service/
 ## 认证存储
 
 管理端 bootstrap 启用 `authStorage` session 隔离，避免与用户端 localStorage token 互相覆盖。设置页等读 token 用 `authStorage.get('accessToken')`，不要混用裸 `local.get`。
+
+## 会话失效与请求门闩
+
+- 受保护请求收到 401 后先单例刷新 Token；刷新失败、会话被撤销或 refresh token 缺失时，当前页进入“需要重新认证”状态。
+- `http/auth-expiration.ts` 会中止仍在浏览器等待的受保护 Alova 请求，并阻止弹窗打开期间的新受保护请求，避免轮询反复消耗流量。
+- 登录、注册、找回密码和验证码 API 需声明 `allowDuringSessionRecovery: true`，以便全局登录恢复弹窗正常工作。
+- 全局 `SessionRecoveryModal` 挂在 `AppMain.vue`：不跳转页面、不清理当前组件；同一账号重新登录后继续当前页。不同账号或管理权限不足时必须回安全首页。
 
 ## 规范
 

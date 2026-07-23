@@ -8,11 +8,11 @@ const { route, value, closable = false } = defineProps<{
   closable?: boolean
 }>()
 
-const { t } = useI18n()
-
 const emit = defineEmits<{
   close: [string]
 }>()
+
+const { t } = useI18n()
 </script>
 
 <template>

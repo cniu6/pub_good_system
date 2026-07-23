@@ -94,6 +94,10 @@ func (ctrl *SystemController) CreatePresenceTicket(c *gin.Context) {
 		utils.Fail(c, 401, "会话无效")
 		return
 	}
+	if !presence.AllowWSTicketIssue(userID, guard) {
+		utils.Fail(c, 429, "WebSocket 连接请求过于频繁，请稍后重试")
+		return
+	}
 
 	ticket, exp, err := presence.IssueWSTicket(userID, guard, sess.ID)
 	if err != nil {

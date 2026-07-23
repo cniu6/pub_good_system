@@ -10,8 +10,8 @@ import {
   NDescriptions,
   NDescriptionsItem,
   NDivider,
-  NGrid,
   NGi,
+  NGrid,
   NInput,
   NInputNumber,
   NModal,
@@ -21,19 +21,19 @@ import {
   NSwitch,
   NTag,
   NText,
-  useDialog,
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { adminApi } from '@/service/api/admin'
 import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import type { ECOption } from '@/hooks'
-import { adminAPILogApi, type APIAccessLog, type APIAccessLogListParams, type APIAccessLogStats } from '@/service/api/admin/api-log'
+import { adminAPILogApi } from '@/service/api/admin/api-log'
+import type { APIAccessLog, APIAccessLogListParams, APIAccessLogStats } from '@/service/api/admin/api-log'
 import { normalizeLogMaxCount, normalizeLogPerUserMaxCount, normalizeLogQueryDays, parseBooleanSetting } from '@/utils'
+import { formatPrettyJSON } from '@/utils/format'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 
 const message = useMessage()
-const dialog = useDialog()
 const { t } = useI18n()
 
 const loading = ref(false)
@@ -58,6 +58,7 @@ const query = reactive<APIAccessLogListParams>({
   page: 1,
   page_size: 20,
   keyword: '',
+  path: '',
   scene: undefined,
   auth_method: undefined,
   transport: undefined,
@@ -80,12 +81,13 @@ const runtimeForm = reactive({
   api_log_max_count: 1000,
   api_log_per_user_limit_enabled: false,
   api_log_per_user_max_count: 1000,
+  user_api_log_visible: true,
 })
 
 const showDetail = ref(false)
 const detailLoading = ref(false)
 const detailData = ref<APIAccessLog | null>(null)
-/** 详情弹窗内是否已二次确认展示敏感字段（请求头/请求体/响应体） */
+/** 详情弹窗内是否解锁展示敏感字段（请求头/请求体/响应体） */
 const showSensitiveDetail = ref(false)
 
 const showClean = ref(false)
@@ -128,28 +130,19 @@ const statusOptions = [
   { label: '500', value: 500 },
 ]
 
-const formattedRequestHeaders = computed(() => formatPayload(detailData.value?.request_headers || ''))
-const formattedQueryString = computed(() => formatPayload(detailData.value?.query_string || ''))
-const formattedPathParams = computed(() => formatPayload(detailData.value?.path_params || ''))
-const formattedRequestBody = computed(() => formatPayload(detailData.value?.request_body || ''))
-const formattedResponseBody = computed(() => formatPayload(detailData.value?.response_body || ''))
+const formattedRequestHeaders = computed(() => formatPrettyJSON(detailData.value?.request_headers))
+const formattedQueryString = computed(() => formatPrettyJSON(detailData.value?.query_string))
+const formattedPathParams = computed(() => formatPrettyJSON(detailData.value?.path_params))
+const formattedRequestBody = computed(() => formatPrettyJSON(detailData.value?.request_body))
+const formattedResponseBody = computed(() => formatPrettyJSON(detailData.value?.response_body))
 const topPathItems = computed(() => statsData.value.top_paths.slice(0, 8))
 const topPathChartItems = computed(() => [...topPathItems.value].reverse())
 
-function formatPayload(raw: string) {
-  const value = raw?.trim()
-  if (!value) return ''
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2)
-  }
-  catch {
-    return value
-  }
-}
-
 function resolveStatusType(statusCode: number) {
-  if (statusCode >= 500) return 'error'
-  if (statusCode >= 400) return 'warning'
+  if (statusCode >= 500)
+    return 'error'
+  if (statusCode >= 400)
+    return 'warning'
   return 'success'
 }
 
@@ -388,6 +381,8 @@ async function loadRuntimeConfig() {
           runtimeForm.api_log_per_user_limit_enabled = parseBooleanSetting(item.value, false)
         if (item.key === 'api_log_per_user_max_count')
           runtimeForm.api_log_per_user_max_count = normalizeLogPerUserMaxCount(item.value)
+        if (item.key === 'user_api_log_visible')
+          runtimeForm.user_api_log_visible = parseBooleanSetting(item.value, true)
       }
     }
   }
@@ -415,13 +410,24 @@ async function fetchList() {
     }
 
     const params: Record<string, any> = { ...query }
-    if (!params.keyword) delete params.keyword
-    if (!params.scene) delete params.scene
-    if (!params.transport) delete params.transport
-    if (!params.method) delete params.method
-    if (!params.status_code) delete params.status_code
-    if (!params.start_time) delete params.start_time
-    if (!params.end_time) delete params.end_time
+    if (typeof params.path === 'string')
+      params.path = params.path.trim()
+    if (!params.keyword)
+      delete params.keyword
+    if (!params.path)
+      delete params.path
+    if (!params.scene)
+      delete params.scene
+    if (!params.transport)
+      delete params.transport
+    if (!params.method)
+      delete params.method
+    if (!params.status_code)
+      delete params.status_code
+    if (!params.start_time)
+      delete params.start_time
+    if (!params.end_time)
+      delete params.end_time
 
     const res = await adminAPILogApi.list(params)
     if (!listFetchGuard.isLatest(token))
@@ -443,7 +449,8 @@ async function fetchList() {
 async function fetchStats() {
   try {
     const res = await adminAPILogApi.stats()
-    if (res.data) statsData.value = res.data
+    if (res.data)
+      statsData.value = res.data
   }
   catch {}
 }
@@ -461,6 +468,7 @@ async function handleSaveRuntimeConfig() {
       api_log_max_count: String(runtimeForm.api_log_max_count),
       api_log_per_user_limit_enabled: String(runtimeForm.api_log_per_user_limit_enabled),
       api_log_per_user_max_count: String(runtimeForm.api_log_per_user_max_count),
+      user_api_log_visible: String(runtimeForm.user_api_log_visible),
     })
     if (!res.isSuccess)
       throw new Error(res.message || t('adminServer.saveRuntimeFailed'))
@@ -483,7 +491,7 @@ async function handleDetail(id: number | string) {
   showDetail.value = true
   detailLoading.value = true
   detailData.value = null
-  // 每次打开详情默认隐藏敏感正文，需再次确认
+  // 每次打开详情默认隐藏敏感正文，由用户主动点击解锁。
   showSensitiveDetail.value = false
   try {
     const res = await adminAPILogApi.detail(id)
@@ -498,17 +506,9 @@ async function handleDetail(id: number | string) {
   }
 }
 
-/** 二次确认后才展示请求头 / 请求体 / 响应体 */
+/** 用户主动点击“查看敏感详情”后直接展示请求头 / 请求体 / 响应体。 */
 function handleRevealSensitiveDetail() {
-  dialog.warning({
-    title: t('adminAPILogs.viewSensitiveDetail'),
-    content: t('adminAPILogs.viewSensitiveConfirm'),
-    positiveText: t('common.confirm'),
-    negativeText: t('common.cancel'),
-    onPositiveClick: () => {
-      showSensitiveDetail.value = true
-    },
-  })
+  showSensitiveDetail.value = true
 }
 
 function handleSearch() {
@@ -519,6 +519,7 @@ function handleSearch() {
 
 function handleReset() {
   query.keyword = ''
+  query.path = ''
   query.scene = undefined
   query.transport = undefined
   query.method = undefined
@@ -571,28 +572,68 @@ onMounted(() => {
 <template>
   <div class="api-log-page">
     <NGrid :x-gap="12" :y-gap="12" cols="4" style="margin-bottom: 16px;">
-      <NGi><NCard size="small"><NStatistic :label="t('adminAPILogs.totalCount')" :value="statsData.total_count" /></NCard></NGi>
-      <NGi><NCard size="small"><NStatistic :label="t('adminAPILogs.todayCount')" :value="statsData.today_count" /></NCard></NGi>
-      <NGi><NCard size="small"><NStatistic :label="t('adminAPILogs.clientErrors')"><template #default><NText type="warning">{{ statsData.client_error_count }}</NText></template></NStatistic></NCard></NGi>
-      <NGi><NCard size="small"><NStatistic :label="t('adminAPILogs.serverErrors')"><template #default><NText type="error">{{ statsData.server_error_count }}</NText></template></NStatistic></NCard></NGi>
+      <NGi>
+        <NCard size="small">
+          <NStatistic :label="t('adminAPILogs.totalCount')" :value="statsData.total_count" />
+        </NCard>
+      </NGi>
+      <NGi>
+        <NCard size="small">
+          <NStatistic :label="t('adminAPILogs.todayCount')" :value="statsData.today_count" />
+        </NCard>
+      </NGi>
+      <NGi>
+        <NCard size="small">
+          <NStatistic :label="t('adminAPILogs.clientErrors')">
+            <template #default>
+              <NText type="warning">
+                {{ statsData.client_error_count }}
+              </NText>
+            </template>
+          </NStatistic>
+        </NCard>
+      </NGi>
+      <NGi>
+        <NCard size="small">
+          <NStatistic :label="t('adminAPILogs.serverErrors')">
+            <template #default>
+              <NText type="error">
+                {{ statsData.server_error_count }}
+              </NText>
+            </template>
+          </NStatistic>
+        </NCard>
+      </NGi>
     </NGrid>
 
-    <NText depth="3" style="display: block; margin: -4px 0 12px;">{{ t('adminAPILogs.statsHint') }}</NText>
+    <NText depth="3" style="display: block; margin: -4px 0 12px;">
+      {{ t('adminAPILogs.statsHint') }}
+    </NText>
 
     <NGrid :x-gap="12" :y-gap="12" cols="1 s:2 l:2" responsive="screen" style="margin-bottom: 16px;">
       <NGi>
         <NCard size="small" :title="t('adminAPILogs.topPaths')">
-          <div ref="topPathChartRef" class="top-path-chart"></div>
-          <NText v-if="!topPathItems.length" depth="3" style="display: block; text-align: center;">{{ t('adminAPILogs.noTopPaths') }}</NText>
+          <div ref="topPathChartRef" class="top-path-chart" />
+          <NText v-if="!topPathItems.length" depth="3" style="display: block; text-align: center;">
+            {{ t('adminAPILogs.noTopPaths') }}
+          </NText>
         </NCard>
       </NGi>
       <NGi>
         <NCard size="small" :title="t('adminAPILogs.overview')">
           <NDescriptions :column="2" bordered size="small" label-placement="left">
-            <NDescriptionsItem :label="t('adminAPILogs.successCount')">{{ statsData.success_count }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.distinctIPs')">{{ statsData.distinct_ip_count }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.avgDuration')">{{ Number(statsData.avg_duration || 0).toFixed(1) }} ms</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.sceneSummary')">{{ statsData.scene_stats.map(item => `${item.scene}:${item.count}`).join(' / ') || '-' }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.successCount')">
+              {{ statsData.success_count }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.distinctIPs')">
+              {{ statsData.distinct_ip_count }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.avgDuration')">
+              {{ Number(statsData.avg_duration || 0).toFixed(1) }} ms
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.sceneSummary')">
+              {{ statsData.scene_stats.map(item => `${item.scene}:${item.count}`).join(' / ') || '-' }}
+            </NDescriptionsItem>
           </NDescriptions>
         </NCard>
       </NGi>
@@ -612,44 +653,75 @@ onMounted(() => {
             :reset-label="t('common.restoreDefaultFields')"
             @reset="resetSelectedColumns"
           />
-          <NButton size="small" type="primary" @click="fetchList">{{ t('adminAPILogs.refresh') }}</NButton>
-          <NButton size="small" type="warning" @click="showClean = true">{{ t('adminAPILogs.cleanLogs') }}</NButton>
+          <NButton size="small" type="primary" @click="fetchList">
+            {{ t('adminAPILogs.refresh') }}
+          </NButton>
+          <NButton size="small" type="warning" @click="showClean = true">
+            {{ t('adminAPILogs.cleanLogs') }}
+          </NButton>
         </NSpace>
       </template>
 
       <NCard size="small" embedded style="margin-bottom: 12px;">
         <NSpace align="center" justify="space-between" :wrap="true">
           <NSpace align="center" :wrap="true" size="small">
-            <NText strong>{{ t('adminServer.runtimeConfig.apiLog') }}</NText>
+            <NText strong>
+              {{ t('adminServer.runtimeConfig.apiLog') }}
+            </NText>
             <NSwitch v-model:value="runtimeForm.api_access_log_enabled" />
-            <NText depth="3">{{ t('adminServer.runtimeConfig.queryDays') }}</NText>
+            <NText depth="3">
+              {{ t('adminAPILogs.userVisible') }}
+            </NText>
+            <NSwitch v-model:value="runtimeForm.user_api_log_visible" />
+            <NText depth="3">
+              {{ t('adminServer.runtimeConfig.queryDays') }}
+            </NText>
             <NInputNumber v-model:value="runtimeForm.api_log_query_days" :min="1" :max="365" size="small" style="width: 110px;" />
-            <NText depth="3">{{ t('adminServer.runtimeConfig.maxCount') }}</NText>
+            <NText depth="3">
+              {{ t('adminServer.runtimeConfig.maxCount') }}
+            </NText>
             <NInputNumber v-model:value="runtimeForm.api_log_max_count" :min="100" :max="200000" size="small" style="width: 130px;" />
-            <NText depth="3">{{ t('adminAPILogs.perUserLimitEnabled') }}</NText>
+            <NText depth="3">
+              {{ t('adminAPILogs.perUserLimitEnabled') }}
+            </NText>
             <NSwitch v-model:value="runtimeForm.api_log_per_user_limit_enabled" />
-            <NText depth="3">{{ t('adminAPILogs.perUserMaxCount') }}</NText>
+            <NText depth="3">
+              {{ t('adminAPILogs.perUserMaxCount') }}
+            </NText>
             <NInputNumber v-model:value="runtimeForm.api_log_per_user_max_count" :min="1" :max="200000" size="small" style="width: 130px;" />
           </NSpace>
           <NSpace size="small">
-            <NButton size="small" type="primary" :loading="runtimeSaving" @click="handleSaveRuntimeConfig">{{ t('adminServer.runtimeConfig.save') }}</NButton>
-            <NButton size="small" :loading="runtimeLoading" @click="loadRuntimeConfig">{{ t('adminAPILogs.refresh') }}</NButton>
+            <NButton size="small" type="primary" :loading="runtimeSaving" @click="handleSaveRuntimeConfig">
+              {{ t('adminServer.runtimeConfig.save') }}
+            </NButton>
+            <NButton size="small" :loading="runtimeLoading" @click="loadRuntimeConfig">
+              {{ t('adminAPILogs.refresh') }}
+            </NButton>
           </NSpace>
         </NSpace>
-        <NText depth="3" style="display: block; margin-top: 8px;">{{ t('adminAPILogs.runtimeHint') }}</NText>
+        <NText depth="3" style="display: block; margin-top: 8px;">
+          {{ t('adminAPILogs.runtimeHint') }}
+        </NText>
       </NCard>
 
       <NSpace align="center" style="margin-bottom: 12px;" :wrap="true">
-        <NInput v-model:value="query.keyword" :placeholder="t('adminAPILogs.keywordPlaceholder')" clearable size="small" style="width: 260px;" @keyup.enter="handleSearch" />
+        <NInput v-model:value="query.keyword" :placeholder="t('adminAPILogs.keywordPlaceholder')" clearable size="small" style="width: 220px;" @keyup.enter="handleSearch" />
+        <NInput v-model:value="query.path" :placeholder="t('adminAPILogs.pathPlaceholder')" clearable size="small" style="width: 280px;" @keyup.enter="handleSearch" />
         <NSelect v-model:value="query.scene" :options="sceneOptions" :placeholder="t('adminAPILogs.scene')" clearable size="small" style="width: 120px;" />
         <NSelect v-model:value="query.transport" :options="transportOptions" :placeholder="t('adminAPILogs.transport')" clearable size="small" style="width: 130px;" />
         <NSelect v-model:value="query.method" :options="methodOptions" :placeholder="t('adminAPILogs.method')" clearable size="small" style="width: 110px;" />
         <NSelect v-model:value="query.status_code" :options="statusOptions" :placeholder="t('adminAPILogs.statusCode')" size="small" style="width: 110px;" />
         <NDatePicker v-model:value="dateRange" type="datetimerange" clearable size="small" style="width: 340px;" />
-        <NButton size="small" type="primary" @click="handleSearch">{{ t('adminAPILogs.search') }}</NButton>
-        <NButton size="small" @click="handleReset">{{ t('adminAPILogs.reset') }}</NButton>
+        <NButton size="small" type="primary" @click="handleSearch">
+          {{ t('adminAPILogs.search') }}
+        </NButton>
+        <NButton size="small" @click="handleReset">
+          {{ t('adminAPILogs.reset') }}
+        </NButton>
       </NSpace>
-      <NText depth="3" style="display: block; margin: -4px 0 12px;">{{ t('adminAPILogs.transportHint') }}</NText>
+      <NText depth="3" style="display: block; margin: -4px 0 12px;">
+        {{ t('adminAPILogs.transportHint') }}
+      </NText>
 
       <NDataTable
         remote
@@ -664,36 +736,86 @@ onMounted(() => {
     </NCard>
 
     <NModal v-model:show="showDetail" preset="card" :title="t('adminAPILogs.detailTitle')" style="width: 1100px;" :mask-closable="true">
-      <NText v-if="detailLoading" depth="3">{{ t('adminAPILogs.loading') }}</NText>
+      <NText v-if="detailLoading" depth="3">
+        {{ t('adminAPILogs.loading') }}
+      </NText>
       <NSpace v-else-if="detailData" vertical :size="16">
         <NCard size="small" embedded :title="t('adminAPILogs.basicInfo')">
           <NDescriptions bordered :column="2" label-placement="left">
-            <NDescriptionsItem :label="t('adminAPILogs.id')">{{ detailData.id }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.requestId')">{{ detailData.request_id || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.scene')">{{ detailData.scene || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.transport')">
-              <NTag size="small" :type="resolveTransportTagType(detailData.transport)">{{ resolveTransportLabel(detailData.transport || 'http') }}</NTag>
+            <NDescriptionsItem :label="t('adminAPILogs.id')">
+              {{ detailData.id }}
             </NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.routePath')">{{ detailData.route_path || detailData.path }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.path')">{{ detailData.path }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.method')">{{ detailData.method }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.protocol')">{{ detailData.protocol || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.statusCode')">{{ detailData.status_code }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.duration')">{{ formatDuration(detailData.duration) }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.username')">{{ detailData.username || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.ip')">{{ detailData.ip }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.sourceIP')">{{ detailData.source_ip || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.handlerName')">{{ detailData.handler_name || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.requestContentType')">{{ detailData.request_content_type || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.responseContentType')">{{ detailData.response_content_type || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.xIP')">{{ detailData.x_ip || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.xRealIP')">{{ detailData.x_real_ip || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.xForwardedFor')" :span="2">{{ detailData.x_forwarded_for || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.requestSize')">{{ formatByteSize(detailData.request_size) }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.responseSize')">{{ formatByteSize(detailData.response_size) }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.time')">{{ detailData.create_time ? new Date(detailData.create_time * 1000).toLocaleString() : '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.referer')">{{ detailData.referer || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminAPILogs.userAgent')" :span="2">{{ detailData.user_agent || '-' }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.requestId')">
+              {{ detailData.request_id || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.scene')">
+              {{ detailData.scene || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.transport')">
+              <NTag size="small" :type="resolveTransportTagType(detailData.transport)">
+                {{ resolveTransportLabel(detailData.transport || 'http') }}
+              </NTag>
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.routePath')">
+              {{ detailData.route_path || detailData.path }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.path')">
+              {{ detailData.path }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.method')">
+              {{ detailData.method }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.protocol')">
+              {{ detailData.protocol || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.statusCode')">
+              {{ detailData.status_code }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.duration')">
+              {{ formatDuration(detailData.duration) }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.username')">
+              {{ detailData.username || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.ip')">
+              {{ detailData.ip }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.sourceIP')">
+              {{ detailData.source_ip || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.handlerName')">
+              {{ detailData.handler_name || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.requestContentType')">
+              {{ detailData.request_content_type || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.responseContentType')">
+              {{ detailData.response_content_type || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.xIP')">
+              {{ detailData.x_ip || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.xRealIP')">
+              {{ detailData.x_real_ip || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.xForwardedFor')" :span="2">
+              {{ detailData.x_forwarded_for || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.requestSize')">
+              {{ formatByteSize(detailData.request_size) }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.responseSize')">
+              {{ formatByteSize(detailData.response_size) }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.time')">
+              {{ detailData.create_time ? new Date(detailData.create_time * 1000).toLocaleString() : '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.referer')">
+              {{ detailData.referer || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminAPILogs.userAgent')" :span="2">
+              {{ detailData.user_agent || '-' }}
+            </NDescriptionsItem>
           </NDescriptions>
         </NCard>
 
@@ -708,7 +830,9 @@ onMounted(() => {
         <!-- 敏感字段默认隐藏，需「查看敏感详情」二次确认 -->
         <NCard v-if="!showSensitiveDetail" size="small" embedded :title="t('adminAPILogs.sensitiveSection')">
           <NSpace vertical :size="8">
-            <NText depth="3">{{ t('adminAPILogs.sensitiveHiddenHint') }}</NText>
+            <NText depth="3">
+              {{ t('adminAPILogs.sensitiveHiddenHint') }}
+            </NText>
             <NButton type="warning" size="small" @click="handleRevealSensitiveDetail">
               {{ t('adminAPILogs.viewSensitiveDetail') }}
             </NButton>
@@ -728,20 +852,28 @@ onMounted(() => {
           </NCard>
         </template>
       </NSpace>
-      <NText v-else depth="3">{{ t('adminAPILogs.noDetailData') }}</NText>
+      <NText v-else depth="3">
+        {{ t('adminAPILogs.noDetailData') }}
+      </NText>
     </NModal>
 
     <NModal v-model:show="showClean" preset="card" :title="t('adminAPILogs.cleanModalTitle')" style="width: 400px;" :mask-closable="false">
       <NSpace vertical>
         <NText>{{ t('adminAPILogs.cleanWarning') }}</NText>
         <NDivider style="margin: 8px 0;" />
-        <NText depth="3">{{ t('adminAPILogs.cleanBeforeLabel') }}</NText>
+        <NText depth="3">
+          {{ t('adminAPILogs.cleanBeforeLabel') }}
+        </NText>
         <NDatePicker type="datetime" clearable style="width: 100%;" @update:value="handleCleanDateChange" />
       </NSpace>
       <template #footer>
         <NSpace justify="end">
-          <NButton @click="showClean = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="error" :loading="cleaning" :disabled="!cleanBefore" @click="handleClean">{{ t('adminAPILogs.confirmClean') }}</NButton>
+          <NButton @click="showClean = false">
+            {{ t('common.cancel') }}
+          </NButton>
+          <NButton type="error" :loading="cleaning" :disabled="!cleanBefore" @click="handleClean">
+            {{ t('adminAPILogs.confirmClean') }}
+          </NButton>
         </NSpace>
       </template>
     </NModal>

@@ -8,7 +8,8 @@ import { useMessage } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import NoticeList from '../common/NoticeList.vue'
 import AnnouncementPreviewModal from '@/components/common/AnnouncementPreviewModal.vue'
-import { userAnnouncementApi, type UserAnnouncementItem } from '@/service/api/user/announcement'
+import { userAnnouncementApi } from '@/service/api/user/announcement'
+import type { UserAnnouncementItem } from '@/service/api/user/announcement'
 import { adminTodoApi } from '@/service/api/admin/todo'
 import { useAuthStore } from '@/store'
 import { getRuntimeRouteMode } from '@/router/runtime-mode'
@@ -29,6 +30,11 @@ const todoBadge = computed(() => todos.value.reduce((s, i) => s + (i.count || 0)
 
 const previewShow = ref(false)
 const previewItem = ref<UserAnnouncementItem | null>(null)
+let refreshTimer: number | null = null
+let refreshInFlight = false
+let refreshQueued = false
+let refreshPendingWhileHidden = false
+let disposed = false
 
 const typeIcon: Record<string, string> = {
   info: 'icon-park-outline:tips-one',
@@ -94,6 +100,11 @@ async function refreshTodos() {
 async function refresh() {
   if (!authStore.token)
     return
+  if (refreshInFlight) {
+    refreshQueued = true
+    return
+  }
+  refreshInFlight = true
   loading.value = true
   try {
     const [listRes, countRes] = await Promise.all([
@@ -116,6 +127,35 @@ async function refresh() {
   }
   finally {
     loading.value = false
+    refreshInFlight = false
+    if (!disposed && refreshQueued) {
+      refreshQueued = false
+      scheduleRefresh()
+    }
+  }
+}
+
+// 公告会通过 Presence 转发到每个同会话标签。合并短时间内的连续事件，
+// 并让后台标签等到重新可见时才请求，避免一次公告造成 N 个后台标签同时拉三类接口。
+function scheduleRefresh() {
+  if (disposed)
+    return
+  if (document.visibilityState !== 'visible') {
+    refreshPendingWhileHidden = true
+    return
+  }
+  if (refreshTimer)
+    window.clearTimeout(refreshTimer)
+  refreshTimer = window.setTimeout(() => {
+    refreshTimer = null
+    void refresh()
+  }, 250)
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible' && refreshPendingWhileHidden) {
+    refreshPendingWhileHidden = false
+    scheduleRefresh()
   }
 }
 
@@ -157,7 +197,9 @@ async function markAllRead() {
   try {
     const res = await userAnnouncementApi.markAllRead()
     if (res.isSuccess) {
-      announcements.value.forEach(a => { a.is_read = true })
+      announcements.value.forEach((a) => {
+        a.is_read = true
+      })
       unreadCount.value = 0
       message.success(t('announcements.markAllReadSuccess'))
     }
@@ -168,15 +210,22 @@ async function markAllRead() {
 }
 
 function onPresenceAnnouncement() {
-  refresh()
+  scheduleRefresh()
 }
 
 onMounted(() => {
-  refresh()
+  disposed = false
+  void refresh()
   window.addEventListener('fst:announcement', onPresenceAnnouncement)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 onUnmounted(() => {
+  disposed = true
+  refreshQueued = false
+  if (refreshTimer)
+    window.clearTimeout(refreshTimer)
   window.removeEventListener('fst:announcement', onPresenceAnnouncement)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 
 defineExpose({ refresh })

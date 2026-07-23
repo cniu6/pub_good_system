@@ -11,6 +11,7 @@ import (
 	"fst/backend/app/services"
 	"fst/backend/pkg/config"
 	"fst/backend/pkg/panicsafe"
+	"fst/backend/utils"
 	"io"
 	"log"
 	"net"
@@ -137,18 +138,6 @@ func sanitizeRequestHeaders(headers map[string][]string) *string {
 			payload[key] = ""
 			continue
 		}
-		if isSensitiveLogField(key) {
-			if len(items) == 1 {
-				payload[key] = "***"
-			} else {
-				masked := make([]string, len(items))
-				for i := range masked {
-					masked[i] = "***"
-				}
-				payload[key] = masked
-			}
-			continue
-		}
 		if len(items) == 1 {
 			payload[key] = truncateForLog(items[0], maxLogHeaderValueLength)
 			continue
@@ -159,7 +148,6 @@ func sanitizeRequestHeaders(headers map[string][]string) *string {
 		}
 		payload[key] = values
 	}
-	// 请求头仍脱敏 Authorization / Cookie / Token 等凭证字段
 	data, err := json.Marshal(payload)
 	if err != nil {
 		fallback := truncateForLog("[request headers omitted: marshal failed]", maxLogStoredHeadersLength)
@@ -318,12 +306,15 @@ func scheduleAPIAccessLogRetentionCleanup() {
 	}
 }
 
-func sanitizeResponseBodyByType(raw, contentType, transport string, statusCode int) string {
+func sanitizeResponseBodyByType(raw, contentType, transport string, statusCode int, maskSensitive bool) string {
 	trimmedType := normalizeContentType(contentType)
 	if transport == "websocket" && statusCode == 101 {
 		return "[websocket upgrade handshake established; frame messages are not captured in HTTP access logs]"
 	}
 	if trimmedType == "" || strings.Contains(trimmedType, "json") || strings.Contains(trimmedType, "text") || strings.Contains(trimmedType, "xml") || strings.Contains(trimmedType, "javascript") || strings.Contains(trimmedType, "x-www-form-urlencoded") || trimmedType == "text/event-stream" || transport == "sse" || transport == "stream" {
+		if !maskSensitive {
+			return truncateForLog(raw, maxLogStoredBodyBytes)
+		}
 		return sanitizeLogBody(raw, maxLogStoredBodyBytes, false)
 	}
 	if raw == "" {
@@ -387,8 +378,8 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 		requestContentType := truncateForLog(normalizeContentType(c.GetHeader("Content-Type")), 255)
 		responseContentType := truncateForLog(normalizeContentType(blw.Header().Get("Content-Type")), 255)
 		transport := resolveAPITransport(c, requestBody, responseContentType)
-		responseBody := sanitizeResponseBodyByType(blw.body.String(), responseContentType, transport, c.Writer.Status())
-		requestBody = sanitizeLogBody(requestBody, maxLogStoredBodyBytes, true)
+		responseBody := sanitizeResponseBodyByType(blw.body.String(), responseContentType, transport, c.Writer.Status(), false)
+		requestBody = truncateForLog(requestBody, maxLogStoredBodyBytes)
 		requestHeaders := sanitizeRequestHeaders(c.Request.Header)
 		pathParams := sanitizePathParams(c.Params)
 
@@ -422,10 +413,11 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 			routePath = path
 		}
 		handlerName := truncateForLog(c.HandlerName(), 255)
-		sourceIP := truncateForLog(resolveSourceIP(c.Request.RemoteAddr), 45)
-		xip := truncateForLog(c.GetHeader("X-IP"), 45)
-		xForwardedFor := truncateForLog(c.GetHeader("X-Forwarded-For"), 512)
-		xRealIP := truncateForLog(c.GetHeader("X-Real-IP"), 45)
+		// IP 类字段静默截断（无截断标记），避免 truncateForLog 追加标记后超列宽
+		sourceIP := utils.ClampBytes(resolveSourceIP(c.Request.RemoteAddr), maxLogIPLength)
+		xip := utils.ClampBytes(c.GetHeader("X-IP"), maxLogIPLength)
+		xForwardedFor := utils.ClampBytes(c.GetHeader("X-Forwarded-For"), maxLogXForwardedForLength)
+		xRealIP := utils.ClampBytes(c.GetHeader("X-Real-IP"), maxLogIPLength)
 
 		entry := &models.APIAccessLog{
 			RequestID:           requestID,
@@ -437,14 +429,14 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 			Method:              c.Request.Method,
 			Transport:           transport,
 			Protocol:            truncateForLog(c.Request.Proto, 32),
-			Path:                path,
-			RoutePath:           routePath,
+			Path:                utils.ClampBytes(path, maxLogPathLength),
+			RoutePath:           utils.ClampBytes(routePath, maxLogPathLength),
 			HandlerName:         handlerName,
 			RequestContentType:  requestContentType,
 			ResponseContentType: responseContentType,
-			QueryString:         sanitizeQueryString(c.Request.URL.RawQuery),
+			QueryString:         truncateForLog(c.Request.URL.RawQuery, 1000),
 			PathParams:          pathParams,
-			IP:                  truncateForLog(c.ClientIP(), 45),
+			IP:                  utils.ClampBytes(c.ClientIP(), maxLogIPLength),
 			SourceIP:            sourceIP,
 			XIP:                 xip,
 			XForwardedFor:       xForwardedFor,

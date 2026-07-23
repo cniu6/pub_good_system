@@ -107,7 +107,7 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 		Subject:        subject,
 		Status:         models.PaymentStatusPending,
 		ExpireAt:       expireAt,
-		ClientIP:       req.ClientIP,
+		ClientIP:       utils.ClampStoredIP(req.ClientIP),
 	}
 	if err := createPaymentOrderWithPendingLimitTx(userID, order); err != nil {
 		return nil, err
@@ -351,11 +351,7 @@ func recordPaymentException(ex *models.PaymentException) error {
 }
 
 func truncateForException(s string, max int) string {
-	s = strings.TrimSpace(s)
-	if max <= 0 || len(s) <= max {
-		return s
-	}
-	return s[:max] + "..."
+	return utils.ClampBytes(s, max)
 }
 
 func classifyNotifyExceptionType(err error) string {
@@ -650,7 +646,13 @@ func reconcilePaymentOrder(order *models.PaymentOrder) (bool, error) {
 		return false, errors.New("查询结果为空")
 	}
 	if queryResult.Code != 1 {
-		log.Printf("[Payment] 主动查单未返回成功结果: order_no=%s, trade_no=%s, code=%d, msg=%s, status=%s", orderNo, tradeNo, queryResult.Code, strings.TrimSpace(queryResult.Msg), strings.TrimSpace(queryResult.TradeStatus))
+		msg := strings.TrimSpace(queryResult.Msg)
+		status := strings.TrimSpace(queryResult.TradeStatus)
+		log.Printf("[Payment] 主动查单未返回成功结果: order_no=%s, trade_no=%s, code=%d, msg=%s, status=%s", orderNo, tradeNo, queryResult.Code, msg, status)
+		// 永久失败（如订单号不存在）：落异常 + pending 标 failed，避免后台反复空扫网关
+		if isPermanentGatewayQueryFailure(queryResult.Code, msg, status) {
+			markPermanentReconcileFailure(order, queryResult.Code, msg, status)
+		}
 		return false, nil
 	}
 	if queryResult.OutTradeNo != "" && queryResult.OutTradeNo != orderNo {
@@ -694,9 +696,73 @@ func reconcilePaymentOrder(order *models.PaymentOrder) (bool, error) {
 	return changed, nil
 }
 
+// isPermanentGatewayQueryFailure 判断网关查单是否为不可恢复错误（继续轮询只会浪费）
+func isPermanentGatewayQueryFailure(_ int, msg, tradeStatus string) bool {
+	text := strings.ToLower(strings.TrimSpace(msg + " " + tradeStatus))
+	if text == "" {
+		return false
+	}
+	permanentHints := []string{
+		"订单号不存在",
+		"订单不存在",
+		"order not found",
+		"order does not exist",
+		"no such order",
+		"invalid order",
+	}
+	for _, h := range permanentHints {
+		if strings.Contains(text, strings.ToLower(h)) {
+			return true
+		}
+	}
+	return false
+}
+
+// markPermanentReconcileFailure 永久查单失败：写异常并尽量把 pending 标为 failed，后续扫描会排除
+func markPermanentReconcileFailure(order *models.PaymentOrder, code int, msg, tradeStatus string) {
+	if order == nil {
+		return
+	}
+	exType := models.PaymentExceptionPermanentRejected
+	lower := strings.ToLower(msg + " " + tradeStatus)
+	if strings.Contains(lower, "订单号不存在") || strings.Contains(lower, "订单不存在") ||
+		strings.Contains(lower, "order not found") || strings.Contains(lower, "order does not exist") {
+		exType = models.PaymentExceptionOrderMissing
+	}
+	// 先标 failed，确保即使异常写入因死锁失败，批量扫描也不会再捞到该单
+	if order.Status == models.PaymentStatusPending {
+		if err := models.UpdatePaymentOrderStatus(order.OrderNo, models.PaymentStatusFailed, ""); err != nil {
+			log.Printf("[Payment] 永久失败标 failed 失败: order_no=%s err=%v", order.OrderNo, err)
+		} else {
+			order.Status = models.PaymentStatusFailed
+		}
+	}
+	detail := fmt.Sprintf(`{"code":%d,"msg":%q,"trade_status":%q}`, code, msg, tradeStatus)
+	ex := &models.PaymentException{
+		OrderNo:       order.OrderNo,
+		UserID:        order.UserID,
+		GatewayID:     order.GatewayID,
+		ExceptionType: exType,
+		Status:        models.PaymentExceptionStatusOpen,
+		Source:        "reconcile",
+		Message:       msg,
+		Detail:        detail,
+		OrderStatus:   order.Status,
+		TradeNo:       models.NormalizeTradeNo(order.TradeNo),
+	}
+	if err := models.CreatePaymentException(ex); err != nil {
+		log.Printf("[Payment] 写入永久查单失败异常失败: order_no=%s err=%v", order.OrderNo, err)
+	}
+	log.Printf("[Payment] 永久查单失败已停扫: order_no=%s type=%s msg=%s", order.OrderNo, exType, msg)
+}
+
 // AdminCompleteOrder 管理员手动补单。
 // force=true 时允许对 canceled/failed 强制补单（高危）；默认仅 pending，且优先应走网关对账。
 func AdminCompleteOrder(orderID uint64, memo string, force bool) error {
+	memo = strings.TrimSpace(memo)
+	if err := validateClientRuneLen(memo, "备注", utils.MaxCommentLength); err != nil {
+		return err
+	}
 	order, err := models.GetPaymentOrderByID(orderID)
 	if err != nil {
 		return NewClientError("订单不存在")

@@ -8,16 +8,27 @@ import (
 
 func TestTruncateForLogKeepsUTF8AndMarks(t *testing.T) {
 	raw := strings.Repeat("测", 20) // 每字 3 字节
-	out := truncateForLog(raw, 10)
+	out := truncateForLog(raw, 40)
 	if !strings.HasSuffix(out, logTruncateMarker) {
 		t.Fatalf("expected truncate marker, got %q", out)
+	}
+	if len(out) > 40 {
+		t.Fatalf("expected len<=limit, got len=%d", len(out))
 	}
 	body := strings.TrimSuffix(out, logTruncateMarker)
 	if !utf8.ValidString(body) {
 		t.Fatalf("truncated body is not valid UTF-8: %q", body)
 	}
-	if len(out) <= 10 {
-		t.Fatalf("expected truncated content longer than limit due to marker, got len=%d", len(out))
+}
+
+func TestTruncateForLogRespectsLimitWithMarker(t *testing.T) {
+	raw := strings.Repeat("a", 100)
+	out := truncateForLog(raw, 20)
+	if len(out) > 20 {
+		t.Fatalf("expected len<=20, got %d (%q)", len(out), out)
+	}
+	if !strings.HasSuffix(out, logTruncateMarker) {
+		t.Fatalf("expected truncate marker, got %q", out)
 	}
 }
 
@@ -87,9 +98,12 @@ func TestSanitizeLogBodyDoesNotOverMaskBusinessCodeFields(t *testing.T) {
 
 func TestSanitizeLogBodyTruncatesLongContent(t *testing.T) {
 	raw := strings.Repeat("a", 100)
-	out := sanitizeLogBody(raw, 20, false)
+	out := sanitizeLogBody(raw, 40, false)
 	if !strings.HasSuffix(out, logTruncateMarker) {
 		t.Fatalf("expected truncate marker, got %q", out)
+	}
+	if len(out) > 40 {
+		t.Fatalf("expected len<=40, got %d", len(out))
 	}
 	if strings.Contains(out, strings.Repeat("a", 50)) {
 		t.Fatalf("expected truncated content, got len=%d", len(out))

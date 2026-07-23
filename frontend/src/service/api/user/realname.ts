@@ -5,9 +5,9 @@ import { request } from '../../http'
 
 // 选项常量统一从 constants/realname 导出，避免与管理端重复
 export {
+  certificateTypeOptions,
   getCertificateTypeOptions,
   getRealnameStatusOptions,
-  certificateTypeOptions,
   realnameStatusOptions,
 } from '@/constants/realname'
 

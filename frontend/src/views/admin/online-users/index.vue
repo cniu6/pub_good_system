@@ -2,10 +2,10 @@
 import { h, onMounted, reactive, ref } from 'vue'
 import type { DataTableColumns } from 'naive-ui'
 import { NButton, NSpace, NTag, NText, NTooltip, useDialog, useMessage } from 'naive-ui'
-import { adminOnlineApi, type OnlineSession, type OnlineSessionListParams, type OnlineUserRow } from '@/service/api/admin/online'
+import { adminOnlineApi } from '@/service/api/admin/online'
+import type { OnlineSession, OnlineSessionListParams, OnlineUserRow } from '@/service/api/admin/online'
 import { fetchSetting, updateSetting } from '@/service/api/admin/settings'
 import { useAuthStore, useSettingsStore } from '@/store'
-import { startPresence, stopPresence } from '@/composables/usePresence'
 import { useRequestGuard } from '@/hooks'
 
 const { t } = useI18n()
@@ -56,15 +56,10 @@ async function saveReportInterval() {
     const res = await updateSetting(REPORT_INTERVAL_KEY, String(val))
     if (res.isSuccess) {
       reportInterval.value = val
-      // 热更新：同步 settingsStore，并重启当前 Presence 心跳周期
+      // 热更新：同步 settingsStore，并通过认证层统一重启当前 Presence。
+      // 不在页面里直接调组合式函数，避免未来认证/多标签协调逻辑变更后出现两套重启路径。
       settingsStore.updateConfig({ online_report_interval_seconds: val })
-      if (authStore.token) {
-        stopPresence()
-        startPresence(authStore.token, () => {
-          window.$message?.warning(t('securityTab.forcedLogout'))
-          void authStore.logout(false)
-        }, val * 1000)
-      }
+      authStore.startPresence()
       message.success(t('adminOnlineUsers.reportIntervalSaveSuccessHot'))
     }
     else {
@@ -313,11 +308,11 @@ onMounted(() => {
 
     <n-card :title="t('adminOnlineUsers.title')">
       <template #header-extra>
-        <n-button size="small" type="primary" :loading="loading" @click="refreshAll">
+        <NButton size="small" type="primary" :loading="loading" @click="refreshAll">
           {{ t('common.refresh') }}
-        </n-button>
+        </NButton>
       </template>
-      <n-space align="center" :wrap="true" style="margin-bottom: 12px;">
+      <NSpace align="center" :wrap="true" style="margin-bottom: 12px;">
         <n-input v-model:value="query.keyword" clearable size="small" :placeholder="t('adminOnlineUsers.keyword')" style="width: 180px;" @keyup.enter="handleSearch" />
         <n-select
           v-model:value="query.client_type"
@@ -330,13 +325,13 @@ onMounted(() => {
           ]"
           @update:value="handleSearch"
         />
-        <n-button size="small" type="primary" @click="handleSearch">
+        <NButton size="small" type="primary" @click="handleSearch">
           {{ t('adminOnlineUsers.search') }}
-        </n-button>
-        <n-button size="small" @click="handleReset">
+        </NButton>
+        <NButton size="small" @click="handleReset">
           {{ t('adminOnlineUsers.reset') }}
-        </n-button>
-      </n-space>
+        </NButton>
+      </NSpace>
       <n-alert type="default" :show-icon="true" style="margin-bottom: 12px;">
         {{ t('adminOnlineUsers.multiDeviceHint') }}
       </n-alert>
@@ -353,7 +348,7 @@ onMounted(() => {
     </n-card>
 
     <n-card :title="t('adminOnlineUsers.reportIntervalTitle')" style="margin-top: 16px;" size="small">
-      <n-space align="center" :wrap="true">
+      <NSpace align="center" :wrap="true">
         <span>{{ t('adminOnlineUsers.reportIntervalLabel') }}</span>
         <n-input-number
           v-model:value="reportInterval"
@@ -368,13 +363,13 @@ onMounted(() => {
             {{ t('adminOnlineUsers.reportIntervalUnit') }}
           </template>
         </n-input-number>
-        <n-button size="small" type="primary" :loading="reportIntervalSaving" @click="saveReportInterval">
+        <NButton size="small" type="primary" :loading="reportIntervalSaving" @click="saveReportInterval">
           {{ t('adminOnlineUsers.reportIntervalSave') }}
-        </n-button>
-      </n-space>
-      <n-text depth="3" style="display: block; margin-top: 8px; font-size: 12px;">
+        </NButton>
+      </NSpace>
+      <NText depth="3" style="display: block; margin-top: 8px; font-size: 12px;">
         {{ t('adminOnlineUsers.reportIntervalHint') }}
-      </n-text>
+      </NText>
     </n-card>
   </div>
 </template>

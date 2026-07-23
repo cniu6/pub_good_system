@@ -45,22 +45,23 @@ var (
 	adminEmailTplCtrl         *admin.EmailTemplateController
 	adminSMSTplCtrl           *admin.SMSTemplateController //短信模板
 	adminEmailLogCtrl         *admin.EmailLogController    //邮件日志
-	adminSettingsCtrl         *admin.SettingsController //系统设置
-	adminDebugCtrl            *admin.DebugController    //调试
+	adminSettingsCtrl         *admin.SettingsController    //系统设置
+	adminDebugCtrl            *admin.DebugController       //调试
 	adminMoneyScoreCtrl       *admin.UserMoneyScoreController
-	adminPaymentCtrl          *admin.PaymentController   //支付
-	adminRealnameCtrl         *admin.RealnameController  //实名认证
-	adminWithdrawCtrl         *admin.WithdrawController  //提现
-	adminSMSLogCtrl           *admin.SMSLogController    //短信日志
-	adminDashboardCtrl        *admin.DashboardController //仪表盘
-	adminAutoJobCtrl          *admin.AutoJobController   //自动任务
+	adminPaymentCtrl          *admin.PaymentController      //支付
+	adminRealnameCtrl         *admin.RealnameController     //实名认证
+	adminWithdrawCtrl         *admin.WithdrawController     //提现
+	adminSMSLogCtrl           *admin.SMSLogController       //短信日志
+	adminDashboardCtrl        *admin.DashboardController    //仪表盘
+	adminAutoJobCtrl          *admin.AutoJobController      //自动任务
 	adminOnlineCtrl           *admin.OnlineController       //在线用户
 	adminAnnouncementCtrl     *admin.AnnouncementController //站内公告
 	userAnnouncementCtrl      *user.AnnouncementController  //用户公告
-	adminRBACCtrl             *admin.RBACController
 	adminProfileCtrl          *admin.ProfileController
 	adminTodoCtrl             *admin.TodoController
-	adminExportCtrl           *admin.ExportController
+	adminDBConsoleCtrl        *admin.DBConsoleController
+	adminTerminalCtrl         *admin.TerminalController
+	adminUserLevelCtrl        *admin.UserLevelController
 )
 
 func initControllers() {
@@ -92,10 +93,11 @@ func initControllers() {
 	adminOnlineCtrl = admin.NewOnlineController()
 	adminAnnouncementCtrl = admin.NewAnnouncementController()
 	userAnnouncementCtrl = user.NewAnnouncementController()
-	adminRBACCtrl = admin.NewRBACController()
 	adminProfileCtrl = admin.NewProfileController()
 	adminTodoCtrl = admin.NewTodoController()
-	adminExportCtrl = admin.NewExportController()
+	adminDBConsoleCtrl = admin.NewDBConsoleController()
+	adminTerminalCtrl = admin.NewTerminalController()
+	adminUserLevelCtrl = admin.NewUserLevelController()
 }
 
 // SetupRoutes 汇总注册全部 HTTP 路由（详情拆在 public/user/admin 文件）。
@@ -133,10 +135,10 @@ func SetupRoutes(router *gin.Engine) {
 	})
 
 	// 就绪检查：Ping 数据库；失败返回 HTTP 503 + 统一 {code,message,data}
-	router.GET("/ready", handleReady)
+	// router.GET("/ready", handleReady)
 
 	// 简易 Prometheus 文本指标（无额外依赖）
-	router.GET("/metrics", handleMetrics)
+	// router.GET("/metrics", handleMetrics)
 }
 
 // handleReady 就绪探针：DB Ping 成功才算 ready。

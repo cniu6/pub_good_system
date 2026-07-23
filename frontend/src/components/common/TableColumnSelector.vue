@@ -21,7 +21,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: string[]]
-  reset: []
+  'reset': []
 }>()
 
 const selectedValues = computed({
@@ -38,7 +38,9 @@ const selectedValues = computed({
       </NButton>
     </template>
     <NSpace vertical size="small" style="width: 260px;">
-      <NText strong>{{ title }}</NText>
+      <NText strong>
+        {{ title }}
+      </NText>
       <NCheckboxGroup v-model:value="selectedValues">
         <NSpace vertical size="small">
           <NCheckbox
@@ -51,9 +53,13 @@ const selectedValues = computed({
           </NCheckbox>
         </NSpace>
       </NCheckboxGroup>
-      <NText v-if="hint" depth="3">{{ hint }}</NText>
+      <NText v-if="hint" depth="3">
+        {{ hint }}
+      </NText>
       <NSpace justify="end">
-        <NButton size="tiny" @click="emit('reset')">{{ resetLabel }}</NButton>
+        <NButton size="tiny" @click="emit('reset')">
+          {{ resetLabel }}
+        </NButton>
       </NSpace>
     </NSpace>
   </NPopover>

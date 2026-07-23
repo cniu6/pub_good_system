@@ -25,9 +25,11 @@ import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
-import { adminLogApi, type OperationLogStats } from '@/service/api/admin/log'
+import { adminLogApi } from '@/service/api/admin/log'
+import type { OperationLogStats } from '@/service/api/admin/log'
 import type { UserSimpleInfo } from '@/service/api/admin/user'
 import { normalizeLogMaxCount, normalizeLogPerUserMaxCount, normalizeLogQueryDays, parseBooleanSetting } from '@/utils'
+import { formatPrettyJSON } from '@/utils/format'
 
 const router = useRouter()
 const message = useMessage()
@@ -74,6 +76,8 @@ const runtimeForm = reactive({
   operation_log_max_count: 1000,
   operation_log_per_user_limit_enabled: false,
   operation_log_per_user_max_count: 1000,
+  user_operation_log_visible: true,
+  user_operation_log_show_body: false,
 })
 
 const methodColors: Record<string, 'info' | 'success' | 'warning' | 'error'> = {
@@ -98,20 +102,8 @@ function getUserDisplayName(userId: number): string {
   return user.nickname || user.username || t('adminLogs.userPrefix', { id: userId })
 }
 
-function formatPayload(raw?: string) {
-  const value = raw?.trim()
-  if (!value)
-    return ''
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2)
-  }
-  catch {
-    return value
-  }
-}
-
-const formattedRequestBody = computed(() => formatPayload(detailData.value?.request_body))
-const formattedResponseBody = computed(() => formatPayload(detailData.value?.response_body))
+const formattedRequestBody = computed(() => formatPrettyJSON(detailData.value?.request_body))
+const formattedResponseBody = computed(() => formatPrettyJSON(detailData.value?.response_body))
 
 function applyDateRange(days = runtimeForm.operation_log_query_days) {
   const now = Math.floor(Date.now() / 1000)
@@ -335,6 +327,10 @@ async function loadRuntimeConfig() {
           runtimeForm.operation_log_per_user_limit_enabled = parseBooleanSetting(item.value, false)
         if (item.key === 'operation_log_per_user_max_count')
           runtimeForm.operation_log_per_user_max_count = normalizeLogPerUserMaxCount(item.value)
+        if (item.key === 'user_operation_log_visible')
+          runtimeForm.user_operation_log_visible = parseBooleanSetting(item.value, true)
+        if (item.key === 'user_operation_log_show_body')
+          runtimeForm.user_operation_log_show_body = parseBooleanSetting(item.value, false)
       }
     }
   }
@@ -359,6 +355,8 @@ async function handleSaveRuntimeConfig() {
       operation_log_max_count: String(runtimeForm.operation_log_max_count),
       operation_log_per_user_limit_enabled: String(runtimeForm.operation_log_per_user_limit_enabled),
       operation_log_per_user_max_count: String(runtimeForm.operation_log_per_user_max_count),
+      user_operation_log_visible: String(runtimeForm.user_operation_log_visible),
+      user_operation_log_show_body: String(runtimeForm.user_operation_log_show_body),
     })
     if (!res.isSuccess)
       throw new Error(res.message || t('adminServer.saveRuntimeFailed'))
@@ -394,26 +392,62 @@ onMounted(() => {
 <template>
   <div class="operation-log-page">
     <NGrid :x-gap="12" :y-gap="12" cols="4" style="margin-bottom: 16px;">
-      <NGi><NCard size="small"><NStatistic :label="t('adminLogs.totalCount')" :value="statsData.total_count" /></NCard></NGi>
-      <NGi><NCard size="small"><NStatistic :label="t('adminLogs.todayCount')" :value="statsData.today_count" /></NCard></NGi>
-      <NGi><NCard size="small"><NStatistic :label="t('adminLogs.clientErrors')"><template #default><NText type="warning">{{ statsData.client_error_count }}</NText></template></NStatistic></NCard></NGi>
-      <NGi><NCard size="small"><NStatistic :label="t('adminLogs.serverErrors')"><template #default><NText type="error">{{ statsData.server_error_count }}</NText></template></NStatistic></NCard></NGi>
+      <NGi>
+        <NCard size="small">
+          <NStatistic :label="t('adminLogs.totalCount')" :value="statsData.total_count" />
+        </NCard>
+      </NGi>
+      <NGi>
+        <NCard size="small">
+          <NStatistic :label="t('adminLogs.todayCount')" :value="statsData.today_count" />
+        </NCard>
+      </NGi>
+      <NGi>
+        <NCard size="small">
+          <NStatistic :label="t('adminLogs.clientErrors')">
+            <template #default>
+              <NText type="warning">
+                {{ statsData.client_error_count }}
+              </NText>
+            </template>
+          </NStatistic>
+        </NCard>
+      </NGi>
+      <NGi>
+        <NCard size="small">
+          <NStatistic :label="t('adminLogs.serverErrors')">
+            <template #default>
+              <NText type="error">
+                {{ statsData.server_error_count }}
+              </NText>
+            </template>
+          </NStatistic>
+        </NCard>
+      </NGi>
     </NGrid>
 
-    <NText depth="3" style="display: block; margin: -4px 0 12px;">{{ t('adminLogs.statsHint') }}</NText>
+    <NText depth="3" style="display: block; margin: -4px 0 12px;">
+      {{ t('adminLogs.statsHint') }}
+    </NText>
 
     <NGrid :x-gap="12" :y-gap="12" cols="1 s:2 l:2" responsive="screen" style="margin-bottom: 16px;">
       <NGi>
         <NCard size="small" :title="t('adminLogs.topModules')">
-          <div ref="topModuleChartRef" class="top-path-chart"></div>
-          <NText v-if="!topModuleItems.length" depth="3" style="display: block; text-align: center;">{{ t('adminLogs.noTopModules') }}</NText>
+          <div ref="topModuleChartRef" class="top-path-chart" />
+          <NText v-if="!topModuleItems.length" depth="3" style="display: block; text-align: center;">
+            {{ t('adminLogs.noTopModules') }}
+          </NText>
         </NCard>
       </NGi>
       <NGi>
         <NCard size="small" :title="t('adminLogs.overview')">
           <NDescriptions :column="2" bordered size="small" label-placement="left">
-            <NDescriptionsItem :label="t('adminLogs.successCount')">{{ statsData.success_count }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminLogs.avgDuration')">{{ Number(statsData.avg_duration || 0).toFixed(1) }} ms</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminLogs.successCount')">
+              {{ statsData.success_count }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminLogs.avgDuration')">
+              {{ Number(statsData.avg_duration || 0).toFixed(1) }} ms
+            </NDescriptionsItem>
             <NDescriptionsItem :label="t('adminLogs.methodSummary')" :span="2">
               {{ (statsData.method_stats || []).map(item => `${item.method}:${item.count}`).join(' / ') || '-' }}
             </NDescriptionsItem>
@@ -436,32 +470,60 @@ onMounted(() => {
             :reset-label="t('common.restoreDefaultFields')"
             @reset="resetSelectedColumns"
           />
-          <NButton size="small" type="primary" :loading="loading" @click="fetchLogs">{{ t('adminLogs.refresh') }}</NButton>
+          <NButton size="small" type="primary" :loading="loading" @click="fetchLogs">
+            {{ t('adminLogs.refresh') }}
+          </NButton>
         </NSpace>
       </template>
 
       <NCard size="small" embedded style="margin-bottom: 12px;">
         <NSpace align="center" justify="space-between" :wrap="true">
           <NSpace align="center" :wrap="true" size="small">
-            <NText strong>{{ t('adminLogs.runtimeConfig') }}</NText>
-            <NText depth="3">{{ t('adminLogs.queryDays') }}</NText>
+            <NText strong>
+              {{ t('adminLogs.runtimeConfig') }}
+            </NText>
+            <NText depth="3">
+              {{ t('adminLogs.queryDays') }}
+            </NText>
             <NInputNumber v-model:value="runtimeForm.operation_log_query_days" :min="1" :max="365" size="small" style="width: 110px;" />
-            <NText depth="3">{{ t('adminLogs.maxCount') }}</NText>
+            <NText depth="3">
+              {{ t('adminLogs.maxCount') }}
+            </NText>
             <NInputNumber v-model:value="runtimeForm.operation_log_max_count" :min="100" :max="200000" size="small" style="width: 130px;" />
-            <NText depth="3">{{ t('adminLogs.perUserLimitEnabled') }}</NText>
+            <NText depth="3">
+              {{ t('adminLogs.perUserLimitEnabled') }}
+            </NText>
             <NSwitch v-model:value="runtimeForm.operation_log_per_user_limit_enabled" />
-            <NText depth="3">{{ t('adminLogs.perUserMaxCount') }}</NText>
+            <NText depth="3">
+              {{ t('adminLogs.perUserMaxCount') }}
+            </NText>
             <NInputNumber v-model:value="runtimeForm.operation_log_per_user_max_count" :min="1" :max="200000" size="small" style="width: 130px;" />
+            <NText depth="3">
+              {{ t('adminLogs.userVisible') }}
+            </NText>
+            <NSwitch v-model:value="runtimeForm.user_operation_log_visible" />
+            <NText depth="3">
+              {{ t('adminLogs.userShowBody') }}
+            </NText>
+            <NSwitch v-model:value="runtimeForm.user_operation_log_show_body" />
           </NSpace>
           <NSpace size="small">
-            <NButton size="small" type="primary" :loading="runtimeSaving" @click="handleSaveRuntimeConfig">{{ t('adminServer.runtimeConfig.save') }}</NButton>
-            <NButton size="small" :loading="runtimeLoading" @click="loadRuntimeConfig">{{ t('adminLogs.refresh') }}</NButton>
+            <NButton size="small" type="primary" :loading="runtimeSaving" @click="handleSaveRuntimeConfig">
+              {{ t('adminServer.runtimeConfig.save') }}
+            </NButton>
+            <NButton size="small" :loading="runtimeLoading" @click="loadRuntimeConfig">
+              {{ t('adminLogs.refresh') }}
+            </NButton>
           </NSpace>
         </NSpace>
-        <NText depth="3" style="display: block; margin-top: 8px;">{{ t('adminLogs.runtimeHint') }}</NText>
+        <NText depth="3" style="display: block; margin-top: 8px;">
+          {{ t('adminLogs.runtimeHint') }}
+        </NText>
       </NCard>
 
-      <NText depth="3" style="display: block; margin-bottom: 12px;">{{ t('adminLogs.totalLogs', { total }) }}</NText>
+      <NText depth="3" style="display: block; margin-bottom: 12px;">
+        {{ t('adminLogs.totalLogs', { total }) }}
+      </NText>
 
       <NDataTable
         remote
@@ -475,18 +537,38 @@ onMounted(() => {
     </NCard>
 
     <NModal v-model:show="showDetail" preset="card" :title="t('adminLogs.detailTitle')" style="width: 860px;" :mask-closable="true">
-      <NText v-if="detailLoading" depth="3">{{ t('adminLogs.loading') }}</NText>
+      <NText v-if="detailLoading" depth="3">
+        {{ t('adminLogs.loading') }}
+      </NText>
       <NSpace v-else-if="detailData" vertical :size="16">
         <NDescriptions bordered :column="2" label-placement="left">
-          <NDescriptionsItem :label="t('adminLogs.module')">{{ detailData.module || '-' }}</NDescriptionsItem>
-          <NDescriptionsItem :label="t('adminLogs.action')">{{ detailData.action || '-' }}</NDescriptionsItem>
-          <NDescriptionsItem :label="t('adminLogs.method')">{{ detailData.method || '-' }}</NDescriptionsItem>
-          <NDescriptionsItem :label="t('adminLogs.path')">{{ detailData.path || '-' }}</NDescriptionsItem>
-          <NDescriptionsItem :label="t('adminLogs.handlerName')" :span="2">{{ detailData.handler_name || '-' }}</NDescriptionsItem>
-          <NDescriptionsItem :label="t('adminLogs.ip')">{{ detailData.ip || '-' }}</NDescriptionsItem>
-          <NDescriptionsItem :label="t('adminLogs.duration')">{{ detailData.duration || 0 }}</NDescriptionsItem>
-          <NDescriptionsItem :label="t('adminLogs.statusCode')">{{ detailData.status_code || '-' }}</NDescriptionsItem>
-          <NDescriptionsItem :label="t('adminLogs.time')">{{ detailData.create_time ? new Date(detailData.create_time * 1000).toLocaleString() : '-' }}</NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.module')">
+            {{ detailData.module || '-' }}
+          </NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.action')">
+            {{ detailData.action || '-' }}
+          </NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.method')">
+            {{ detailData.method || '-' }}
+          </NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.path')">
+            {{ detailData.path || '-' }}
+          </NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.handlerName')" :span="2">
+            {{ detailData.handler_name || '-' }}
+          </NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.ip')">
+            {{ detailData.ip || '-' }}
+          </NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.duration')">
+            {{ detailData.duration || 0 }}
+          </NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.statusCode')">
+            {{ detailData.status_code || '-' }}
+          </NDescriptionsItem>
+          <NDescriptionsItem :label="t('adminLogs.time')">
+            {{ detailData.create_time ? new Date(detailData.create_time * 1000).toLocaleString() : '-' }}
+          </NDescriptionsItem>
         </NDescriptions>
 
         <NCard size="small" embedded :title="t('adminLogs.requestBody')">
@@ -497,7 +579,9 @@ onMounted(() => {
           <NCode :code="formattedResponseBody || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
         </NCard>
       </NSpace>
-      <NText v-else depth="3">{{ t('adminLogs.noDetailData') }}</NText>
+      <NText v-else depth="3">
+        {{ t('adminLogs.noDetailData') }}
+      </NText>
     </NModal>
   </div>
 </template>

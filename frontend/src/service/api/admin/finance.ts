@@ -2,7 +2,9 @@ import { request } from '@/service/http'
 import { adminMoneyLogApi, adminScoreLogApi } from './user'
 import { getAdminApiBase } from './base'
 
-function usersBaseUrl() { return `${getAdminApiBase()}/users` }
+function usersBaseUrl() {
+  return `${getAdminApiBase()}/users`
+}
 
 interface ScoreChangeResponse {
   message: string
@@ -76,7 +78,9 @@ export interface WithdrawStats {
   paid_amount: number
 }
 
-function withdrawUrl() { return `${getAdminApiBase()}/withdraw` }
+function withdrawUrl() {
+  return `${getAdminApiBase()}/withdraw`
+}
 
 function createIdempotencyKey(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
@@ -119,4 +123,3 @@ export const adminFinanceApi = {
   reviewWithdraw,
   payWithdraw,
 }
-

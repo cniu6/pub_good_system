@@ -14,7 +14,6 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/joho/godotenv v1.5.1
-	github.com/pquerna/otp v1.5.0
 	github.com/shirou/gopsutil/v4 v4.25.1
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.1
@@ -37,7 +36,6 @@ require (
 	github.com/alibabacloud-go/debug v1.0.1 // indirect
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.7 // indirect
 	github.com/aliyun/credentials-go v1.4.5 // indirect
-	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/bytedance/sonic v1.14.0 // indirect
 	github.com/bytedance/sonic/loader v0.3.0 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect

@@ -5,13 +5,11 @@ import (
 	"fst/backend/app/services"
 	"fst/backend/pkg/middleware"
 	"fst/backend/utils"
-	"log"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-// ProfileController 管理端个人设置（改密 / TOTP）
+// ProfileController 管理端个人设置（改密）
 type ProfileController struct {
 	authSvc *services.AuthService
 }
@@ -41,15 +39,12 @@ func (ctrl *ProfileController) Me(c *gin.Context) {
 		utils.Fail(c, 404, "用户不存在")
 		return
 	}
-	roles, _ := models.ListUserRoles(uid)
 	utils.Success(c, gin.H{
-		"id":           user.ID,
-		"username":     user.Username,
-		"email":        user.Email,
-		"nickname":     user.Nickname,
-		"role":         user.Role,
-		"totp_enabled": user.TotpEnabled,
-		"rbac_roles":   roles,
+		"id":       user.ID,
+		"username": user.Username,
+		"email":    user.Email,
+		"nickname": user.Nickname,
+		"role":     user.Role,
 	})
 }
 
@@ -79,85 +74,12 @@ func (ctrl *ProfileController) ChangePassword(c *gin.Context) {
 	utils.SuccessMsg(c, "密码已修改，请重新登录", nil)
 }
 
-// SetupTOTP POST /me/totp/setup
-func (ctrl *ProfileController) SetupTOTP(c *gin.Context) {
-	uid, ok := adminUID(c)
-	if !ok {
-		utils.Fail(c, 401, "Unauthorized")
-		return
-	}
-	result, err := services.SetupAdminTOTP(uid, "")
-	if err != nil {
-		if services.IsClientError(err) {
-			utils.Fail(c, 400, err.Error())
-			return
-		}
-		log.Printf("[ADMIN][TOTP] setup failed user_id=%d: %v", uid, err)
-		utils.Fail(c, 500, "生成 TOTP 失败")
-		return
-	}
-	utils.Success(c, result)
-}
-
-// EnableTOTP POST /me/totp/enable
-func (ctrl *ProfileController) EnableTOTP(c *gin.Context) {
-	uid, ok := adminUID(c)
-	if !ok {
-		utils.Fail(c, 401, "Unauthorized")
-		return
-	}
-	var req struct {
-		Code string `json:"code" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Fail(c, 400, "参数错误")
-		return
-	}
-	if err := services.EnableAdminTOTP(uid, strings.TrimSpace(req.Code)); err != nil {
-		if services.IsClientError(err) {
-			utils.Fail(c, 400, err.Error())
-			return
-		}
-		utils.Fail(c, 500, "启用失败")
-		return
-	}
-	utils.SuccessMsg(c, "TOTP 已启用", nil)
-}
-
-// DisableTOTP POST /me/totp/disable
-func (ctrl *ProfileController) DisableTOTP(c *gin.Context) {
-	uid, ok := adminUID(c)
-	if !ok {
-		utils.Fail(c, 401, "Unauthorized")
-		return
-	}
-	var req struct {
-		Code string `json:"code" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Fail(c, 400, "参数错误")
-		return
-	}
-	if err := services.DisableAdminTOTP(uid, strings.TrimSpace(req.Code)); err != nil {
-		if services.IsClientError(err) {
-			utils.Fail(c, 400, err.Error())
-			return
-		}
-		utils.Fail(c, 500, "禁用失败")
-		return
-	}
-	utils.SuccessMsg(c, "TOTP 已禁用", nil)
-}
-
-// RegisterRoutes 注册个人设置 / TOTP 路由
+// RegisterRoutes 注册个人设置路由
 func (ctrl *ProfileController) RegisterRoutes(adminGroup *gin.RouterGroup) {
 	me := adminGroup.Group("/me")
 	me.Use(middleware.SimpleLogMiddleware("管理员个人设置"))
 	{
 		me.GET("", ctrl.Me)
 		me.PUT("/password", ctrl.ChangePassword)
-		me.POST("/totp/setup", ctrl.SetupTOTP)
-		me.POST("/totp/enable", ctrl.EnableTOTP)
-		me.POST("/totp/disable", ctrl.DisableTOTP)
 	}
 }

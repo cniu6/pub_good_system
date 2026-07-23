@@ -7,7 +7,9 @@ import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
 // 管理端 API base：运行时 app-config.admin_api_path，回退 VITE_ADMIN_API_PATH（默认 /admin）
-function baseUrl() { return `${getAdminApiBase()}/users` }
+function baseUrl() {
+  return `${getAdminApiBase()}/users`
+}
 
 /** 生成幂等键：后端资金/积分写接口强制要求 X-Idempotency-Key */
 function createIdempotencyKey(prefix: string) {
@@ -124,6 +126,8 @@ export function normalizeAdminUserRole(role?: string): Entity.RoleType {
 }
 
 /**
+ * @param user 管理端用户实体
+ * @param token 登录 access token
  * @param sessionRole 本次会话实际生效的角色（对应登录令牌的 auth_guard），
  *   不传则回退到用户自身的 DB role；用于 login-as 场景避免「令牌是 user guard，
  *   但展示的角色却是被登录用户的真实 admin 身份」的不一致
@@ -165,6 +169,12 @@ export function toLoginInfo(user: AdminUser, token: string, sessionRole?: Entity
 export type LoginAsAuthGuard = 'user' | 'admin'
 
 /**
+ * login-as 在新窗口打开用户会话。
+ * @param user 被登录用户
+ * @param token 访问令牌
+ * @param refreshToken 刷新令牌
+ * @param expiresAt 访问令牌过期时间戳
+ * @param targetUrl 打开后跳转路径
  * @param authGuard 本次 login-as 令牌实际签发的 auth_guard；session 里的 role 必须与它一致，
  *   不能用被登录用户的 DB role（否则用「user guard」登录一个 DB role=admin 的用户时，
  *   前端会误判 role=admin 触发管理端跳转，而后端 token 其实只是 user guard，两边状态不一致）
@@ -291,23 +301,17 @@ export const adminUserApi = {
     return request.Post<Service.ResponseResult<ResetApiKeyResponse>>(`${baseUrl()}/${id}/reset-apikey`)
   },
 
-  // 变更用户余额（增减）；启用 TOTP 时传 totpCode
-  changeMoney(id: number, data: { money: number, memo?: string }, totpCode?: string) {
-    const headers: Record<string, string> = { 'X-Idempotency-Key': createIdempotencyKey(`money-change-${id}`) }
-    if (totpCode)
-      headers['X-Totp-Code'] = totpCode
+  // 变更用户余额（增减）
+  changeMoney(id: number, data: { money: number, memo?: string }) {
     return request.Post<Service.ResponseResult<UserMoneyChangeResponse>>(`${baseUrl()}/${id}/money/change`, data, {
-      headers,
+      headers: { 'X-Idempotency-Key': createIdempotencyKey(`money-change-${id}`) },
     })
   },
 
   // 直接设置用户余额
-  setMoney(id: number, data: { money: number, memo?: string }, totpCode?: string) {
-    const headers: Record<string, string> = { 'X-Idempotency-Key': createIdempotencyKey(`money-set-${id}`) }
-    if (totpCode)
-      headers['X-Totp-Code'] = totpCode
+  setMoney(id: number, data: { money: number, memo?: string }) {
     return request.Put<Service.ResponseResult<UserMoneyChangeResponse>>(`${baseUrl()}/${id}/money`, data, {
-      headers,
+      headers: { 'X-Idempotency-Key': createIdempotencyKey(`money-set-${id}`) },
     })
   },
 
@@ -327,7 +331,9 @@ export const adminUserApi = {
 }
 
 // 余额日志管理 API
-function moneyLogsUrl() { return `${getAdminApiBase()}/money-logs` }
+function moneyLogsUrl() {
+  return `${getAdminApiBase()}/money-logs`
+}
 
 export const adminMoneyLogApi = {
   list(params: { page?: number, page_size?: number, keyword?: string, user_id?: number }) {
@@ -342,7 +348,9 @@ export const adminMoneyLogApi = {
 }
 
 // 积分日志管理 API
-function scoreLogsUrl() { return `${getAdminApiBase()}/score-logs` }
+function scoreLogsUrl() {
+  return `${getAdminApiBase()}/score-logs`
+}
 
 export const adminScoreLogApi = {
   list(params: { page?: number, page_size?: number, keyword?: string, user_id?: number }) {

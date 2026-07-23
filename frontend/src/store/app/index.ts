@@ -88,19 +88,19 @@ export const useAppStore = defineStore('app-store', {
       setLocale(lang)
       local.set('lang', lang)
       this.lang = lang
-      
+
       // 触发标题更新，为了不循环引用 router，我们通过 document.title 的既有内容进行替换
-      // 或者这里只是为了触发一次状态更新，实际的更新逻辑可以放在 router guard 
+      // 或者这里只是为了触发一次状态更新，实际的更新逻辑可以放在 router guard
       // 但 guard 不会因为 store 变化而触发
-      
+
       // 正确的做法：在 main.ts 或者 App.vue 里 watch(locale, () => { 更新标题 })
       // 但这里我们简单点，通过 window.location.reload() 肯定行，但体验不好
-      
+
       // 我们用一种更 hack 的方式：
       // 读取当前的 document.title，尝试分割，替换后缀
       const { t } = i18n.global
       const newAppTitle = t('app.title')
-      
+
       // 更新页面标题
       if (document.title.includes(' - ')) {
         const parts = document.title.split(' - ')
@@ -108,62 +108,64 @@ export const useAppStore = defineStore('app-store', {
         // 这里有个难点：我们不知道前半部分的 key 是什么，只知道现在的文本
         // 如果页面标题是 "Dashboard"，我们如何知道它是 "route.dashboard"？
         // 通常来说，我们无法反向查找。
-        
+
         // 但我们可以利用当前的路由信息重新构建标题
         // 这是一个比较 hack 的方法，但也是最可靠的方法
-        
+
         // 替换后半部分（App 标题）
         parts[parts.length - 1] = newAppTitle
         document.title = parts.join(' - ')
-      } else {
+      }
+      else {
         document.title = newAppTitle
       }
-      
+
       // 触发页面重载以更新所有组件的文本（包括面包屑等）
       // 虽然 setLocale 是响应式的，但 document.title 不是
       // 上面的 document.title 更新只能处理后半部分
-      
+
       // 如果我们想要完美更新前半部分，我们需要：
       // 1. 获取当前路由
       // 2. 获取当前路由的 meta.title
       // 3. 重新翻译 meta.title
-      
+
       // 让我们尝试这样做：
       try {
         // 通过 URL hash 获取当前路径 (因为是 hash 模式或 web 模式)
         // 注意：这里假设了简单的路由结构，实际上可能更复杂
         // 最好的方式其实是 reloadPage，但这会刷新内容区域
-        
+
         // 由于我们无法直接访问 router 实例（避免循环依赖），
         // 我们只能做到更新 App Title 部分。
         // 如果用户想要页面标题也更新，通常 router.afterEach 会在下次路由变化时处理。
         // 或者我们可以尝试分发一个自定义事件，让 main.ts 或 App.vue 里的监听器去处理？
-        
+
         // 但这里我们至少可以做到：
         // 如果页面标题是纯文本（未翻译），它不会变。
         // 如果我们能获取到 key...
-        
+
         // 实际上，如果我们在 router guard 里已经处理了 title，
         // 那么这里最简单的就是强制刷新一下路由？
-        // router.replace(router.currentRoute.value.fullPath) 
+        // router.replace(router.currentRoute.value.fullPath)
         // 但这需要 router 实例。
-        
+
         // 既然如此，我们只更新 App Title 已经是最优解了，
         // 除非我们能拿到当前的页面 Title Key。
-        
+
         // 还有一种方法：我们可以尝试查找 DOM 中的面包屑或者其他元素？不推荐。
-        
+
         // 让我们采用一个折中方案：
         // 我们已经更新了 i18n locale，Vue 组件（如面包屑、侧边栏）会自动更新。
         // document.title 是浏览器层面的，需要手动更新。
         // 上面的代码已经更新了 App Title。
         // 对于 Page Title，如果用户在路由定义里使用了 key，
         // 那么 router.afterEach 里的逻辑是：t(to.meta.title)
-        
+
         // 问题在于：setLocale 后，afterEach 不会自动触发。
         // 我们可以派发一个事件 'app:locale-changed'
         window.dispatchEvent(new Event('app:locale-changed'))
-      } catch (e) {
+      }
+      catch (e) {
         if (import.meta.env.DEV)
           console.error('[appStore] locale change event dispatch failed', e)
       }
@@ -193,6 +195,10 @@ export const useAppStore = defineStore('app-store', {
       const max = 480
       const next = Math.round(Number(width) || 240)
       this.sidebarWidth = Math.min(max, Math.max(min, next))
+    },
+    /** 一键恢复侧边栏默认宽度 240 */
+    resetSidebarWidth() {
+      this.setSidebarWidth(240)
     },
     /* 切换全屏 */
     toggleFullScreen() {

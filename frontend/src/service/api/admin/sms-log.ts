@@ -4,7 +4,9 @@
 import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
-function baseUrl() { return `${getAdminApiBase()}/sms-logs` }
+function baseUrl() {
+  return `${getAdminApiBase()}/sms-logs`
+}
 
 export interface SMSLog {
   id: number
@@ -39,13 +41,13 @@ export interface SMSLogStats {
   today_count: number
   success_count: number
   fail_count: number
-  top_templates: Array<{ template_name: string; count: number }>
-  provider_stats: Array<{ provider: string; count: number }>
+  top_templates: Array<{ template_name: string, count: number }>
+  provider_stats: Array<{ provider: string, count: number }>
 }
 
 export const adminSMSLogApi = {
   list(params?: SMSLogListParams) {
-    return request.Get<Service.ResponseResult<{ list: SMSLog[]; total: number; page: number; page_size: number }>>(baseUrl(), { params })
+    return request.Get<Service.ResponseResult<{ list: SMSLog[], total: number, page: number, page_size: number }>>(baseUrl(), { params })
   },
 
   detail(id: number) {

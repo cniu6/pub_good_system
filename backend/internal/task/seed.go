@@ -2,6 +2,7 @@ package task
 
 import (
 	"fmt"
+	"log"
 )
 
 // PresetJob 默认任务预设
@@ -73,12 +74,12 @@ func DefaultPresets() []PresetJob {
 		{
 			JobCode:         "reconcile_payment_orders",
 			Name:            "支付订单主动对账",
-			Description:     "扫描待支付与近期取消/失败订单，向网关查单并补账，异常写入 payment_exceptions",
+			Description:     "扫描待支付与近期取消/失败订单，向网关查单并补账，异常写入 payment_exceptions（默认关闭，需时可在管理端手动开启或点跑）",
 			Category:        "payment",
 			HandlerKey:      HandlerReconcilePaymentOrders,
 			IntervalSeconds: 180,
 			Timezone:        "Asia/Shanghai",
-			Enabled:         true,
+			Enabled:         false, // 默认关闭：回调入账已够用，空扫浪费且永久失败易空转
 			TimeoutSec:      180,
 			ParamsJSON:      `{}`,
 		},
@@ -209,4 +210,20 @@ func softenHighFrequencyIntervals() {
 			_ = UpdateDefinitionMeta(def)
 		}
 	}
+}
+
+// applyReconcilePaymentOrdersDefaultOff 启动时强制关闭主动对账（产品决策：靠回调+用户手动刷新即可）
+func applyReconcilePaymentOrdersDefaultOff() {
+	def, err := GetDefinition("reconcile_payment_orders")
+	if err != nil || def == nil {
+		return
+	}
+	if def.Enabled == 0 {
+		return
+	}
+	if err := SetEnabled("reconcile_payment_orders", false); err != nil {
+		log.Printf("[AutoJob] 关闭 reconcile_payment_orders 失败: %v", err)
+		return
+	}
+	log.Printf("[AutoJob] 已关闭 reconcile_payment_orders（默认不用后台空扫网关）")
 }

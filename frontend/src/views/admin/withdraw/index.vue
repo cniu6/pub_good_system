@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NTag, useMessage } from 'naive-ui'
+import { NButton, NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
@@ -11,6 +11,7 @@ import { adminUserApi } from '@/service/api/admin/user'
 import type { UserSimpleInfo } from '@/service/api/admin/user'
 
 const message = useMessage()
+const dialog = useDialog()
 const { t } = useI18n()
 const loading = ref(false)
 const submitting = ref(false)
@@ -312,24 +313,41 @@ async function handleSubmitReview() {
     message.error(t('adminWithdraw.reviewRemarkTooLong'))
     return
   }
-  submitting.value = true
-  try {
-    const res = await adminApi.finance.reviewWithdraw(currentRow.value.id, reviewForm)
-    if (res.isSuccess) {
-      message.success(res.message || t('adminWithdraw.reviewSuccess'))
-      showReviewModal.value = false
-      fetchData()
-    }
-    else {
-      message.error(res.message || t('adminWithdraw.reviewFailed'))
-    }
-  }
-  catch {
-    message.error(t('adminWithdraw.reviewFailed'))
-  }
-  finally {
-    submitting.value = false
-  }
+  const row = currentRow.value
+  const actionLabel = reviewForm.status === 1
+    ? t('adminWithdraw.approve')
+    : t('adminWithdraw.reject')
+  dialog.warning({
+    title: t('adminWithdraw.confirmReviewTitle'),
+    content: t('adminWithdraw.confirmReviewContent', {
+      action: actionLabel,
+      amount: Number(row.amount || 0).toFixed(2),
+      userId: row.user_id,
+      id: row.id,
+    }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      submitting.value = true
+      try {
+        const res = await adminApi.finance.reviewWithdraw(row.id, reviewForm)
+        if (res.isSuccess) {
+          message.success(res.message || t('adminWithdraw.reviewSuccess'))
+          showReviewModal.value = false
+          fetchData()
+        }
+        else {
+          message.error(res.message || t('adminWithdraw.reviewFailed'))
+        }
+      }
+      catch {
+        message.error(t('adminWithdraw.reviewFailed'))
+      }
+      finally {
+        submitting.value = false
+      }
+    },
+  })
 }
 
 async function handleSubmitPay() {
@@ -339,24 +357,37 @@ async function handleSubmitPay() {
     message.error(t('adminWithdraw.transferRemarkTooLong'))
     return
   }
-  submitting.value = true
-  try {
-    const res = await adminApi.finance.payWithdraw(currentRow.value.id, payForm)
-    if (res.isSuccess) {
-      message.success(res.message || t('adminWithdraw.markPaidSuccess'))
-      showPayModal.value = false
-      fetchData()
-    }
-    else {
-      message.error(res.message || t('adminWithdraw.operationFailed'))
-    }
-  }
-  catch {
-    message.error(t('adminWithdraw.operationFailed'))
-  }
-  finally {
-    submitting.value = false
-  }
+  const row = currentRow.value
+  dialog.warning({
+    title: t('adminWithdraw.confirmPayTitle'),
+    content: t('adminWithdraw.confirmPayContent', {
+      amount: Number(row.amount || 0).toFixed(2),
+      userId: row.user_id,
+      id: row.id,
+    }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      submitting.value = true
+      try {
+        const res = await adminApi.finance.payWithdraw(row.id, payForm)
+        if (res.isSuccess) {
+          message.success(res.message || t('adminWithdraw.markPaidSuccess'))
+          showPayModal.value = false
+          fetchData()
+        }
+        else {
+          message.error(res.message || t('adminWithdraw.operationFailed'))
+        }
+      }
+      catch {
+        message.error(t('adminWithdraw.operationFailed'))
+      }
+      finally {
+        submitting.value = false
+      }
+    },
+  })
 }
 
 onMounted(fetchData)

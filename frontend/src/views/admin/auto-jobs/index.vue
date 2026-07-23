@@ -11,8 +11,8 @@ import {
   NDataTable,
   NForm,
   NFormItem,
-  NGrid,
   NGi,
+  NGrid,
   NInput,
   NInputNumber,
   NModal,
@@ -24,6 +24,7 @@ import {
   NTabs,
   NTag,
   NText,
+  useDialog,
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
@@ -38,6 +39,7 @@ import type {
 } from '@/service/api/admin/auto-job'
 
 const message = useMessage()
+const dialog = useDialog()
 const runsFetchGuard = useRequestGuard()
 const { t } = useI18n()
 
@@ -301,22 +303,33 @@ async function handleToggleEnabled(row: AutoJobDefinition, enabled: boolean) {
 }
 
 async function handleRunNow(row: AutoJobDefinition) {
-  runningTaskCode.value = row.job_code
-  try {
-    await adminApi.autoJob.runJob(row.job_code)
-    message.success(t('adminAutoJobs.runSuccess'))
-    await Promise.all([loadOverview(), loadJobs()])
-    if (activeTab.value === 'runs')
-      await loadRuns()
-    if (activeTab.value === 'running')
-      await loadRunning()
-  }
-  catch {
-    message.error(t('adminAutoJobs.runFailed'))
-  }
-  finally {
-    runningTaskCode.value = ''
-  }
+  dialog.warning({
+    title: t('adminAutoJobs.confirmRunTitle'),
+    content: t('adminAutoJobs.confirmRunContent', {
+      name: row.name || row.job_code,
+      code: row.job_code,
+    }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      runningTaskCode.value = row.job_code
+      try {
+        await adminApi.autoJob.runJob(row.job_code)
+        message.success(t('adminAutoJobs.runSuccess'))
+        await Promise.all([loadOverview(), loadJobs()])
+        if (activeTab.value === 'runs')
+          await loadRuns()
+        if (activeTab.value === 'running')
+          await loadRunning()
+      }
+      catch {
+        message.error(t('adminAutoJobs.runFailed'))
+      }
+      finally {
+        runningTaskCode.value = ''
+      }
+    },
+  })
 }
 
 function openEdit(row: AutoJobDefinition) {
@@ -373,14 +386,22 @@ async function openRunDetail(row: AutoJobRun) {
 }
 
 async function handleCleanSuccessRuns() {
-  try {
-    const res = await adminApi.autoJob.cleanRuns({ scope: 'success', include_errors: false })
-    message.success(t('adminAutoJobs.cleanSuccess', { n: res.data?.affected || 0 }))
-    await Promise.all([loadOverview(), loadRuns()])
-  }
-  catch {
-    message.error(t('adminAutoJobs.cleanFailed'))
-  }
+  dialog.warning({
+    title: t('adminAutoJobs.confirmCleanTitle'),
+    content: t('adminAutoJobs.confirmCleanContent'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        const res = await adminApi.autoJob.cleanRuns({ scope: 'success', include_errors: false })
+        message.success(t('adminAutoJobs.cleanSuccess', { n: res.data?.affected || 0 }))
+        await Promise.all([loadOverview(), loadRuns()])
+      }
+      catch {
+        message.error(t('adminAutoJobs.cleanFailed'))
+      }
+    },
+  })
 }
 
 async function handleMarkKeep(row: AutoJobRun) {
@@ -602,23 +623,33 @@ onMounted(() => {
     <NCard :title="t('adminAutoJobs.configTitle')" size="small" class="mt-3">
       <NSpace align="center" wrap :size="16">
         <NSpace align="center" :size="8">
-          <NText depth="3">{{ t('adminAutoJobs.masterSwitch') }}</NText>
+          <NText depth="3">
+            {{ t('adminAutoJobs.masterSwitch') }}
+          </NText>
           <NSwitch v-model:value="config.auto_job_enabled" />
         </NSpace>
         <NSpace align="center" :size="8">
-          <NText depth="3">{{ t('adminAutoJobs.recordLimit') }}</NText>
+          <NText depth="3">
+            {{ t('adminAutoJobs.recordLimit') }}
+          </NText>
           <NInputNumber v-model:value="config.auto_job_run_max_count" :min="100" :max="1000000" :step="100" style="width: 140px" />
         </NSpace>
         <NSpace align="center" :size="8">
-          <NText depth="3">{{ t('adminAutoJobs.autoPrune') }}</NText>
+          <NText depth="3">
+            {{ t('adminAutoJobs.autoPrune') }}
+          </NText>
           <NSwitch v-model:value="config.auto_job_auto_prune" />
         </NSpace>
         <NSpace align="center" :size="8">
-          <NText depth="3">{{ t('adminAutoJobs.retainErrors') }}</NText>
+          <NText depth="3">
+            {{ t('adminAutoJobs.retainErrors') }}
+          </NText>
           <NSwitch v-model:value="config.auto_job_retain_errors" />
         </NSpace>
         <NSpace align="center" :size="8">
-          <NText depth="3">{{ t('adminAutoJobs.stuckAfterSec') }}</NText>
+          <NText depth="3">
+            {{ t('adminAutoJobs.stuckAfterSec') }}
+          </NText>
           <NInputNumber v-model:value="config.auto_job_stuck_after_sec" :min="60" :max="86400" :step="60" style="width: 140px" />
         </NSpace>
         <NSpace :size="8">
@@ -791,16 +822,56 @@ onMounted(() => {
       style="width: 640px"
     >
       <template v-if="runDetail">
-        <p><NText depth="3">ID:</NText> {{ runDetail.id }} / {{ runDetail.run_uid }}</p>
-        <p><NText depth="3">{{ t('adminAutoJobs.jobCode') }}:</NText> {{ runDetail.job_code }}</p>
-        <p><NText depth="3">{{ t('adminAutoJobs.status') }}:</NText> {{ statusLabel(runDetail.status) }}</p>
-        <p><NText depth="3">{{ t('adminAutoJobs.trigger') }}:</NText> {{ runDetail.trigger }}</p>
-        <p><NText depth="3">{{ t('adminAutoJobs.startedAt') }}:</NText> {{ formatTs(runDetail.started_at) }}</p>
-        <p><NText depth="3">{{ t('adminAutoJobs.finishedAt') }}:</NText> {{ formatTs(runDetail.finished_at) }}</p>
-        <p><NText depth="3">{{ t('adminAutoJobs.duration') }}:</NText> {{ runDetail.duration_ms }}ms</p>
-        <p><NText depth="3">{{ t('adminAutoJobs.message') }}:</NText> {{ runDetail.message || '-' }}</p>
-        <p><NText depth="3">{{ t('adminAutoJobs.operator') }}:</NText> {{ runDetail.operator || '-' }}</p>
-        <p v-if="runDetail.error_text"><NText type="error">{{ runDetail.error_text }}</NText></p>
+        <p>
+          <NText depth="3">
+            ID:
+          </NText> {{ runDetail.id }} / {{ runDetail.run_uid }}
+        </p>
+        <p>
+          <NText depth="3">
+            {{ t('adminAutoJobs.jobCode') }}:
+          </NText> {{ runDetail.job_code }}
+        </p>
+        <p>
+          <NText depth="3">
+            {{ t('adminAutoJobs.status') }}:
+          </NText> {{ statusLabel(runDetail.status) }}
+        </p>
+        <p>
+          <NText depth="3">
+            {{ t('adminAutoJobs.trigger') }}:
+          </NText> {{ runDetail.trigger }}
+        </p>
+        <p>
+          <NText depth="3">
+            {{ t('adminAutoJobs.startedAt') }}:
+          </NText> {{ formatTs(runDetail.started_at) }}
+        </p>
+        <p>
+          <NText depth="3">
+            {{ t('adminAutoJobs.finishedAt') }}:
+          </NText> {{ formatTs(runDetail.finished_at) }}
+        </p>
+        <p>
+          <NText depth="3">
+            {{ t('adminAutoJobs.duration') }}:
+          </NText> {{ runDetail.duration_ms }}ms
+        </p>
+        <p>
+          <NText depth="3">
+            {{ t('adminAutoJobs.message') }}:
+          </NText> {{ runDetail.message || '-' }}
+        </p>
+        <p>
+          <NText depth="3">
+            {{ t('adminAutoJobs.operator') }}:
+          </NText> {{ runDetail.operator || '-' }}
+        </p>
+        <p v-if="runDetail.error_text">
+          <NText type="error">
+            {{ runDetail.error_text }}
+          </NText>
+        </p>
         <pre v-if="runDetail.detail_json" class="detail-json">{{ runDetail.detail_json }}</pre>
       </template>
     </NModal>

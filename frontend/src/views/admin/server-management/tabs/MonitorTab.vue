@@ -14,9 +14,10 @@ import {
 } from '@/utils/format'
 import {
   formatInteger,
+
   useServerManagement,
-  type ServiceHealthRow,
 } from '../composables/useServerManagement'
+import type { ServiceHealthRow } from '../composables/useServerManagement'
 
 const { t } = useI18n()
 const {
@@ -75,24 +76,124 @@ const {
     <NCard>
       <template #header>
         <NSpace align="center" justify="space-between" style="width: 100%;">
-          <NText strong>{{ t('adminSettings.realtimeMonitor') }}</NText>
+          <NText strong>
+            {{ t('adminSettings.realtimeMonitor') }}
+          </NText>
           <NSpace align="center">
-            <NText depth="3">{{ t('adminSettings.autoRefresh') }}</NText>
+            <NText depth="3">
+              {{ t('adminSettings.autoRefresh') }}
+            </NText>
             <NSwitch :value="autoRefresh" @update:value="toggleAutoRefresh" />
-            <NButton size="small" type="primary" :loading="monitoringLoading || operationsLoading" @click="refreshAll">{{ t('adminSettings.refresh') }}</NButton>
+            <NButton size="small" type="primary" :loading="monitoringLoading || operationsLoading" @click="refreshAll">
+              {{ t('adminSettings.refresh') }}
+            </NButton>
           </NSpace>
         </NSpace>
       </template>
 
       <NGrid :x-gap="12" :y-gap="12" cols="2 s:2 m:4 l:4" responsive="screen">
-        <NGi><NCard size="small" embedded><NStatistic :label="t('adminSettings.cpu')"><template #default>{{ formatPercent(metricInfo?.cpu.usage_percent || 0, 2) }}</template><template #suffix><NText depth="3" style="font-size: 10px">{{ t('adminSettings.cpuCores', { count: metricInfo?.cpu.core_count || 0 }) }}</NText></template></NStatistic></NCard></NGi>
-        <NGi><NCard size="small" embedded><NStatistic :label="t('adminSettings.systemMemory')"><template #default>{{ formatPercent(metricInfo?.memory.used_percent || 0, 2) }}</template><template #suffix><NText depth="3" style="font-size: 10px">{{ formatStorageFromMB(metricInfo?.memory.used_mb || 0) }}/{{ formatStorageFromMB(metricInfo?.memory.total_mb || 0) }}</NText></template></NStatistic></NCard></NGi>
-        <NGi><NCard size="small" embedded><NStatistic :label="t('adminSettings.swap')"><template #default>{{ formatPercent(metricInfo?.swap.used_percent || 0, 2) }}</template><template #suffix><NText depth="3" style="font-size: 10px">{{ formatStorageFromMB(metricInfo?.swap.used_mb || 0) }}/{{ formatStorageFromMB(metricInfo?.swap.total_mb || 0) }}</NText></template></NStatistic></NCard></NGi>
-        <NGi><NCard size="small" embedded><NStatistic :label="t('adminSettings.diskUsage')"><template #default>{{ formatPercent(metricInfo?.disk.used_percent || 0, 2) }}</template><template #suffix><NText depth="3" style="font-size: 10px">{{ formatStorageFromGB(metricInfo?.disk.used_gb || 0) }}/{{ formatStorageFromGB(metricInfo?.disk.total_gb || 0) }}</NText></template></NStatistic></NCard></NGi>
-        <NGi><NCard size="small" embedded><NStatistic :label="t('adminSettings.processMemory')"><template #default>{{ formatStorageFromMB(processInfo?.process_rss_mb || 0) }}</template><template #suffix><NText depth="3" style="font-size: 10px">CPU {{ Number((processInfo?.process_cpu || 0).toFixed(2)) }}%</NText></template></NStatistic></NCard></NGi>
-        <NGi><NCard size="small" embedded><NStatistic :label="t('adminSettings.goHeap')"><template #default>{{ formatStorageFromMB(processInfo?.heap_alloc_mb || 0) }}</template><template #suffix><NText depth="3" style="font-size: 10px">sys {{ formatStorageFromMB(processInfo?.memory_sys_mb || 0) }}</NText></template></NStatistic></NCard></NGi>
-        <NGi><NCard size="small" embedded><NStatistic :label="t('adminSettings.goroutines')" :value="formatInteger(processInfo?.goroutines || 0)"><template #suffix><NText depth="3" style="font-size: 10px">GC {{ formatInteger(processInfo?.gc_count || 0) }}</NText></template></NStatistic></NCard></NGi>
-        <NGi><NCard size="small" embedded><NStatistic :label="t('adminSettings.uptime')"><template #default>{{ formatUptime(monitoring?.uptime_seconds || 0) }}</template><template #suffix><NText depth="3" style="font-size: 10px">{{ monitoring?.generated_at || '-' }}</NText></template></NStatistic></NCard></NGi>
+        <NGi>
+          <NCard size="small" embedded>
+            <NStatistic :label="t('adminSettings.cpu')">
+              <template #default>
+                {{ formatPercent(metricInfo?.cpu.usage_percent || 0, 2) }}
+              </template><template #suffix>
+                <NText depth="3" style="font-size: 10px">
+                  {{ t('adminSettings.cpuCores', { count: metricInfo?.cpu.core_count || 0 }) }}
+                </NText>
+              </template>
+            </NStatistic>
+          </NCard>
+        </NGi>
+        <NGi>
+          <NCard size="small" embedded>
+            <NStatistic :label="t('adminSettings.systemMemory')">
+              <template #default>
+                {{ formatPercent(metricInfo?.memory.used_percent || 0, 2) }}
+              </template><template #suffix>
+                <NText depth="3" style="font-size: 10px">
+                  {{ formatStorageFromMB(metricInfo?.memory.used_mb || 0) }}/{{ formatStorageFromMB(metricInfo?.memory.total_mb || 0) }}
+                </NText>
+              </template>
+            </NStatistic>
+          </NCard>
+        </NGi>
+        <NGi>
+          <NCard size="small" embedded>
+            <NStatistic :label="t('adminSettings.swap')">
+              <template #default>
+                {{ formatPercent(metricInfo?.swap.used_percent || 0, 2) }}
+              </template><template #suffix>
+                <NText depth="3" style="font-size: 10px">
+                  {{ formatStorageFromMB(metricInfo?.swap.used_mb || 0) }}/{{ formatStorageFromMB(metricInfo?.swap.total_mb || 0) }}
+                </NText>
+              </template>
+            </NStatistic>
+          </NCard>
+        </NGi>
+        <NGi>
+          <NCard size="small" embedded>
+            <NStatistic :label="t('adminSettings.diskUsage')">
+              <template #default>
+                {{ formatPercent(metricInfo?.disk.used_percent || 0, 2) }}
+              </template><template #suffix>
+                <NText depth="3" style="font-size: 10px">
+                  {{ formatStorageFromGB(metricInfo?.disk.used_gb || 0) }}/{{ formatStorageFromGB(metricInfo?.disk.total_gb || 0) }}
+                </NText>
+              </template>
+            </NStatistic>
+          </NCard>
+        </NGi>
+        <NGi>
+          <NCard size="small" embedded>
+            <NStatistic :label="t('adminSettings.processMemory')">
+              <template #default>
+                {{ formatStorageFromMB(processInfo?.process_rss_mb || 0) }}
+              </template><template #suffix>
+                <NText depth="3" style="font-size: 10px">
+                  CPU {{ Number((processInfo?.process_cpu || 0).toFixed(2)) }}%
+                </NText>
+              </template>
+            </NStatistic>
+          </NCard>
+        </NGi>
+        <NGi>
+          <NCard size="small" embedded>
+            <NStatistic :label="t('adminSettings.goHeap')">
+              <template #default>
+                {{ formatStorageFromMB(processInfo?.heap_alloc_mb || 0) }}
+              </template><template #suffix>
+                <NText depth="3" style="font-size: 10px">
+                  sys {{ formatStorageFromMB(processInfo?.memory_sys_mb || 0) }}
+                </NText>
+              </template>
+            </NStatistic>
+          </NCard>
+        </NGi>
+        <NGi>
+          <NCard size="small" embedded>
+            <NStatistic :label="t('adminSettings.goroutines')" :value="formatInteger(processInfo?.goroutines || 0)">
+              <template #suffix>
+                <NText depth="3" style="font-size: 10px">
+                  GC {{ formatInteger(processInfo?.gc_count || 0) }}
+                </NText>
+              </template>
+            </NStatistic>
+          </NCard>
+        </NGi>
+        <NGi>
+          <NCard size="small" embedded>
+            <NStatistic :label="t('adminSettings.uptime')">
+              <template #default>
+                {{ formatUptime(monitoring?.uptime_seconds || 0) }}
+              </template><template #suffix>
+                <NText depth="3" style="font-size: 10px">
+                  {{ monitoring?.generated_at || '-' }}
+                </NText>
+              </template>
+            </NStatistic>
+          </NCard>
+        </NGi>
       </NGrid>
 
       <NDivider />
@@ -101,23 +202,55 @@ const {
         <NGi>
           <NCard size="small" :title="t('adminSettings.systemInfo')">
             <NDescriptions bordered :column="2" label-placement="left">
-              <NDescriptionsItem :label="t('adminSettings.appName')">{{ monitoring?.app?.name || '-' }}</NDescriptionsItem>
-              <NDescriptionsItem :label="t('adminSettings.systemVersion')">{{ monitoring?.app?.go_version || '-' }}</NDescriptionsItem>
-              <NDescriptionsItem :label="t('adminSettings.appMode')">{{ monitoring?.app?.mode || '-' }}</NDescriptionsItem>
-              <NDescriptionsItem :label="t('adminSettings.port')">{{ monitoring?.app?.port || '-' }}</NDescriptionsItem>
-              <NDescriptionsItem :label="t('adminSettings.pid')">{{ processInfo?.pid || '-' }}</NDescriptionsItem>
-              <NDescriptionsItem :label="t('adminSettings.lastRefreshed')">{{ monitoring?.generated_at || '-' }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('adminSettings.appName')">
+                {{ monitoring?.app?.name || '-' }}
+              </NDescriptionsItem>
+              <NDescriptionsItem :label="t('adminSettings.systemVersion')">
+                {{ monitoring?.app?.go_version || '-' }}
+              </NDescriptionsItem>
+              <NDescriptionsItem :label="t('adminSettings.appMode')">
+                {{ monitoring?.app?.mode || '-' }}
+              </NDescriptionsItem>
+              <NDescriptionsItem :label="t('adminSettings.port')">
+                {{ monitoring?.app?.port || '-' }}
+              </NDescriptionsItem>
+              <NDescriptionsItem :label="t('adminSettings.pid')">
+                {{ processInfo?.pid || '-' }}
+              </NDescriptionsItem>
+              <NDescriptionsItem :label="t('adminSettings.lastRefreshed')">
+                {{ monitoring?.generated_at || '-' }}
+              </NDescriptionsItem>
             </NDescriptions>
           </NCard>
         </NGi>
         <NGi>
           <NCard size="small" :title="t('adminSettings.network')">
             <NSpace vertical size="small">
-              <NStatistic :label="t('adminSettings.network')"><template #default>{{ formatBytes((metricInfo?.network.bytes_sent || 0) + (metricInfo?.network.bytes_recv || 0)) }}</template></NStatistic>
-              <NSpace justify="space-between"><NText depth="3">{{ t('adminSettings.upload') }}</NText><NText>{{ formatBytes(metricInfo?.network.bytes_sent || 0) }}</NText></NSpace>
-              <NSpace justify="space-between"><NText depth="3">{{ t('adminSettings.download') }}</NText><NText>{{ formatBytes(metricInfo?.network.bytes_recv || 0) }}</NText></NSpace>
-              <NSpace justify="space-between"><NText depth="3">{{ t('adminSettings.uploadPackets') }}</NText><NText>{{ formatInteger(metricInfo?.network.packets_sent || 0) }}</NText></NSpace>
-              <NSpace justify="space-between"><NText depth="3">{{ t('adminSettings.downloadPackets') }}</NText><NText>{{ formatInteger(metricInfo?.network.packets_recv || 0) }}</NText></NSpace>
+              <NStatistic :label="t('adminSettings.network')">
+                <template #default>
+                  {{ formatBytes((metricInfo?.network.bytes_sent || 0) + (metricInfo?.network.bytes_recv || 0)) }}
+                </template>
+              </NStatistic>
+              <NSpace justify="space-between">
+                <NText depth="3">
+                  {{ t('adminSettings.upload') }}
+                </NText><NText>{{ formatBytes(metricInfo?.network.bytes_sent || 0) }}</NText>
+              </NSpace>
+              <NSpace justify="space-between">
+                <NText depth="3">
+                  {{ t('adminSettings.download') }}
+                </NText><NText>{{ formatBytes(metricInfo?.network.bytes_recv || 0) }}</NText>
+              </NSpace>
+              <NSpace justify="space-between">
+                <NText depth="3">
+                  {{ t('adminSettings.uploadPackets') }}
+                </NText><NText>{{ formatInteger(metricInfo?.network.packets_sent || 0) }}</NText>
+              </NSpace>
+              <NSpace justify="space-between">
+                <NText depth="3">
+                  {{ t('adminSettings.downloadPackets') }}
+                </NText><NText>{{ formatInteger(metricInfo?.network.packets_recv || 0) }}</NText>
+              </NSpace>
             </NSpace>
           </NCard>
         </NGi>
@@ -125,14 +258,62 @@ const {
 
       <NCard size="small" :title="t('adminSettings.memoryDetails')" style="margin-top: 12px;">
         <NGrid :x-gap="10" :y-gap="10" cols="1 s:2 m:4 l:4" responsive="screen">
-          <NGi><NStatistic :label="t('adminSettings.goMemoryAlloc')"><template #default>{{ formatStorageFromMB(processInfo?.memory_alloc_mb || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.goMemorySys')"><template #default>{{ formatStorageFromMB(processInfo?.memory_sys_mb || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.heapAlloc')"><template #default>{{ formatStorageFromMB(processInfo?.heap_alloc_mb || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.heapInUse')"><template #default>{{ formatStorageFromMB(processInfo?.heap_inuse_mb || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.heapIdle')"><template #default>{{ formatStorageFromMB(processInfo?.heap_idle_mb || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.stackInUse')"><template #default>{{ formatStorageFromMB(processInfo?.stack_inuse_mb || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.gcCount')"><template #default>{{ formatInteger(processInfo?.gc_count || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.gcCPU')"><template #default>{{ Number(((processInfo?.gc_cpu_fraction || 0) * 100).toFixed(4)) }}%</template></NStatistic></NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.goMemoryAlloc')">
+              <template #default>
+                {{ formatStorageFromMB(processInfo?.memory_alloc_mb || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.goMemorySys')">
+              <template #default>
+                {{ formatStorageFromMB(processInfo?.memory_sys_mb || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.heapAlloc')">
+              <template #default>
+                {{ formatStorageFromMB(processInfo?.heap_alloc_mb || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.heapInUse')">
+              <template #default>
+                {{ formatStorageFromMB(processInfo?.heap_inuse_mb || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.heapIdle')">
+              <template #default>
+                {{ formatStorageFromMB(processInfo?.heap_idle_mb || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.stackInUse')">
+              <template #default>
+                {{ formatStorageFromMB(processInfo?.stack_inuse_mb || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.gcCount')">
+              <template #default>
+                {{ formatInteger(processInfo?.gc_count || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.gcCPU')">
+              <template #default>
+                {{ Number(((processInfo?.gc_cpu_fraction || 0) * 100).toFixed(4)) }}%
+              </template>
+            </NStatistic>
+          </NGi>
         </NGrid>
       </NCard>
     </NCard>

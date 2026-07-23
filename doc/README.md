@@ -29,7 +29,7 @@
 | [在线会话与Presence](./在线会话与Presence.md) | WS 在线心跳、管理端在线用户、force-logout | ⭐⭐⭐⭐ |
 | [备份与恢复](./备份与恢复.md) | mysqldump/SQLite/pg_dump 脚本与保留策略 | ⭐⭐⭐ |
 
-> **2026-07-23**：单组织完善——支付迟到回调/对账异常台、实名唯一与 PII、WS ticket、API Key 收紧、`/ready` `/metrics`、Docker/备份、CI、RBAC/TOTP/导入导出/待办。Postgres 仍须 `FST_PG_DSN` 真机集成测后才标生产。  
+> **2026-07-23**：单组织完善——支付迟到回调/对账异常台、实名唯一与 PII、WS ticket、API Key 收紧、`/ready` `/metrics`、Docker/备份、CI、TOTP/导入导出/待办。Postgres 仍须 `FST_PG_DSN` 真机集成测后才标生产。  
 > **2026-07-20**：根 `.env` 唯一加载；Presence/会话强退；邮件代理与手机区号等。  
 > **2026-07-16**：管理端 API/Swagger 自适应；中间件与配置以 `backend/pkg/*` 为准。  
 > 各代码目录另有「留档.md / *说明.md」，见仓库 `backend/留档.md`、`frontend/留档.md`。  

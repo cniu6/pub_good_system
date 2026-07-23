@@ -17,6 +17,14 @@ import {
   localizeBackendMessagePayload,
   normalizeRequestError,
 } from './handle'
+import {
+  canRequestDuringSessionRecovery,
+  isSessionExpired,
+  isSessionRequestSuspendedError,
+  releaseProtectedRequest,
+  SessionRequestSuspendedError,
+  trackProtectedRequest,
+} from './auth-expiration'
 
 const { onAuthRequired, onResponseRefreshToken } = createServerTokenAuthentication<VueHookType>({
   // 服务端判定token过期
@@ -44,7 +52,9 @@ const { onAuthRequired, onResponseRefreshToken } = createServerTokenAuthenticati
       else
         method.meta.isExpired = true
 
-      await handleRefreshToken()
+      const refreshed = await handleRefreshToken()
+      if (!refreshed)
+        method.meta.sessionExpired = true
     },
   },
   // 添加token到请求头
@@ -69,6 +79,11 @@ export function createAlovaInstance(
     timeout: _alovaConfig.timeout,
 
     beforeRequest: onAuthRequired((method) => {
+      // 会话失效弹窗显示期间，所有受保护请求均在发出前终止，避免轮询继续消耗流量。
+      if (isSessionExpired() && !canRequestDuringSessionRecovery(method))
+        throw new SessionRequestSuspendedError()
+
+      trackProtectedRequest(method)
       // 自动添加极验验证头
       const geetestHeaders = geetestManager.getValidGeetestHeaders()
       Object.assign(method.config.headers, geetestHeaders)
@@ -99,21 +114,35 @@ export function createAlovaInstance(
             return handleServiceResult(localizedApiData)
 
           // 业务请求失败
-          const errorResult = handleBusinessError(localizedApiData, _backendConfig, method.meta?.noErrorTip)
+          const errorResult = handleBusinessError(
+            localizedApiData,
+            _backendConfig,
+            method.meta?.noErrorTip || method.meta?.sessionExpired,
+          )
           return handleServiceResult(errorResult, false)
         }
         // 接口请求失败
-        const errorResult = await handleResponseError(response)
+        const errorResult = await handleResponseError(response, method.meta?.sessionExpired)
         return handleServiceResult(errorResult, false)
       },
       onError: async (error, method) => {
-        const normalizedError = normalizeRequestError(error, method.url)
-        window.$message?.error(normalizedError.message)
+        releaseProtectedRequest(method)
+        const requestSuspended = isSessionRequestSuspendedError(error)
+        const normalizedError = requestSuspended
+          ? {
+              errorType: 'Response Error' as const,
+              code: 401,
+              message: '',
+              data: null,
+            }
+          : normalizeRequestError(error, method.url)
+        if (!requestSuspended && !isSessionExpired() && !method.meta?.sessionExpired)
+          window.$message?.error(normalizedError.message)
         throw handleServiceResult(normalizedError, false)
       },
 
-      onComplete: async (_method) => {
-        // 处理请求完成逻辑
+      onComplete: async (method) => {
+        releaseProtectedRequest(method)
       },
     }),
   })

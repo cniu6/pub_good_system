@@ -31,6 +31,22 @@ func MapGormNotFound(err error) error {
 	return err
 }
 
+// FindOne 查最多一条：空结果返回 sql.ErrNoRows，不触发 GORM First 的 record not found 日志。
+// 适用于「经常不存在」的查询（如登录查实名），避免控制台被正常空结果刷屏。
+func FindOne(q *gorm.DB, dest interface{}) error {
+	if q == nil {
+		return fmt.Errorf("数据库未初始化")
+	}
+	res := q.Limit(1).Find(dest)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 // WithTx 在事务中执行 fn（封装 GORM Transaction）。
 func WithTx(fn func(tx *gorm.DB) error) error {
 	if DB == nil {

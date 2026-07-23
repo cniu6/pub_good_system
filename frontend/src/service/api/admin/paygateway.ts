@@ -4,7 +4,9 @@
 import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
-function baseUrl() { return `${getAdminApiBase()}/payment/gateways` }
+function baseUrl() {
+  return `${getAdminApiBase()}/payment/gateways`
+}
 
 /** 支付通道 */
 export interface PayGateway {

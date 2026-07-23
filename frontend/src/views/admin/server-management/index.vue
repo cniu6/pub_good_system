@@ -9,11 +9,13 @@ import {
 import MonitorTab from './tabs/MonitorTab.vue'
 import OpsTab from './tabs/OpsTab.vue'
 import DebugTab from './tabs/DebugTab.vue'
+import DatabaseTab from './tabs/DatabaseTab.vue'
+import TerminalTab from './tabs/TerminalTab.vue'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const { activeTab, initPage, bindLifecycleOnce } = useServerManagement()
+const { activeTab, handleActiveTabChanged, initPage, bindLifecycleOnce } = useServerManagement()
 
 bindLifecycleOnce()
 
@@ -27,6 +29,7 @@ watch(
 
 watch(activeTab, (value) => {
   const nextTab = normalizeActiveTab(value)
+  handleActiveTabChanged(nextTab)
   if (route.query.tab === nextTab)
     return
   router.replace({ query: { ...route.query, tab: nextTab } })
@@ -34,6 +37,8 @@ watch(activeTab, (value) => {
 
 onMounted(() => {
   void initPage()
+  // 首次 route.query.tab 的 immediate watch 发生在本 watch 注册之前，需主动处理一次。
+  handleActiveTabChanged(activeTab.value)
 })
 </script>
 
@@ -47,6 +52,12 @@ onMounted(() => {
     </NTabPane>
     <NTabPane name="debug" :tab="t('adminSettings.debugTools')">
       <DebugTab />
+    </NTabPane>
+    <NTabPane name="database" :tab="t('adminServer.dbTab')">
+      <DatabaseTab />
+    </NTabPane>
+    <NTabPane name="terminal" :tab="t('adminServer.terminalTab')">
+      <TerminalTab />
     </NTabPane>
   </NTabs>
 </template>

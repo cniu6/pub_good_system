@@ -20,7 +20,7 @@ type SMSLog struct {
 	Phone        string    `gorm:"column:phone;size:32;not null;index:idx_sms_phone" json:"phone"`
 	Provider     string    `gorm:"column:provider;size:32;not null;index:idx_sms_provider" json:"provider"`
 	TemplateCode string    `gorm:"column:template_code;size:64;not null;default:''" json:"template_code"`
-	TemplateName string    `gorm:"column:template_name;size:64;not null;default:'';index:idx_sms_template_name" json:"template_name"`
+	TemplateName string    `gorm:"column:template_name;size:100;not null;default:'';index:idx_sms_template_name" json:"template_name"`
 	Lang         string    `gorm:"column:lang;size:16;not null;default:'zh-CN'" json:"lang"`
 	Content      string    `gorm:"column:content;size:512;not null;default:''" json:"content"`
 	Status       uint8     `gorm:"column:status;not null;default:0;index:idx_sms_status" json:"status"`

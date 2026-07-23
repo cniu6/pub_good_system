@@ -4,7 +4,9 @@
 import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
-function baseUrl() { return `${getAdminApiBase()}/dashboard` }
+function baseUrl() {
+  return `${getAdminApiBase()}/dashboard`
+}
 
 export interface AdminDashboardStatistics {
   total_users: number

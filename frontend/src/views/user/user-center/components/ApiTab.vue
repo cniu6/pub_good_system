@@ -2,24 +2,25 @@
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/store'
 import { fetchResetApiKey, fetchUserApiKey } from '@/service'
-import NovaIcon from '@/components/common/NovaIcon.vue'
 
 const authStore = useAuthStore()
 const { t } = useI18n()
+const dialog = useDialog()
+const message = useMessage()
 
-const userInfo = computed(() => authStore.userInfo)
-
-const showResetConfirm = ref(false)
-const showApiKey = ref(false)
 const apiKeyLoading = ref(false)
 const resettingApiKey = ref(false)
+/** 用户端完整密钥（明文）；前端用 password 眼睛控制显隐 */
+const apiKey = ref('')
 
 async function loadApiKey() {
   apiKeyLoading.value = true
   try {
     const response = await fetchUserApiKey()
     if (response.isSuccess) {
-      authStore.updateUserInfo({ apikey: response.data?.apikey || null })
+      const key = String(response.data?.apikey || '').trim()
+      apiKey.value = key
+      authStore.updateUserInfo({ apikey: key || null })
     }
   }
   catch (error) {
@@ -32,38 +33,51 @@ async function loadApiKey() {
 }
 
 function copyApiKey() {
-  if (userInfo.value?.apikey) {
-    navigator.clipboard.writeText(userInfo.value.apikey)
-    window.$message.success(t('apiTab.apiKeyCopied'))
+  const key = apiKey.value.trim()
+  if (!key) {
+    message.warning(t('apiTab.apiKeyEmpty'))
+    return
   }
-  else {
-    window.$message.warning(t('apiTab.apiKeyEmpty'))
-  }
+  navigator.clipboard.writeText(key)
+  message.success(t('apiTab.apiKeyCopied'))
 }
 
-async function confirmResetApiKey() {
+function handleResetApiKey() {
   if (resettingApiKey.value)
     return
-  resettingApiKey.value = true
-  try {
-    const response = await fetchResetApiKey()
-    if (response.isSuccess) {
-      window.$message.success(t('apiTab.apiKeyResetSuccess'))
-      authStore.updateUserInfo({ apikey: response.data.apikey })
-      showResetConfirm.value = false
-    }
-    else {
-      window.$message.error(response.message || t('apiTab.apiKeyResetFailed'))
-    }
-  }
-  catch (error) {
-    if (import.meta.env.DEV)
-      console.error('[apiTab] reset api key failed', error)
-    window.$message.error(t('apiTab.apiKeyResetFailed'))
-  }
-  finally {
-    resettingApiKey.value = false
-  }
+  dialog.warning({
+    title: t('apiTab.confirmResetTitle'),
+    content: t('apiTab.confirmResetContent'),
+    positiveText: t('apiTab.confirmReset'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      resettingApiKey.value = true
+      try {
+        const response = await fetchResetApiKey()
+        if (!response.isSuccess) {
+          message.error(response.message || t('apiTab.apiKeyResetFailed'))
+          return false
+        }
+        const plain = String(response.data?.apikey || '').trim()
+        if (!plain) {
+          message.error(t('apiTab.apiKeyResetFailed'))
+          return false
+        }
+        apiKey.value = plain
+        authStore.updateUserInfo({ apikey: plain })
+        message.success(t('apiTab.apiKeyResetSuccess'))
+      }
+      catch (error) {
+        if (import.meta.env.DEV)
+          console.error('[apiTab] reset api key failed', error)
+        message.error(t('apiTab.apiKeyResetFailed'))
+        return false
+      }
+      finally {
+        resettingApiKey.value = false
+      }
+    },
+  })
 }
 
 onMounted(() => {
@@ -81,43 +95,19 @@ onMounted(() => {
         {{ t('apiTab.description') }}
       </n-text>
 
-      <!-- 使用 naive-ui 原生 input-group，保证输入框与重置按钮纵向对齐 -->
       <n-input-group>
         <n-input
           :loading="apiKeyLoading"
-          :value="userInfo?.apikey || t('apiTab.noApiKey')"
-          :type="showApiKey ? 'text' : 'password'"
+          :value="apiKey"
+          type="password"
+          show-password-on="click"
           readonly
           :placeholder="t('apiTab.noApiKey')"
-        >
-          <template #suffix>
-            <n-space :size="4" align="center">
-              <n-button
-                text
-                type="primary"
-                :disabled="!userInfo?.apikey"
-                @click="showApiKey = !showApiKey"
-              >
-                <template #icon>
-                  <NovaIcon v-if="!showApiKey" icon="icon-park-outline:preview-open" :size="16" />
-                  <NovaIcon v-else icon="icon-park-outline:preview-close" :size="16" />
-                </template>
-              </n-button>
-              <n-button
-                text
-                type="primary"
-                :disabled="!userInfo?.apikey"
-                @click="copyApiKey"
-              >
-                <template #icon>
-                  <NovaIcon icon="icon-park-outline:copy" :size="16" />
-                </template>
-                {{ t('apiTab.copy') }}
-              </n-button>
-            </n-space>
-          </template>
-        </n-input>
-        <n-button type="warning" @click="showResetConfirm = true">
+        />
+        <n-button type="primary" :disabled="!apiKey" @click="copyApiKey">
+          {{ t('apiTab.copy') }}
+        </n-button>
+        <n-button type="warning" :loading="resettingApiKey" :disabled="resettingApiKey" @click="handleResetApiKey">
           {{ t('apiTab.resetKey') }}
         </n-button>
       </n-input-group>
@@ -135,22 +125,5 @@ onMounted(() => {
         </n-space>
       </n-alert>
     </n-space>
-
-    <!-- 重置确认对话框 -->
-    <n-modal v-model:show="showResetConfirm" preset="card" :title="t('apiTab.confirmResetTitle')" style="width: 400px;" :bordered="false" size="huge">
-      <n-alert type="warning" :show-icon="false">
-        {{ t('apiTab.confirmResetContent') }}
-      </n-alert>
-      <template #footer>
-        <n-space justify="end">
-          <n-button @click="showResetConfirm = false">
-            {{ t('common.cancel') }}
-          </n-button>
-          <n-button type="warning" :loading="resettingApiKey" :disabled="resettingApiKey" @click="confirmResetApiKey">
-            {{ t('apiTab.confirmReset') }}
-          </n-button>
-        </n-space>
-      </template>
-    </n-modal>
   </div>
 </template>

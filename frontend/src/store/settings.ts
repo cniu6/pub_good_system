@@ -54,14 +54,14 @@ export const useSettingsStore = defineStore('settings-store', () => {
   // 是否允许注册
   const allowRegister = computed(() => config.value?.allow_register ?? true)
 
+  // 是否允许普通用户密码登录（默认 true；管理员与 API Key 不受影响）
+  const allowUserLogin = computed(() => config.value?.allow_user_login ?? true)
+
   // 站内公告总开关（关闭后用户端不展示铃铛/工作台公告区）
   const announcementEnabled = computed(() => config.value?.announcement_enabled ?? true)
 
   // 是否允许注销账号
   const allowDeleteAccount = computed(() => config.value?.allow_delete_account ?? false)
-
-  // 是否禁止普通用户网页端登录（默认 false；仅小程序/App 场景使用，管理员登录不受影响）
-  const webLoginDisabled = computed(() => config.value?.web_login_disabled ?? false)
 
   // 默认语言
   const defaultLang = computed(() => config.value?.default_lang ?? import.meta.env.VITE_DEFAULT_LANG ?? 'zhCN')
@@ -194,9 +194,9 @@ export const useSettingsStore = defineStore('settings-store', () => {
     icp,
     version,
     allowRegister,
+    allowUserLogin,
     announcementEnabled,
     allowDeleteAccount,
-    webLoginDisabled,
     defaultLang,
     geetestEnabled,
     geetestCaptchaId,

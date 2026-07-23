@@ -323,11 +323,19 @@ func (ctrl *SettingsController) UpdateMeta(c *gin.Context) {
 			utils.Fail(c, 400, "Label is required")
 			return
 		}
+		if err := utils.ValidateRuneLen(effectiveLabel, "标签", utils.MaxSettingLabelLength); err != nil {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
 	}
 
 	effectiveDescription := existingSetting.Description
 	if req.Description != nil {
 		effectiveDescription = utils.Clean_XSS(*req.Description)
+		if err := utils.ValidateRuneLen(effectiveDescription, "描述", utils.MaxDescriptionLength); err != nil {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
 	}
 
 	effectiveIsPublic := existingSetting.IsPublic
@@ -442,6 +450,18 @@ func (ctrl *SettingsController) Create(c *gin.Context) {
 	req.Key = utils.Clean_XSS(req.Key)
 	req.Label = utils.Clean_XSS(req.Label)
 	req.Description = utils.Clean_XSS(req.Description)
+	if err := utils.ValidateRuneLen(req.Key, "配置键", utils.MaxSettingKeyLength); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+	if err := utils.ValidateRuneLen(req.Label, "标签", utils.MaxSettingLabelLength); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+	if err := utils.ValidateRuneLen(req.Description, "描述", utils.MaxDescriptionLength); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
 
 	// 验证key格式（只允许字母、数字、下划线）
 	keyRegex := regexp.MustCompile(`^[a-z][a-z0-9_]*$`)

@@ -1,136 +1,8 @@
-<template>
-  <n-space vertical :size="16">
-    <!-- 统计卡片 -->
-    <n-grid :cols="4" :x-gap="12">
-      <n-gi>
-        <n-card size="small">
-          <n-statistic :label="t('adminPaymentOrders.todayRevenue')" :value="stats.today_amount" :precision="2">
-            <template #prefix>¥</template>
-          </n-statistic>
-          <n-text depth="3" style="font-size: 12px">{{ t('adminPaymentOrders.orderCount', { count: stats.today_orders }) }}</n-text>
-        </n-card>
-      </n-gi>
-      <n-gi>
-        <n-card size="small">
-          <n-statistic :label="t('adminPaymentOrders.totalRevenue')" :value="stats.total_amount" :precision="2">
-            <template #prefix>¥</template>
-          </n-statistic>
-          <n-text depth="3" style="font-size: 12px">{{ t('adminPaymentOrders.orderCount', { count: stats.paid_orders }) }}</n-text>
-        </n-card>
-      </n-gi>
-      <n-gi>
-        <n-card size="small">
-          <n-statistic :label="t('adminPaymentOrders.totalOrders')" :value="stats.total_orders" />
-        </n-card>
-      </n-gi>
-      <n-gi>
-        <n-card size="small">
-          <n-statistic :label="t('recharge.pending')" :value="stats.pending_orders" />
-        </n-card>
-      </n-gi>
-    </n-grid>
-
-    <!-- 订单列表 -->
-    <n-card :title="t('adminPaymentOrders.title')">
-      <template #header-extra>
-        <TableColumnSelector
-          v-model="selectedColumnKeys"
-          :options="columnOptions"
-          :visible-count="visibleColumnCount"
-          :total-count="totalColumnCount"
-          :button-label="t('common.showFields')"
-          :title="t('common.visibleFields')"
-          :hint="t('common.columnVisibilityHint')"
-          :reset-label="t('common.restoreDefaultFields')"
-          @reset="resetSelectedColumns"
-        />
-      </template>
-      <n-space vertical>
-        <n-space>
-          <n-input v-model:value="searchForm.keyword" :placeholder="t('adminPaymentOrders.searchPlaceholder')" clearable style="width: 240px" @keyup.enter="handleSearch" />
-          <n-input-number v-model:value="searchForm.user_id" :placeholder="t('adminRealname.userId')" style="width: 140px" :show-button="false" />
-          <n-select
-            v-model:value="searchForm.status"
-            :options="statusOptions"
-            :placeholder="t('recharge.orderStatus')"
-            style="width: 130px"
-            clearable
-          />
-          <n-button type="primary" @click="handleSearch">{{ t('moneyScore.search') }}</n-button>
-          <n-button @click="handleReset">{{ t('common.reset') }}</n-button>
-        </n-space>
-
-        <n-data-table
-          :columns="visibleColumns"
-          :data="orderList"
-          :loading="loading"
-          :pagination="pagination"
-          :row-key="(row: any) => row.id"
-          :scroll-x="tableScrollX"
-          striped
-          size="small"
-          @update:page="handlePageChange"
-          @update:page-size="handlePageSizeChange"
-        />
-      </n-space>
-
-      <!-- 详情弹窗 -->
-      <n-modal v-model:show="showDetail" :title="t('recharge.orderDetail')" preset="card" style="width: 600px">
-        <template v-if="detailOrder">
-          <n-spin :show="detailLoading">
-            <n-descriptions :column="2" bordered label-placement="left">
-              <n-descriptions-item :label="t('recharge.orderNo')">{{ detailOrder.order_no }}</n-descriptions-item>
-              <n-descriptions-item :label="t('adminRealname.userId')">{{ detailOrder.user_id }}</n-descriptions-item>
-              <n-descriptions-item :label="t('adminPaymentOrders.tradeNoThirdParty')">{{ detailOrder.trade_no || '-' }}</n-descriptions-item>
-              <n-descriptions-item :label="t('adminPaymentOrders.paymentChannel')">{{ detailOrder.payment_channel }}</n-descriptions-item>
-              <n-descriptions-item :label="t('recharge.paymentMethod')">{{ paymentTypeMap[detailOrder.payment_type] || detailOrder.payment_type }}</n-descriptions-item>
-              <n-descriptions-item :label="t('adminUsers.amount')">¥{{ Number(detailOrder.amount).toFixed(2) }}</n-descriptions-item>
-              <n-descriptions-item :label="t('adminPaymentOrders.orderTitle')">{{ detailOrder.subject || '-' }}</n-descriptions-item>
-              <n-descriptions-item :label="t('recharge.status')">
-                <n-tag :type="(statusMap[detailOrder.status] || {}).type || 'default'" size="small">
-                  {{ (statusMap[detailOrder.status] || {}).label || t('recharge.unknown') }}
-                </n-tag>
-              </n-descriptions-item>
-              <n-descriptions-item :label="t('adminPaymentOrders.notifyCount')">{{ detailOrder.notify_count }}</n-descriptions-item>
-              <n-descriptions-item :label="t('adminPaymentOrders.clientIp')">{{ detailOrder.client_ip || '-' }}</n-descriptions-item>
-              <n-descriptions-item :label="t('recharge.createdAt')">{{ formatTime(detailOrder.create_time) }}</n-descriptions-item>
-              <n-descriptions-item :label="t('recharge.paymentTime')">{{ detailOrder.paid_at ? formatTime(detailOrder.paid_at) : '-' }}</n-descriptions-item>
-              <n-descriptions-item :label="t('adminPaymentOrders.expireAt')">{{ formatTime(detailOrder.expire_at) }}</n-descriptions-item>
-            </n-descriptions>
-          </n-spin>
-        </template>
-      </n-modal>
-
-      <!-- 补单弹窗 -->
-      <n-modal v-model:show="showComplete" :title="t('adminPaymentOrders.manualComplete')" preset="card" style="width: 450px">
-        <n-alert type="warning" style="margin-bottom: 16px">
-          {{ t('adminPaymentOrders.manualCompleteWarning') }}
-        </n-alert>
-        <template v-if="completeOrder">
-          <n-descriptions :column="1" bordered label-placement="left" style="margin-bottom: 16px">
-            <n-descriptions-item :label="t('recharge.orderNo')">{{ completeOrder.order_no }}</n-descriptions-item>
-            <n-descriptions-item :label="t('adminRealname.userId')">{{ completeOrder.user_id }}</n-descriptions-item>
-            <n-descriptions-item :label="t('adminUsers.amount')">¥{{ Number(completeOrder.amount).toFixed(2) }}</n-descriptions-item>
-          </n-descriptions>
-          <n-form-item :label="t('adminPaymentOrders.completeRemark')">
-            <n-input v-model:value="completeMemo" type="textarea" :placeholder="t('adminPaymentOrders.completeRemarkPlaceholder')" :rows="2" />
-          </n-form-item>
-        </template>
-        <template #footer>
-          <n-space justify="end">
-            <n-button @click="showComplete = false">{{ t('common.cancel') }}</n-button>
-            <n-button type="warning" :loading="submitting" @click="handleCompleteSubmit">{{ t('adminPaymentOrders.confirmComplete') }}</n-button>
-          </n-space>
-        </template>
-      </n-modal>
-    </n-card>
-  </n-space>
-</template>
-
 <script setup lang="ts">
-import { ref, reactive, onMounted, h, type VNodeChild } from 'vue'
+import { h, onMounted, reactive, ref } from 'vue'
+import type { VNodeChild } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NTag, NSpace as NSpaceComp, useMessage, useDialog } from 'naive-ui'
+import { NButton, NSpace as NSpaceComp, NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
@@ -142,6 +14,7 @@ const dialog = useDialog()
 const { t } = useI18n()
 const listFetchGuard = useRequestGuard()
 const detailFetchGuard = useRequestGuard()
+const statsFetchGuard = useRequestGuard()
 const loading = ref(false)
 const submitting = ref(false)
 
@@ -239,7 +112,7 @@ const columns: DataTableColumns<PaymentOrder> = [
     title: t('recharge.status'),
     key: 'status',
     width: 90,
-    render: row => {
+    render: (row) => {
       const s = statusMap[row.status] || { label: t('recharge.unknown'), type: 'default' as const }
       return h(NTag, { type: s.type, size: 'small', bordered: false }, () => s.label)
     },
@@ -300,32 +173,32 @@ const columns: DataTableColumns<PaymentOrder> = [
   },
 ]
 
- const selectableColumnOptions = [
-   { key: 'id', label: 'ID' },
-   { key: 'order_no', label: t('recharge.orderNo') },
-   { key: 'user_id', label: t('adminRealname.userId') },
-   { key: 'amount', label: t('adminUsers.amount') },
-   { key: 'payment_type', label: t('recharge.paymentMethod') },
-   { key: 'status', label: t('recharge.status') },
-   { key: 'trade_no', label: t('adminPaymentOrders.tradeNoThirdParty') },
-   { key: 'create_time', label: t('recharge.createdAt') },
- ]
+const selectableColumnOptions = [
+  { key: 'id', label: 'ID' },
+  { key: 'order_no', label: t('recharge.orderNo') },
+  { key: 'user_id', label: t('adminRealname.userId') },
+  { key: 'amount', label: t('adminUsers.amount') },
+  { key: 'payment_type', label: t('recharge.paymentMethod') },
+  { key: 'status', label: t('recharge.status') },
+  { key: 'trade_no', label: t('adminPaymentOrders.tradeNoThirdParty') },
+  { key: 'create_time', label: t('recharge.createdAt') },
+]
 
- const {
-   columnOptions,
-   selectedColumnKeys,
-   visibleColumns,
-   visibleColumnCount,
-   totalColumnCount,
-   tableScrollX,
-   resetSelectedColumns,
- } = useTableColumnVisibility<PaymentOrder>({
-   storageKey: 'admin-payment-orders-list',
-   columns,
-   options: selectableColumnOptions,
-   minVisibleCount: 1,
-   minScrollX: 1080,
- })
+const {
+  columnOptions,
+  selectedColumnKeys,
+  visibleColumns,
+  visibleColumnCount,
+  totalColumnCount,
+  tableScrollX,
+  resetSelectedColumns,
+} = useTableColumnVisibility<PaymentOrder>({
+  storageKey: 'admin-payment-orders-list',
+  columns,
+  options: selectableColumnOptions,
+  minVisibleCount: 1,
+  minScrollX: 1080,
+})
 
 // 数据加载
 async function fetchData() {
@@ -344,25 +217,32 @@ async function fetchData() {
     if (res.isSuccess) {
       orderList.value = res.data?.list || []
       pagination.itemCount = res.data?.total || 0
-    } else {
+    }
+    else {
       message.error(res.message || t('adminPaymentOrders.fetchListFailed'))
     }
-  } catch {
+  }
+  catch {
     if (listFetchGuard.isLatest(token))
       message.error(t('adminPaymentOrders.fetchListFailed'))
-  } finally {
+  }
+  finally {
     if (listFetchGuard.isLatest(token))
       loading.value = false
   }
 }
 
 async function fetchStats() {
+  const token = statsFetchGuard.begin()
   try {
     const res = await adminPaymentApi.getStats()
+    if (!statsFetchGuard.isLatest(token))
+      return
     if (res.isSuccess && res.data) {
       Object.assign(stats, res.data)
     }
-  } catch { /* ignore */ }
+  }
+  catch { /* ignore */ }
 }
 
 function handleSearch() {
@@ -425,25 +305,25 @@ function handleComplete(row: PaymentOrder) {
 }
 
 async function handleCompleteSubmit() {
-  if (!completeOrder.value) return
-  const { promptSensitiveTotpCode } = await import('@/composables/useSensitiveTotp')
-  const totpCode = await promptSensitiveTotpCode()
-  if (totpCode === null)
+  if (!completeOrder.value)
     return
   submitting.value = true
   try {
-    const res = await adminPaymentApi.completeOrder(completeOrder.value.id, { memo: completeMemo.value }, totpCode || undefined)
+    const res = await adminPaymentApi.completeOrder(completeOrder.value.id, { memo: completeMemo.value })
     if (res.isSuccess) {
       message.success(t('adminPaymentOrders.completeSuccess'))
       showComplete.value = false
       fetchData()
       fetchStats()
-    } else {
+    }
+    else {
       message.error(res.message || t('adminPaymentOrders.completeFailed'))
     }
-  } catch {
+  }
+  catch {
     message.error(t('adminPaymentOrders.completeFailed'))
-  } finally {
+  }
+  finally {
     submitting.value = false
   }
 }
@@ -462,10 +342,12 @@ function handleCancel(row: PaymentOrder) {
           message.success(t('adminPaymentOrders.cancelSuccess'))
           fetchData()
           fetchStats()
-        } else {
+        }
+        else {
           message.error(res.message || t('adminPaymentOrders.cancelFailed'))
         }
-      } catch {
+      }
+      catch {
         message.error(t('adminPaymentOrders.cancelFailed'))
       }
     },
@@ -486,10 +368,12 @@ function handleDelete(row: PaymentOrder) {
           message.success(t('adminUsers.deleteSuccess'))
           fetchData()
           fetchStats()
-        } else {
+        }
+        else {
           message.error(res.message || t('adminUsers.deleteFailed'))
         }
-      } catch {
+      }
+      catch {
         message.error(t('adminUsers.deleteFailed'))
       }
     },
@@ -501,3 +385,178 @@ onMounted(() => {
   fetchStats()
 })
 </script>
+
+<template>
+  <n-space vertical :size="16">
+    <!-- 统计卡片 -->
+    <n-grid :cols="4" :x-gap="12">
+      <n-gi>
+        <n-card size="small">
+          <n-statistic :label="t('adminPaymentOrders.todayRevenue')" :value="stats.today_amount" :precision="2">
+            <template #prefix>
+              ¥
+            </template>
+          </n-statistic>
+          <n-text depth="3" style="font-size: 12px">
+            {{ t('adminPaymentOrders.orderCount', { count: stats.today_orders }) }}
+          </n-text>
+        </n-card>
+      </n-gi>
+      <n-gi>
+        <n-card size="small">
+          <n-statistic :label="t('adminPaymentOrders.totalRevenue')" :value="stats.total_amount" :precision="2">
+            <template #prefix>
+              ¥
+            </template>
+          </n-statistic>
+          <n-text depth="3" style="font-size: 12px">
+            {{ t('adminPaymentOrders.orderCount', { count: stats.paid_orders }) }}
+          </n-text>
+        </n-card>
+      </n-gi>
+      <n-gi>
+        <n-card size="small">
+          <n-statistic :label="t('adminPaymentOrders.totalOrders')" :value="stats.total_orders" />
+        </n-card>
+      </n-gi>
+      <n-gi>
+        <n-card size="small">
+          <n-statistic :label="t('recharge.pending')" :value="stats.pending_orders" />
+        </n-card>
+      </n-gi>
+    </n-grid>
+
+    <!-- 订单列表 -->
+    <n-card :title="t('adminPaymentOrders.title')">
+      <template #header-extra>
+        <TableColumnSelector
+          v-model="selectedColumnKeys"
+          :options="columnOptions"
+          :visible-count="visibleColumnCount"
+          :total-count="totalColumnCount"
+          :button-label="t('common.showFields')"
+          :title="t('common.visibleFields')"
+          :hint="t('common.columnVisibilityHint')"
+          :reset-label="t('common.restoreDefaultFields')"
+          @reset="resetSelectedColumns"
+        />
+      </template>
+      <n-space vertical>
+        <n-space>
+          <n-input v-model:value="searchForm.keyword" :placeholder="t('adminPaymentOrders.searchPlaceholder')" clearable style="width: 240px" @keyup.enter="handleSearch" />
+          <n-input-number v-model:value="searchForm.user_id" :placeholder="t('adminRealname.userId')" style="width: 140px" :show-button="false" />
+          <n-select
+            v-model:value="searchForm.status"
+            :options="statusOptions"
+            :placeholder="t('recharge.orderStatus')"
+            style="width: 130px"
+            clearable
+          />
+          <NButton type="primary" @click="handleSearch">
+            {{ t('moneyScore.search') }}
+          </NButton>
+          <NButton @click="handleReset">
+            {{ t('common.reset') }}
+          </NButton>
+        </n-space>
+
+        <n-data-table
+          :columns="visibleColumns"
+          :data="orderList"
+          :loading="loading"
+          :pagination="pagination"
+          :row-key="(row: any) => row.id"
+          :scroll-x="tableScrollX"
+          striped
+          size="small"
+          @update:page="handlePageChange"
+          @update:page-size="handlePageSizeChange"
+        />
+      </n-space>
+
+      <!-- 详情弹窗 -->
+      <n-modal v-model:show="showDetail" :title="t('recharge.orderDetail')" preset="card" style="width: 600px">
+        <template v-if="detailOrder">
+          <n-spin :show="detailLoading">
+            <n-descriptions :column="2" bordered label-placement="left">
+              <n-descriptions-item :label="t('recharge.orderNo')">
+                {{ detailOrder.order_no }}
+              </n-descriptions-item>
+              <n-descriptions-item :label="t('adminRealname.userId')">
+                {{ detailOrder.user_id }}
+              </n-descriptions-item>
+              <n-descriptions-item :label="t('adminPaymentOrders.tradeNoThirdParty')">
+                {{ detailOrder.trade_no || '-' }}
+              </n-descriptions-item>
+              <n-descriptions-item :label="t('adminPaymentOrders.paymentChannel')">
+                {{ detailOrder.payment_channel }}
+              </n-descriptions-item>
+              <n-descriptions-item :label="t('recharge.paymentMethod')">
+                {{ paymentTypeMap[detailOrder.payment_type] || detailOrder.payment_type }}
+              </n-descriptions-item>
+              <n-descriptions-item :label="t('adminUsers.amount')">
+                ¥{{ Number(detailOrder.amount).toFixed(2) }}
+              </n-descriptions-item>
+              <n-descriptions-item :label="t('adminPaymentOrders.orderTitle')">
+                {{ detailOrder.subject || '-' }}
+              </n-descriptions-item>
+              <n-descriptions-item :label="t('recharge.status')">
+                <NTag :type="(statusMap[detailOrder.status] || {}).type || 'default'" size="small">
+                  {{ (statusMap[detailOrder.status] || {}).label || t('recharge.unknown') }}
+                </NTag>
+              </n-descriptions-item>
+              <n-descriptions-item :label="t('adminPaymentOrders.notifyCount')">
+                {{ detailOrder.notify_count }}
+              </n-descriptions-item>
+              <n-descriptions-item :label="t('adminPaymentOrders.clientIp')">
+                {{ detailOrder.client_ip || '-' }}
+              </n-descriptions-item>
+              <n-descriptions-item :label="t('recharge.createdAt')">
+                {{ formatTime(detailOrder.create_time) }}
+              </n-descriptions-item>
+              <n-descriptions-item :label="t('recharge.paymentTime')">
+                {{ detailOrder.paid_at ? formatTime(detailOrder.paid_at) : '-' }}
+              </n-descriptions-item>
+              <n-descriptions-item :label="t('adminPaymentOrders.expireAt')">
+                {{ formatTime(detailOrder.expire_at) }}
+              </n-descriptions-item>
+            </n-descriptions>
+          </n-spin>
+        </template>
+      </n-modal>
+
+      <!-- 补单弹窗 -->
+      <n-modal v-model:show="showComplete" :title="t('adminPaymentOrders.manualComplete')" preset="card" style="width: 450px">
+        <n-alert type="warning" style="margin-bottom: 16px">
+          {{ t('adminPaymentOrders.manualCompleteWarning') }}
+        </n-alert>
+        <template v-if="completeOrder">
+          <n-descriptions :column="1" bordered label-placement="left" style="margin-bottom: 16px">
+            <n-descriptions-item :label="t('recharge.orderNo')">
+              {{ completeOrder.order_no }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminRealname.userId')">
+              {{ completeOrder.user_id }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('adminUsers.amount')">
+              ¥{{ Number(completeOrder.amount).toFixed(2) }}
+            </n-descriptions-item>
+          </n-descriptions>
+          <n-form-item :label="t('adminPaymentOrders.completeRemark')">
+            <n-input v-model:value="completeMemo" type="textarea" :placeholder="t('adminPaymentOrders.completeRemarkPlaceholder')" :rows="2" />
+          </n-form-item>
+        </template>
+        <template #footer>
+          <n-space justify="end">
+            <NButton @click="showComplete = false">
+              {{ t('common.cancel') }}
+            </NButton>
+            <NButton type="warning" :loading="submitting" @click="handleCompleteSubmit">
+              {{ t('adminPaymentOrders.confirmComplete') }}
+            </NButton>
+          </n-space>
+        </template>
+      </n-modal>
+    </n-card>
+  </n-space>
+</template>

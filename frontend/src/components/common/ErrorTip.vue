@@ -34,4 +34,3 @@ const router = useRouter()
     </n-button>
   </div>
 </template>
-

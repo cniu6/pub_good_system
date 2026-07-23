@@ -1,6 +1,7 @@
 import { refreshAuthToken } from './token-refresh'
+import { isSessionExpired } from './auth-expiration'
 import { useAuthStore } from '@/store'
-import { $t, authStorage } from '@/utils'
+import { $t } from '@/utils'
 import {
   ERROR_NO_TIP_STATUS,
   ERROR_STATUS,
@@ -74,8 +75,8 @@ const BACKEND_MESSAGE_RULES: LocalizedBackendMessageRule[] = [
     localeKey: 'http.backendMessage.accountInactive',
   },
   {
-    aliases: ['Web login is disabled'],
-    localeKey: 'http.backendMessage.webLoginDisabled',
+    aliases: ['Web login is disabled', 'User login is disabled'],
+    localeKey: 'http.backendMessage.userLoginDisabled',
   },
   {
     aliases: ['incorrect old password'],
@@ -254,6 +255,17 @@ async function extractResponseMessage(response: Response) {
   return ''
 }
 
+/**
+ * 同一批并发请求只允许第一个确认会话失效的请求打开登录恢复弹窗。
+ * 会话暂停会中止其它受保护请求，当前页面与未保存内容保持不变。
+ */
+function requireReauthentication(authStore: ReturnType<typeof useAuthStore>) {
+  if (authStore.isLoggingOut || !authStore.isLogin)
+    return
+
+  authStore.requireReauthentication()
+}
+
 export function localizeBackendMessagePayload<T extends BackendResponsePayload>(data: T, config: Required<Service.BackendConfig>) {
   const { msgKey } = config
   const rawMessage = data[msgKey]
@@ -292,7 +304,7 @@ export function normalizeRequestError(error: unknown, requestUrl?: string): Serv
  * @param {Response} response
  * @return {*}
  */
-export async function handleResponseError(response: Response) {
+export async function handleResponseError(response: Response, noErrorTip?: boolean) {
   const error: Service.RequestError = {
     errorType: 'Response Error',
     code: 0,
@@ -304,7 +316,8 @@ export async function handleResponseError(response: Response) {
   const message = rawMessage ? localizeBackendMessage(rawMessage) : (ERROR_STATUS[errorCode] || ERROR_STATUS.default)
   Object.assign(error, { code: errorCode, message })
 
-  showError(error)
+  if (!noErrorTip && !isSessionExpired())
+    showError(error)
 
   return error
 }
@@ -327,7 +340,7 @@ export function handleBusinessError(data: BackendBusinessPayload, config: Requir
     data: data.data,
   }
 
-  if (!noErrorTip) {
+  if (!noErrorTip && !isSessionExpired()) {
     showError(error)
   }
 
@@ -355,10 +368,14 @@ export function handleServiceResult<T extends object>(data: T, isSuccess: boolea
  */
 export async function handleRefreshToken() {
   const authStore = useAuthStore()
+  // 已经退出或正在退出时，旧请求的 401 不得再次刷新或显示“登录过期”。
+  if (authStore.isLoggingOut || !authStore.isLogin || isSessionExpired())
+    return false
+
   const isAutoRefresh = import.meta.env.VITE_AUTO_REFRESH_TOKEN === 'Y'
   if (!isAutoRefresh) {
-    await authStore.logout()
-    return
+    requireReauthentication(authStore)
+    return false
   }
 
   // 记录发起刷新时的会话代际，避免"请求发出后用户登出/重新登录，刷新结果晚点才回来"
@@ -366,20 +383,24 @@ export async function handleRefreshToken() {
   const generation = authStore.authGeneration
 
   // 刷新token
-  const data = await refreshAuthToken(authStorage.get('refreshToken'))
+  const data = await refreshAuthToken()
   if (authStore.authGeneration !== generation)
-    return
+    return false
 
   if (data) {
     authStore.applyRefreshedLoginInfo(data)
-    return
+    return true
   }
 
-  // 刷新失败，退出
-  await authStore.logout()
+  // 刷新失败，暂停当前会话并要求用户在当前页重新登录。
+  requireReauthentication(authStore)
+  return false
 }
 
 export function showError(error: Service.RequestError) {
+  if (isSessionExpired())
+    return
+
   // 如果error不需要提示,则跳过
   const code = Number(error.code)
   if (ERROR_NO_TIP_STATUS.includes(code))

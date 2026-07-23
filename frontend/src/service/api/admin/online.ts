@@ -47,11 +47,11 @@ function baseUrl() {
 
 export const adminOnlineApi = {
   stats() {
-    return request.Get<Service.ResponseResult<{ online_users: number; online_sessions: number }>>(`${baseUrl()}/stats`)
+    return request.Get<Service.ResponseResult<{ online_users: number, online_sessions: number }>>(`${baseUrl()}/stats`)
   },
 
   sessions(params?: OnlineSessionListParams) {
-    return request.Get<Service.ResponseResult<{ list: OnlineUserRow[]; total: number; page: number; page_size: number }>>(
+    return request.Get<Service.ResponseResult<{ list: OnlineUserRow[], total: number, page: number, page_size: number }>>(
       `${baseUrl()}/sessions`,
       { params },
     )
@@ -69,7 +69,7 @@ export const adminOnlineApi = {
   },
 
   revokeAllUserSessions(userId: number | string, authGuard = 'user') {
-    return request.Post<Service.ResponseResult<{ message?: string; count?: number }>>(
+    return request.Post<Service.ResponseResult<{ message?: string, count?: number }>>(
       `${getAdminApiBase()}/users/${userId}/sessions/revoke-all`,
       { auth_guard: authGuard },
     )

@@ -20,10 +20,10 @@ go run .
 # 前端单独
 cd frontend && pnpm install && pnpm dev
 
-# 前端 lint / 类型检查 / 构建（改完代码跑 lint:fix；非小改动跑 build 验证）
-cd frontend && pnpm lint       # eslint + vue-tsc --noEmit
-cd frontend && pnpm lint:fix
-cd frontend && pnpm build
+# 前端 lint / 类型检查 / 构建（**改 frontend 后收工前必须 lint 通过**；详见下方「前端 lint 硬规则」）
+cd frontend && pnpm lint       # eslint . && vue-tsc --noEmit —— 必跑，本地能 dev ≠ 通过
+cd frontend && pnpm lint:fix  # 大批量风格问题先自动修，再跑 lint 复核
+cd frontend && pnpm build      # 非极小改动建议再冒烟
 
 # 后端测试
 go test ./backend/...
@@ -204,6 +204,26 @@ Swagger 注解仍写 `/api/v1/admin/*`；doc.json 在运行时按 `ADMIN_API_PAT
 - 数据库表名/字段名一律小写+下划线，**禁止驼峰**；Go 函数可驼峰；前后端交互的 JSON 字段用 snake_case（`page_size`、`user_id`）
 - 最小化修改，尽量不动其他模块；优先复用已有封装（models 方法、utils、前端 `src/service/api/` 的 API 函数），不重复造轮子；修改文件用局部编辑而非整文件重写
 - 修 Bug 流程（rules.md）：理解问题 → 分析至少两种可能原因 → 制定计划 → **动手前向用户确认** → 执行 → 自查 → 解释
+- **禁止擅自加 GitHub Actions / CI 工作流**（仓库不维护 `.github/workflows`）；用户未明确要求时不要创建或恢复 CI
+
+## 前端 lint 硬规则（防回归，改 frontend 必守）
+
+修改 `frontend/` 下任意代码（修 bug、改组件、改 API、改样式、改 i18n）后，**收工前必须**：
+
+```bash
+cd frontend && pnpm lint
+```
+
+等价于 `eslint . && vue-tsc --noEmit`。规则细则见 `.cursor/rules/frontend-lint-required.mdc`。
+
+硬性要求：
+
+1. **不要只跑 `pnpm dev` 或肉眼看页面** —— 本地能跑 ≠ lint 通过
+2. lint 报错必须当场修完再结束任务；不要把「只是风格问题」留给用户
+3. 改动面大时先 `pnpm lint:fix`，再 `pnpm lint` 复核
+4. 非极小改动（单行文案除外）建议再 `pnpm build` 冒烟
+
+常见失败类型（修前对照）：import/组件名排序（`perfectionist`）、`defineProps` 须紧跟 import/类型定义、模板标签内文本换行、JSDoc `@param` 须覆盖函数全部参数、文件末尾多余空行、未使用变量。
 
 ## 前端管理端开发规范（Naive UI / 侧边栏 / i18n）
 
@@ -333,4 +353,4 @@ const res = await adminApi.user.list({ page: 1 })
 - SQLite 库中 `verification_codes` 同时存在 `email` 与 `contact` 列属预期（SQLite 不可靠改名，采用加列拷贝并保留旧列），业务只读写 `contact`
 - `utils.Fail` 的业务码 400–599 同时作为 HTTP 状态码是设计意图（让网关/中间件按 c.Writer.Status() 统计 4xx/5xx 准确）
 - 支付通道密钥管理端列表/详情掩码，更新时 `***` 不覆盖真密钥——不是脱敏失败
-- API Key 库内存 SHA256，展示末 4 位，重新生成只返回一次明文——旧明文兼容回写哈希
+- API Key 库内存明文 + 末4位 hint；管理端列表/详情只下发掩码，用户中心可随时查看明文；启动时会把旧 SHA256 哈希密钥自动重置为新明文

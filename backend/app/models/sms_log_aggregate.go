@@ -35,7 +35,7 @@ func (SMSLogDailyStat) TableName() string { return "sms_log_daily_stats" }
 
 // SMSLogTemplateStatRow 短信日志按模板汇总
 type SMSLogTemplateStatRow struct {
-	TemplateName string `gorm:"column:template_name;primaryKey;size:64"`
+	TemplateName string `gorm:"column:template_name;primaryKey;size:100"`
 	TotalCount   int64  `gorm:"column:total_count;not null;default:0"`
 	SuccessCount int64  `gorm:"column:success_count;not null;default:0"`
 	FailCount    int64  `gorm:"column:fail_count;not null;default:0"`
@@ -345,7 +345,7 @@ func resolveSMSLogAggregateTemplate(name string) string {
 	if normalized == "" {
 		return "unknown"
 	}
-	return normalized
+	return clampBytes(normalized, storedModuleLen) // size:100
 }
 
 func resolveSMSLogAggregateProvider(provider string) string {
@@ -353,5 +353,5 @@ func resolveSMSLogAggregateProvider(provider string) string {
 	if normalized == "" {
 		return "unknown"
 	}
-	return normalized
+	return clampBytes(normalized, storedIPMaxLen) // size:64
 }

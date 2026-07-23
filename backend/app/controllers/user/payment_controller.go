@@ -51,6 +51,11 @@ func (ctrl *PaymentController) CreateOrder(c *gin.Context) {
 		return
 	}
 	uid := userID.(uint64)
+	// 用户等级能力：充值开关
+	if ok, msg := models.CheckUserLevelAllows(uid, "recharge"); !ok {
+		utils.Fail(c, 403, msg)
+		return
+	}
 
 	var req CreateOrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

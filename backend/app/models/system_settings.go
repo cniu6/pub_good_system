@@ -77,7 +77,48 @@ func (s *SystemSetting) GetTypedValue() interface{} {
 
 // SeedSystemSettings 写入系统设置默认值（建表由 GORM AutoMigrate 负责）
 func SeedSystemSettings() {
+	migrateLegacyDisableWebLoginSetting()
 	initDefaultSettings()
+}
+
+// migrateLegacyDisableWebLoginSetting 一次性：旧键 disable_web_login → allow_user_login 后删除旧键。
+func migrateLegacyDisableWebLoginSetting() {
+	if db.DB == nil {
+		return
+	}
+	var old SystemSetting
+	err := db.FindOne(db.DB.Where("setting_key = ?", "disable_web_login"), &old)
+	if errors.Is(err, sql.ErrNoRows) {
+		return
+	}
+	if err != nil {
+		log.Printf("[Init] 读取旧键 disable_web_login 失败: %v", err)
+		return
+	}
+	allowVal := "true"
+	if old.Value == "true" || old.Value == "1" {
+		allowVal = "false"
+	}
+	var existing SystemSetting
+	err = db.FindOne(db.DB.Where("setting_key = ?", "allow_user_login"), &existing)
+	if errors.Is(err, sql.ErrNoRows) {
+		row := SystemSetting{
+			Key: "allow_user_login", Value: allowVal, Type: "boolean", Category: "basic",
+			Label: "允许用户登录", Description: "关闭后普通用户无法密码登录获取 JWT（管理员登录与 API Key 不受影响）",
+			IsPublic: true, IsEditable: true, SortOrder: 6,
+		}
+		if err := db.DB.Create(&row).Error; err != nil {
+			log.Printf("[Init] 写入 allow_user_login 失败: %v", err)
+			return
+		}
+	} else if err == nil {
+		_ = db.DB.Model(&SystemSetting{}).Where("setting_key = ?", "allow_user_login").Update("setting_value", allowVal).Error
+	}
+	if err := db.DB.Where("setting_key = ?", "disable_web_login").Delete(&SystemSetting{}).Error; err != nil {
+		log.Printf("[Init] 删除旧键 disable_web_login 失败: %v", err)
+		return
+	}
+	log.Printf("[Init] 已迁移 disable_web_login → allow_user_login=%s", allowVal)
 }
 
 // 默认配置项定义（内容与原文件一致，此处省略注释以控制篇幅）
@@ -88,6 +129,8 @@ var defaultSettings = []SystemSetting{
 	{Key: "copyright", Value: "© 2024 F.st", Type: "string", Category: "basic", Label: "版权信息", Description: "页脚版权声明", IsPublic: true, IsEditable: true, SortOrder: 4},
 	{Key: "icp", Value: "", Type: "string", Category: "basic", Label: "ICP备案号", Description: "网站ICP备案号", IsPublic: true, IsEditable: true, SortOrder: 5},
 	{Key: "allow_register", Value: "true", Type: "boolean", Category: "basic", Label: "允许注册", Description: "是否允许新用户注册", IsPublic: true, IsEditable: true, SortOrder: 6},
+	{Key: "register_default_level", Value: "1", Type: "number", Category: "basic", Label: "注册默认等级", Description: "新用户自助注册时写入的 users.level，默认 1（对应用户等级能力配置）", IsPublic: false, IsEditable: true, SortOrder: 6},
+	{Key: "allow_user_login", Value: "true", Type: "boolean", Category: "basic", Label: "允许用户登录", Description: "关闭后普通用户无法密码登录获取 JWT（管理员登录与 API Key 不受影响）", IsPublic: true, IsEditable: true, SortOrder: 6},
 	{Key: "announcement_enabled", Value: "true", Type: "boolean", Category: "basic", Label: "站内公告", Description: "关闭后前台不展示公告入口与内容", IsPublic: true, IsEditable: true, SortOrder: 6},
 	{Key: "default_lang", Value: "zhCN", Type: "string", Category: "basic", Label: "默认语言", Description: "系统默认语言", IsPublic: true, IsEditable: true, SortOrder: 7},
 	{Key: "version", Value: "1.0.0", Type: "string", Category: "basic", Label: "系统版本", Description: "当前系统版本号", IsPublic: true, IsEditable: true, SortOrder: 8},
@@ -102,7 +145,6 @@ var defaultSettings = []SystemSetting{
 	{Key: "register_code_expire_minutes", Value: "60", Type: "number", Category: "security", Label: "注册验证码有效期", Description: "注册验证码有效期（分钟）", IsPublic: false, IsEditable: true, SortOrder: 6},
 	{Key: "login_max_failure", Value: "5", Type: "number", Category: "security", Label: "登录失败锁定次数", Description: "连续登录失败多少次后锁定账户", IsPublic: false, IsEditable: true, SortOrder: 6},
 	{Key: "login_lock_duration", Value: "10", Type: "number", Category: "security", Label: "账户锁定时长", Description: "账户锁定时长（分钟）", IsPublic: false, IsEditable: true, SortOrder: 7},
-	{Key: "disable_web_login", Value: "false", Type: "boolean", Category: "security", Label: "禁止网页端登录", Description: "开启后，普通用户（非管理员）无法通过网页/浏览器直接登录；登录请求需带 client_type=app（如小程序/App）才能通过，管理员登录不受影响。适用于仅通过小程序/App 对外提供服务的场景。注意：client_type 由请求自报，不做客户端可信校验，这是一个引导前端 UX 的软限制，不构成强制安全边界", IsPublic: true, IsEditable: true, SortOrder: 8},
 	{Key: "operation_log_query_days", Value: "30", Type: "number", Category: "security", Label: "操作日志查询天数", Description: "操作日志默认查询范围（天）", IsPublic: false, IsEditable: true, SortOrder: 8},
 	{Key: "operation_log_max_count", Value: "1000", Type: "number", Category: "security", Label: "操作日志保留上限", Description: "操作日志自动保留的最大总条数", IsPublic: false, IsEditable: true, SortOrder: 9},
 	{Key: "operation_log_per_user_limit_enabled", Value: "false", Type: "boolean", Category: "security", Label: "操作日志每用户上限开关", Description: "开启后额外限制每个用户保留的操作日志条数", IsPublic: false, IsEditable: true, SortOrder: 9},
@@ -112,6 +154,10 @@ var defaultSettings = []SystemSetting{
 	{Key: "api_log_max_count", Value: "1000", Type: "number", Category: "security", Label: "API日志保留上限", Description: "API接口日志自动保留的最大条数", IsPublic: false, IsEditable: true, SortOrder: 12},
 	{Key: "api_log_per_user_limit_enabled", Value: "false", Type: "boolean", Category: "security", Label: "API日志每用户上限开关", Description: "开启后额外限制每个用户保留的API日志条数", IsPublic: false, IsEditable: true, SortOrder: 12},
 	{Key: "api_log_per_user_max_count", Value: "1000", Type: "number", Category: "security", Label: "API日志每用户上限", Description: "每个用户最多保留的API日志条数（需开启开关）", IsPublic: false, IsEditable: true, SortOrder: 12},
+	// 用户中心可见性：记录仍走管理端；是否给用户看由下列开关控制
+	{Key: "user_api_log_visible", Value: "true", Type: "boolean", Category: "security", Label: "用户可见API日志", Description: "开启后用户中心可查看本人 API Key 调用日志（不含 JWT 网页请求）", IsPublic: true, IsEditable: true, SortOrder: 13},
+	{Key: "user_operation_log_visible", Value: "true", Type: "boolean", Category: "security", Label: "用户可见操作日志", Description: "开启后用户中心可查看本人操作日志列表", IsPublic: true, IsEditable: true, SortOrder: 14},
+	{Key: "user_operation_log_show_body", Value: "false", Type: "boolean", Category: "security", Label: "用户操作日志展示请求/响应", Description: "关闭时用户只能看操作摘要，不展示请求体/响应体（推荐保持关闭）", IsPublic: false, IsEditable: true, SortOrder: 15},
 	{Key: "sms_log_max_count", Value: "1000", Type: "number", Category: "security", Label: "短信日志保留上限", Description: "短信日志自动保留的最大总条数", IsPublic: false, IsEditable: true, SortOrder: 12},
 	{Key: "sms_log_per_user_limit_enabled", Value: "false", Type: "boolean", Category: "security", Label: "短信日志每收件人上限开关", Description: "开启后额外限制每个手机号保留的短信日志条数", IsPublic: false, IsEditable: true, SortOrder: 12},
 	{Key: "sms_log_per_user_max_count", Value: "1000", Type: "number", Category: "security", Label: "短信日志每收件人上限", Description: "每个手机号最多保留的短信日志条数（需开启开关）", IsPublic: false, IsEditable: true, SortOrder: 12},
@@ -174,8 +220,8 @@ var defaultSettings = []SystemSetting{
 func initDefaultSettings() {
 	for _, setting := range defaultSettings {
 		var existing SystemSetting
-		err := db.DB.Where("setting_key = ?", setting.Key).First(&existing).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		err := db.FindOne(db.DB.Where("setting_key = ?", setting.Key), &existing)
+		if errors.Is(err, sql.ErrNoRows) {
 			row := setting
 			if err := db.DB.Create(&row).Error; err != nil {
 				log.Printf("[Init] Failed to insert default setting %s: %v", setting.Key, err)
@@ -206,14 +252,10 @@ func initDefaultSettings() {
 	}
 }
 
-// GetSettingByKey 根据键名获取配置
+// GetSettingByKey 根据键名获取配置（缺 key 用 FindOne，不刷 record not found）
 func GetSettingByKey(key string) (*SystemSetting, error) {
 	var setting SystemSetting
-	err := db.DB.Where("setting_key = ?", key).First(&setting).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, sql.ErrNoRows
-	}
-	if err != nil {
+	if err := db.FindOne(db.DB.Where("setting_key = ?", key), &setting); err != nil {
 		return nil, err
 	}
 	return &setting, nil

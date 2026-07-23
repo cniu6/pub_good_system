@@ -61,7 +61,7 @@ func GetClientIP(c *gin.Context) string {
 	if clientIP == "" {
 		return "unknown"
 	}
-	return clientIP
+	return ClampStoredIP(clientIP)
 }
 
 // ExtractBearerToken 从 Authorization 头中提取 Bearer Token。

@@ -26,8 +26,9 @@ import {
   fetchResetSMSTemplate,
   fetchSMSTemplateList,
   fetchUpdateSMSTemplate,
-  type SMSTemplate,
+
 } from '@/service/api/admin/sms-template'
+import type { SMSTemplate } from '@/service/api/admin/sms-template'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -443,8 +444,12 @@ onMounted(async () => {
               </NFormItem>
               <NFormItem :label="text.status" style="margin-bottom: 8px;">
                 <NRadioGroup v-model:value="formValue.status">
-                  <NRadioButton :value="1">{{ text.enabled }}</NRadioButton>
-                  <NRadioButton :value="0">{{ text.disabled }}</NRadioButton>
+                  <NRadioButton :value="1">
+                    {{ text.enabled }}
+                  </NRadioButton>
+                  <NRadioButton :value="0">
+                    {{ text.disabled }}
+                  </NRadioButton>
                 </NRadioGroup>
               </NFormItem>
 
@@ -477,7 +482,9 @@ onMounted(async () => {
           </div>
           <div class="preview-box">
             <NCode v-if="previewText" :code="previewText" language="text" word-wrap />
-            <NText v-else depth="3">{{ text.loadingMsg }}</NText>
+            <NText v-else depth="3">
+              {{ text.loadingMsg }}
+            </NText>
           </div>
         </div>
       </div>

@@ -2,7 +2,7 @@
  * 管理端设置：load / save / toggle 动作
  */
 import { useI18n } from 'vue-i18n'
-import { useMessage } from 'naive-ui'
+import { useDialog, useMessage } from 'naive-ui'
 import { adminApi } from '@/service/api/admin'
 import type { SettingDTO, SettingType } from '@/service/api/admin/settings'
 import { useSettingsStore } from '@/store/settings'
@@ -39,8 +39,33 @@ import {
 
 export function useSettingsActions() {
   const message = useMessage()
+  const dialog = useDialog()
   const settingsStore = useSettingsStore()
   const { t } = useI18n()
+
+  /**
+   * 高危开关二次确认：确认后再执行真实 toggle；取消则不改本地状态。
+   * @param titleKey 确认标题 i18n
+   * @param contentKey 确认内容 i18n
+   * @param nextValue 目标值（用于内容插值 enable/disable）
+   * @param run 用户确认后真正执行的切换
+   */
+  function confirmDangerToggle(
+    titleKey: string,
+    contentKey: string,
+    nextValue: boolean,
+    run: () => Promise<void>,
+  ) {
+    dialog.warning({
+      title: t(titleKey),
+      content: t(contentKey, {
+        action: nextValue ? t('common.enable') : t('common.disable'),
+      }),
+      positiveText: t('common.confirm'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: () => run(),
+    })
+  }
 
   async function loadSettings() {
     loading.value = true
@@ -70,6 +95,12 @@ export function useSettingsActions() {
               basicForm.default_lang = String(item.value || 'zhCN')
             if (item.key === 'allow_register')
               basicForm.allow_register = parseBooleanSetting(item.value)
+            if (item.key === 'register_default_level') {
+              const n = Number(item.value)
+              basicForm.register_default_level = Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1
+            }
+            if (item.key === 'allow_user_login')
+              basicForm.allow_user_login = parseBooleanSetting(item.value, true)
             if (item.key === 'announcement_enabled')
               basicForm.announcement_enabled = parseBooleanSetting(item.value)
             if (item.key === 'allow_delete_account')
@@ -149,8 +180,6 @@ export function useSettingsActions() {
               securityForm.login_max_failure = Number(item.value) || 5
             if (item.key === 'login_lock_duration')
               securityForm.login_lock_duration = Number(item.value) || 10
-            if (item.key === 'disable_web_login')
-              securityForm.disable_web_login = parseBooleanSetting(item.value)
             if (item.key === 'realname_enabled')
               securityForm.realname_enabled = parseBooleanSetting(item.value)
             if (item.key === 'realname_review_required')
@@ -266,15 +295,15 @@ export function useSettingsActions() {
     )
   }
 
-  async function handleUpdateDisableWebLogin(nextValue: boolean) {
+  async function handleUpdateAllowUserLogin(nextValue: boolean) {
     await toggleSetting(
-      'disable_web_login',
-      () => securityForm.disable_web_login,
-      (v) => { securityForm.disable_web_login = v },
+      'allow_user_login',
+      () => basicForm.allow_user_login,
+      (v) => { basicForm.allow_user_login = v },
       nextValue,
-      () => settingsStore.updateConfig({ web_login_disabled: nextValue }),
-      'adminSettings.disableWebLoginSwitchUpdated',
-      'adminSettings.disableWebLoginSwitchUpdateFailed',
+      () => settingsStore.updateConfig({ allow_user_login: nextValue }),
+      'adminSettings.userLoginSwitchUpdated',
+      'adminSettings.userLoginSwitchUpdateFailed',
     )
   }
 
@@ -408,26 +437,40 @@ export function useSettingsActions() {
   }
 
   async function handleUpdatePaymentEnabled(nextValue: boolean) {
-    await toggleSetting(
-      'payment_enabled',
-      () => paymentForm.payment_enabled,
-      (v) => { paymentForm.payment_enabled = v },
+    confirmDangerToggle(
+      'adminSettings.confirmPaymentEnabledTitle',
+      'adminSettings.confirmPaymentEnabledContent',
       nextValue,
-      undefined,
-      'adminSettings.paymentSwitchUpdated',
-      'adminSettings.paymentSwitchUpdateFailed',
+      async () => {
+        await toggleSetting(
+          'payment_enabled',
+          () => paymentForm.payment_enabled,
+          (v) => { paymentForm.payment_enabled = v },
+          nextValue,
+          undefined,
+          'adminSettings.paymentSwitchUpdated',
+          'adminSettings.paymentSwitchUpdateFailed',
+        )
+      },
     )
   }
 
   async function handleUpdateWithdrawEnabled(nextValue: boolean) {
-    await toggleSetting(
-      'withdraw_enabled',
-      () => paymentForm.withdraw_enabled,
-      (v) => { paymentForm.withdraw_enabled = v },
+    confirmDangerToggle(
+      'adminSettings.confirmWithdrawEnabledTitle',
+      'adminSettings.confirmWithdrawEnabledContent',
       nextValue,
-      () => settingsStore.updateConfig({ withdraw_enabled: nextValue }),
-      'adminSettings.withdrawSwitchUpdated',
-      'adminSettings.withdrawSwitchUpdateFailed',
+      async () => {
+        await toggleSetting(
+          'withdraw_enabled',
+          () => paymentForm.withdraw_enabled,
+          (v) => { paymentForm.withdraw_enabled = v },
+          nextValue,
+          () => settingsStore.updateConfig({ withdraw_enabled: nextValue }),
+          'adminSettings.withdrawSwitchUpdated',
+          'adminSettings.withdrawSwitchUpdateFailed',
+        )
+      },
     )
   }
 
@@ -565,6 +608,8 @@ export function useSettingsActions() {
       const backendApiUrl = basicForm.backend_api_url.trim().replace(/\/+$/, '')
       basicForm.frontend_url = frontendUrl
       basicForm.backend_api_url = backendApiUrl
+      const registerDefaultLevel = Math.max(1, Math.min(9999, Math.floor(Number(basicForm.register_default_level) || 1)))
+      basicForm.register_default_level = registerDefaultLevel
       const res = await adminApi.settings.batchUpdate({
         site_name: basicForm.site_name,
         site_desc: basicForm.site_desc,
@@ -573,6 +618,7 @@ export function useSettingsActions() {
         icp: basicForm.icp,
         version: basicForm.version,
         default_lang: basicForm.default_lang,
+        register_default_level: String(registerDefaultLevel),
         frontend_url: frontendUrl,
         backend_api_url: backendApiUrl,
       })
@@ -642,8 +688,14 @@ export function useSettingsActions() {
       message.warning(t('adminSettings.testEmailToRequired'))
       return
     }
-    // 简单校验邮箱格式，避免打到后端才报错
-    const emailOk = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\])|(([a-z\-0-9]+\.)+[a-z]{2,}))$/i.test(to)
+    // 简单校验邮箱格式，避免打到后端才报错（不用复杂正则，规避回溯告警）
+    const [localPart, domainPart] = to.split('@')
+    const emailOk = localPart
+      && domainPart
+      && !/\s/.test(to)
+      && to.split('@').length === 2
+      && domainPart.includes('.')
+      && !domainPart.endsWith('.')
     if (!emailOk) {
       message.warning(t('adminSettings.testEmailToInvalid'))
       return
@@ -700,19 +752,27 @@ export function useSettingsActions() {
   }
 
   async function handleRestartBackend() {
-    restartingBackend.value = true
-    try {
-      const res = await adminApi.settings.restartBackend()
-      if (res.isSuccess)
-        message.success(res.message || t('adminSettings.restartBackendRequested'))
-      else message.error(res.message || t('adminSettings.restartBackendFailed'))
-    }
-    catch {
-      message.error(t('adminSettings.restartFailed'))
-    }
-    finally {
-      restartingBackend.value = false
-    }
+    dialog.warning({
+      title: t('adminSettings.confirmRestartTitle'),
+      content: t('adminSettings.confirmRestartContent'),
+      positiveText: t('common.confirm'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: async () => {
+        restartingBackend.value = true
+        try {
+          const res = await adminApi.settings.restartBackend()
+          if (res.isSuccess)
+            message.success(res.message || t('adminSettings.restartBackendRequested'))
+          else message.error(res.message || t('adminSettings.restartBackendFailed'))
+        }
+        catch {
+          message.error(t('adminSettings.restartFailed'))
+        }
+        finally {
+          restartingBackend.value = false
+        }
+      },
+    })
   }
 
   async function handleAddSetting() {
@@ -758,19 +818,27 @@ export function useSettingsActions() {
   }
 
   async function handleDeleteSetting(key: string) {
-    try {
-      const res = await adminApi.settings.delete(key)
-      if (res.isSuccess) {
-        message.success(res.message || t('adminSettings.configItemDeleted'))
-        await loadSettings()
-      }
-      else {
-        message.error(res.message || t('adminSettings.configItemDeleteFailed'))
-      }
-    }
-    catch (error: any) {
-      message.error(t('adminSettings.deleteFailed') + (error.message || ''))
-    }
+    dialog.warning({
+      title: t('adminSettings.confirmDeleteSettingTitle'),
+      content: t('adminSettings.confirmDeleteSettingContent', { key }),
+      positiveText: t('common.confirm'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: async () => {
+        try {
+          const res = await adminApi.settings.delete(key)
+          if (res.isSuccess) {
+            message.success(res.message || t('adminSettings.configItemDeleted'))
+            await loadSettings()
+          }
+          else {
+            message.error(res.message || t('adminSettings.configItemDeleteFailed'))
+          }
+        }
+        catch (error: any) {
+          message.error(t('adminSettings.deleteFailed') + (error.message || ''))
+        }
+      },
+    })
   }
 
   function handleEditSetting(row: SettingDTO) {
@@ -817,9 +885,9 @@ export function useSettingsActions() {
   return {
     loadSettings,
     handleUpdateAllowRegister,
+    handleUpdateAllowUserLogin,
     handleUpdateAnnouncementEnabled,
     handleUpdateAllowDeleteAccount,
-    handleUpdateDisableWebLogin,
     handleUpdateSmtpSSL,
     handleUpdateSmtpProxyEnabled,
     handleUpdateEmailVerifyEnabled,

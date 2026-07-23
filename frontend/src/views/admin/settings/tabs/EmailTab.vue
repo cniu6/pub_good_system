@@ -52,14 +52,18 @@ function applyPortPreset(port: number) {
             :loading="switchLoading.email_verify_enabled"
             @update:value="handleUpdateEmailVerifyEnabled"
           />
-          <n-text depth="3">{{ emailForm.email_verify_enabled ? t('adminSettings.emailVerifyEnabled') : t('adminSettings.emailVerifyDisabled') }}</n-text>
+          <n-text depth="3">
+            {{ emailForm.email_verify_enabled ? t('adminSettings.emailVerifyEnabled') : t('adminSettings.emailVerifyDisabled') }}
+          </n-text>
         </n-space>
       </n-form-item>
       <n-divider />
       <n-form-item :label="t('adminSettings.smtpHost')">
         <n-space vertical :size="8" style="width: 100%;">
           <n-input v-model:value="emailForm.smtp_host" :placeholder="t('adminSettings.smtpHostPlaceholder')" />
-          <n-text depth="3" style="font-size: 12px;">{{ t('adminSettings.smtpHostHint') }}</n-text>
+          <n-text depth="3" style="font-size: 12px;">
+            {{ t('adminSettings.smtpHostHint') }}
+          </n-text>
         </n-space>
       </n-form-item>
       <n-form-item :label="t('adminSettings.smtpPort')">
@@ -90,17 +94,23 @@ function applyPortPreset(port: number) {
             >
               25
             </n-button>
-            <n-text depth="3" style="font-size: 12px;">{{ t('adminSettings.smtpPortPresetHint') }}</n-text>
+            <n-text depth="3" style="font-size: 12px;">
+              {{ t('adminSettings.smtpPortPresetHint') }}
+            </n-text>
           </n-space>
           <n-alert type="info" :bordered="false" style="padding: 8px 12px;">
-            <div style="white-space: pre-line; line-height: 1.65;">{{ t('adminSettings.smtpPortHint') }}</div>
+            <div style="white-space: pre-line; line-height: 1.65;">
+              {{ t('adminSettings.smtpPortHint') }}
+            </div>
           </n-alert>
         </n-space>
       </n-form-item>
       <n-form-item :label="t('adminSettings.smtpUsername')">
         <n-space vertical :size="4" style="width: 100%;">
           <n-input v-model:value="emailForm.smtp_username" :placeholder="t('adminSettings.smtpUsernamePlaceholder')" />
-          <n-text depth="3" style="font-size: 12px;">{{ t('adminSettings.smtpUsernameHint') }}</n-text>
+          <n-text depth="3" style="font-size: 12px;">
+            {{ t('adminSettings.smtpUsernameHint') }}
+          </n-text>
         </n-space>
       </n-form-item>
       <n-form-item :label="t('adminSettings.smtpPassword')">
@@ -111,7 +121,9 @@ function applyPortPreset(port: number) {
             show-password-on="click"
             :placeholder="t('adminSettings.smtpPasswordPlaceholder')"
           />
-          <n-text depth="3" style="font-size: 12px;">{{ t('adminSettings.smtpPasswordHint') }}</n-text>
+          <n-text depth="3" style="font-size: 12px;">
+            {{ t('adminSettings.smtpPasswordHint') }}
+          </n-text>
         </n-space>
       </n-form-item>
       <n-form-item :label="t('adminSettings.systemEmailAddress')">
@@ -120,7 +132,9 @@ function applyPortPreset(port: number) {
             v-model:value="emailForm.system_email_address"
             :placeholder="t('adminSettings.systemEmailAddressPlaceholder')"
           />
-          <n-text depth="3" style="font-size: 12px;">{{ t('adminSettings.systemEmailAddressHint') }}</n-text>
+          <n-text depth="3" style="font-size: 12px;">
+            {{ t('adminSettings.systemEmailAddressHint') }}
+          </n-text>
         </n-space>
       </n-form-item>
       <n-form-item :label="t('adminSettings.systemEmailName')">
@@ -130,10 +144,14 @@ function applyPortPreset(port: number) {
         <n-space vertical :size="8" style="width: 100%;">
           <n-space align="center">
             <n-switch :value="emailForm.smtp_ssl" :loading="switchLoading.smtp_ssl" @update:value="handleUpdateSmtpSSL" />
-            <n-text depth="3">{{ emailForm.smtp_ssl ? t('adminSettings.sslEnabled') : t('adminSettings.sslDisabled') }}</n-text>
+            <n-text depth="3">
+              {{ emailForm.smtp_ssl ? t('adminSettings.sslEnabled') : t('adminSettings.sslDisabled') }}
+            </n-text>
           </n-space>
           <n-alert type="info" :bordered="false" style="padding: 8px 12px;">
-            <div style="white-space: pre-line; line-height: 1.65;">{{ t('adminSettings.smtpSSLHint') }}</div>
+            <div style="white-space: pre-line; line-height: 1.65;">
+              {{ t('adminSettings.smtpSSLHint') }}
+            </div>
           </n-alert>
           <n-alert v-if="showSslOnConflict" type="warning" :bordered="false" style="padding: 8px 12px;">
             {{ t('adminSettings.smtpSSLPortConflict587') }}
@@ -152,9 +170,13 @@ function applyPortPreset(port: number) {
               :loading="switchLoading.smtp_proxy_enabled"
               @update:value="handleUpdateSmtpProxyEnabled"
             />
-            <n-text depth="3">{{ emailForm.smtp_proxy_enabled ? t('adminSettings.smtpProxyOn') : t('adminSettings.smtpProxyOff') }}</n-text>
+            <n-text depth="3">
+              {{ emailForm.smtp_proxy_enabled ? t('adminSettings.smtpProxyOn') : t('adminSettings.smtpProxyOff') }}
+            </n-text>
           </n-space>
-          <n-text depth="3" style="font-size: 12px;">{{ t('adminSettings.smtpProxyHint') }}</n-text>
+          <n-text depth="3" style="font-size: 12px;">
+            {{ t('adminSettings.smtpProxyHint') }}
+          </n-text>
         </n-space>
       </n-form-item>
       <template v-if="emailForm.smtp_proxy_enabled">
@@ -189,7 +211,9 @@ function applyPortPreset(port: number) {
       </n-form-item>
       <n-form-item>
         <n-space>
-          <n-button type="primary" :loading="savingEmail" @click="() => handleSaveEmail()">{{ t('adminSettings.save') }}</n-button>
+          <n-button type="primary" :loading="savingEmail" @click="() => handleSaveEmail()">
+            {{ t('adminSettings.save') }}
+          </n-button>
           <n-button
             :loading="testingEmail"
             :disabled="!String(testEmailTo || '').trim()"
@@ -206,7 +230,9 @@ function applyPortPreset(port: number) {
     </n-alert>
     <!-- 快速对照放底部，不顶占首屏 -->
     <n-alert type="info" :title="t('adminSettings.smtpGuideTitle')">
-      <div style="font-size: 13px; line-height: 1.75; white-space: pre-line;">{{ t('adminSettings.smtpGuideBody') }}</div>
+      <div style="font-size: 13px; line-height: 1.75; white-space: pre-line;">
+        {{ t('adminSettings.smtpGuideBody') }}
+      </div>
     </n-alert>
   </n-space>
 </template>

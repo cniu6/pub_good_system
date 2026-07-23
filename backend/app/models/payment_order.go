@@ -30,7 +30,8 @@ func NormalizeTradeNo(tradeNo string) string {
 	case "TRADENO", "OUTTRADENO", "NULL", "UNDEFINED", "NONE", "NIL", "NA":
 		return ""
 	default:
-		return trimmed
+		// 外部交易号可能超长，落库前静默截断到列宽
+		return clampBytes(trimmed, 64)
 	}
 }
 
@@ -76,7 +77,7 @@ type PaymentOrder struct {
 	PayURL         string  `gorm:"column:pay_url;type:text" json:"pay_url"`
 	PaidAt         *int64  `gorm:"column:paid_at" json:"paid_at"`
 	ExpireAt       int64   `gorm:"column:expire_at;not null;default:0;index:idx_po_status_expire,priority:2" json:"expire_at"`
-	ClientIP       string  `gorm:"column:client_ip;size:50;not null;default:''" json:"client_ip"`
+	ClientIP       string  `gorm:"column:client_ip;size:64;not null;default:''" json:"client_ip"`
 	Extra          string  `gorm:"column:extra;type:text" json:"extra"`
 	CreateTime     int64   `gorm:"column:create_time;not null;default:0;index:idx_po_create_time;index:idx_po_user_status_create,priority:3" json:"create_time"`
 	UpdateTime     int64   `gorm:"column:update_time;not null;default:0" json:"update_time"`

@@ -166,6 +166,8 @@ function transformAuthRoutesToMenus(userRoutes: AppRoute.Route[]) {
 /**
  * 从 RouteRecordRaw 格式的管理端路由生成侧边栏菜单
  * 支持嵌套层级：menuType === 'dir' 的路由作为分组目录，其子路由作为子菜单项
+ * 鉴权仅依赖 users.role=admin（管理端入口已校验），不再按权限码过滤菜单
+ * @param adminRoutes 管理端路由
  */
 export function createAdminMenus(adminRoutes: AdminMenuRoute[]): MenuOption[] {
   const menus: MenuOption[] = []
@@ -193,6 +195,9 @@ export function createAdminMenus(adminRoutes: AdminMenuRoute[]): MenuOption[] {
               icon: typeof sub.meta?.icon === 'string' ? renderIcon(sub.meta.icon) : undefined,
             }
           })
+
+        if (subMenus.length === 0)
+          continue
 
         menus.push({
           label: () => resolveRouteDisplayText(child.name, child.meta?.title),

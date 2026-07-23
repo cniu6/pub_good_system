@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { useAuthStore } from '@/store'
-import { fetchUserProfile, fetchUpdateProfile } from '@/service'
+import { useAuthStore, useSettingsStore } from '@/store'
+import { fetchUpdateProfile, fetchUserProfile } from '@/service'
 import ProfileTab from './components/ProfileTab.vue'
 import ApiTab from './components/ApiTab.vue'
 import SettingsTab from './components/SettingsTab.vue'
@@ -13,13 +13,17 @@ import { useI18n } from 'vue-i18n'
 import NovaIcon from '@/components/common/NovaIcon.vue'
 
 const authStore = useAuthStore()
+const settingsStore = useSettingsStore()
 const { t } = useI18n()
 
 const userInfo = computed(() => authStore.userInfo)
+const showApiLogsTab = computed(() => settingsStore.config?.user_api_log_visible !== false)
+const showOperationLogsTab = computed(() => settingsStore.config?.user_operation_log_visible !== false)
 
 const headerCardStyle = computed(() => {
   const bg = userInfo.value?.backGround
-  if (!bg || !/^https?:\/\//i.test(bg)) return {}
+  if (!bg || !/^https?:\/\//i.test(bg))
+    return {}
   const safeBg = globalThis.CSS?.escape?.(bg) ?? bg.replace(/[()'"\\]/g, '')
   return {
     backgroundImage: `linear-gradient(rgba(255,255,255,0.85), rgba(255,255,255,0.92)), url("${safeBg}")`,
@@ -181,8 +185,8 @@ onActivated(() => {
           <n-h3 class="user-name">
             <span class="user-name-text">{{ userInfo?.nickname || userInfo?.userName || t('userCenter.user') }}</span>
             <n-text v-if="userInfo?.userName" depth="3" class="user-name-account">
-            (@{{ userInfo.userName }})
-          </n-text>
+              (@{{ userInfo.userName }})
+            </n-text>
           </n-h3>
           <n-text depth="3" class="user-email ml-2">
             {{ userInfo?.email || t('userCenter.noEmail') }}
@@ -260,10 +264,10 @@ onActivated(() => {
         <n-tab-pane name="api" :tab="t('userCenter.apiTab')">
           <ApiTab />
         </n-tab-pane>
-        <n-tab-pane name="apiLogs" :tab="t('userCenter.apiLogsTab')">
+        <n-tab-pane v-if="showApiLogsTab" name="apiLogs" :tab="t('userCenter.apiLogsTab')">
           <ApiLogsTab />
         </n-tab-pane>
-        <n-tab-pane name="operationLogs" :tab="t('userCenter.operationLogsTab')">
+        <n-tab-pane v-if="showOperationLogsTab" name="operationLogs" :tab="t('userCenter.operationLogsTab')">
           <OperationLogsTab />
         </n-tab-pane>
         <n-tab-pane name="moneyScore" :tab="t('userCenter.moneyScoreTab')">
@@ -356,13 +360,17 @@ onActivated(() => {
     <n-modal v-model:show="showBgModal" preset="dialog" :title="t('userCenter.setBackground')">
       <n-space vertical size="large">
         <div v-if="bgForm.currentBg">
-          <n-text depth="3">{{ t('userCenter.currentBg') }}</n-text>
+          <n-text depth="3">
+            {{ t('userCenter.currentBg') }}
+          </n-text>
           <div class="bg-preview mt-2">
-            <img :src="bgForm.currentBg" referrerpolicy="no-referrer" class="bg-preview-img" />
+            <img :src="bgForm.currentBg" referrerpolicy="no-referrer" class="bg-preview-img">
           </div>
         </div>
         <div>
-          <n-text depth="3">{{ t('userCenter.newBgUrl') }}</n-text>
+          <n-text depth="3">
+            {{ t('userCenter.newBgUrl') }}
+          </n-text>
           <n-input
             v-model:value="bgForm.newBg"
             type="textarea"
@@ -372,8 +380,10 @@ onActivated(() => {
             class="mt-2"
           />
           <div v-if="bgForm.newBg" class="bg-preview mt-2">
-            <n-text depth="3" class="mb-1">{{ t('userCenter.preview') }}</n-text>
-            <img :src="bgForm.newBg" referrerpolicy="no-referrer" class="bg-preview-img" />
+            <n-text depth="3" class="mb-1">
+              {{ t('userCenter.preview') }}
+            </n-text>
+            <img :src="bgForm.newBg" referrerpolicy="no-referrer" class="bg-preview-img">
           </div>
         </div>
       </n-space>

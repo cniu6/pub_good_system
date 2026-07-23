@@ -32,15 +32,7 @@ export function fetchLogin(data: Ilogin) {
   const methodInstance = request.Post<Service.ResponseResult<Api.Login.Info>>('/api/v1/public/login', data)
   methodInstance.meta = {
     authRole: null,
-  }
-  return methodInstance
-}
-
-/** 管理端 TOTP 登录第二步 */
-export function fetchLoginTotp(data: { temp_token: string, code: string, clientType?: string }) {
-  const methodInstance = request.Post<Service.ResponseResult<Api.Login.Info>>('/api/v1/public/login/totp', data)
-  methodInstance.meta = {
-    authRole: null,
+    allowDuringSessionRecovery: true,
   }
   return methodInstance
 }
@@ -61,22 +53,42 @@ export function fetchUserRoutes(params: { id: number }) {
 
 /** 发送注册验证码 */
 export function fetchSendRegisterCode(data: { email: string, lang: string }) {
-  return request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/public/send-register-code', data)
+  const methodInstance = request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/public/send-register-code', data)
+  methodInstance.meta = {
+    authRole: null,
+    allowDuringSessionRecovery: true,
+  }
+  return methodInstance
 }
 
 /** 用户注册 */
 export function fetchRegister(data: RegisterPayload) {
-  return request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/public/register', data)
+  const methodInstance = request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/public/register', data)
+  methodInstance.meta = {
+    authRole: null,
+    allowDuringSessionRecovery: true,
+  }
+  return methodInstance
 }
 
 /** 发送重置密码邮件 */
 export function fetchSendResetEmail(data: { email: string, lang: string }) {
-  return request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/public/forgot-password', data)
+  const methodInstance = request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/public/forgot-password', data)
+  methodInstance.meta = {
+    authRole: null,
+    allowDuringSessionRecovery: true,
+  }
+  return methodInstance
 }
 
 /** 确认重置密码 */
 export function fetchResetPasswordConfirm(data: ResetPasswordConfirmPayload) {
-  return request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/public/reset-password', data)
+  const methodInstance = request.Post<Service.ResponseResult<ActionMessageResponse>>('/api/v1/public/reset-password', data)
+  methodInstance.meta = {
+    authRole: null,
+    allowDuringSessionRecovery: true,
+  }
+  return methodInstance
 }
 
 /** 获取用户信息 */
@@ -84,7 +96,7 @@ export function fetchUserProfile() {
   return request.Get<Service.ResponseResult<UserProfileResponse>>('/api/v1/user/profile')
 }
 
-/** 获取当前用户 API Key */
+/** 获取当前用户 API Key（明文；前端自行用 password 眼睛显隐） */
 export function fetchUserApiKey() {
   return request.Get<Service.ResponseResult<{ apikey: string | null }>>('/api/v1/user/apikey')
 }

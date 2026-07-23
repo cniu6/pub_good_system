@@ -17,6 +17,8 @@ export interface AppConfig {
 
   // 功能开关
   allow_register: boolean
+  /** 是否允许普通用户密码登录拿 JWT（默认 true）；关闭不影响管理员与 API Key */
+  allow_user_login?: boolean
   announcement_enabled: boolean
   allow_delete_account: boolean
   geetest_enabled: boolean
@@ -56,11 +58,10 @@ export interface AppConfig {
   /** 在线心跳上报周期（秒），Presence 心跳按此间隔发送，默认30秒 */
   online_report_interval_seconds?: number
 
-  /**
-   * 是否禁止普通用户网页端登录（默认 false）。开启后仅登录请求带 client_type=app 的客户端
-   * （如小程序/App）才能登录，管理员登录不受影响；用于「仅通过小程序/App 对外提供服务」的场景。
-   */
-  web_login_disabled?: boolean
+  /** 用户中心是否展示 API 日志（仅 API Key 调用） */
+  user_api_log_visible?: boolean
+  /** 用户中心是否展示操作日志 */
+  user_operation_log_visible?: boolean
 }
 
 /**

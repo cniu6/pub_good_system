@@ -1,8 +1,6 @@
 package models
 
 import (
-	"database/sql"
-	"errors"
 	"fst/backend/pkg/db"
 	"log"
 	"time"
@@ -65,16 +63,14 @@ func CreateIdempotencyKeyTx(tx *gorm.DB, idemKey string, userID uint64, scope st
 	return tx.Create(item).Error
 }
 
-// GetActiveIdempotencyKeyTx 取未过期的有效幂等键
+// GetActiveIdempotencyKeyTx 取未过期的有效幂等键。
+// 首次请求查无是常态，用 FindOne 避免 First 打 record not found。
 func GetActiveIdempotencyKeyTx(tx *gorm.DB, idemKey string, userID uint64, scope string, now int64) (*IdempotencyKey, error) {
 	var item IdempotencyKey
-	err := tx.Where(
+	err := db.FindOne(tx.Where(
 		"idem_key = ? AND user_id = ? AND scope = ? AND (expire_at = 0 OR expire_at > ?)",
 		idemKey, userID, scope, now,
-	).First(&item).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, sql.ErrNoRows
-	}
+	), &item)
 	if err != nil {
 		return nil, err
 	}

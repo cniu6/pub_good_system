@@ -123,10 +123,11 @@ func registerAdminRoutes(v1 *gin.RouterGroup) {
 	adminRealnameCtrl.RegisterRoutes(adminGroup)       //实名认证
 	adminWithdrawCtrl.RegisterRoutes(adminGroup)       //提现
 	adminDebugCtrl.RegisterRoutes(adminGroup)          //调试
+	adminTerminalCtrl.RegisterRoutes(adminGroup)       //调试终端（gated）
+	adminDBConsoleCtrl.RegisterRoutes(adminGroup)      //数据库控制台
 	adminAutoJobCtrl.RegisterRoutes(adminGroup)        //自动任务管理器
-	adminRBACCtrl.RegisterRoutes(adminGroup)           //RBAC
-	adminProfileCtrl.RegisterRoutes(adminGroup)        //管理员个人设置/TOTP
+	adminUserLevelCtrl.RegisterRoutes(adminGroup)      //用户等级能力
+	adminProfileCtrl.RegisterRoutes(adminGroup)        //管理员个人设置
 	adminTodoCtrl.RegisterRoutes(adminGroup)           //待办聚合
-	adminExportCtrl.RegisterRoutes(adminGroup)         //导入导出
 	}
 }

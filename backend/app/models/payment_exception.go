@@ -58,7 +58,12 @@ func preparePaymentException(ex *PaymentException) {
 	now := time.Now().Unix()
 	ex.CreateTime = now
 	ex.UpdateTime = now
+	ex.OrderNo = clampBytes(ex.OrderNo, 64)
 	ex.TradeNo = NormalizeTradeNo(ex.TradeNo)
+	ex.ExceptionType = clampBytes(ex.ExceptionType, 64)
+	ex.Source = clampBytes(ex.Source, 32)
+	ex.Message = clampBytes(ex.Message, 500)
+	ex.ResolveRemark = clampBytes(ex.ResolveRemark, 500)
 	if ex.ExceptionType == "" {
 		ex.ExceptionType = PaymentExceptionPermanentRejected
 	}
@@ -148,7 +153,9 @@ func ResolvePaymentException(id, adminID uint64, status int, remark string) erro
 		}).Error
 }
 
-// ListPaymentOrdersForReconcile 扫描待对账订单：待支付 + 近期取消/失败（可迟到回调恢复）
+// ListPaymentOrdersForReconcile 扫描待对账订单：待支付 + 近期已取消。
+// 不再扫 failed：本地已判定失败后继续查网关只会空转；迟到成功仍走 notify 回调入账。
+// 已有永久查单失败异常的订单也不再扫。
 func ListPaymentOrdersForReconcile(limit int, canceledLookbackSec int64) ([]PaymentOrder, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
@@ -165,10 +172,14 @@ func ListPaymentOrdersForReconcile(limit int, canceledLookbackSec int64) ([]Paym
 	err := db.DB.Where(
 		`gateway_id > 0 AND (
 			(status = ? AND (expire_at = 0 OR expire_at <= ? OR create_time <= ?))
-			OR (status IN (?, ?) AND update_time >= ?)
+			OR (status = ? AND update_time >= ?)
+		) AND order_no NOT IN (
+			SELECT order_no FROM payment_exceptions
+			WHERE exception_type IN (?, ?) AND order_no <> ''
 		)`,
 		PaymentStatusPending, pendingWindowEnd, pendingCreatedBefore,
-		PaymentStatusCanceled, PaymentStatusFailed, cutoff,
+		PaymentStatusCanceled, cutoff,
+		PaymentExceptionOrderMissing, PaymentExceptionPermanentRejected,
 	).Order("update_time ASC").Limit(limit).Find(&orders).Error
 	if err != nil {
 		return nil, err

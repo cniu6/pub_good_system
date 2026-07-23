@@ -44,7 +44,9 @@ const {
             :loading="switchLoading.sms_verify_enabled"
             @update:value="handleUpdateSmsVerifyEnabled"
           />
-          <n-text depth="3">{{ smsForm.sms_verify_enabled ? t('adminSettings.smsVerifyEnabled') : t('adminSettings.smsVerifyDisabled') }}</n-text>
+          <n-text depth="3">
+            {{ smsForm.sms_verify_enabled ? t('adminSettings.smsVerifyEnabled') : t('adminSettings.smsVerifyDisabled') }}
+          </n-text>
         </n-space>
       </n-form-item>
       <n-form-item :label="t('adminSettings.mobileCnOnly')">

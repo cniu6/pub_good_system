@@ -8,6 +8,31 @@ import (
 	"fst/backend/pkg/db"
 )
 
+// TestDropObsoleteRBACArtifacts 验证废弃 RBAC 表会被自迁移清掉。
+func TestDropObsoleteRBACArtifacts(t *testing.T) {
+	cleanup := testutil.SetupSQLite(t)
+	defer cleanup()
+
+	for _, ddl := range []string{
+		`CREATE TABLE roles (id INTEGER PRIMARY KEY)`,
+		`CREATE TABLE permissions (id INTEGER PRIMARY KEY)`,
+		`CREATE TABLE role_permissions (role_id INTEGER, permission_id INTEGER)`,
+		`CREATE TABLE user_roles (user_id INTEGER, role_id INTEGER)`,
+	} {
+		if err := db.DB.Exec(ddl).Error; err != nil {
+			t.Fatalf("建废弃表失败: %v", err)
+		}
+	}
+
+	migrate.RunAutoMigrate()
+
+	for _, name := range []string{"roles", "permissions", "role_permissions", "user_roles"} {
+		if db.CheckTableExists(name) {
+			t.Fatalf("%s 应已被删除", name)
+		}
+	}
+}
+
 // TestDropObsoleteFinanceApprovalArtifacts 验证废弃审批表/设置行会被自迁移清掉。
 func TestDropObsoleteFinanceApprovalArtifacts(t *testing.T) {
 	cleanup := testutil.SetupSQLite(t)

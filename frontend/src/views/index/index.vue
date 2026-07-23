@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/store'
 import { authStorage } from '@/utils'
@@ -40,12 +40,13 @@ function animate_all_stats() {
   const duration = 2500
   const tick = (now: number) => {
     const p = Math.min((now - start) / duration, 1)
-    const ease = 1 - Math.pow(1 - p, 4)
+    const ease = 1 - (1 - p) ** 4
     stats.value.users = Math.floor(ease * 1256)
     stats.value.plugins = Math.floor(ease * 24)
     stats.value.uptime = Math.floor(ease * 99)
     stats.value.api = Math.floor(ease * 3500)
-    if (p < 1) requestAnimationFrame(tick)
+    if (p < 1)
+      requestAnimationFrame(tick)
   }
   requestAnimationFrame(tick)
 }
@@ -90,10 +91,10 @@ function animate_glow() {
   const ease = 0.15
   glow_current_x += (glow_target_x - glow_current_x) * ease
   glow_current_y += (glow_target_y - glow_current_y) * ease
-  
+
   glow_style.value = {
     '--glow-x': `${glow_current_x}px`,
-    '--glow-y': `${glow_current_y}px`
+    '--glow-y': `${glow_current_y}px`,
   }
   glow_raf_id = requestAnimationFrame(animate_glow)
 }
@@ -128,16 +129,18 @@ onBeforeUnmount(() => {
   <div class="index-page" :class="{ 'index-dark': is_dark }">
     <!-- 背景层 -->
     <div class="bg-layer" :style="glow_style">
-      <div class="mesh-gradient"></div>
-      <div class="dot-grid"></div>
-      <div class="glow-point"></div>
+      <div class="mesh-gradient" />
+      <div class="dot-grid" />
+      <div class="glow-point" />
     </div>
 
     <!-- 导航栏 -->
     <nav class="nav-glass" :class="{ scrolled: is_scrolled }">
       <div class="container nav-content">
         <div class="logo-area" @click="router.push('/')">
-          <div class="logo-box">F</div>
+          <div class="logo-box">
+            F
+          </div>
           <span class="logo-text">F.st</span>
         </div>
         <div class="nav-links">
@@ -150,11 +153,11 @@ onBeforeUnmount(() => {
           <LangsSwitch />
           <div class="custom-btn-group">
             <button class="custom-btn btn-primary" @click="go_user">
-              <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
               {{ t('home.nav.userConsole') }}
             </button>
             <button class="custom-btn btn-warning" @click="go_admin">
-              <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
               {{ t('home.nav.adminConsole') }}
             </button>
           </div>
@@ -165,19 +168,23 @@ onBeforeUnmount(() => {
     <!-- Hero Section -->
     <section class="hero-section container">
       <div class="hero-left">
-        <div class="hero-badge">{{ t('home.hero.badge') }}</div>
+        <div class="hero-badge">
+          {{ t('home.hero.badge') }}
+        </div>
         <h1 class="hero-title">
-          {{ t('home.hero.title') }}<br />
+          {{ t('home.hero.title') }}<br>
           <span class="gradient-text">{{ t('home.hero.runFst') }}</span>
         </h1>
-        <p class="hero-subtitle">{{ t('home.hero.subtitle') }}</p>
+        <p class="hero-subtitle">
+          {{ t('home.hero.subtitle') }}
+        </p>
         <div class="hero-actions">
           <button class="hero-btn btn-primary-lg" @click="go_user">
-            <svg class="btn-icon-lg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <svg class="btn-icon-lg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
             {{ t('home.hero.enterUser') }}
           </button>
           <button class="hero-btn btn-warning-lg" @click="go_admin">
-            <svg class="btn-icon-lg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <svg class="btn-icon-lg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
             {{ t('home.hero.enterAdmin') }}
           </button>
           <button class="hero-btn btn-ghost-lg" @click="scroll_to('features')">
@@ -186,28 +193,32 @@ onBeforeUnmount(() => {
         </div>
         <div class="hero-stats">
           <div class="stat-box">
-             <span class="stat-val">{{ stats.users }}+</span>
-             <span class="stat-key">{{ t('home.hero.users') }}</span>
+            <span class="stat-val">{{ stats.users }}+</span>
+            <span class="stat-key">{{ t('home.hero.users') }}</span>
           </div>
-          <div class="stat-divider"></div>
+          <div class="stat-divider" />
           <div class="stat-box">
-             <span class="stat-val">{{ stats.plugins }}</span>
-             <span class="stat-key">{{ t('home.hero.plugins') }}</span>
+            <span class="stat-val">{{ stats.plugins }}</span>
+            <span class="stat-key">{{ t('home.hero.plugins') }}</span>
           </div>
-          <div class="stat-divider"></div>
+          <div class="stat-divider" />
           <div class="stat-box">
-             <span class="stat-val">{{ stats.uptime }}%</span>
-             <span class="stat-key">{{ t('home.hero.uptime') }}</span>
+            <span class="stat-val">{{ stats.uptime }}%</span>
+            <span class="stat-key">{{ t('home.hero.uptime') }}</span>
           </div>
         </div>
       </div>
-      
+
       <div class="hero-right">
         <!-- 模拟控制台窗口 -->
         <div class="mockup-window">
           <div class="mockup-header">
-            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
-            <div class="mockup-tab">dashboard.go</div>
+            <div class="dots">
+              <span class="r" /><span class="y" /><span class="g" />
+            </div>
+            <div class="mockup-tab">
+              dashboard.go
+            </div>
           </div>
           <div class="mockup-body">
             <pre class="code-block"><code><span class="k">package</span> main
@@ -221,11 +232,15 @@ onBeforeUnmount(() => {
   app.<span class="f">Bootstrap</span>()
 }</code></pre>
             <div class="floating-card user-card">
-              <div class="avatar blue"></div>
-              <div class="lines"><span></span><span></span></div>
+              <div class="avatar blue" />
+              <div class="lines">
+                <span /><span />
+              </div>
             </div>
             <div class="floating-card chart-card">
-              <div class="chart-bars"><div class="b" style="height:40%"></div><div class="b" style="height:70%"></div><div class="b" style="height:50%"></div><div class="b" style="height:90%"></div></div>
+              <div class="chart-bars">
+                <div class="b" style="height:40%" /><div class="b" style="height:70%" /><div class="b" style="height:50%" /><div class="b" style="height:90%" />
+              </div>
             </div>
           </div>
         </div>
@@ -235,32 +250,44 @@ onBeforeUnmount(() => {
     <!-- Bento Grid Features -->
     <section id="features" class="features-section container">
       <div class="section-title-box">
-        <h2 class="section-title">{{ t('home.features.title') }}</h2>
-        <p class="section-desc">{{ t('home.features.subtitle') }}</p>
+        <h2 class="section-title">
+          {{ t('home.features.title') }}
+        </h2>
+        <p class="section-desc">
+          {{ t('home.features.subtitle') }}
+        </p>
       </div>
 
       <div class="bento-grid">
         <!-- Main: Plugin -->
         <div class="bento-item main-card">
-          <div class="card-icon blue"><svg class="icon-32" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg></div>
+          <div class="card-icon blue">
+            <svg class="icon-32" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+          </div>
           <h3>{{ t('home.features.plugin') }}</h3>
           <p>{{ t('home.features.pluginDesc') }}</p>
           <div class="card-visual plug-visual">
-            <div class="plug"></div>
-            <div class="slots"><span></span><span></span><span></span></div>
+            <div class="plug" />
+            <div class="slots">
+              <span /><span /><span />
+            </div>
           </div>
         </div>
 
         <!-- Performance -->
         <div class="bento-item">
-          <div class="card-icon green"><svg class="icon-32" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></div>
+          <div class="card-icon green">
+            <svg class="icon-32" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+          </div>
           <h3>{{ t('home.features.perf') }}</h3>
           <p>{{ t('home.features.perfDesc') }}</p>
         </div>
 
         <!-- Security -->
         <div class="bento-item">
-          <div class="card-icon orange"><svg class="icon-32" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg></div>
+          <div class="card-icon orange">
+            <svg class="icon-32" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+          </div>
           <h3>{{ t('home.features.security') }}</h3>
           <p>{{ t('home.features.securityDesc') }}</p>
         </div>
@@ -268,7 +295,9 @@ onBeforeUnmount(() => {
         <!-- MVC -->
         <div class="bento-item horizontal">
           <div class="flex-col">
-            <div class="card-icon purple"><svg class="icon-32" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1-0 01-1-1v-6z"/></svg></div>
+            <div class="card-icon purple">
+              <svg class="icon-32" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1-0 01-1-1v-6z" /></svg>
+            </div>
             <h3>{{ t('home.features.mvc') }}</h3>
             <p>{{ t('home.features.mvcDesc') }}</p>
           </div>
@@ -276,7 +305,9 @@ onBeforeUnmount(() => {
 
         <!-- Deploy -->
         <div class="bento-item">
-          <div class="card-icon cyan"><svg class="icon-32" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></div>
+          <div class="card-icon cyan">
+            <svg class="icon-32" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+          </div>
           <h3>{{ t('home.features.deploy') }}</h3>
           <p>{{ t('home.features.deployDesc') }}</p>
         </div>
@@ -286,12 +317,16 @@ onBeforeUnmount(() => {
     <!-- Tech Stack Section -->
     <section id="tech" class="tech-section container">
       <div class="section-title-box">
-        <h2 class="section-title">{{ t('home.tech.title') }}</h2>
-        <p class="section-desc">{{ t('home.tech.subtitle') }}</p>
+        <h2 class="section-title">
+          {{ t('home.tech.title') }}
+        </h2>
+        <p class="section-desc">
+          {{ t('home.tech.subtitle') }}
+        </p>
       </div>
       <div class="tech-box">
-        <div class="tech-tag" v-for="t in ['Go 1.24', 'Vue 3.5', 'Vite 7', 'Pinia', 'TypeScript', 'MySQL 8', 'UnoCSS', 'Naive UI']" :key="t">
-          {{ t }}
+        <div v-for="techTag in ['Go 1.24', 'Vue 3.5', 'Vite 7', 'Pinia', 'TypeScript', 'MySQL 8', 'UnoCSS', 'Naive UI']" :key="techTag" class="tech-tag">
+          {{ techTag }}
         </div>
       </div>
     </section>
@@ -299,8 +334,12 @@ onBeforeUnmount(() => {
     <!-- Final CTA -->
     <section id="about" class="cta-wrap container">
       <div class="cta-inner">
-        <h2 class="cta-h">{{ t('home.cta.title') }}</h2>
-        <p class="cta-p">{{ t('home.cta.desc') }}</p>
+        <h2 class="cta-h">
+          {{ t('home.cta.title') }}
+        </h2>
+        <p class="cta-p">
+          {{ t('home.cta.desc') }}
+        </p>
         <div class="cta-btn-group">
           <button class="cta-btn btn-white" @click="go_user">
             {{ t('home.cta.startUser') }}
@@ -317,10 +356,14 @@ onBeforeUnmount(() => {
       <div class="container footer-grid">
         <div class="footer-info">
           <div class="logo-area mb-4">
-            <div class="logo-box">F</div>
+            <div class="logo-box">
+              F
+            </div>
             <span class="logo-text">F.st</span>
           </div>
-          <p class="opacity-60 text-sm">{{ t('home.hero.tagline') }}</p>
+          <p class="opacity-60 text-sm">
+            {{ t('home.hero.tagline') }}
+          </p>
         </div>
         <div class="footer-links">
           <h4>{{ t('home.footer.platform') }}</h4>
@@ -384,7 +427,7 @@ onBeforeUnmount(() => {
 .mesh-gradient {
   position: absolute;
   inset: 0;
-  background: 
+  background:
     radial-gradient(circle at 10% 10%, rgba(16, 185, 129, 0.1), transparent 40%),
     radial-gradient(circle at 90% 90%, rgba(59, 130, 246, 0.1), transparent 40%),
     radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.05), transparent 40%);
@@ -515,7 +558,6 @@ onBeforeUnmount(() => {
   box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
 }
 
-
 /* ===== Hero ===== */
 .hero-section {
   padding-top: 180px;
@@ -619,7 +661,6 @@ onBeforeUnmount(() => {
   border-color: var(--primary);
   color: var(--primary);
 }
-
 
 .hero-stats {
   display: flex;

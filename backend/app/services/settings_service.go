@@ -230,8 +230,12 @@ type PublicAppConfig struct {
 	AdminAPIPath string `json:"admin_api_path"`
 	// OnlineReportIntervalSeconds 在线心跳上报周期（秒），前端 Presence 心跳按此间隔发送
 	OnlineReportIntervalSeconds int `json:"online_report_interval_seconds"`
-	// WebLoginDisabled 是否禁止普通用户网页端登录（仅小程序/App 场景使用），默认 false；不影响管理员登录
-	WebLoginDisabled bool `json:"web_login_disabled"`
+	// AllowUserLogin 是否允许普通用户密码登录（默认 true）；关闭后不发 JWT，管理员与 API Key 不受影响
+	AllowUserLogin bool `json:"allow_user_login"`
+	// UserAPILogVisible 用户中心是否展示「API 日志」（仅 API Key 调用）
+	UserAPILogVisible bool `json:"user_api_log_visible"`
+	// UserOperationLogVisible 用户中心是否展示「操作日志」
+	UserOperationLogVisible bool `json:"user_operation_log_visible"`
 }
 
 // VerifyConfig 验证码功能开关运行时配置
@@ -256,11 +260,12 @@ type SMSRuntimeConfig struct {
 
 // APILogRuntimeConfig API访问日志运行时配置
 type APILogRuntimeConfig struct {
-	Enabled              bool
-	QueryDays            int
-	MaxCount             int
-	PerUserLimitEnabled  bool
-	PerUserMaxCount      int
+	Enabled             bool
+	QueryDays           int
+	MaxCount            int
+	PerUserLimitEnabled bool
+	PerUserMaxCount     int
+	UserVisible         bool // 用户中心是否可见本人 API Key 日志
 }
 
 // OperationLogRuntimeConfig 操作日志运行时配置
@@ -269,6 +274,8 @@ type OperationLogRuntimeConfig struct {
 	MaxCount            int
 	PerUserLimitEnabled bool
 	PerUserMaxCount     int
+	UserVisible         bool // 用户中心是否可见本人操作日志
+	UserShowBody        bool // 用户详情是否展示请求/响应体
 }
 
 // SMSLogRuntimeConfig 短信日志运行时配置
@@ -567,6 +574,7 @@ func (s *SettingsService) GetAPILogRuntimeConfig() APILogRuntimeConfig {
 		MaxCount:            s.getRuntimePositiveInt("api_log_max_count", 1000),
 		PerUserLimitEnabled: s.getRuntimeBool("api_log_per_user_limit_enabled", false),
 		PerUserMaxCount:     s.getRuntimePositiveInt("api_log_per_user_max_count", 1000),
+		UserVisible:         s.getRuntimeBool("user_api_log_visible", true),
 	}
 }
 
@@ -580,6 +588,7 @@ func GetGlobalAPILogRuntimeConfig() APILogRuntimeConfig {
 		MaxCount:            getDirectSettingPositiveInt("api_log_max_count", 1000),
 		PerUserLimitEnabled: getDirectSettingBool("api_log_per_user_limit_enabled", false),
 		PerUserMaxCount:     getDirectSettingPositiveInt("api_log_per_user_max_count", 1000),
+		UserVisible:         getDirectSettingBool("user_api_log_visible", true),
 	}
 }
 
@@ -589,6 +598,8 @@ func (s *SettingsService) GetOperationLogRuntimeConfig() OperationLogRuntimeConf
 		MaxCount:            s.getRuntimePositiveInt("operation_log_max_count", 1000),
 		PerUserLimitEnabled: s.getRuntimeBool("operation_log_per_user_limit_enabled", false),
 		PerUserMaxCount:     s.getRuntimePositiveInt("operation_log_per_user_max_count", 1000),
+		UserVisible:         s.getRuntimeBool("user_operation_log_visible", true),
+		UserShowBody:        s.getRuntimeBool("user_operation_log_show_body", false),
 	}
 }
 
@@ -601,6 +612,8 @@ func GetGlobalOperationLogRuntimeConfig() OperationLogRuntimeConfig {
 		MaxCount:            getDirectSettingPositiveInt("operation_log_max_count", 1000),
 		PerUserLimitEnabled: getDirectSettingBool("operation_log_per_user_limit_enabled", false),
 		PerUserMaxCount:     getDirectSettingPositiveInt("operation_log_per_user_max_count", 1000),
+		UserVisible:         getDirectSettingBool("user_operation_log_visible", true),
+		UserShowBody:        getDirectSettingBool("user_operation_log_show_body", false),
 	}
 }
 
@@ -704,14 +717,12 @@ func GetGlobalAllowDeleteAccount() bool {
 	return getDirectSettingBool("allow_delete_account", false)
 }
 
-// GetGlobalDisableWebLogin 是否禁止普通用户网页端登录（默认 false）。
-// 开启后 AuthService.Login 会拒绝 authGuard=user 且 client_type 归一化为 web 的登录请求，
-// 仅允许 App/小程序等在登录请求带上 client_type=app 的客户端登录；管理员登录不受影响。
-func GetGlobalDisableWebLogin() bool {
+// GetGlobalAllowUserLogin 是否允许普通用户密码登录拿 JWT（默认 true）。关闭不影响管理员登录与 API Key。
+func GetGlobalAllowUserLogin() bool {
 	if GlobalSettingsService != nil {
-		return GlobalSettingsService.getRuntimeBool("disable_web_login", false)
+		return GlobalSettingsService.getRuntimeBool("allow_user_login", true)
 	}
-	return getDirectSettingBool("disable_web_login", false)
+	return getDirectSettingBool("allow_user_login", true)
 }
 
 func GetGlobalPaymentEnabled() bool {
@@ -735,6 +746,25 @@ func GetGlobalRegisterCodeExpireMinutes() int {
 		return GlobalSettingsService.getRuntimePositiveInt("register_code_expire_minutes", fallback)
 	}
 	return getDirectSettingPositiveInt("register_code_expire_minutes", fallback)
+}
+
+// GetGlobalRegisterDefaultLevel 自助注册时写入的 users.level，默认 1。
+func GetGlobalRegisterDefaultLevel() uint64 {
+	const fallback = 1
+	var level int
+	if GlobalSettingsService != nil {
+		level = GlobalSettingsService.getRuntimePositiveInt("register_default_level", fallback)
+	} else {
+		level = getDirectSettingPositiveInt("register_default_level", fallback)
+	}
+	if level < 1 {
+		return fallback
+	}
+	// 防止误配超大值；等级能力表一般只维护少量档位
+	if level > 9999 {
+		return fallback
+	}
+	return uint64(level)
 }
 
 func GetGlobalFrontendURL() string {
@@ -852,6 +882,7 @@ func (s *SettingsService) GetPublicAppConfig() *PublicAppConfig {
 		Copyright:          s.GetWithDefault("copyright", "(c) 2024 F.st"),
 		ICP:                s.GetWithDefault("icp", ""),
 		AllowRegister:      s.GetBoolWithDefault("allow_register", true),
+		AllowUserLogin:     s.GetBoolWithDefault("allow_user_login", true),
 		AnnouncementEnabled: s.GetBoolWithDefault("announcement_enabled", true),
 		AllowDeleteAccount: s.GetBool("allow_delete_account"),
 		DefaultLang:        s.GetWithDefault("default_lang", "zhCN"),
@@ -871,7 +902,8 @@ func (s *SettingsService) GetPublicAppConfig() *PublicAppConfig {
 		WithdrawRequireRealname: s.GetBoolWithDefault("withdraw_require_realname", false),
 		AdminAPIPath:       adminAPIPath,
 		OnlineReportIntervalSeconds: s.GetOnlinePresenceRuntimeConfig().ReportIntervalSeconds,
-		WebLoginDisabled:   s.GetBoolWithDefault("disable_web_login", false),
+		UserAPILogVisible:           s.GetBoolWithDefault("user_api_log_visible", true),
+		UserOperationLogVisible:     s.GetBoolWithDefault("user_operation_log_visible", true),
 	}
 }
 

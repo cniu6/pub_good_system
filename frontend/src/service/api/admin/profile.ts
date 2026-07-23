@@ -1,5 +1,5 @@
 /**
- * 管理端个人设置 / TOTP API
+ * 管理端个人设置 API
  */
 import { request } from '../../http'
 import { getAdminApiBase } from './base'
@@ -9,8 +9,9 @@ function meUrl(path = '') {
 }
 
 export interface AdminMeInfo {
-  totp_enabled?: boolean
-  rbac_roles?: Array<{ id: number, code: string, name: string }>
+  id?: number
+  username?: string
+  role?: string
   [key: string]: unknown
 }
 
@@ -20,14 +21,5 @@ export const adminProfileApi = {
   },
   changePassword(data: { old_password: string, new_password: string }) {
     return request.Put<Service.ResponseResult<{ message?: string }>>(meUrl('/password'), data)
-  },
-  setupTotp() {
-    return request.Post<Service.ResponseResult<{ secret?: string, otpauth_url?: string }>>(meUrl('/totp/setup'))
-  },
-  enableTotp(data: { code: string }) {
-    return request.Post<Service.ResponseResult<{ message?: string }>>(meUrl('/totp/enable'), data)
-  },
-  disableTotp(data: { code: string }) {
-    return request.Post<Service.ResponseResult<{ message?: string }>>(meUrl('/totp/disable'), data)
   },
 }

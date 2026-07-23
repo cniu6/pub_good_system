@@ -11,7 +11,7 @@ import type { ServerMonitoringStatusResponse } from '@/service/api/admin/setting
 import type { ServerOperationsStatusResponse } from '@/service/api/admin/server'
 import { authStorage, parseBooleanSetting, parseNumberSetting } from '@/utils'
 
-export const tabOptions = ['monitor', 'ops', 'debug'] as const
+export const tabOptions = ['monitor', 'ops', 'debug', 'database', 'terminal'] as const
 
 export type DebugProfileType = 'cpu' | 'heap' | 'goroutine' | 'allocs' | 'block' | 'mutex' | 'threadcreate' | 'trace'
 export type RuntimeStateCategory = 'running' | 'waiting' | 'channel' | 'syscall' | 'mutex' | 'other'
@@ -507,7 +507,9 @@ export function useServerManagement() {
     }
     if (enabled) {
       debugRefreshTimer = window.setInterval(() => {
-        loadGoroutineStats()
+        // 后台标签不需要持续请求较重的调试接口；切回前台后下一轮自动恢复。
+        if (document.visibilityState === 'visible' && activeTab.value === 'debug')
+          void loadGoroutineStats()
       }, 3000)
     }
   }
@@ -520,13 +522,32 @@ export function useServerManagement() {
     }
     if (enabled) {
       refreshTimer = window.setInterval(() => {
-        refreshAll()
+        // 监控数据只在对应页签可见时刷新，避免切去 Debug/数据库页后仍持续占用接口。
+        if (document.visibilityState === 'visible' && (activeTab.value === 'monitor' || activeTab.value === 'ops'))
+          void refreshAll()
       }, 15000)
     }
   }
 
+  function handleActiveTabChanged(tab: string) {
+    if (tab === 'debug') {
+      if (autoRefresh.value)
+        toggleAutoRefresh(false)
+      if (!goroutineStats.value && !debugLoading.goroutineStats)
+        void loadGoroutineStats()
+      return
+    }
+
+    // 离开对应页签后关闭开关并销毁定时器，避免“页面不在看、请求还在跑”。
+    if (debugAutoRefresh.value)
+      toggleDebugAutoRefresh(false)
+    if (tab !== 'monitor' && tab !== 'ops' && autoRefresh.value)
+      toggleAutoRefresh(false)
+  }
+
   async function initPage() {
-    await Promise.all([loadRateLimitConfig(), refreshAll(), loadGoroutineStats()])
+    // Debug 数据只在实际切到 Debug 页签后加载，避免首次进入监控页就额外请求调试接口。
+    await Promise.all([loadRateLimitConfig(), refreshAll()])
   }
 
   /** 仅在外壳挂载一次，避免 Tab 重复注册卸载清理 */
@@ -535,10 +556,9 @@ export function useServerManagement() {
       return
     lifecycleBound = true
     onUnmounted(() => {
-      if (refreshTimer)
-        window.clearInterval(refreshTimer)
-      if (debugRefreshTimer)
-        window.clearInterval(debugRefreshTimer)
+      // 定时器已销毁时同步重置 UI 开关，避免再次进入页面出现“显示开启、实际不刷新”的假象。
+      toggleAutoRefresh(false)
+      toggleDebugAutoRefresh(false)
       lifecycleBound = false
     })
   }
@@ -582,6 +602,7 @@ export function useServerManagement() {
     clearRuntimeStacks,
     toggleDebugAutoRefresh,
     toggleAutoRefresh,
+    handleActiveTabChanged,
     initPage,
     bindLifecycleOnce,
   }

@@ -104,6 +104,14 @@ func (ctrl *EmailTemplateController) Update(c *gin.Context) {
 	// 过滤用户输入
 	req.Subject = utils.Clean_XSS(req.Subject)
 	req.Description = utils.Clean_XSS(req.Description)
+	if err := utils.ValidateRuneLen(req.Subject, "邮件主题", utils.MaxSubjectLength); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+	if err := utils.ValidateRuneLen(req.Description, "描述", utils.MaxDescriptionLength); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
 	// Content 不需要过滤，因为是HTML邮件内容
 
 	existing, err := models.GetEmailTemplateByID(id)

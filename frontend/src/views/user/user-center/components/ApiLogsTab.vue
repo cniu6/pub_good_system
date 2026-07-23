@@ -4,8 +4,11 @@
  */
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NTag, NCode, useMessage, type DataTableColumns } from 'naive-ui'
-import { fetchMyAPILogDetail, fetchMyAPILogStats, fetchMyAPILogs, type UserAPIAccessLog, type UserAPILogStats } from '@/service/api/user/logs'
+import { NButton, NCode, NTag, useMessage } from 'naive-ui'
+import type { DataTableColumns } from 'naive-ui'
+import { fetchMyAPILogDetail, fetchMyAPILogs, fetchMyAPILogStats } from '@/service/api/user/logs'
+import type { UserAPIAccessLog, UserAPILogStats } from '@/service/api/user/logs'
+import { formatPrettyJSON } from '@/utils/format'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -31,7 +34,8 @@ const statsData = ref<UserAPILogStats>({
 async function fetchStats() {
   try {
     const res = await fetchMyAPILogStats()
-    if (res.data) statsData.value = res.data
+    if (res.data)
+      statsData.value = res.data
   }
   catch {}
 }
@@ -39,22 +43,13 @@ async function fetchStats() {
 const query = reactive({
   page: 1,
   page_size: 20,
-  auth_method: '' as string,
   start_time: 0,
   end_time: 0,
 })
 
-const authMethodOptions = computed(() => [
-  { label: t('userLogs.authMethodAll'), value: '' },
-  { label: t('userLogs.authMethodApiKey'), value: 'apikey' },
-  { label: t('userLogs.authMethodJwt'), value: 'jwt' },
-  { label: t('userLogs.authMethodNone'), value: 'none' },
-])
-
 function authMethodLabel(method?: string) {
-  if (method === 'apikey') return t('userLogs.authMethodApiKey')
-  if (method === 'jwt') return t('userLogs.authMethodJwt')
-  if (method === 'none') return t('userLogs.authMethodNone')
+  if (method === 'apikey')
+    return t('userLogs.authMethodApiKey')
   return method || '-'
 }
 
@@ -76,22 +71,11 @@ const methodColors: Record<string, 'info' | 'success' | 'warning' | 'error'> = {
   DELETE: 'error',
 }
 
-function formatPayload(raw?: string) {
-  const value = raw?.trim()
-  if (!value) return ''
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2)
-  }
-  catch {
-    return value
-  }
-}
-
-const formattedQueryString = computed(() => formatPayload(detailData.value?.query_string))
-const formattedPathParams = computed(() => formatPayload(detailData.value?.path_params))
-const formattedRequestHeaders = computed(() => formatPayload(detailData.value?.request_headers))
-const formattedRequestBody = computed(() => formatPayload(detailData.value?.request_body))
-const formattedResponseBody = computed(() => formatPayload(detailData.value?.response_body))
+const formattedQueryString = computed(() => formatPrettyJSON(detailData.value?.query_string))
+const formattedPathParams = computed(() => formatPrettyJSON(detailData.value?.path_params))
+const formattedRequestHeaders = computed(() => formatPrettyJSON(detailData.value?.request_headers))
+const formattedRequestBody = computed(() => formatPrettyJSON(detailData.value?.request_body))
+const formattedResponseBody = computed(() => formatPrettyJSON(detailData.value?.response_body))
 
 const columns: DataTableColumns<UserAPIAccessLog> = [
   { title: 'ID', key: 'id', width: 80 },
@@ -121,7 +105,8 @@ const columns: DataTableColumns<UserAPIAccessLog> = [
     key: 'create_time',
     width: 160,
     render(row) {
-      if (!row.create_time) return '-'
+      if (!row.create_time)
+        return '-'
       return new Date(row.create_time * 1000).toLocaleString()
     },
   },
@@ -161,7 +146,10 @@ function applyDateRange() {
 async function fetchLogs() {
   loading.value = true
   try {
-    const res = await fetchMyAPILogs(query)
+    const res = await fetchMyAPILogs({
+      ...query,
+      auth_method: 'apikey',
+    })
     logList.value = res.data?.list || []
     total.value = res.data?.total || 0
     pagination.itemCount = res.data?.total || 0
@@ -184,21 +172,44 @@ onMounted(() => {
 <template>
   <div class="p-2">
     <n-space vertical>
-      <n-text depth="3">{{ t('userLogs.apiHint') }}</n-text>
+      <n-text depth="3">
+        {{ t('userLogs.apiHint') }}
+      </n-text>
       <n-grid :x-gap="12" :y-gap="12" cols="2 s:4" responsive="screen">
-        <n-gi><n-card size="small"><n-statistic :label="t('userLogs.statsTotal')" :value="statsData.total_count" /></n-card></n-gi>
-        <n-gi><n-card size="small"><n-statistic :label="t('userLogs.statsToday')" :value="statsData.today_count" /></n-card></n-gi>
-        <n-gi><n-card size="small"><n-statistic :label="t('userLogs.statsErrors')"><n-text type="warning">{{ statsData.client_error_count + statsData.server_error_count }}</n-text></n-statistic></n-card></n-gi>
-        <n-gi><n-card size="small"><n-statistic :label="t('userLogs.statsAvgDuration')">{{ Number(statsData.avg_duration || 0).toFixed(1) }} ms</n-statistic></n-card></n-gi>
+        <n-gi>
+          <n-card size="small">
+            <n-statistic :label="t('userLogs.statsTotal')" :value="statsData.total_count" />
+          </n-card>
+        </n-gi>
+        <n-gi>
+          <n-card size="small">
+            <n-statistic :label="t('userLogs.statsToday')" :value="statsData.today_count" />
+          </n-card>
+        </n-gi>
+        <n-gi>
+          <n-card size="small">
+            <n-statistic :label="t('userLogs.statsErrors')">
+              <n-text type="warning">
+                {{ statsData.client_error_count + statsData.server_error_count }}
+              </n-text>
+            </n-statistic>
+          </n-card>
+        </n-gi>
+        <n-gi>
+          <n-card size="small">
+            <n-statistic :label="t('userLogs.statsAvgDuration')">
+              {{ Number(statsData.avg_duration || 0).toFixed(1) }} ms
+            </n-statistic>
+          </n-card>
+        </n-gi>
       </n-grid>
-      <n-space>
-        <n-select
-          v-model:value="query.auth_method"
-          :options="authMethodOptions"
-          style="width: 160px"
-          @update:value="() => { query.page = 1; pagination.page = 1; fetchLogs() }"
-        />
-        <n-text depth="3">{{ t('userLogs.totalLogs', { total }) }}</n-text>
+      <n-space align="center">
+        <NTag type="info" size="small">
+          {{ t('userLogs.authMethodApiKey') }}
+        </NTag>
+        <n-text depth="3">
+          {{ t('userLogs.totalLogs', { total }) }}
+        </n-text>
       </n-space>
       <n-data-table
         remote
@@ -211,23 +222,45 @@ onMounted(() => {
     </n-space>
 
     <n-modal v-model:show="showDetail" preset="card" :title="t('userLogs.apiDetailTitle')" style="width: 1100px;" :mask-closable="true">
-      <n-text v-if="detailLoading" depth="3">{{ t('userLogs.loading') }}</n-text>
+      <n-text v-if="detailLoading" depth="3">
+        {{ t('userLogs.loading') }}
+      </n-text>
       <n-space v-else-if="detailData" vertical :size="16">
         <n-card size="small" embedded :title="t('userLogs.basicInfo')">
           <n-descriptions bordered :column="2" label-placement="left">
-            <n-descriptions-item :label="t('userLogs.id')">{{ detailData.id }}</n-descriptions-item>
-            <n-descriptions-item :label="t('userLogs.requestId')">{{ detailData.request_id || '-' }}</n-descriptions-item>
-            <n-descriptions-item :label="t('userLogs.method')">{{ detailData.method || '-' }}</n-descriptions-item>
-            <n-descriptions-item :label="t('userLogs.authMethod')">{{ authMethodLabel(detailData.auth_method) }}</n-descriptions-item>
-            <n-descriptions-item :label="t('userLogs.statusCode')">{{ detailData.status_code }}</n-descriptions-item>
-            <n-descriptions-item :label="t('userLogs.path')">{{ detailData.path || '-' }}</n-descriptions-item>
-            <n-descriptions-item :label="t('userLogs.routePath')">{{ detailData.route_path || '-' }}</n-descriptions-item>
-            <n-descriptions-item :label="t('userLogs.ip')">{{ detailData.ip || '-' }}</n-descriptions-item>
-            <n-descriptions-item :label="t('userLogs.duration')">{{ detailData.duration || 0 }}</n-descriptions-item>
+            <n-descriptions-item :label="t('userLogs.id')">
+              {{ detailData.id }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('userLogs.requestId')">
+              {{ detailData.request_id || '-' }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('userLogs.method')">
+              {{ detailData.method || '-' }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('userLogs.authMethod')">
+              {{ authMethodLabel(detailData.auth_method) }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('userLogs.statusCode')">
+              {{ detailData.status_code }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('userLogs.path')">
+              {{ detailData.path || '-' }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('userLogs.routePath')">
+              {{ detailData.route_path || '-' }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('userLogs.ip')">
+              {{ detailData.ip || '-' }}
+            </n-descriptions-item>
+            <n-descriptions-item :label="t('userLogs.duration')">
+              {{ detailData.duration || 0 }}
+            </n-descriptions-item>
             <n-descriptions-item :label="t('userLogs.time')" :span="2">
               {{ detailData.create_time ? new Date(detailData.create_time * 1000).toLocaleString() : '-' }}
             </n-descriptions-item>
-            <n-descriptions-item :label="t('userLogs.userAgent')" :span="2">{{ detailData.user_agent || '-' }}</n-descriptions-item>
+            <n-descriptions-item :label="t('userLogs.userAgent')" :span="2">
+              {{ detailData.user_agent || '-' }}
+            </n-descriptions-item>
           </n-descriptions>
         </n-card>
 
@@ -247,7 +280,9 @@ onMounted(() => {
           <NCode :code="formattedResponseBody || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
         </n-card>
       </n-space>
-      <n-text v-else depth="3">{{ t('userLogs.noDetailData') }}</n-text>
+      <n-text v-else depth="3">
+        {{ t('userLogs.noDetailData') }}
+      </n-text>
     </n-modal>
   </div>
 </template>

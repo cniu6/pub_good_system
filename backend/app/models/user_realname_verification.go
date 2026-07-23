@@ -62,11 +62,10 @@ func CreateRealnameVerification(verification *RealnameVerification) error {
 // GetRealnameVerificationByUserID 根据用户ID获取最新的实名认证记录
 func GetRealnameVerificationByUserID(userID uint64) (*RealnameVerification, error) {
 	var verification RealnameVerification
-	err := db.DB.Where("user_id = ? AND delete_time IS NULL", userID).
-		Order("id DESC").
-		First(&verification).Error
+	// 用 FindOne：未实名是常态，避免 First 打 record not found 干扰排障
+	err := db.FindOne(db.DB.Where("user_id = ? AND delete_time IS NULL", userID).Order("id DESC"), &verification)
 	if err != nil {
-		return nil, db.MapGormNotFound(err)
+		return nil, err
 	}
 	return &verification, nil
 }
@@ -74,12 +73,9 @@ func GetRealnameVerificationByUserID(userID uint64) (*RealnameVerification, erro
 // GetRealnameVerificationByUserIDForUpdate 在事务中锁定用户最新实名认证记录
 func GetRealnameVerificationByUserIDForUpdate(tx *gorm.DB, userID uint64) (*RealnameVerification, error) {
 	var verification RealnameVerification
-	err := db.ForUpdate(tx).
-		Where("user_id = ? AND delete_time IS NULL", userID).
-		Order("id DESC").
-		First(&verification).Error
+	err := db.FindOne(db.ForUpdate(tx).Where("user_id = ? AND delete_time IS NULL", userID).Order("id DESC"), &verification)
 	if err != nil {
-		return nil, db.MapGormNotFound(err)
+		return nil, err
 	}
 	return &verification, nil
 }

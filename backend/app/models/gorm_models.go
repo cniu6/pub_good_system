@@ -25,10 +25,7 @@ func AllGormModels() []interface{} {
 		&IdempotencyKey{},
 		&Announcement{},
 		&UserAnnouncementRead{},
-		&Role{},
-		&Permission{},
-		&RolePermission{},
-		&UserRole{},
+		&UserLevelCap{},
 		// 聚合统计
 		&APIAccessLogStat{},
 		&APIAccessLogDailyStat{},

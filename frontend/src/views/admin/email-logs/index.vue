@@ -11,8 +11,8 @@ import {
   NDescriptions,
   NDescriptionsItem,
   NDivider,
-  NGrid,
   NGi,
+  NGrid,
   NInput,
   NInputNumber,
   NModal,
@@ -31,7 +31,8 @@ import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
-import { adminEmailLogApi, type EmailLog, type EmailLogListParams, type EmailLogStats } from '@/service/api/admin/email-log'
+import { adminEmailLogApi } from '@/service/api/admin/email-log'
+import type { EmailLog, EmailLogListParams, EmailLogStats } from '@/service/api/admin/email-log'
 import { normalizeLogMaxCount, normalizeLogPerUserMaxCount, parseBooleanSetting } from '@/utils'
 
 const router = useRouter()
@@ -51,7 +52,7 @@ const statsData = ref<EmailLogStats>({
   fail_count: 0,
   top_templates: [],
 })
-const templateNameOptions = ref<{ label: string; value: string }[]>([])
+const templateNameOptions = ref<{ label: string, value: string }[]>([])
 
 const query = reactive<EmailLogListParams>({
   page: 1,
@@ -383,13 +384,23 @@ onMounted(() => {
 <template>
   <div class="email-log-page">
     <NGrid :x-gap="12" :y-gap="12" cols="4" style="margin-bottom: 16px;">
-      <NGi><NCard size="small"><NStatistic :label="t('adminEmailLogs.totalCount')" :value="statsData.total_count" /></NCard></NGi>
-      <NGi><NCard size="small"><NStatistic :label="t('adminEmailLogs.todayCount')" :value="statsData.today_count" /></NCard></NGi>
+      <NGi>
+        <NCard size="small">
+          <NStatistic :label="t('adminEmailLogs.totalCount')" :value="statsData.total_count" />
+        </NCard>
+      </NGi>
+      <NGi>
+        <NCard size="small">
+          <NStatistic :label="t('adminEmailLogs.todayCount')" :value="statsData.today_count" />
+        </NCard>
+      </NGi>
       <NGi>
         <NCard size="small">
           <NStatistic :label="t('adminEmailLogs.success')">
             <template #default>
-              <NText type="success">{{ statsData.success_count }}</NText>
+              <NText type="success">
+                {{ statsData.success_count }}
+              </NText>
             </template>
           </NStatistic>
         </NCard>
@@ -398,29 +409,43 @@ onMounted(() => {
         <NCard size="small">
           <NStatistic :label="t('adminEmailLogs.failed')">
             <template #default>
-              <NText type="error">{{ statsData.fail_count }}</NText>
+              <NText type="error">
+                {{ statsData.fail_count }}
+              </NText>
             </template>
           </NStatistic>
         </NCard>
       </NGi>
     </NGrid>
 
-    <NText depth="3" style="display: block; margin: -4px 0 12px;">{{ t('adminEmailLogs.statsHint') }}</NText>
+    <NText depth="3" style="display: block; margin: -4px 0 12px;">
+      {{ t('adminEmailLogs.statsHint') }}
+    </NText>
 
     <NGrid :x-gap="12" :y-gap="12" cols="1 s:2 l:2" responsive="screen" style="margin-bottom: 16px;">
       <NGi>
         <NCard size="small" :title="t('adminEmailLogs.topTemplates')">
-          <div ref="topTemplateChartRef" class="top-path-chart"></div>
-          <NText v-if="!topTemplateItems.length" depth="3" style="display: block; text-align: center;">{{ t('adminEmailLogs.noTopTemplates') }}</NText>
+          <div ref="topTemplateChartRef" class="top-path-chart" />
+          <NText v-if="!topTemplateItems.length" depth="3" style="display: block; text-align: center;">
+            {{ t('adminEmailLogs.noTopTemplates') }}
+          </NText>
         </NCard>
       </NGi>
       <NGi>
         <NCard size="small" :title="t('adminEmailLogs.overview')">
           <NDescriptions :column="2" bordered size="small" label-placement="left">
-            <NDescriptionsItem :label="t('adminEmailLogs.success')">{{ statsData.success_count }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminEmailLogs.failed')">{{ statsData.fail_count }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminEmailLogs.totalCount')">{{ statsData.total_count }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminEmailLogs.todayCount')">{{ statsData.today_count }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminEmailLogs.success')">
+              {{ statsData.success_count }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminEmailLogs.failed')">
+              {{ statsData.fail_count }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminEmailLogs.totalCount')">
+              {{ statsData.total_count }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminEmailLogs.todayCount')">
+              {{ statsData.today_count }}
+            </NDescriptionsItem>
           </NDescriptions>
         </NCard>
       </NGi>
@@ -440,28 +465,46 @@ onMounted(() => {
             :reset-label="t('common.restoreDefaultFields')"
             @reset="resetSelectedColumns"
           />
-          <NButton size="small" type="primary" @click="fetchList">{{ t('adminEmailLogs.refresh') }}</NButton>
-          <NButton size="small" type="warning" @click="showClean = true">{{ t('adminEmailLogs.cleanLogs') }}</NButton>
+          <NButton size="small" type="primary" @click="fetchList">
+            {{ t('adminEmailLogs.refresh') }}
+          </NButton>
+          <NButton size="small" type="warning" @click="showClean = true">
+            {{ t('adminEmailLogs.cleanLogs') }}
+          </NButton>
         </NSpace>
       </template>
 
       <NCard size="small" embedded style="margin-bottom: 12px;">
         <NSpace align="center" justify="space-between" :wrap="true">
           <NSpace align="center" :wrap="true" size="small">
-            <NText strong>{{ t('adminEmailLogs.runtimeConfig') }}</NText>
-            <NText depth="3">{{ t('adminEmailLogs.maxCount') }}</NText>
+            <NText strong>
+              {{ t('adminEmailLogs.runtimeConfig') }}
+            </NText>
+            <NText depth="3">
+              {{ t('adminEmailLogs.maxCount') }}
+            </NText>
             <NInputNumber v-model:value="runtimeForm.email_log_max_count" :min="100" :max="200000" size="small" style="width: 130px;" />
-            <NText depth="3">{{ t('adminEmailLogs.perUserLimitEnabled') }}</NText>
+            <NText depth="3">
+              {{ t('adminEmailLogs.perUserLimitEnabled') }}
+            </NText>
             <NSwitch v-model:value="runtimeForm.email_log_per_user_limit_enabled" />
-            <NText depth="3">{{ t('adminEmailLogs.perUserMaxCount') }}</NText>
+            <NText depth="3">
+              {{ t('adminEmailLogs.perUserMaxCount') }}
+            </NText>
             <NInputNumber v-model:value="runtimeForm.email_log_per_user_max_count" :min="1" :max="200000" size="small" style="width: 130px;" />
           </NSpace>
           <NSpace size="small">
-            <NButton size="small" type="primary" :loading="runtimeSaving" @click="handleSaveRuntimeConfig">{{ t('adminServer.runtimeConfig.save') }}</NButton>
-            <NButton size="small" :loading="runtimeLoading" @click="loadRuntimeConfig">{{ t('adminEmailLogs.refresh') }}</NButton>
+            <NButton size="small" type="primary" :loading="runtimeSaving" @click="handleSaveRuntimeConfig">
+              {{ t('adminServer.runtimeConfig.save') }}
+            </NButton>
+            <NButton size="small" :loading="runtimeLoading" @click="loadRuntimeConfig">
+              {{ t('adminEmailLogs.refresh') }}
+            </NButton>
           </NSpace>
         </NSpace>
-        <NText depth="3" style="display: block; margin-top: 8px;">{{ t('adminEmailLogs.runtimeHint') }}</NText>
+        <NText depth="3" style="display: block; margin-top: 8px;">
+          {{ t('adminEmailLogs.runtimeHint') }}
+        </NText>
       </NCard>
 
       <NSpace align="center" style="margin-bottom: 12px;" :wrap="true">
@@ -469,8 +512,12 @@ onMounted(() => {
         <NSelect v-model:value="query.template_name" :options="templateNameOptions" :placeholder="t('adminEmailLogs.template')" clearable size="small" style="width: 160px;" />
         <NSelect v-model:value="query.status" :options="statusOptions" :placeholder="t('adminEmailLogs.status')" size="small" style="width: 100px;" />
         <NDatePicker v-model:value="dateRange" type="datetimerange" clearable size="small" style="width: 340px;" />
-        <NButton size="small" type="primary" @click="handleSearch">{{ t('adminEmailLogs.search') }}</NButton>
-        <NButton size="small" @click="handleReset">{{ t('adminEmailLogs.reset') }}</NButton>
+        <NButton size="small" type="primary" @click="handleSearch">
+          {{ t('adminEmailLogs.search') }}
+        </NButton>
+        <NButton size="small" @click="handleReset">
+          {{ t('adminEmailLogs.reset') }}
+        </NButton>
       </NSpace>
 
       <NDataTable
@@ -486,7 +533,9 @@ onMounted(() => {
     </NCard>
 
     <NModal v-model:show="showDetail" preset="card" :title="t('adminEmailLogs.detailTitle')" style="width: 860px;" :mask-closable="true">
-      <NText v-if="detailLoading" depth="3">{{ t('adminEmailLogs.loading') }}</NText>
+      <NText v-if="detailLoading" depth="3">
+        {{ t('adminEmailLogs.loading') }}
+      </NText>
       <NSpace v-else-if="detailData" vertical :size="16">
         <NGrid cols="2" :x-gap="12" :y-gap="12">
           <NGi>
@@ -498,7 +547,9 @@ onMounted(() => {
             <NCard size="small" embedded>
               <NStatistic :label="t('adminEmailLogs.sendStatus')">
                 <template #default>
-                  <NTag :type="detailData.status === 1 ? 'success' : 'error'" size="small">{{ detailData.status === 1 ? t('adminEmailLogs.success') : t('adminEmailLogs.failed') }}</NTag>
+                  <NTag :type="detailData.status === 1 ? 'success' : 'error'" size="small">
+                    {{ detailData.status === 1 ? t('adminEmailLogs.success') : t('adminEmailLogs.failed') }}
+                  </NTag>
                 </template>
               </NStatistic>
             </NCard>
@@ -507,7 +558,9 @@ onMounted(() => {
 
         <NCard size="small" embedded :title="t('adminEmailLogs.basicInfo')">
           <NDescriptions bordered :column="2" label-placement="left">
-            <NDescriptionsItem :label="t('adminEmailLogs.toEmail')">{{ detailData.to_email }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminEmailLogs.toEmail')">
+              {{ detailData.to_email }}
+            </NDescriptionsItem>
             <NDescriptionsItem :label="t('adminEmailLogs.templateName')">
               <NSpace align="center" :size="8">
                 <span>{{ detailData.template_name || '-' }}</span>
@@ -522,8 +575,12 @@ onMounted(() => {
                 </NButton>
               </NSpace>
             </NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminEmailLogs.subject')" :span="2">{{ detailData.subject || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminEmailLogs.sendTime')" :span="2">{{ detailData.created_at ? new Date(detailData.created_at).toLocaleString() : '-' }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminEmailLogs.subject')" :span="2">
+              {{ detailData.subject || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminEmailLogs.sendTime')" :span="2">
+              {{ detailData.created_at ? new Date(detailData.created_at).toLocaleString() : '-' }}
+            </NDescriptionsItem>
           </NDescriptions>
         </NCard>
 
@@ -531,10 +588,10 @@ onMounted(() => {
           <NTabs type="line" animated>
             <NTabPane name="preview" :tab="t('adminEmailLogs.renderPreview')">
               <iframe
-                sandbox
+                sandbox=""
                 :srcdoc="detailData.content || ''"
                 style="width:100%;min-height:320px;border:1px solid var(--n-border-color);border-radius:var(--n-border-radius);background:#fff;"
-              ></iframe>
+              />
             </NTabPane>
             <NTabPane name="source" :tab="t('adminEmailLogs.viewSource')">
               <NCode :code="detailData.content || '-'" language="html" word-wrap style="max-height:400px;overflow:auto;" />
@@ -543,23 +600,33 @@ onMounted(() => {
         </NCard>
 
         <NCard v-if="detailData.error_msg" size="small" embedded :title="t('adminEmailLogs.errorMsg')">
-          <NText type="error">{{ detailData.error_msg }}</NText>
+          <NText type="error">
+            {{ detailData.error_msg }}
+          </NText>
         </NCard>
       </NSpace>
-      <NText v-else depth="3">{{ t('adminEmailLogs.noDetailData') }}</NText>
+      <NText v-else depth="3">
+        {{ t('adminEmailLogs.noDetailData') }}
+      </NText>
     </NModal>
 
     <NModal v-model:show="showClean" preset="card" :title="t('adminEmailLogs.cleanModalTitle')" style="width: 400px;" :mask-closable="false">
       <NSpace vertical>
         <NText>{{ t('adminEmailLogs.cleanWarning') }}</NText>
         <NDivider style="margin: 8px 0;" />
-        <NText depth="3">{{ t('adminEmailLogs.cleanBeforeLabel') }}</NText>
+        <NText depth="3">
+          {{ t('adminEmailLogs.cleanBeforeLabel') }}
+        </NText>
         <NDatePicker type="datetime" clearable style="width: 100%;" @update:value="handleCleanDateChange" />
       </NSpace>
       <template #footer>
         <NSpace justify="end">
-          <NButton @click="showClean = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="error" :loading="cleaning" :disabled="!cleanBefore" @click="handleClean">{{ t('adminEmailLogs.confirmClean') }}</NButton>
+          <NButton @click="showClean = false">
+            {{ t('common.cancel') }}
+          </NButton>
+          <NButton type="error" :loading="cleaning" :disabled="!cleanBefore" @click="handleClean">
+            {{ t('adminEmailLogs.confirmClean') }}
+          </NButton>
         </NSpace>
       </template>
     </NModal>

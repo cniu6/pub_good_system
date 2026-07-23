@@ -26,6 +26,12 @@ const (
 	maxLogStoredHeadersLength = 8 * 1024
 	// maxLogHeaderValueLength 单个请求头值截断长度
 	maxLogHeaderValueLength = 500
+	// maxLogIPLength 单 IP 字段上限（与 models 中 size:64 对齐；覆盖 IPv6 + zone id）
+	maxLogIPLength = 64
+	// maxLogPathLength path / route_path 字段上限（与 models size:255 对齐）
+	maxLogPathLength = 255
+	// maxLogXForwardedForLength X-Forwarded-For 代理链上限（与 models size:1024 对齐）
+	maxLogXForwardedForLength = 1024
 	// logTruncateMarker 截断标记（追加在截断内容末尾）
 	logTruncateMarker = "...(已截断)"
 )
@@ -181,12 +187,25 @@ func isSensitiveLogField(key string) bool {
 }
 
 // truncateForLog 按字节上限截断，避免切断 UTF-8 多字节字符，并追加「已截断」标记。
+// 最终长度严格不超过 limit（标记占用 limit 内的空间）。
 func truncateForLog(raw string, limit int) string {
 	if limit <= 0 || len(raw) <= limit {
 		return raw
 	}
-	// 为截断标记预留空间，确保最终长度不超过 limit + 标记
-	cut := limit
+	markerLen := len(logTruncateMarker)
+	if markerLen >= limit {
+		// limit 不足以放下完整标记时，尽量返回截断后的标记前缀
+		cut := limit
+		for cut > 0 && !utf8.RuneStart(logTruncateMarker[cut]) {
+			cut--
+		}
+		if cut <= 0 {
+			return ""
+		}
+		return logTruncateMarker[:cut]
+	}
+	// 为截断标记预留空间，确保最终长度不超过 limit
+	cut := limit - markerLen
 	if cut > len(raw) {
 		cut = len(raw)
 	}
@@ -195,7 +214,7 @@ func truncateForLog(raw string, limit int) string {
 		cut--
 	}
 	if cut <= 0 {
-		return logTruncateMarker
+		return logTruncateMarker[:min(markerLen, limit)]
 	}
 	return raw[:cut] + logTruncateMarker
 }

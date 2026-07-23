@@ -29,6 +29,9 @@ type MoneyOperationRequest struct {
 // 内部通过 ExecuteBalanceOp(OpChangeAndLog) 实现事务安全
 func ChangeUserMoney(userID uint64, amount float64, memo string) (*models.UserMoneyLog, error) {
 	memo = utils.Clean_XSS(memo)
+	if err := validateClientRuneLen(memo, "备注", utils.MaxMemoLength); err != nil {
+		return nil, err
+	}
 	result, err := utils.ExecuteBalanceOp(&utils.BalanceReq{
 		UserID: userID,
 		Amount: amount,
@@ -57,6 +60,9 @@ func ChangeUserMoneyI18n(userID uint64, amount float64, memoI18n map[string]stri
 // 内部先按「分」计算差值，再通过 ExecuteBalanceOp(OpChangeAndLog) 处理
 func SetUserMoney(userID uint64, newMoney float64, memo string) (*models.UserMoneyLog, error) {
 	memo = utils.Clean_XSS(memo)
+	if err := validateClientRuneLen(memo, "备注", utils.MaxMemoLength); err != nil {
+		return nil, err
+	}
 
 	if newMoney < 0 {
 		return nil, errors.New("余额不能为负数")
@@ -113,6 +119,9 @@ func GetUserMoneyLogList(onlyUserID uint64, page, pageSize int, keyword string) 
 // amount 为正数=充值，负数=扣款
 func AddUserMoneyLogOnly(userID uint64, amount float64, memo string) (*models.UserMoneyLog, error) {
 	memo = utils.Clean_XSS(memo)
+	if err := validateClientRuneLen(memo, "备注", utils.MaxMemoLength); err != nil {
+		return nil, err
+	}
 	result, err := utils.ExecuteBalanceOp(&utils.BalanceReq{
 		UserID: userID,
 		Amount: amount,
@@ -135,13 +144,23 @@ func OperateUserMoney(userID uint64, req MoneyOperationRequest) (*utils.BalanceR
 		return nil, err
 	}
 
-	if req.Operation != "order_only" && req.Amount == 0 {
-		return nil, errors.New("涉及余额或日志操作时，金额不能为0")
+	if req.Operation != "order_only" {
+		// 按「分」判零，避免 1e-10 之类浮点噪声误当成有效金额
+		fen, fenErr := utils.YuanToFen(req.Amount)
+		if fenErr != nil {
+			return nil, fenErr
+		}
+		if fen == 0 {
+			return nil, errors.New("涉及余额或日志操作时，金额不能为0")
+		}
 	}
 
 	req.Memo = utils.Clean_XSS(req.Memo)
 	req.OrderNo = utils.Clean_XSS(req.OrderNo)
 	req.TradeNo = utils.Clean_XSS(req.TradeNo)
+	if err := validateClientRuneLen(req.Memo, "备注", utils.MaxMemoLength); err != nil {
+		return nil, err
+	}
 
 	balanceReq := &utils.BalanceReq{
 		UserID:      userID,
@@ -220,6 +239,9 @@ func createOrderForMoneyOperationTx(tx *gorm.DB, userID uint64, req MoneyOperati
 	if req.Memo != "" {
 		subject = req.Memo
 	}
+	if err := validateClientRuneLen(subject, "订单标题", utils.MaxSubjectLength); err != nil {
+		return err
+	}
 	err := models.CreatePaymentOrderTx(tx, &models.PaymentOrder{
 		OrderNo:        req.OrderNo,
 		UserID:         userID,
@@ -279,6 +301,9 @@ func mapMoneyOperationType(operation string) (utils.BalanceOpType, bool, error) 
 // 使用数据库事务 + SELECT ... FOR UPDATE 防止并发竞态
 func ChangeUserScore(userID uint64, amount int64, memo string) (*models.UserScoreLog, error) {
 	memo = utils.Clean_XSS(memo)
+	if err := validateClientRuneLen(memo, "备注", utils.MaxMemoLength); err != nil {
+		return nil, err
+	}
 
 	var logEntry *models.UserScoreLog
 	err := db.DB.Transaction(func(tx *gorm.DB) error {
@@ -313,6 +338,9 @@ func ChangeUserScore(userID uint64, amount int64, memo string) (*models.UserScor
 // 使用数据库事务 + SELECT ... FOR UPDATE 防止并发竞态
 func SetUserScore(userID uint64, newScore int64, memo string) (*models.UserScoreLog, error) {
 	memo = utils.Clean_XSS(memo)
+	if err := validateClientRuneLen(memo, "备注", utils.MaxMemoLength); err != nil {
+		return nil, err
+	}
 
 	if newScore < 0 {
 		return nil, errors.New("积分不能为负数")
@@ -354,6 +382,9 @@ func GetUserScoreLogList(onlyUserID uint64, page, pageSize int, keyword string) 
 // amount 为正数=增加，负数=扣减
 func AddUserScoreLogOnly(userID uint64, amount int64, memo string) (*models.UserScoreLog, error) {
 	memo = utils.Clean_XSS(memo)
+	if err := validateClientRuneLen(memo, "备注", utils.MaxMemoLength); err != nil {
+		return nil, err
+	}
 
 	var logEntry *models.UserScoreLog
 	err := db.DB.Transaction(func(tx *gorm.DB) error {

@@ -29,11 +29,11 @@ type APIAccessLog struct {
 	ResponseContentType string  `gorm:"column:response_content_type;size:255;not null;default:''" json:"response_content_type"`
 	QueryString         string  `gorm:"column:query_string;type:text" json:"query_string"`
 	PathParams          *string `gorm:"column:path_params;type:text" json:"path_params,omitempty"`
-	IP                  string  `gorm:"column:ip;size:45;not null;default:'';index:idx_aal_ip_create_time,priority:1" json:"ip"`
-	SourceIP            string  `gorm:"column:source_ip;size:45;not null;default:''" json:"source_ip"`
-	XIP                 string  `gorm:"column:x_ip;size:45;not null;default:''" json:"x_ip"`
-	XForwardedFor       string  `gorm:"column:x_forwarded_for;size:512;not null;default:''" json:"x_forwarded_for"`
-	XRealIP             string  `gorm:"column:x_real_ip;size:45;not null;default:''" json:"x_real_ip"`
+	IP                  string  `gorm:"column:ip;size:64;not null;default:'';index:idx_aal_ip_create_time,priority:1" json:"ip"`
+	SourceIP            string  `gorm:"column:source_ip;size:64;not null;default:''" json:"source_ip"`
+	XIP                 string  `gorm:"column:x_ip;size:64;not null;default:''" json:"x_ip"`
+	XForwardedFor       string  `gorm:"column:x_forwarded_for;size:1024;not null;default:''" json:"x_forwarded_for"`
+	XRealIP             string  `gorm:"column:x_real_ip;size:64;not null;default:''" json:"x_real_ip"`
 	UserAgent           string  `gorm:"column:user_agent;type:text" json:"user_agent"`
 	Referer             string  `gorm:"column:referer;size:500;not null;default:''" json:"referer"`
 	RequestHeaders      *string `gorm:"column:request_headers;type:mediumtext" json:"request_headers,omitempty"`
@@ -237,28 +237,30 @@ func GetAPIAccessLogStatsByUserID(userID uint64) (*APIAccessLogStats, error) {
 		MethodStats: []APIAccessMethodStat{},
 	}
 	todayStart := resolveAPIAccessLogStartOfLocalDay(time.Now()).Unix()
+	// 用户中心统计仅统计 API Key 调用（不含 JWT 网页请求）
+	base := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND auth_method = ?", userID, "apikey")
 
-	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ?", userID).Count(&stats.TotalCount).Error; err != nil {
+	if err := base.Count(&stats.TotalCount).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND create_time >= ?", userID, todayStart).Count(&stats.TodayCount).Error; err != nil {
+	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND auth_method = ? AND create_time >= ?", userID, "apikey", todayStart).Count(&stats.TodayCount).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND status_code >= 200 AND status_code < 400", userID).Count(&stats.SuccessCount).Error; err != nil {
+	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND auth_method = ? AND status_code >= 200 AND status_code < 400", userID, "apikey").Count(&stats.SuccessCount).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND status_code >= 400 AND status_code < 500", userID).Count(&stats.ClientErrorCount).Error; err != nil {
+	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND auth_method = ? AND status_code >= 400 AND status_code < 500", userID, "apikey").Count(&stats.ClientErrorCount).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND status_code >= 500", userID).Count(&stats.ServerErrorCount).Error; err != nil {
+	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND auth_method = ? AND status_code >= 500", userID, "apikey").Count(&stats.ServerErrorCount).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ?", userID).Select("COALESCE(AVG(duration), 0)").Scan(&stats.AvgDuration).Error; err != nil {
+	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND auth_method = ?", userID, "apikey").Select("COALESCE(AVG(duration), 0)").Scan(&stats.AvgDuration).Error; err != nil {
 		return nil, err
 	}
 	if err := db.DB.Model(&APIAccessLog{}).
 		Select("COALESCE(NULLIF(COALESCE(NULLIF(route_path, ''), path), ''), '/') AS route_path, COUNT(*) AS count, COALESCE(AVG(duration), 0) AS avg_duration").
-		Where("user_id = ?", userID).
+		Where("user_id = ? AND auth_method = ?", userID, "apikey").
 		Group("COALESCE(NULLIF(COALESCE(NULLIF(route_path, ''), path), ''), '/')").
 		Order("count DESC").
 		Limit(10).
@@ -267,7 +269,7 @@ func GetAPIAccessLogStatsByUserID(userID uint64) (*APIAccessLogStats, error) {
 	}
 	if err := db.DB.Model(&APIAccessLog{}).
 		Select("COALESCE(NULLIF(method, ''), 'UNKNOWN') AS method, COUNT(*) AS count").
-		Where("user_id = ?", userID).
+		Where("user_id = ? AND auth_method = ?", userID, "apikey").
 		Group("COALESCE(NULLIF(method, ''), 'UNKNOWN')").
 		Order("count DESC").
 		Scan(&stats.MethodStats).Error; err != nil {

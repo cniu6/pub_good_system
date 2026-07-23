@@ -38,12 +38,6 @@ func HandlePresence(c *gin.Context) {
 
 	ticket := strings.TrimSpace(c.Query("ticket"))
 	if ticket == "" {
-		// 兼容过渡期：仍拒绝裸 JWT 出现在 query，避免日志/Referer 泄露
-		if strings.TrimSpace(c.Query("token")) != "" {
-			c.Abort()
-			utils.Fail(c, http.StatusUnauthorized, "use ticket instead of token")
-			return
-		}
 		c.Abort()
 		utils.Fail(c, http.StatusUnauthorized, "ticket is required")
 		return
@@ -64,27 +58,11 @@ func HandlePresence(c *gin.Context) {
 		return
 	}
 
-	// 同浏览器实例 ID：多标签重复登录时，只保留当前会话，踢掉同浏览器其它会话。
+	// 先只读取 browser ID；会话收口必须在 Upgrade + Register 成功后执行。
+	// 否则新 WS 被代理/网络拒绝时，旧会话已经被提前撤销并踢下线。
 	browserID := strings.TrimSpace(c.Query("browser_id"))
 	if browserID == "" {
 		browserID = strings.TrimSpace(c.GetHeader("X-Browser-Id"))
-	}
-	if browserID != "" {
-		if session.BrowserID == "" {
-			_ = models.BindSessionBrowserID(session.ID, browserID)
-			session.BrowserID = browserID
-		}
-		revokedIDs := make([]uint64, 0)
-		if revoked, revErr := models.RevokeOtherSessionsByBrowserID(session.UserID, session.AuthGuard, browserID, strconv.FormatUint(session.ID, 10)); revErr == nil {
-			revokedIDs = append(revokedIDs, revoked...)
-		}
-		// 兼容旧会话（browser_id 为空）：同 UA 的 web 多会话一并收口，避免多标签堆出 2~3 行。
-		if revoked, revErr := models.RevokeSiblingWebSessionsByUA(session.UserID, session.AuthGuard, session.UserAgent, strconv.FormatUint(session.ID, 10)); revErr == nil {
-			revokedIDs = append(revokedIDs, revoked...)
-		}
-		if len(revokedIDs) > 0 {
-			DefaultHub().KickMany(revokedIDs, "browser_session_replaced")
-		}
 	}
 
 	upgrader := websocket.Upgrader{
@@ -113,17 +91,49 @@ func HandlePresence(c *gin.Context) {
 		_ = conn.Close()
 	}()
 
+	// 同浏览器实例 ID：多标签重复登录时只保留当前会话。
+	// 放在 Register 成功后，确保新连接已经真实可用才撤销旧会话。
+	if browserID != "" {
+		if session.BrowserID == "" {
+			_ = models.BindSessionBrowserID(session.ID, browserID)
+			session.BrowserID = browserID
+		}
+		revokedIDs := make([]uint64, 0)
+		if revoked, revErr := models.RevokeOtherSessionsByBrowserID(session.UserID, session.AuthGuard, browserID, strconv.FormatUint(session.ID, 10)); revErr == nil {
+			revokedIDs = append(revokedIDs, revoked...)
+		}
+		// 兼容升级前 browser_id 为空的旧会话，按 UA 做一次收口。
+		if revoked, revErr := models.RevokeSiblingWebSessionsByUA(session.UserID, session.AuthGuard, session.UserAgent, strconv.FormatUint(session.ID, 10)); revErr == nil {
+			revokedIDs = append(revokedIDs, revoked...)
+		}
+		if len(revokedIDs) > 0 {
+			DefaultHub().KickMany(revokedIDs, "browser_session_replaced")
+		}
+	}
+
 	// 建连即写入心跳，确保短连接也能被管理端看见。
-	_ = models.TouchSessionLastSeen(session.ID)
+	active, touchErr := models.TouchSessionLastSeen(session.ID)
+	if touchErr != nil || !active {
+		client.forceClose("session_revoked")
+		return
+	}
 	var lastTouchMu sync.Mutex
 	lastTouch := time.Now()
-	touch := func() {
+	touch := func() bool {
 		lastTouchMu.Lock()
 		defer lastTouchMu.Unlock()
-		if time.Since(lastTouch) >= heartbeatPersistInterval {
-			_ = models.TouchSessionLastSeen(session.ID)
+		if time.Since(lastTouch) < heartbeatPersistInterval {
+			return true
+		}
+		active, err := models.TouchSessionLastSeen(session.ID)
+		if err != nil {
+			// 短暂数据库故障不能把全体在线用户误踢；公告广播前的复核与下一次心跳会继续兜底。
+			return true
+		}
+		if active {
 			lastTouch = time.Now()
 		}
+		return active
 	}
 
 	// 读超时按「上报周期」动态换算的容忍窗口 +30s 兜底，避免管理端调整上报周期后连接被误判超时断开。
@@ -133,11 +143,17 @@ func HandlePresence(c *gin.Context) {
 	conn.SetReadLimit(1024)
 	_ = conn.SetReadDeadline(time.Now().Add(readDeadline()))
 	conn.SetPongHandler(func(string) error {
-		touch()
+		if !touch() {
+			client.forceClose("session_revoked")
+			return websocket.ErrCloseSent
+		}
 		return conn.SetReadDeadline(time.Now().Add(readDeadline()))
 	})
 	conn.SetPingHandler(func(message string) error {
-		touch()
+		if !touch() {
+			client.forceClose("session_revoked")
+			return websocket.ErrCloseSent
+		}
 		client.writeMu.Lock()
 		defer client.writeMu.Unlock()
 		return conn.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
@@ -155,7 +171,10 @@ func HandlePresence(c *gin.Context) {
 			client.forceClose("message_rate_limited")
 			return
 		}
-		touch()
+		if !touch() {
+			client.forceClose("session_revoked")
+			return
+		}
 	}
 }
 

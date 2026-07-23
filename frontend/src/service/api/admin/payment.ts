@@ -41,7 +41,9 @@ export interface PaymentStats {
 // 管理端支付 API
 // ========================================
 
-function baseUrl() { return `${getAdminApiBase()}/payment` }
+function baseUrl() {
+  return `${getAdminApiBase()}/payment`
+}
 
 /** 补单/取消订单写接口需要幂等键 */
 function createIdempotencyKey(prefix: string) {
@@ -59,13 +61,10 @@ export const adminPaymentApi = {
     return request.Get<Service.ResponseResult<PaymentOrder>>(`${baseUrl()}/orders/${id}`)
   },
 
-  /** 手动补单（force=true 可对取消/失败单强制补单，须填 memo；启用 TOTP 时传 totpCode） */
-  completeOrder(id: number, data?: { memo?: string, force?: boolean }, totpCode?: string) {
-    const headers: Record<string, string> = { 'X-Idempotency-Key': createIdempotencyKey(`payment-complete-${id}`) }
-    if (totpCode)
-      headers['X-Totp-Code'] = totpCode
+  /** 手动补单（force=true 可对取消/失败单强制补单，须填 memo） */
+  completeOrder(id: number, data?: { memo?: string, force?: boolean }) {
     return request.Post<Service.ResponseResult<{ message: string }>>(`${baseUrl()}/orders/${id}/complete`, data || {}, {
-      headers,
+      headers: { 'X-Idempotency-Key': createIdempotencyKey(`payment-complete-${id}`) },
     })
   },
 

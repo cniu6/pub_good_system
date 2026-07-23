@@ -9,6 +9,7 @@ const {
   switchLoading,
   savingBasic,
   handleUpdateAllowRegister,
+  handleUpdateAllowUserLogin,
   handleUpdateAnnouncementEnabled,
   handleSaveBasic,
 } = useAdminSettings()
@@ -51,7 +52,35 @@ const {
             :loading="switchLoading.allow_register"
             @update:value="handleUpdateAllowRegister"
           />
-          <n-text depth="3">{{ basicForm.allow_register ? t('adminSettings.allowRegister') : t('adminSettings.disallowRegister') }}</n-text>
+          <n-text depth="3">
+            {{ basicForm.allow_register ? t('adminSettings.allowRegister') : t('adminSettings.disallowRegister') }}
+          </n-text>
+        </n-space>
+      </n-form-item>
+      <n-form-item :label="t('adminSettings.registerDefaultLevel')">
+        <n-space vertical :size="4">
+          <n-input-number
+            v-model:value="basicForm.register_default_level"
+            :min="1"
+            :max="9999"
+            :precision="0"
+            style="width: 160px;"
+          />
+          <n-text depth="3" style="font-size: 12px;">
+            {{ t('adminSettings.registerDefaultLevelHint') }}
+          </n-text>
+        </n-space>
+      </n-form-item>
+      <n-form-item :label="t('adminSettings.userLogin')">
+        <n-space align="center">
+          <n-switch
+            :value="basicForm.allow_user_login"
+            :loading="switchLoading.allow_user_login"
+            @update:value="handleUpdateAllowUserLogin"
+          />
+          <n-text depth="3">
+            {{ basicForm.allow_user_login ? t('adminSettings.allowUserLogin') : t('adminSettings.disallowUserLogin') }}
+          </n-text>
         </n-space>
       </n-form-item>
       <n-form-item :label="t('adminSettings.announcementEnabled')">
@@ -62,7 +91,9 @@ const {
         />
       </n-form-item>
       <n-form-item>
-        <n-button type="primary" :loading="savingBasic" @click="handleSaveBasic">{{ t('adminSettings.saveSettings') }}</n-button>
+        <n-button type="primary" :loading="savingBasic" @click="handleSaveBasic">
+          {{ t('adminSettings.saveSettings') }}
+        </n-button>
       </n-form-item>
     </n-form>
   </n-space>

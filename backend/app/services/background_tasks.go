@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log"
 
 	"fst/backend/internal/task"
 )
@@ -11,7 +12,9 @@ import (
 func StartBackgroundTasks() {
 	task.OnConfigSaved = func() {
 		if GlobalSettingsService != nil {
-			_ = GlobalSettingsService.RefreshCache()
+			if err := GlobalSettingsService.RefreshCache(); err != nil {
+				log.Printf("[BackgroundTasks] RefreshCache after auto-job config save failed: %v", err)
+			}
 			ApplyGlobalRuntimeConfig()
 		}
 	}

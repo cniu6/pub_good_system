@@ -110,9 +110,19 @@ func (ctrl *AnnouncementController) Create(c *gin.Context) {
 		popup = *req.Popup
 	}
 	adminID := adminUserID(c)
+	title := strings.TrimSpace(req.Title)
+	summary := strings.TrimSpace(req.Summary)
+	if err := utils.ValidateRuneLen(title, "标题", utils.MaxAnnouncementTitle); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+	if err := utils.ValidateRuneLen(summary, "摘要", utils.MaxAnnouncementSummary); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
 	a := &models.Announcement{
-		Title:       strings.TrimSpace(req.Title),
-		Summary:     strings.TrimSpace(req.Summary),
+		Title:       title,
+		Summary:     summary,
 		Content:     req.Content, // 管理员可信内容，保留 Markdown/HTML
 		Type:        normalizeAnnouncementType(req.Type),
 		Status:      models.AnnouncementStatusDraft,
@@ -157,6 +167,14 @@ func (ctrl *AnnouncementController) Update(c *gin.Context) {
 	}
 	existing.Title = strings.TrimSpace(req.Title)
 	existing.Summary = strings.TrimSpace(req.Summary)
+	if err := utils.ValidateRuneLen(existing.Title, "标题", utils.MaxAnnouncementTitle); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+	if err := utils.ValidateRuneLen(existing.Summary, "摘要", utils.MaxAnnouncementSummary); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
 	existing.Content = req.Content
 	existing.Type = normalizeAnnouncementType(req.Type)
 	existing.Priority = req.Priority

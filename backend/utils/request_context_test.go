@@ -2,6 +2,7 @@ package utils
 
 import (
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -31,6 +32,16 @@ func TestGetClientIP(t *testing.T) {
 
 	if got := GetClientIP(ctx); got != "192.0.2.10" {
 		t.Fatalf("GetClientIP() = %q, want %q", got, "192.0.2.10")
+	}
+}
+
+func TestClampStoredIP(t *testing.T) {
+	if got := ClampStoredIP("  1.2.3.4  "); got != "1.2.3.4" {
+		t.Fatalf("ClampStoredIP trim = %q", got)
+	}
+	long := strings.Repeat("a", MaxStoredIPLength+10)
+	if got := ClampStoredIP(long); len(got) != MaxStoredIPLength {
+		t.Fatalf("ClampStoredIP len = %d, want %d", len(got), MaxStoredIPLength)
 	}
 }
 

@@ -21,7 +21,7 @@ type OperationLog struct {
 	Action       string  `gorm:"column:action;size:100;not null;default:'';index:idx_op_action_create_time,priority:1" json:"action"`
 	Method       string  `gorm:"column:method;size:20;not null;default:'';index:idx_op_method_create_time,priority:1" json:"method"`
 	Path         string  `gorm:"column:path;size:255;not null;default:''" json:"path"`
-	IP           string  `gorm:"column:ip;size:45;not null;default:'';index:idx_op_ip_create_time,priority:1" json:"ip"`
+	IP           string  `gorm:"column:ip;size:64;not null;default:'';index:idx_op_ip_create_time,priority:1" json:"ip"`
 	UserAgent    string  `gorm:"column:user_agent;type:text" json:"user_agent"`
 	HandlerName  string  `gorm:"column:handler_name;size:255;not null;default:'';index:idx_op_handler_create_time,priority:1" json:"handler_name"`
 	RequestBody  *string `gorm:"column:request_body;type:mediumtext" json:"request_body,omitempty"`
@@ -41,6 +41,14 @@ var operationLogCleanupNextAt atomic.Int64
 func CreateOperationLog(item *OperationLog) error {
 	now := time.Now().Unix()
 	item.CreateTime = &now
+	// 系统写入静默截断，避免超列宽导致入库失败
+	item.Username = clampBytes(item.Username, storedModuleLen)
+	item.Module = clampBytes(item.Module, storedModuleLen)
+	item.Action = clampBytes(item.Action, storedActionLen)
+	item.Method = clampBytes(item.Method, storedMethodLen)
+	item.Path = clampPath(item.Path)
+	item.IP = clampStoredIP(item.IP)
+	item.HandlerName = clampBytes(item.HandlerName, storedPathLen)
 	if err := db.DB.Create(item).Error; err != nil {
 		return err
 	}

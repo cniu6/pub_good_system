@@ -70,3 +70,16 @@ export function formatUptime(seconds?: number | null): string {
   const second = totalSeconds % 60
   return $t('adminSettings.uptimePreciseFormat', { day, hour, minute, second })
 }
+
+/** JSON/纯文本载荷美化（日志详情共用；非 JSON 原样返回） */
+export function formatPrettyJSON(raw?: string | null): string {
+  const value = String(raw ?? '').trim()
+  if (!value)
+    return ''
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2)
+  }
+  catch {
+    return value
+  }
+}

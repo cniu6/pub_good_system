@@ -44,6 +44,7 @@ func Start() {
 			log.Printf("[AutoJob] 导入默认任务失败: %v", err)
 		}
 		softenHighFrequencyIntervals()
+		applyReconcilePaymentOrdersDefaultOff()
 		ReloadCache()
 		schedRunning = true
 		schedStartAt = time.Now()
@@ -414,17 +415,23 @@ func Trigger(jobCode string, opts RunOptions) (*JobRun, error) {
 
 	// 调度空跑成功：不落库
 	if opts.Trigger == TriggerSchedule && status == StatusSuccess && quiet && !opts.Force {
-		_ = bumpDefinitionAfterRun(jobCode, status, startedAt, finished, "")
+		if err := bumpDefinitionAfterRun(jobCode, status, startedAt, finished, ""); err != nil {
+			log.Printf("[AutoJob] bumpDefinitionAfterRun(quiet) failed job=%s: %v", jobCode, err)
+		}
 		return run, nil
 	}
 
 	id, err := InsertRun(run)
 	if err != nil {
-		_ = bumpDefinitionAfterRun(jobCode, status, startedAt, finished, "写入执行记录失败: "+err.Error())
+		if bumpErr := bumpDefinitionAfterRun(jobCode, status, startedAt, finished, "写入执行记录失败: "+err.Error()); bumpErr != nil {
+			log.Printf("[AutoJob] bumpDefinitionAfterRun(insert-fail) failed job=%s: %v", jobCode, bumpErr)
+		}
 		return nil, err
 	}
 	run.ID = id
-	_ = bumpDefinitionAfterRun(jobCode, status, startedAt, finished, errorText)
+	if err := bumpDefinitionAfterRun(jobCode, status, startedAt, finished, errorText); err != nil {
+		log.Printf("[AutoJob] bumpDefinitionAfterRun failed job=%s: %v", jobCode, err)
+	}
 	maybePrune(cfg)
 
 	if status != StatusSuccess {
@@ -455,11 +462,15 @@ func persistFailed(def *JobDefinition, opts RunOptions, startedAt int64, message
 	}
 	id, err := InsertRun(run)
 	if err != nil {
-		_ = bumpDefinitionAfterRun(def.JobCode, StatusFailed, startedAt, finished, errText)
+		if bumpErr := bumpDefinitionAfterRun(def.JobCode, StatusFailed, startedAt, finished, errText); bumpErr != nil {
+			log.Printf("[AutoJob] bumpDefinitionAfterRun(persistFailed-insert) failed job=%s: %v", def.JobCode, bumpErr)
+		}
 		return nil, err
 	}
 	run.ID = id
-	_ = bumpDefinitionAfterRun(def.JobCode, StatusFailed, startedAt, finished, errText)
+	if err := bumpDefinitionAfterRun(def.JobCode, StatusFailed, startedAt, finished, errText); err != nil {
+		log.Printf("[AutoJob] bumpDefinitionAfterRun(persistFailed) failed job=%s: %v", def.JobCode, err)
+	}
 	return run, nil
 }
 

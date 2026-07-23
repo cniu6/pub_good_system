@@ -1,7 +1,8 @@
 /**
  * 编辑弹窗内：余额 / 积分 / 提现 tabs
  */
-import { computed, h, reactive, ref, type Ref } from 'vue'
+import { computed, h, reactive, ref } from 'vue'
+import type { Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
@@ -47,12 +48,26 @@ export function useUserFinance(options: {
   })
 
   const orderStatusOptions = computed(() => [
-    { label: `${t('adminUsersDetail.pendingPayment')}(0)`, value: 0 },
-    { label: `${t('adminUsersDetail.paid')}(1)`, value: 1 },
-    { label: `${t('adminUsersDetail.cancelled')}(2)`, value: 2 },
-    { label: `${t('adminUsersDetail.refunded')}(3)`, value: 3 },
-    { label: `${t('adminUsersDetail.paymentFailed')}(4)`, value: 4 },
+    { label: t('adminUsersDetail.pendingPayment'), value: 0 },
+    { label: t('adminUsersDetail.paid'), value: 1 },
+    { label: t('adminUsersDetail.cancelled'), value: 2 },
+    { label: t('adminUsersDetail.refunded'), value: 3 },
+    { label: t('adminUsersDetail.paymentFailed'), value: 4 },
   ])
+
+  /** 余额操作类型 → 可读文案（禁止把内部枚举直接塞进确认框） */
+  function balanceOperationLabel(op: string): string {
+    const map: Record<string, string> = {
+      balance_only: t('adminUsers.balanceOnly'),
+      log_only: t('adminUsers.logOnly'),
+      order_only: t('adminUsers.orderOnly'),
+      balance_log: t('adminUsers.balanceLog'),
+      balance_order: t('adminUsers.balanceOrder'),
+      log_order: t('adminUsers.logOrder'),
+      both: t('adminUsers.allInOne'),
+    }
+    return map[op] || op
+  }
 
   const balanceAmountLabel = computed(() => {
     if (['log_only', 'log_order'].includes(balanceForm.operation))
@@ -240,11 +255,16 @@ export function useUserFinance(options: {
       order_status: isOrder ? balanceForm.orderStatus : undefined,
     }
 
+    const opLabel = balanceOperationLabel(balanceForm.operation)
+    const amountText = needsAmount
+      ? `${money > 0 ? '+' : ''}¥${money.toFixed(2)}`
+      : t('adminUsers.noAmountChange')
     dialog.warning({
-      title: t('adminMoneyLogs.confirmChangeTitle'),
-      content: t('adminMoneyLogs.confirmChangeContent', {
+      title: t('adminUsers.confirmBalanceOpTitle'),
+      content: t('adminUsers.confirmBalanceOpContent', {
         userId: user.id,
-        amount: needsAmount ? `${money > 0 ? '+' : ''}¥${money.toFixed(2)}` : balanceForm.operation,
+        operation: opLabel,
+        amount: amountText,
       }),
       positiveText: t('common.confirm'),
       negativeText: t('common.cancel'),

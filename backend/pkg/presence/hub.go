@@ -2,6 +2,7 @@ package presence
 
 import (
 	"encoding/json"
+	"fst/backend/app/models"
 	"sync"
 	"time"
 
@@ -110,6 +111,21 @@ func (c *Client) writeJSON(v interface{}) {
 	_ = c.conn.WriteJSON(v)
 }
 
+// canReceiveBroadcast 在业务推送前复核 DB 会话状态。
+// 主动撤销不一定发生在能直接访问 Hub 的控制器里；这里兜底防止已撤销/已过期的 WS
+// 在下一个心跳到来前继续收到公告等广播。查询异常时不误踢所有正常用户，由心跳复核再次处理。
+func (h *Hub) canReceiveBroadcast(client *Client) bool {
+	active, err := models.IsUserSessionActiveByID(client.SessionID)
+	if err != nil {
+		return true
+	}
+	if active {
+		return true
+	}
+	client.forceClose("session_revoked")
+	return false
+}
+
 // BroadcastJSON 向所有在线连接广播一条业务消息（如公告发布）。单机 Hub；多实例需总线。
 func (h *Hub) BroadcastJSON(v interface{}) {
 	h.mu.Lock()
@@ -119,6 +135,9 @@ func (h *Hub) BroadcastJSON(v interface{}) {
 	}
 	h.mu.Unlock()
 	for _, c := range clients {
+		if !h.canReceiveBroadcast(c) {
+			continue
+		}
 		c.writeJSON(v)
 	}
 }
@@ -134,6 +153,9 @@ func (h *Hub) BroadcastToUserJSON(userID uint64, v interface{}) {
 	}
 	h.mu.Unlock()
 	for _, c := range clients {
+		if !h.canReceiveBroadcast(c) {
+			continue
+		}
 		c.writeJSON(v)
 	}
 }

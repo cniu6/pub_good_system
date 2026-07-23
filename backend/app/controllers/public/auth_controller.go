@@ -90,7 +90,7 @@ func registrationAllowed() bool {
 }
 
 // resolveClientType 解析登录请求的客户端类型：body(clientType) > Header(X-Client-Type) > Query(client_type)。
-// 供「禁止网页端登录」拦截与会话记录（user_sessions.client_type）共用同一份解析结果。
+// 仅用于写入会话记录（在线用户展示），不参与登录放行。
 func resolveClientType(c *gin.Context, bodyClientType string) string {
 	clientType := bodyClientType
 	if clientType == "" {
@@ -149,7 +149,7 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	// 获取客户端IP
 	clientIP := utils.GetClientIP(c)
 
-	// 客户端类型：body > Header(X-Client-Type) > Query，登录拦截（禁止网页端登录开关）与会话记录共用同一份解析结果
+	// 客户端类型仅写入会话记录（在线用户展示），不参与登录放行判断
 	clientType := resolveClientType(c, req.ClientType)
 
 	// 调用服务层登录
@@ -157,18 +157,12 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	if authGuard == "" {
 		authGuard = utils.UserAuthGuard
 	}
-	result, err := ctrl.auth_svc.Login(username, req.Password, authGuard, clientType, clientIP)
+	result, err := ctrl.auth_svc.Login(username, req.Password, authGuard, clientIP)
 	if err != nil {
 		if isNonProductionMode() {
 			log.Printf("[AUTH] login failed: code=%d, message=%s", err.Code, err.Message)
 		}
 		utils.Fail(c, err.Code, err.Message)
-		return
-	}
-
-	// 管理端需 TOTP 第二步：此时尚未签发正式 Token，不创建会话
-	if result.NeedTOTP {
-		utils.Success(c, result)
 		return
 	}
 
@@ -189,53 +183,6 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 		return
 	}
 
-	utils.Success(c, result)
-}
-
-// LoginTOTPRequest 管理端 TOTP 第二步登录
-type LoginTOTPRequest struct {
-	TempToken  string `json:"temp_token" binding:"required"`
-	Code       string `json:"code" binding:"required"`
-	ClientType string `json:"clientType"`
-}
-
-// LoginTOTP 管理端密码通过后的 TOTP 校验，完成正式登录
-// @Summary 管理端 TOTP 登录第二步
-// @Tags Public-认证
-// @Accept json
-// @Produce json
-// @Param request body LoginTOTPRequest true "临时令牌与动态码"
-// @Success 200 {object} utils.Response
-// @Router /api/v1/public/login/totp [post]
-func (ctrl *AuthController) LoginTOTP(c *gin.Context) {
-	var req LoginTOTPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Fail(c, 400, err.Error())
-		return
-	}
-	clientIP := utils.GetClientIP(c)
-	clientType := resolveClientType(c, req.ClientType)
-
-	result, svcErr := services.CompleteAdminLoginWithTOTP(req.TempToken, strings.TrimSpace(req.Code), clientIP)
-	if svcErr != nil {
-		utils.Fail(c, svcErr.Code, svcErr.Message)
-		return
-	}
-
-	userAgent := c.GetHeader("User-Agent")
-	device := utils.ParseDeviceFromUserAgent(userAgent)
-	accessTokenHash := utils.HashToken(result.AccessToken)
-	refreshTokenHash := utils.HashToken(result.RefreshToken)
-	browserID := strings.TrimSpace(c.GetHeader("X-Browser-Id"))
-	if browserID == "" {
-		browserID = strings.TrimSpace(c.Query("browser_id"))
-	}
-	authGuard := utils.AdminAuthGuard
-	if err := models.CreateUserSession(result.ID, authGuard, accessTokenHash, refreshTokenHash, clientIP, userAgent, device, models.NormalizeClientType(clientType), browserID, result.ExpiresAt, result.RefreshExpiresAt); err != nil {
-		log.Printf("[AUTH] create totp login session failed: user_id=%d err=%v", result.ID, err)
-		utils.Fail(c, 500, "登录会话创建失败，请重新登录重试")
-		return
-	}
 	utils.Success(c, result)
 }
 
@@ -268,9 +215,9 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 	}
 
 	// 验证用户名格式
-	usernameRegex := regexp.MustCompile(`^[a-zA-Z0-9_]{3,50}$`)
+	usernameRegex := regexp.MustCompile(`^[a-zA-Z0-9_]{3,64}$`)
 	if !usernameRegex.MatchString(req.Username) {
-		utils.Fail(c, 400, "Username must be 3-50 characters long and contain only letters, numbers, and underscores")
+		utils.Fail(c, 400, "Username must be 3-64 characters long and contain only letters, numbers, and underscores")
 		return
 	}
 
@@ -612,7 +559,6 @@ func (ctrl *AuthController) RegisterRoutes(group *gin.RouterGroup) {
 	authGroup.Use(middleware.StrictRateLimitMiddleware())
 	{
 		authGroup.POST("/login", ctrl.Login)
-		authGroup.POST("/login/totp", ctrl.LoginTOTP)
 		authGroup.POST("/register", ctrl.Register)
 		authGroup.POST("/send-register-code", ctrl.SendRegisterCode)
 		authGroup.POST("/forgot-password", ctrl.SendResetEmail)

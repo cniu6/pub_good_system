@@ -23,7 +23,9 @@ const {
             :loading="switchLoading.realname_api_enabled"
             @update:value="handleUpdateRealnameApiEnabled"
           />
-          <n-text depth="3">{{ realnameApiForm.realname_api_enabled ? t('adminSettings.realnameApiEnabledText') : t('adminSettings.realnameApiDisabledText') }}</n-text>
+          <n-text depth="3">
+            {{ realnameApiForm.realname_api_enabled ? t('adminSettings.realnameApiEnabledText') : t('adminSettings.realnameApiDisabledText') }}
+          </n-text>
         </n-space>
       </n-form-item>
       <n-divider />
@@ -57,7 +59,9 @@ const {
         />
       </n-form-item>
       <n-form-item>
-        <n-button type="primary" :loading="savingRealnameApi" @click="handleSaveRealnameApi">{{ t('adminSettings.saveSettings') }}</n-button>
+        <n-button type="primary" :loading="savingRealnameApi" @click="handleSaveRealnameApi">
+          {{ t('adminSettings.saveSettings') }}
+        </n-button>
       </n-form-item>
     </n-form>
     <n-alert type="info" :title="t('adminSettings.tip')" :bordered="false">

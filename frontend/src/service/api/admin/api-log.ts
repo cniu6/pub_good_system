@@ -1,7 +1,9 @@
 import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
-function baseUrl() { return `${getAdminApiBase()}/api-logs` }
+function baseUrl() {
+  return `${getAdminApiBase()}/api-logs`
+}
 
 export interface APIAccessLog {
   id: number
@@ -64,14 +66,14 @@ export interface APIAccessLogStats {
   server_error_count: number
   distinct_ip_count: number
   avg_duration: number
-  top_paths: Array<{ route_path: string; count: number; avg_duration: number }>
-  method_stats: Array<{ method: string; count: number }>
-  scene_stats: Array<{ scene: string; count: number }>
+  top_paths: Array<{ route_path: string, count: number, avg_duration: number }>
+  method_stats: Array<{ method: string, count: number }>
+  scene_stats: Array<{ scene: string, count: number }>
 }
 
 export const adminAPILogApi = {
   list(params?: APIAccessLogListParams) {
-    return request.Get<Service.ResponseResult<{ list: APIAccessLog[]; total: number; page: number; page_size: number }>>(baseUrl(), { params })
+    return request.Get<Service.ResponseResult<{ list: APIAccessLog[], total: number, page: number, page_size: number }>>(baseUrl(), { params })
   },
 
   detail(id: number | string) {

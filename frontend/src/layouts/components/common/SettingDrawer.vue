@@ -81,7 +81,19 @@ function resetSetting() {
         <n-space vertical :size="4">
           <n-space align="center" justify="space-between">
             <span>{{ $t('app.sidebarWidth') }}</span>
-            <n-text depth="3">{{ appStore.sidebarWidth }}px</n-text>
+            <n-space align="center" :size="8">
+              <n-text depth="3">
+                {{ appStore.sidebarWidth }}px
+              </n-text>
+              <n-button
+                size="tiny"
+                quaternary
+                :disabled="appStore.sidebarWidth === 240"
+                @click="appStore.resetSidebarWidth()"
+              >
+                {{ $t('app.sidebarWidthReset') }}
+              </n-button>
+            </n-space>
           </n-space>
           <n-slider
             :value="appStore.sidebarWidth"

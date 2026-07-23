@@ -379,7 +379,7 @@ func resolveOperationLogAggregateModule(module string) string {
 	if normalized == "" {
 		return "unknown"
 	}
-	return normalized
+	return clampBytes(normalized, storedModuleLen)
 }
 
 func resolveOperationLogAggregateAction(action string) string {
@@ -387,7 +387,7 @@ func resolveOperationLogAggregateAction(action string) string {
 	if normalized == "" {
 		return "unknown"
 	}
-	return normalized
+	return clampBytes(normalized, storedActionLen)
 }
 
 func resolveOperationLogAggregateMethod(method string) string {
@@ -395,5 +395,5 @@ func resolveOperationLogAggregateMethod(method string) string {
 	if normalized == "" {
 		return "UNKNOWN"
 	}
-	return normalized
+	return clampBytes(normalized, storedMethodLen)
 }

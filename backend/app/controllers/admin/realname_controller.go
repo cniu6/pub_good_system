@@ -2,6 +2,7 @@ package admin
 
 import (
 	"database/sql"
+	"errors"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/pkg/middleware"
@@ -87,7 +88,7 @@ func (c *RealnameController) Detail(ctx *gin.Context) {
 
 	verification, err := c.realnameService.GetByID(id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			utils.Fail(ctx, 404, "实名认证记录不存在")
 			return
 		}
@@ -110,7 +111,7 @@ func (c *RealnameController) RevealCertificate(ctx *gin.Context) {
 	}
 	verification, err := c.realnameService.GetByID(id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			utils.Fail(ctx, 404, "实名认证记录不存在")
 			return
 		}
@@ -187,7 +188,6 @@ func (c *RealnameController) RegisterRoutes(group *gin.RouterGroup) {
 		rn.GET("", c.List)
 		rn.GET("/:id", c.Detail)
 		rn.POST("/review", c.Review)
-		rn.POST("/:id/reveal-certificate", middleware.RequireRecentTOTP(), c.RevealCertificate)
+		rn.POST("/:id/reveal-certificate", c.RevealCertificate)
 	}
 }
-

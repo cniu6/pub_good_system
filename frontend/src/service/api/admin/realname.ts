@@ -6,13 +6,15 @@ import { getAdminApiBase } from './base'
 
 // 选项常量统一从 constants/realname 导出，避免与用户端重复
 export {
+  certificateTypeOptions,
   getCertificateTypeOptions,
   getRealnameStatusOptions,
-  certificateTypeOptions,
   realnameStatusOptions,
 } from '@/constants/realname'
 
-function baseUrl() { return `${getAdminApiBase()}/realname` }
+function baseUrl() {
+  return `${getAdminApiBase()}/realname`
+}
 
 // 实名认证状态
 export type RealnameStatus = 0 | 1 | 2
@@ -65,7 +67,7 @@ export const adminRealnameApi = {
     status: 1 | 2
     reject_reason?: string
   }) {
-    return request.Post<Service.ResponseResult<{}>>(
+    return request.Post<Service.ResponseResult<Record<string, never>>>(
       `${baseUrl()}/review`,
       data,
     )

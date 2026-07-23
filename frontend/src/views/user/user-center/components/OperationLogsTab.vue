@@ -4,8 +4,11 @@
  */
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NTag, NCode, useMessage, type DataTableColumns } from 'naive-ui'
-import { fetchMyOperationLogDetail, fetchMyOperationLogs, type UserOperationLog } from '@/service/api/user/logs'
+import { NButton, NCode, NTag, useMessage } from 'naive-ui'
+import type { DataTableColumns } from 'naive-ui'
+import { fetchMyOperationLogDetail, fetchMyOperationLogs } from '@/service/api/user/logs'
+import type { UserOperationLog } from '@/service/api/user/logs'
+import { formatPrettyJSON } from '@/utils/format'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -42,19 +45,8 @@ const methodColors: Record<string, 'info' | 'success' | 'warning' | 'error'> = {
   DELETE: 'error',
 }
 
-function formatPayload(raw?: string) {
-  const value = raw?.trim()
-  if (!value) return ''
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2)
-  }
-  catch {
-    return value
-  }
-}
-
-const formattedRequestBody = computed(() => formatPayload(detailData.value?.request_body))
-const formattedResponseBody = computed(() => formatPayload(detailData.value?.response_body))
+const formattedRequestBody = computed(() => formatPrettyJSON(detailData.value?.request_body))
+const formattedResponseBody = computed(() => formatPrettyJSON(detailData.value?.response_body))
 
 const columns: DataTableColumns<UserOperationLog> = [
   { title: 'ID', key: 'id', width: 80 },
@@ -76,7 +68,8 @@ const columns: DataTableColumns<UserOperationLog> = [
     key: 'create_time',
     width: 160,
     render(row) {
-      if (!row.create_time) return '-'
+      if (!row.create_time)
+        return '-'
       return new Date(row.create_time * 1000).toLocaleString()
     },
   },
@@ -138,8 +131,12 @@ onMounted(() => {
 <template>
   <div class="p-2">
     <n-space vertical>
-      <n-text depth="3">{{ t('userLogs.operationHint') }}</n-text>
-      <n-text depth="3">{{ t('userLogs.totalLogs', { total }) }}</n-text>
+      <n-text depth="3">
+        {{ t('userLogs.operationHint') }}
+      </n-text>
+      <n-text depth="3">
+        {{ t('userLogs.totalLogs', { total }) }}
+      </n-text>
       <n-data-table
         remote
         :columns="columns"
@@ -151,30 +148,50 @@ onMounted(() => {
     </n-space>
 
     <n-modal v-model:show="showDetail" preset="card" :title="t('userLogs.operationDetailTitle')" style="width: 860px;" :mask-closable="true">
-      <n-text v-if="detailLoading" depth="3">{{ t('userLogs.loading') }}</n-text>
+      <n-text v-if="detailLoading" depth="3">
+        {{ t('userLogs.loading') }}
+      </n-text>
       <n-space v-else-if="detailData" vertical :size="16">
         <n-descriptions bordered :column="2" label-placement="left">
-          <n-descriptions-item :label="t('userLogs.module')">{{ detailData.module || '-' }}</n-descriptions-item>
-          <n-descriptions-item :label="t('userLogs.action')">{{ detailData.action || '-' }}</n-descriptions-item>
-          <n-descriptions-item :label="t('userLogs.method')">{{ detailData.method || '-' }}</n-descriptions-item>
-          <n-descriptions-item :label="t('userLogs.path')">{{ detailData.path || '-' }}</n-descriptions-item>
-          <n-descriptions-item :label="t('userLogs.handlerName')" :span="2">{{ detailData.handler_name || '-' }}</n-descriptions-item>
-          <n-descriptions-item :label="t('userLogs.ip')">{{ detailData.ip || '-' }}</n-descriptions-item>
-          <n-descriptions-item :label="t('userLogs.duration')">{{ detailData.duration || 0 }}</n-descriptions-item>
-          <n-descriptions-item :label="t('userLogs.statusCode')">{{ detailData.status_code || '-' }}</n-descriptions-item>
+          <n-descriptions-item :label="t('userLogs.module')">
+            {{ detailData.module || '-' }}
+          </n-descriptions-item>
+          <n-descriptions-item :label="t('userLogs.action')">
+            {{ detailData.action || '-' }}
+          </n-descriptions-item>
+          <n-descriptions-item :label="t('userLogs.method')">
+            {{ detailData.method || '-' }}
+          </n-descriptions-item>
+          <n-descriptions-item :label="t('userLogs.path')">
+            {{ detailData.path || '-' }}
+          </n-descriptions-item>
+          <n-descriptions-item :label="t('userLogs.handlerName')" :span="2">
+            {{ detailData.handler_name || '-' }}
+          </n-descriptions-item>
+          <n-descriptions-item :label="t('userLogs.ip')">
+            {{ detailData.ip || '-' }}
+          </n-descriptions-item>
+          <n-descriptions-item :label="t('userLogs.duration')">
+            {{ detailData.duration || 0 }}
+          </n-descriptions-item>
+          <n-descriptions-item :label="t('userLogs.statusCode')">
+            {{ detailData.status_code || '-' }}
+          </n-descriptions-item>
           <n-descriptions-item :label="t('userLogs.time')">
             {{ detailData.create_time ? new Date(detailData.create_time * 1000).toLocaleString() : '-' }}
           </n-descriptions-item>
         </n-descriptions>
 
-        <n-card size="small" embedded :title="t('userLogs.requestBody')">
-          <NCode :code="formattedRequestBody || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
+        <n-card v-if="formattedRequestBody" size="small" embedded :title="t('userLogs.requestBody')">
+          <NCode :code="formattedRequestBody" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
         </n-card>
-        <n-card size="small" embedded :title="t('userLogs.responseBody')">
-          <NCode :code="formattedResponseBody || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
+        <n-card v-if="formattedResponseBody" size="small" embedded :title="t('userLogs.responseBody')">
+          <NCode :code="formattedResponseBody" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
         </n-card>
       </n-space>
-      <n-text v-else depth="3">{{ t('userLogs.noDetailData') }}</n-text>
+      <n-text v-else depth="3">
+        {{ t('userLogs.noDetailData') }}
+      </n-text>
     </n-modal>
   </div>
 </template>

@@ -3,6 +3,7 @@ package models
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"fst/backend/pkg/db"
 	"strconv"
 	"strings"
@@ -21,21 +22,24 @@ const ImpersonationDeviceLabel = "Admin Impersonation"
 // UserSession 用户会话模型
 type UserSession struct {
 	ID               uint64 `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
-	UserID           uint64 `gorm:"column:user_id" json:"user_id"`
-	AuthGuard        string `gorm:"column:auth_guard" json:"auth_guard"`
-	TokenHash        string `gorm:"column:token_hash" json:"-"`
-	RefreshTokenHash string `gorm:"column:refresh_token_hash" json:"-"`
-	IP               string `gorm:"column:ip" json:"ip"`
-	UserAgent        string `gorm:"column:user_agent" json:"user_agent"`
-	Device           string `gorm:"column:device" json:"device"`
-	ClientType       string `gorm:"column:client_type" json:"client_type"`
-	BrowserID        string `gorm:"column:browser_id" json:"browser_id"`
-	IsActive         bool   `gorm:"column:is_active" json:"is_active"`
-	LoginAt          int64  `gorm:"column:login_at" json:"login_at"`
-	LastSeenAt       int64  `gorm:"column:last_seen_at" json:"last_seen_at"`
-	ExpiresAt        int64  `gorm:"column:expires_at" json:"expires_at"`
-	RefreshExpiresAt int64  `gorm:"column:refresh_expires_at" json:"-"`
-	CreatedAt        int64  `gorm:"column:created_at" json:"created_at"`
+	UserID           uint64 `gorm:"column:user_id;index:idx_us_user_id" json:"user_id"`
+	AuthGuard        string `gorm:"column:auth_guard;size:16" json:"auth_guard"`
+	TokenHash        string `gorm:"column:token_hash;size:128" json:"-"`
+	RefreshTokenHash string `gorm:"column:refresh_token_hash;size:128" json:"-"`
+	IP               string `gorm:"column:ip;size:64" json:"ip"`
+	UserAgent        string `gorm:"column:user_agent;type:text" json:"user_agent"`
+	Device           string `gorm:"column:device;size:128" json:"device"`
+	ClientType       string `gorm:"column:client_type;size:16" json:"client_type"`
+	BrowserID        string `gorm:"column:browser_id;size:64" json:"browser_id"`
+	// BrowserSessionKey 仅 browser_id 非空的 Web 会话写入。NULL 保留给旧会话、原生客户端与代登录，
+	// 让三种数据库都允许多个 NULL，同时用唯一索引确保同用户/guard/浏览器最终只保留一条活跃会话。
+	BrowserSessionKey *string `gorm:"column:browser_session_key;size:128;uniqueIndex:idx_us_browser_session_key" json:"-"`
+	IsActive          bool    `gorm:"column:is_active" json:"is_active"`
+	LoginAt           int64   `gorm:"column:login_at" json:"login_at"`
+	LastSeenAt        int64   `gorm:"column:last_seen_at" json:"last_seen_at"`
+	ExpiresAt         int64   `gorm:"column:expires_at" json:"expires_at"`
+	RefreshExpiresAt  int64   `gorm:"column:refresh_expires_at" json:"-"`
+	CreatedAt         int64   `gorm:"column:created_at" json:"created_at"`
 	// 以下字段仅用于 API 返回，不能持久化。
 	IsOnline  bool   `gorm:"-" json:"is_online"`
 	IsCurrent bool   `gorm:"-" json:"is_current"`
@@ -63,16 +67,34 @@ func SessionIsOnline(session UserSession, graceSeconds int64) bool {
 	return session.IsActive && session.LastSeenAt >= time.Now().Unix()-graceSeconds
 }
 
-// TouchSessionLastSeen 更新心跳时间。仅更新尚未过期的活跃会话。
-func TouchSessionLastSeen(sessionID uint64) error {
-	return db.DB.Model(&UserSession{}).
-		Where("id = ? AND is_active = ?", sessionID, true).
-		Update("last_seen_at", time.Now().Unix()).Error
+// TouchSessionLastSeen 更新心跳时间。返回值表示该会话此刻仍是活跃且未过期的会话。
+// Presence 用它在心跳时复核撤销/过期状态，避免 WS 建连后永久信任首次鉴权结果。
+func TouchSessionLastSeen(sessionID uint64) (bool, error) {
+	result := db.DB.Model(&UserSession{}).
+		Where("id = ? AND is_active = ? AND expires_at > ?", sessionID, true, time.Now().Unix()).
+		Update("last_seen_at", time.Now().Unix())
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+// IsUserSessionActiveByID 判断会话是否仍可使用。用于向已建连的 Presence WS 推送业务消息前复核；
+// 查询失败时由调用方按自身可用性策略处理，避免模型层直接依赖 Presence。
+func IsUserSessionActiveByID(sessionID uint64) (bool, error) {
+	var count int64
+	err := db.DB.Model(&UserSession{}).
+		Where("id = ? AND is_active = ? AND expires_at > ?", sessionID, true, time.Now().Unix()).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // BindSessionBrowserID 给尚无 browser_id 的旧会话补上浏览器实例 ID（兼容升级前已存在的会话）。
 func BindSessionBrowserID(sessionID uint64, browserID string) error {
-	browserID = strings.TrimSpace(browserID)
+	browserID = clampBrowserID(browserID)
 	if browserID == "" {
 		return nil
 	}
@@ -81,48 +103,89 @@ func BindSessionBrowserID(sessionID uint64, browserID string) error {
 		Update("browser_id", browserID).Error
 }
 
+func makeBrowserSessionKey(userID uint64, authGuard, browserID string) *string {
+	browserID = clampBrowserID(browserID)
+	if browserID == "" {
+		return nil
+	}
+	key := fmt.Sprintf("%d:%s:%s", userID, authGuard, browserID)
+	return &key
+}
+
 // CreateUserSession 创建用户会话记录。
 func CreateUserSession(userID uint64, authGuard, tokenHash, refreshTokenHash, ip, userAgent, device, clientType, browserID string, expiresAt, refreshExpiresAt int64) error {
 	now := time.Now().Unix()
 	if authGuard == "" {
 		authGuard = "user"
 	}
-	browserID = strings.TrimSpace(browserID)
-	if browserID != "" {
-		if _, err := RevokeOtherSessionsByBrowserID(userID, authGuard, browserID, ""); err != nil {
+	browserID = clampBrowserID(browserID)
+	session := UserSession{
+		UserID:            userID,
+		AuthGuard:         authGuard,
+		TokenHash:         tokenHash,
+		RefreshTokenHash:  refreshTokenHash,
+		IP:                clampStoredIP(ip),
+		UserAgent:         userAgent,
+		Device:            clampDevice(device),
+		ClientType:        NormalizeClientType(clientType),
+		BrowserID:         browserID,
+		BrowserSessionKey: makeBrowserSessionKey(userID, authGuard, browserID),
+		IsActive:          true,
+		LoginAt:           now,
+		LastSeenAt:        now,
+		ExpiresAt:         expiresAt,
+		RefreshExpiresAt:  refreshExpiresAt,
+		CreatedAt:         now,
+	}
+	// 创建和收口必须是同一事务：创建失败时不能把旧会话先撤销；
+	// 唯一 browser_session_key 则作为并发登录时的最终约束（NULL 会话不参与该约束）。
+	for attempt := 0; attempt < 2; attempt++ {
+		err := db.WithTx(func(tx *gorm.DB) error {
+			if browserID != "" {
+				// MySQL/Postgres 锁住已有同浏览器会话；SQLite 由写事务串行化。
+				var existing []UserSession
+				if err := db.ForUpdate(tx).
+					Where("user_id = ? AND auth_guard = ? AND browser_id = ? AND is_active = ?", userID, authGuard, browserID, true).
+					Find(&existing).Error; err != nil {
+					return err
+				}
+			}
+			if browserID != "" {
+				// 先撤销旧会话并释放其唯一键；事务失败会整体回滚，旧会话不会被误踢。
+				if _, err := revokeOtherSessionsByBrowserIDTx(tx, userID, authGuard, browserID, ""); err != nil {
+					return err
+				}
+			}
+			if err := tx.Create(&session).Error; err != nil {
+				return err
+			}
+			return nil
+		})
+		if err == nil || !db.IsDuplicateKeyError(err) {
 			return err
 		}
+		// 并发登录时另一事务可能刚插入同一唯一键；重新开启事务后撤销其会话再创建本次会话。
 	}
-	session := UserSession{
-		UserID:           userID,
-		AuthGuard:        authGuard,
-		TokenHash:        tokenHash,
-		RefreshTokenHash: refreshTokenHash,
-		IP:               ip,
-		UserAgent:        userAgent,
-		Device:           device,
-		ClientType:       NormalizeClientType(clientType),
-		BrowserID:        browserID,
-		IsActive:         true,
-		LoginAt:          now,
-		LastSeenAt:       now,
-		ExpiresAt:        expiresAt,
-		RefreshExpiresAt: refreshExpiresAt,
-		CreatedAt:        now,
-	}
-	return db.DB.Create(&session).Error
+	return fmt.Errorf("创建浏览器会话冲突，请重试")
 }
 
 // revokeActiveSessionsWhere 按条件撤销活跃会话，返回被撤销的 ID 列表。
 func revokeActiveSessionsWhere(where string, args ...interface{}) ([]uint64, error) {
+	return revokeActiveSessionsWhereTx(db.DB, where, args...)
+}
+
+func revokeActiveSessionsWhereTx(tx *gorm.DB, where string, args ...interface{}) ([]uint64, error) {
 	var ids []uint64
-	if err := db.DB.Model(&UserSession{}).Where(where, args...).Pluck("id", &ids).Error; err != nil {
+	if err := tx.Model(&UserSession{}).Where(where, args...).Pluck("id", &ids).Error; err != nil {
 		return nil, err
 	}
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	if err := db.DB.Model(&UserSession{}).Where(where, args...).Update("is_active", false).Error; err != nil {
+	if err := tx.Model(&UserSession{}).Where(where, args...).Updates(map[string]interface{}{
+		"is_active":           false,
+		"browser_session_key": nil,
+	}).Error; err != nil {
 		return nil, err
 	}
 	return ids, nil
@@ -130,7 +193,11 @@ func revokeActiveSessionsWhere(where string, args ...interface{}) ([]uint64, err
 
 // RevokeOtherSessionsByBrowserID 撤销同用户/同 guard/同浏览器下、除 keepSessionID 以外的活跃会话。
 func RevokeOtherSessionsByBrowserID(userID uint64, authGuard, browserID, keepSessionID string) ([]uint64, error) {
-	browserID = strings.TrimSpace(browserID)
+	return revokeOtherSessionsByBrowserIDTx(db.DB, userID, authGuard, browserID, keepSessionID)
+}
+
+func revokeOtherSessionsByBrowserIDTx(tx *gorm.DB, userID uint64, authGuard, browserID, keepSessionID string) ([]uint64, error) {
+	browserID = clampBrowserID(browserID)
 	if browserID == "" {
 		return nil, nil
 	}
@@ -143,7 +210,7 @@ func RevokeOtherSessionsByBrowserID(userID uint64, authGuard, browserID, keepSes
 		where += ` AND id != ?`
 		args = append(args, keepSessionID)
 	}
-	return revokeActiveSessionsWhere(where, args...)
+	return revokeActiveSessionsWhereTx(tx, where, args...)
 }
 
 // RevokeSiblingWebSessionsByUA 兼容升级前无 browser_id 的旧会话。
@@ -155,7 +222,8 @@ func RevokeSiblingWebSessionsByUA(userID uint64, authGuard, userAgent, keepSessi
 	if authGuard == "" {
 		authGuard = "user"
 	}
-	where := `user_id = ? AND auth_guard = ? AND client_type = 'web' AND user_agent = ? AND is_active = ?`
+	// 只收口升级前没有 browser_id 的遗留 Web 会话；同 UA 但已有独立 browser_id 的其它设备必须保留。
+	where := `user_id = ? AND auth_guard = ? AND client_type = 'web' AND (browser_id = '' OR browser_id IS NULL) AND user_agent = ? AND is_active = ?`
 	args := []interface{}{userID, authGuard, userAgent, true}
 	if keepSessionID = strings.TrimSpace(keepSessionID); keepSessionID != "" {
 		where += ` AND id != ?`
@@ -224,9 +292,9 @@ func RotateUserSessionTokens(userID uint64, authGuard, currentRefreshTokenHash, 
 		Updates(map[string]interface{}{
 			"token_hash":         newTokenHash,
 			"refresh_token_hash": newRefreshTokenHash,
-			"ip":                 ip,
+			"ip":                 clampStoredIP(ip),
 			"user_agent":         userAgent,
-			"device":             device,
+			"device":             clampDevice(device),
 			"expires_at":         expiresAt,
 			"refresh_expires_at": refreshExpiresAt,
 			"login_at":           now,
@@ -282,7 +350,7 @@ func RevokeUserSessionWithGuard(userID uint64, authGuard, sessionID string) erro
 	}
 	return db.DB.Model(&UserSession{}).
 		Where("id = ? AND user_id = ? AND auth_guard = ?", sessionID, userID, authGuard).
-		Update("is_active", false).Error
+		Updates(map[string]interface{}{"is_active": false, "browser_session_key": nil}).Error
 }
 
 // RevokeSessionByTokenHash 按 token_hash 直接撤销会话，不检查是否仍在有效期内。
@@ -295,7 +363,7 @@ func RevokeSessionByTokenHash(userID uint64, authGuard, tokenHash string) error 
 	}
 	return db.DB.Model(&UserSession{}).
 		Where("user_id = ? AND auth_guard = ? AND token_hash = ?", userID, authGuard, tokenHash).
-		Update("is_active", false).Error
+		Updates(map[string]interface{}{"is_active": false, "browser_session_key": nil}).Error
 }
 
 // RevokeAllUserSessions 撤销用户所有会话（除当前）
@@ -311,7 +379,7 @@ func RevokeAllUserSessionsWithGuard(userID uint64, authGuard, currentTokenHash s
 	if currentTokenHash != "" {
 		q = q.Where("token_hash != ?", currentTokenHash)
 	}
-	return q.Update("is_active", false).Error
+	return q.Updates(map[string]interface{}{"is_active": false, "browser_session_key": nil}).Error
 }
 
 // CleanupExpiredSessions 清理过期会话，返回删除行数
@@ -352,16 +420,13 @@ func ParseSessionID(raw string) (uint64, error) {
 }
 
 // GetActiveSessionByTokenHash 以 access token 哈希获取未过期的活动会话。
+// 无效/过期 token 查无是常态，用 FindOne 避免 record not found 刷屏。
 func GetActiveSessionByTokenHash(tokenHash string) (*UserSession, error) {
 	var session UserSession
 	now := time.Now().Unix()
-	err := db.DB.Model(&UserSession{}).
+	err := db.FindOne(db.DB.Model(&UserSession{}).
 		Select("id", "user_id", "auth_guard", "token_hash", "ip", "user_agent", "device", "client_type", "browser_id", "is_active", "login_at", "last_seen_at", "expires_at", "refresh_expires_at", "created_at").
-		Where("token_hash = ? AND is_active = ? AND expires_at > ?", tokenHash, true, now).
-		First(&session).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, sql.ErrNoRows
-	}
+		Where("token_hash = ? AND is_active = ? AND expires_at > ?", tokenHash, true, now), &session)
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +451,8 @@ func GetUserSessionByID(sessionID uint64) (*UserSession, error) {
 
 // AdminRevokeSessionByID 管理端按会话 ID 强制撤销。
 func AdminRevokeSessionByID(sessionID uint64) error {
-	return db.DB.Model(&UserSession{}).Where("id = ?", sessionID).Update("is_active", false).Error
+	return db.DB.Model(&UserSession{}).Where("id = ?", sessionID).
+		Updates(map[string]interface{}{"is_active": false, "browser_session_key": nil}).Error
 }
 
 // AdminRevokeAllUserSessions 管理端撤销某用户指定认证上下文的全部会话。
@@ -396,7 +462,7 @@ func AdminRevokeAllUserSessions(userID uint64, authGuard string) error {
 	}
 	return db.DB.Model(&UserSession{}).
 		Where("user_id = ? AND auth_guard = ?", userID, authGuard).
-		Update("is_active", false).Error
+		Updates(map[string]interface{}{"is_active": false, "browser_session_key": nil}).Error
 }
 
 // ListActiveSessionIDsExceptCurrent 返回被“踢出其它设备”操作影响的会话 ID。

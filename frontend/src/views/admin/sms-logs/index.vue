@@ -11,8 +11,8 @@ import {
   NDescriptions,
   NDescriptionsItem,
   NDivider,
-  NGrid,
   NGi,
+  NGrid,
   NInput,
   NInputNumber,
   NModal,
@@ -29,8 +29,10 @@ import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
-import { adminSMSLogApi, type SMSLog, type SMSLogListParams, type SMSLogStats } from '@/service/api/admin/sms-log'
+import { adminSMSLogApi } from '@/service/api/admin/sms-log'
+import type { SMSLog, SMSLogListParams, SMSLogStats } from '@/service/api/admin/sms-log'
 import { normalizeLogMaxCount, normalizeLogPerUserMaxCount, parseBooleanSetting } from '@/utils'
+import { formatPrettyJSON } from '@/utils/format'
 
 const router = useRouter()
 const message = useMessage()
@@ -50,7 +52,7 @@ const statsData = ref<SMSLogStats>({
   top_templates: [],
   provider_stats: [],
 })
-const templateNameOptions = ref<{ label: string; value: string }[]>([])
+const templateNameOptions = ref<{ label: string, value: string }[]>([])
 
 const query = reactive<SMSLogListParams>({
   page: 1,
@@ -106,7 +108,7 @@ const langOptions = [
   { label: t('adminSMSLogs.english'), value: 'en-US' },
 ]
 
-const providerMap: Record<string, { label: string; type: 'info' | 'success' | 'warning' | 'default' }> = {
+const providerMap: Record<string, { label: string, type: 'info' | 'success' | 'warning' | 'default' }> = {
   aliyun: { label: t('adminSMSLogs.aliyun'), type: 'info' },
   tencent: { label: t('adminSMSLogs.tencent'), type: 'success' },
   custom: { label: t('adminSMSLogs.custom'), type: 'warning' },
@@ -115,17 +117,7 @@ const providerMap: Record<string, { label: string; type: 'info' | 'success' | 'w
 
 const detailStatusText = computed(() => detailData.value?.status === 1 ? t('adminSMSLogs.success') : t('adminSMSLogs.failed'))
 const detailStatusType = computed(() => detailData.value?.status === 1 ? 'success' : 'error')
-const formattedResponse = computed(() => {
-  const raw = detailData.value?.response?.trim()
-  if (!raw)
-    return ''
-  try {
-    return JSON.stringify(JSON.parse(raw), null, 2)
-  }
-  catch {
-    return raw
-  }
-})
+const formattedResponse = computed(() => formatPrettyJSON(detailData.value?.response))
 
 const topTemplateItems = computed(() => (statsData.value.top_templates || []).slice(0, 8))
 const topTemplateChartItems = computed(() => [...topTemplateItems.value].reverse())
@@ -475,13 +467,23 @@ onMounted(() => {
 <template>
   <div class="sms-log-page">
     <NGrid :x-gap="12" :y-gap="12" cols="4" style="margin-bottom: 16px;">
-      <NGi><NCard size="small"><NStatistic :label="t('adminSMSLogs.totalCount')" :value="statsData.total_count" /></NCard></NGi>
-      <NGi><NCard size="small"><NStatistic :label="t('adminSMSLogs.todayCount')" :value="statsData.today_count" /></NCard></NGi>
+      <NGi>
+        <NCard size="small">
+          <NStatistic :label="t('adminSMSLogs.totalCount')" :value="statsData.total_count" />
+        </NCard>
+      </NGi>
+      <NGi>
+        <NCard size="small">
+          <NStatistic :label="t('adminSMSLogs.todayCount')" :value="statsData.today_count" />
+        </NCard>
+      </NGi>
       <NGi>
         <NCard size="small">
           <NStatistic :label="t('adminSMSLogs.success')">
             <template #default>
-              <NText type="success">{{ statsData.success_count }}</NText>
+              <NText type="success">
+                {{ statsData.success_count }}
+              </NText>
             </template>
           </NStatistic>
         </NCard>
@@ -490,27 +492,37 @@ onMounted(() => {
         <NCard size="small">
           <NStatistic :label="t('adminSMSLogs.failed')">
             <template #default>
-              <NText type="error">{{ statsData.fail_count }}</NText>
+              <NText type="error">
+                {{ statsData.fail_count }}
+              </NText>
             </template>
           </NStatistic>
         </NCard>
       </NGi>
     </NGrid>
 
-    <NText depth="3" style="display: block; margin: -4px 0 12px;">{{ t('adminSMSLogs.statsHint') }}</NText>
+    <NText depth="3" style="display: block; margin: -4px 0 12px;">
+      {{ t('adminSMSLogs.statsHint') }}
+    </NText>
 
     <NGrid :x-gap="12" :y-gap="12" cols="1 s:2 l:2" responsive="screen" style="margin-bottom: 16px;">
       <NGi>
         <NCard size="small" :title="t('adminSMSLogs.topTemplates')">
-          <div ref="topTemplateChartRef" class="top-path-chart"></div>
-          <NText v-if="!topTemplateItems.length" depth="3" style="display: block; text-align: center;">{{ t('adminSMSLogs.noTopTemplates') }}</NText>
+          <div ref="topTemplateChartRef" class="top-path-chart" />
+          <NText v-if="!topTemplateItems.length" depth="3" style="display: block; text-align: center;">
+            {{ t('adminSMSLogs.noTopTemplates') }}
+          </NText>
         </NCard>
       </NGi>
       <NGi>
         <NCard size="small" :title="t('adminSMSLogs.overview')">
           <NDescriptions :column="2" bordered size="small" label-placement="left">
-            <NDescriptionsItem :label="t('adminSMSLogs.success')">{{ statsData.success_count }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminSMSLogs.failed')">{{ statsData.fail_count }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminSMSLogs.success')">
+              {{ statsData.success_count }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminSMSLogs.failed')">
+              {{ statsData.fail_count }}
+            </NDescriptionsItem>
             <NDescriptionsItem :label="t('adminSMSLogs.providerSummary')" :span="2">
               {{ (statsData.provider_stats || []).map(item => `${providerMap[item.provider]?.label || item.provider}:${item.count}`).join(' / ') || '-' }}
             </NDescriptionsItem>
@@ -533,28 +545,46 @@ onMounted(() => {
             :reset-label="t('common.restoreDefaultFields')"
             @reset="resetSelectedColumns"
           />
-          <NButton size="small" type="primary" :loading="loading" @click="fetchList">{{ t('adminSMSLogs.refresh') }}</NButton>
-          <NButton size="small" type="warning" @click="showClean = true">{{ t('adminSMSLogs.cleanLogs') }}</NButton>
+          <NButton size="small" type="primary" :loading="loading" @click="fetchList">
+            {{ t('adminSMSLogs.refresh') }}
+          </NButton>
+          <NButton size="small" type="warning" @click="showClean = true">
+            {{ t('adminSMSLogs.cleanLogs') }}
+          </NButton>
         </NSpace>
       </template>
 
       <NCard size="small" embedded style="margin-bottom: 12px;">
         <NSpace align="center" justify="space-between" :wrap="true">
           <NSpace align="center" :wrap="true" size="small">
-            <NText strong>{{ t('adminSMSLogs.runtimeConfig') }}</NText>
-            <NText depth="3">{{ t('adminSMSLogs.maxCount') }}</NText>
+            <NText strong>
+              {{ t('adminSMSLogs.runtimeConfig') }}
+            </NText>
+            <NText depth="3">
+              {{ t('adminSMSLogs.maxCount') }}
+            </NText>
             <NInputNumber v-model:value="runtimeForm.sms_log_max_count" :min="100" :max="200000" size="small" style="width: 130px;" />
-            <NText depth="3">{{ t('adminSMSLogs.perUserLimitEnabled') }}</NText>
+            <NText depth="3">
+              {{ t('adminSMSLogs.perUserLimitEnabled') }}
+            </NText>
             <NSwitch v-model:value="runtimeForm.sms_log_per_user_limit_enabled" />
-            <NText depth="3">{{ t('adminSMSLogs.perUserMaxCount') }}</NText>
+            <NText depth="3">
+              {{ t('adminSMSLogs.perUserMaxCount') }}
+            </NText>
             <NInputNumber v-model:value="runtimeForm.sms_log_per_user_max_count" :min="1" :max="200000" size="small" style="width: 130px;" />
           </NSpace>
           <NSpace size="small">
-            <NButton size="small" type="primary" :loading="runtimeSaving" @click="handleSaveRuntimeConfig">{{ t('adminServer.runtimeConfig.save') }}</NButton>
-            <NButton size="small" :loading="runtimeLoading" @click="loadRuntimeConfig">{{ t('adminSMSLogs.refresh') }}</NButton>
+            <NButton size="small" type="primary" :loading="runtimeSaving" @click="handleSaveRuntimeConfig">
+              {{ t('adminServer.runtimeConfig.save') }}
+            </NButton>
+            <NButton size="small" :loading="runtimeLoading" @click="loadRuntimeConfig">
+              {{ t('adminSMSLogs.refresh') }}
+            </NButton>
           </NSpace>
         </NSpace>
-        <NText depth="3" style="display: block; margin-top: 8px;">{{ t('adminSMSLogs.runtimeHint') }}</NText>
+        <NText depth="3" style="display: block; margin-top: 8px;">
+          {{ t('adminSMSLogs.runtimeHint') }}
+        </NText>
       </NCard>
 
       <NSpace align="center" style="margin-bottom: 12px;" :wrap="true">
@@ -564,8 +594,12 @@ onMounted(() => {
         <NSelect v-model:value="query.lang" :options="langOptions" :placeholder="t('adminSMSLogs.lang')" clearable size="small" style="width: 100px;" />
         <NSelect v-model:value="query.status" :options="statusOptions" :placeholder="t('adminSMSLogs.status')" size="small" style="width: 90px;" />
         <NDatePicker v-model:value="dateRange" type="datetimerange" clearable size="small" style="width: 340px;" />
-        <NButton size="small" type="primary" @click="handleSearch">{{ t('adminSMSLogs.search') }}</NButton>
-        <NButton size="small" @click="handleReset">{{ t('adminSMSLogs.reset') }}</NButton>
+        <NButton size="small" type="primary" @click="handleSearch">
+          {{ t('adminSMSLogs.search') }}
+        </NButton>
+        <NButton size="small" @click="handleReset">
+          {{ t('adminSMSLogs.reset') }}
+        </NButton>
       </NSpace>
 
       <NDataTable
@@ -581,7 +615,9 @@ onMounted(() => {
     </NCard>
 
     <NModal v-model:show="showDetail" preset="card" :title="t('adminSMSLogs.detailTitle')" style="width: 760px;" :mask-closable="true">
-      <NText v-if="detailLoading" depth="3">{{ t('adminSMSLogs.loading') }}</NText>
+      <NText v-if="detailLoading" depth="3">
+        {{ t('adminSMSLogs.loading') }}
+      </NText>
       <NSpace v-else-if="detailData" vertical :size="16">
         <NGrid cols="2" :x-gap="12" :y-gap="12">
           <NGi>
@@ -593,7 +629,9 @@ onMounted(() => {
             <NCard size="small" embedded>
               <NStatistic :label="t('adminSMSLogs.sendStatus')">
                 <template #default>
-                  <NTag :type="detailStatusType" size="small">{{ detailStatusText }}</NTag>
+                  <NTag :type="detailStatusType" size="small">
+                    {{ detailStatusText }}
+                  </NTag>
                 </template>
               </NStatistic>
             </NCard>
@@ -602,13 +640,17 @@ onMounted(() => {
 
         <NCard size="small" embedded :title="t('adminSMSLogs.basicInfo')">
           <NDescriptions bordered :column="2" label-placement="left">
-            <NDescriptionsItem :label="t('adminSMSLogs.phone')">{{ detailData.phone }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminSMSLogs.phone')">
+              {{ detailData.phone }}
+            </NDescriptionsItem>
             <NDescriptionsItem :label="t('adminSMSLogs.provider')">
               <NTag :type="providerMap[detailData.provider]?.type || 'default'" size="small">
                 {{ providerMap[detailData.provider]?.label || detailData.provider }}
               </NTag>
             </NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminSMSLogs.templateId')">{{ detailData.template_code || '-' }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminSMSLogs.templateId')">
+              {{ detailData.template_code || '-' }}
+            </NDescriptionsItem>
             <NDescriptionsItem :label="t('adminSMSLogs.templateName')">
               <NSpace align="center" :size="8">
                 <span>{{ detailData.template_name || '-' }}</span>
@@ -623,8 +665,12 @@ onMounted(() => {
                 </NButton>
               </NSpace>
             </NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminSMSLogs.lang')">{{ detailData.lang || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem :label="t('adminSMSLogs.requestId')">{{ detailData.request_id || '-' }}</NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminSMSLogs.lang')">
+              {{ detailData.lang || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('adminSMSLogs.requestId')">
+              {{ detailData.request_id || '-' }}
+            </NDescriptionsItem>
             <NDescriptionsItem :label="t('adminSMSLogs.sendTime')" :span="2">
               {{ detailData.created_at ? new Date(detailData.created_at).toLocaleString() : '-' }}
             </NDescriptionsItem>
@@ -636,30 +682,42 @@ onMounted(() => {
         </NCard>
 
         <NCard v-if="detailData.error_msg" size="small" embedded :title="t('adminSMSLogs.errorMsg')">
-          <NText type="error">{{ detailData.error_msg }}</NText>
+          <NText type="error">
+            {{ detailData.error_msg }}
+          </NText>
         </NCard>
 
         <NCard v-if="formattedResponse" size="small" embedded :title="t('adminSMSLogs.fullResponse')">
           <template #header-extra>
-            <NButton size="small" quaternary @click="handleCopyResponse">{{ t('adminSMSLogs.copyContent') }}</NButton>
+            <NButton size="small" quaternary @click="handleCopyResponse">
+              {{ t('adminSMSLogs.copyContent') }}
+            </NButton>
           </template>
           <NCode :code="formattedResponse" language="json" word-wrap style="max-height: 320px; overflow: auto;" />
         </NCard>
       </NSpace>
-      <NText v-else depth="3">{{ t('adminSMSLogs.noDetailData') }}</NText>
+      <NText v-else depth="3">
+        {{ t('adminSMSLogs.noDetailData') }}
+      </NText>
     </NModal>
 
     <NModal v-model:show="showClean" preset="card" :title="t('adminSMSLogs.cleanModalTitle')" style="width: 400px;" :mask-closable="false">
       <NSpace vertical>
         <NText>{{ t('adminSMSLogs.cleanWarning') }}</NText>
         <NDivider style="margin: 8px 0;" />
-        <NText depth="3">{{ t('adminSMSLogs.cleanBeforeLabel') }}</NText>
+        <NText depth="3">
+          {{ t('adminSMSLogs.cleanBeforeLabel') }}
+        </NText>
         <NDatePicker type="datetime" clearable style="width: 100%;" @update:value="handleCleanDateChange" />
       </NSpace>
       <template #footer>
         <NSpace justify="end">
-          <NButton @click="showClean = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="error" :loading="cleaning" :disabled="!cleanBefore" @click="handleClean">{{ t('adminSMSLogs.confirmClean') }}</NButton>
+          <NButton @click="showClean = false">
+            {{ t('common.cancel') }}
+          </NButton>
+          <NButton type="error" :loading="cleaning" :disabled="!cleanBefore" @click="handleClean">
+            {{ t('adminSMSLogs.confirmClean') }}
+          </NButton>
         </NSpace>
       </template>
     </NModal>

@@ -4,7 +4,9 @@
 import { request } from '../../http'
 import { getAdminApiBase } from './base'
 
-function baseUrl() { return `${getAdminApiBase()}/email-templates` }
+function baseUrl() {
+  return `${getAdminApiBase()}/email-templates`
+}
 
 export interface EmailTemplate {
   id: number
@@ -42,14 +44,14 @@ export const adminEmailTemplateApi = {
     content: string
     vars?: Record<string, any>
   }) {
-    return request.Post<Service.ResponseResult<{ subject: string; content: string; wrapped: string }>>(`${baseUrl()}/${id}/preview`, data)
+    return request.Post<Service.ResponseResult<{ subject: string, content: string, wrapped: string }>>(`${baseUrl()}/${id}/preview`, data)
   },
 
   reset(id: number) {
     return request.Post<Service.ResponseResult<{ message: string }>>(`${baseUrl()}/${id}/reset`, {})
   },
 
-  sendTest(data: { to: string; subject?: string; content?: string; template_id?: number }) {
+  sendTest(data: { to: string, subject?: string, content?: string, template_id?: number }) {
     return request.Post<Service.ResponseResult<{ message: string }>>(`${getAdminApiBase()}/email-send-test`, data)
   },
 }

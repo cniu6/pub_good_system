@@ -3,7 +3,7 @@
  * 用于管理端列表/详情展示，避免明文完整回显。
  */
 
-/** 手机号脱敏：保留前 3（国际号前 4）+ 后 4，中间 **** */
+/** 手机号脱敏：保留前 3（国际号前 4）+ 后 4，中间 */
 export function maskPhone(phone: string): string {
   const s = String(phone || '').trim()
   if (s.length < 7)

@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NTabs, NTabPane, NInput } from 'naive-ui'
-
-const { t } = useI18n()
+import { NInput, NTabPane, NTabs } from 'naive-ui'
 
 interface Props {
   modelValue: string | Record<string, string>
-  langs?: { key: string; label: string }[]
+  langs?: { key: string, label: string }[]
   rows?: number
   placeholder?: string
 }
@@ -17,6 +15,8 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'update:modelValue': [value: Record<string, string>]
 }>()
+
+const { t } = useI18n()
 
 // 使用计算属性提供带翻译的默认值
 const langsWithDefaults = computed(() => {
@@ -32,8 +32,10 @@ const i18nData = ref<Record<string, string>>({})
 
 // 初始化：将 modelValue 解析为多语言对象
 function parseValue(val: string | Record<string, string>): Record<string, string> {
-  if (!val) return {}
-  if (typeof val === 'object') return { ...val }
+  if (!val)
+    return {}
+  if (typeof val === 'object')
+    return { ...val }
   if (typeof val === 'string' && val.startsWith('{')) {
     try {
       return JSON.parse(val)
@@ -58,7 +60,8 @@ function handleInput(lang: string, text: string) {
 const rowsWithDefault = computed(() => props.rows ?? 3)
 
 const placeholderFor = computed(() => (lang: string) => {
-  if (props.placeholder) return props.placeholder
+  if (props.placeholder)
+    return props.placeholder
   const langObj = langsWithDefaults.value.find(l => l.key === lang)
   return t('common.enterRemarkFor', { lang: langObj?.label || lang })
 })

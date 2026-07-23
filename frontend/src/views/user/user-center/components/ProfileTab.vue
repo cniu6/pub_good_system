@@ -52,6 +52,18 @@ const phoneStep = ref<'input' | 'verify'>('input')
 const phoneCodeCountdown = ref(0)
 let phoneCodeTimer: ReturnType<typeof setInterval> | null = null
 
+onUnmounted(() => {
+  // 页面销毁后倒计时不应继续持有已卸载组件的响应式状态。
+  if (emailCodeTimer) {
+    clearInterval(emailCodeTimer)
+    emailCodeTimer = null
+  }
+  if (phoneCodeTimer) {
+    clearInterval(phoneCodeTimer)
+    phoneCodeTimer = null
+  }
+})
+
 const profileForm = ref({
   nickname: '',
   avatar: '',
@@ -183,7 +195,8 @@ async function doSendEmailCode() {
       emailCodeTimer = setInterval(() => {
         emailCodeCountdown.value--
         if (emailCodeCountdown.value <= 0) {
-          if (emailCodeTimer) clearInterval(emailCodeTimer)
+          if (emailCodeTimer)
+            clearInterval(emailCodeTimer)
           emailCodeTimer = null
         }
       }, 1000)
@@ -217,7 +230,8 @@ async function handleVerifyEmailChange() {
       window.$message.success(t('profile.emailUpdated'))
       showEmailModal.value = false
       authStore.updateUserInfo({ email: emailForm.value.email })
-      if (emailCodeTimer) clearInterval(emailCodeTimer)
+      if (emailCodeTimer)
+        clearInterval(emailCodeTimer)
     }
     else {
       window.$message.error(response.message || t('profile.invalidOrExpiredCode'))
@@ -292,7 +306,8 @@ async function doSendPhoneCode() {
       phoneCodeTimer = setInterval(() => {
         phoneCodeCountdown.value--
         if (phoneCodeCountdown.value <= 0) {
-          if (phoneCodeTimer) clearInterval(phoneCodeTimer)
+          if (phoneCodeTimer)
+            clearInterval(phoneCodeTimer)
           phoneCodeTimer = null
         }
       }, 1000)
@@ -326,7 +341,8 @@ async function handleVerifyPhoneChange() {
       window.$message.success(t('profile.phoneUpdated'))
       showPhoneModal.value = false
       authStore.updateUserInfo({ mobile: phoneForm.value.mobile })
-      if (phoneCodeTimer) clearInterval(phoneCodeTimer)
+      if (phoneCodeTimer)
+        clearInterval(phoneCodeTimer)
     }
     else {
       window.$message.error(response.message || t('profile.invalidOrExpiredCode'))

@@ -30,6 +30,7 @@ type AppConfigResponse struct {
 
 	// 功能开关
 	AllowRegister       bool `json:"allow_register"`
+	AllowUserLogin      bool `json:"allow_user_login"`
 	AnnouncementEnabled bool `json:"announcement_enabled"`
 	AllowDeleteAccount  bool `json:"allow_delete_account"`
 	GeetestEnabled      bool `json:"geetest_enabled"`
@@ -62,6 +63,9 @@ type AppConfigResponse struct {
 
 	// 在线心跳上报周期（秒），前端 Presence 心跳按此间隔发送
 	OnlineReportIntervalSeconds int `json:"online_report_interval_seconds"`
+
+	UserAPILogVisible       bool `json:"user_api_log_visible"`
+	UserOperationLogVisible bool `json:"user_operation_log_visible"`
 }
 
 // GetAppConfig 获取应用配置
@@ -99,6 +103,7 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 		Copyright:          "(c) 2024 F.st",
 		Version:            "1.0.0",
 		AllowRegister:       true,
+		AllowUserLogin:      true,
 		AnnouncementEnabled: false,
 		AllowDeleteAccount:  false,
 		DefaultLang:        "zhCN",
@@ -116,6 +121,8 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 		WithdrawAccountTypes: []string{"bank", "alipay", "wechat", "usdt"},
 		AdminAPIPath:       "/admin",
 		OnlineReportIntervalSeconds: 30,
+		UserAPILogVisible:       true,
+		UserOperationLogVisible: true,
 	}
 	// 从全局配置快照读取 ADMIN_API_PATH，供前端注入管理端请求前缀
 	if cfg := config.CloneGlobalConfig(); cfg != nil {
@@ -149,6 +156,11 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 	}
 	if v, ok := configMap["allow_register"]; ok {
 		response.AllowRegister = v == "true" || v == "1"
+	}
+	if v, ok := configMap["allow_user_login"]; ok {
+		response.AllowUserLogin = v == "true" || v == "1"
+	} else {
+		response.AllowUserLogin = true
 	}
 	if v, ok := configMap["announcement_enabled"]; ok {
 		response.AnnouncementEnabled = v == "true" || v == "1"
@@ -216,6 +228,16 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 	response.GeetestEnabled = geetestConfig.Enabled && geetestConfig.CaptchaID != "" && geetestConfig.CaptchaKey != ""
 	response.GeetestCaptchaId = geetestConfig.CaptchaID
 	response.OnlineReportIntervalSeconds = services.GetGlobalOnlinePresenceRuntimeConfig().ReportIntervalSeconds
+	if v, ok := configMap["user_api_log_visible"]; ok {
+		response.UserAPILogVisible = v == "true" || v == "1"
+	} else {
+		response.UserAPILogVisible = true
+	}
+	if v, ok := configMap["user_operation_log_visible"]; ok {
+		response.UserOperationLogVisible = v == "true" || v == "1"
+	} else {
+		response.UserOperationLogVisible = true
+	}
 
 	return response
 }

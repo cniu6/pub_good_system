@@ -17,6 +17,46 @@ async function setupApp(app: AppInstance<Element>, mode: AppRouteMode) {
   // 1. 首先安装 Pinia（其他模块依赖它）
   installPinia(app)
 
+  // 1.1 跨标签页同步 token 刷新结果，避免多标签并发轮换 refresh token
+  {
+    const { initTokenRefreshSync } = await import('./service/http/token-refresh')
+    const { useAuthStore } = await import('./store/auth')
+    initTokenRefreshSync((payload) => {
+      const authStore = useAuthStore()
+      // 登出过程的 token 仍可能尚未从 Pinia 清空；此时绝不能接受其它标签的刷新广播，
+      // 否则会把刚刚清掉的会话重新写回 storage。
+      if (!authStore.isLogin || authStore.isLoggingOut)
+        return
+      authStore.applyRefreshedLoginInfo(payload)
+    })
+  }
+
+  // user 模式的普通登录使用 localStorage：其它标签登录/退出时，当前标签的 Pinia 内存态不会自动更新。
+  // admin/login-as 用 sessionStorage 隔离，绝不能跟随这里的跨标签同步。
+  if (mode === 'user') {
+    const { useAuthStore } = await import('./store/auth')
+    let authStorageSyncTimer: number | null = null
+    window.addEventListener('storage', (event) => {
+      if (event.storageArea !== window.localStorage || authStorage.getActiveScope() !== 'local')
+        return
+      if (authStorageSyncTimer)
+        window.clearTimeout(authStorageSyncTimer)
+      // 一次登录会连续写入多项 auth 数据，合并到当前事件队列末尾后再读取完整快照。
+      authStorageSyncTimer = window.setTimeout(() => {
+        authStorageSyncTimer = null
+        const authStore = useAuthStore()
+        const storedToken = authStorage.get('accessToken')
+        if (!storedToken) {
+          if (authStore.isLogin)
+            authStore.requireReauthentication()
+          return
+        }
+        if (!authStore.isLogin || authStore.token !== storedToken)
+          authStore.hydrateFromStorage()
+      }, 0)
+    })
+  }
+
   // 2. 加载运行时配置（在安装其他模块之前）
   // loadConfig 会注入 admin_api_path，管理端 API 前缀与后端 ADMIN_API_PATH 对齐
   const settingsStore = useSettingsStore()

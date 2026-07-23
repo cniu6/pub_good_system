@@ -2,6 +2,7 @@
 import hljs from 'highlight.js/lib/common'
 import { naiveI18nOptions } from '@/utils'
 import { darkTheme } from 'naive-ui'
+import SessionRecoveryModal from '@/components/common/SessionRecoveryModal.vue'
 import { useAppStore } from './store'
 
 const appStore = useAppStore()
@@ -24,6 +25,7 @@ const naiveLocale = computed(() => {
     <naive-provider>
       <router-view />
       <Watermark :show-watermark="appStore.showWatermark" />
+      <SessionRecoveryModal />
     </naive-provider>
   </n-config-provider>
 </template>

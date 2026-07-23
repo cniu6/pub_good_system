@@ -143,7 +143,6 @@ export const useRouteStore = defineStore('route-store', {
             for (const route of adminRoutes) {
               router.addRoute(route)
             }
-            // 使用 helper 生成支持嵌套层级的管理端菜单
             const adminMenus = createAdminMenus(adminRoutes as AdminMenuRoute[])
             this.setAdminMenus(adminMenus)
           }

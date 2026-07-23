@@ -92,6 +92,7 @@ export function getWithdrawStatusMeta(status?: number): { type: 'warning' | 'inf
 
 /**
  * 管理员 ID → 展示名
+ * @param adminId 管理员用户 ID
  * @param adminUserMap batchSimpleInfo 得到的映射表
  */
 export function getAdminDisplayName(

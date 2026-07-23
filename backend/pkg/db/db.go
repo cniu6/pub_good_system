@@ -34,8 +34,18 @@ func InitDB() {
 	driver := normalizeDriver(cfg.DBDriver)
 	activeDriver = driver
 
+	// IgnoreRecordNotFoundError：First/Take 查无是业务常态（幂等首查、未实名、无设置行等），
+	// 不能当 Warn 刷屏；真正该报警的是 SQL/连接错误，仍会按 Warn 打出。
 	gormCfg := &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Warn),
+		Logger: logger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags),
+			logger.Config{
+				SlowThreshold:             200 * time.Millisecond,
+				LogLevel:                  logger.Warn,
+				IgnoreRecordNotFoundError: true,
+				Colorful:                  true,
+			},
+		),
 		NowFunc: func() time.Time {
 			return time.Now()
 		},

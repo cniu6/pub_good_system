@@ -13,10 +13,10 @@ import {
   formatNsDuration,
   formatRuntimeTimestamp,
   getRuntimeStateTagType,
+
   useServerManagement,
-  type PprofResultPanel,
-  type RuntimeStateCategory,
 } from '../composables/useServerManagement'
+import type { PprofResultPanel, RuntimeStateCategory } from '../composables/useServerManagement'
 
 const { t } = useI18n()
 const {
@@ -212,8 +212,12 @@ const {
           <NButton size="small" :type="debugAutoRefresh ? 'primary' : 'default'" @click="toggleDebugAutoRefresh(!debugAutoRefresh)">
             {{ debugAutoRefresh ? t('adminSettings.stopRefresh') : t('adminSettings.autoRefresh') }}
           </NButton>
-          <NButton size="small" :loading="debugLoading.goroutineStats" @click="loadGoroutineStats">{{ t('adminSettings.refresh') }}</NButton>
-          <NButton size="small" type="warning" :loading="forcingGC" @click="handleForceGC">{{ t('adminSettings.forceGC') }}</NButton>
+          <NButton size="small" :loading="debugLoading.goroutineStats" @click="loadGoroutineStats">
+            {{ t('adminSettings.refresh') }}
+          </NButton>
+          <NButton size="small" type="warning" :loading="forcingGC" @click="handleForceGC">
+            {{ t('adminSettings.forceGC') }}
+          </NButton>
         </NSpace>
       </template>
       <NGrid :x-gap="12" :y-gap="12" cols="1 s:2 m:2 l:2" responsive="screen">
@@ -233,26 +237,56 @@ const {
                   style="margin-top: 4px; transform: scaleY(0.7); transform-origin: center;"
                 />
               </div>
-              <NSpace justify="space-between"><NText>{{ t('adminSettings.memory') }}</NText><NText>{{ formatStorageFromMB(processInfo?.process_rss_mb || 0) }}</NText></NSpace>
-              <NSpace justify="space-between"><NText>{{ t('adminSettings.goroutines') }}</NText><NText>{{ formatInteger(processInfo?.goroutines || 0) }}</NText></NSpace>
-              <NSpace justify="space-between"><NText>{{ t('adminSettings.pid') }}</NText><NText>{{ processInfo?.pid || '-' }}</NText></NSpace>
-              <NSpace justify="space-between"><NText>{{ t('adminSettings.gomaxprocs') }}</NText><NText>{{ formatInteger(goroutineStats?.gomaxprocs || 0) }}</NText></NSpace>
-              <NSpace justify="space-between"><NText>{{ t('adminSettings.numCPU') }}</NText><NText>{{ formatInteger(goroutineStats?.num_cpu || 0) }}</NText></NSpace>
+              <NSpace justify="space-between">
+                <NText>{{ t('adminSettings.memory') }}</NText><NText>{{ formatStorageFromMB(processInfo?.process_rss_mb || 0) }}</NText>
+              </NSpace>
+              <NSpace justify="space-between">
+                <NText>{{ t('adminSettings.goroutines') }}</NText><NText>{{ formatInteger(processInfo?.goroutines || 0) }}</NText>
+              </NSpace>
+              <NSpace justify="space-between">
+                <NText>{{ t('adminSettings.pid') }}</NText><NText>{{ processInfo?.pid || '-' }}</NText>
+              </NSpace>
+              <NSpace justify="space-between">
+                <NText>{{ t('adminSettings.gomaxprocs') }}</NText><NText>{{ formatInteger(goroutineStats?.gomaxprocs || 0) }}</NText>
+              </NSpace>
+              <NSpace justify="space-between">
+                <NText>{{ t('adminSettings.numCPU') }}</NText><NText>{{ formatInteger(goroutineStats?.num_cpu || 0) }}</NText>
+              </NSpace>
             </NSpace>
           </NCard>
         </NGi>
         <NGi>
           <NCard size="small" :title="t('adminSettings.goroutineStats')">
             <NSpace vertical size="small">
-              <NSpace justify="space-between"><NText>{{ t('adminSettings.runtimeTotal') }}</NText><NText>{{ formatInteger(goroutineStats?.total_count || 0) }}</NText></NSpace>
-              <NSpace justify="space-between"><NText>{{ t('adminSettings.tracked') }}</NText><NText>{{ formatInteger(goroutineStats?.tracked_count || 0) }}</NText></NSpace>
-              <NSpace justify="space-between"><NText>{{ t('adminSettings.heapAlloc') }}</NText><NText>{{ formatBytes(goroutineStats?.mem_stats?.heap_alloc || 0) }}</NText></NSpace>
-              <NSpace justify="space-between"><NText>{{ t('adminSettings.heapInUse') }}</NText><NText>{{ formatBytes(goroutineStats?.mem_stats?.heap_inuse || 0) }}</NText></NSpace>
-              <NSpace justify="space-between"><NText>{{ t('adminSettings.gcCount') }}</NText><NText>{{ formatInteger(goroutineStats?.mem_stats?.num_gc || 0) }}</NText></NSpace>
-              <NSpace justify="space-between"><NText>{{ t('adminSettings.totalAlloc') }}</NText><NText>{{ formatBytes(goroutineStats?.mem_stats?.total_alloc || 0) }}</NText></NSpace>
-              <NSpace justify="space-between"><NText>{{ t('adminSettings.heapObjects') }}</NText><NText>{{ formatInteger(goroutineStats?.mem_stats?.heap_objects || 0) }}</NText></NSpace>
-              <NSpace justify="space-between"><NText>{{ t('adminSettings.numCgoCall') }}</NText><NText>{{ formatInteger(goroutineStats?.num_cgo_call || 0) }}</NText></NSpace>
-              <NSpace justify="space-between"><NText>{{ t('adminSettings.potentialLeaks') }}</NText><NText type="error">{{ formatInteger(goroutineStats?.potential_leaks || 0) }}</NText></NSpace>
+              <NSpace justify="space-between">
+                <NText>{{ t('adminSettings.runtimeTotal') }}</NText><NText>{{ formatInteger(goroutineStats?.total_count || 0) }}</NText>
+              </NSpace>
+              <NSpace justify="space-between">
+                <NText>{{ t('adminSettings.tracked') }}</NText><NText>{{ formatInteger(goroutineStats?.tracked_count || 0) }}</NText>
+              </NSpace>
+              <NSpace justify="space-between">
+                <NText>{{ t('adminSettings.heapAlloc') }}</NText><NText>{{ formatBytes(goroutineStats?.mem_stats?.heap_alloc || 0) }}</NText>
+              </NSpace>
+              <NSpace justify="space-between">
+                <NText>{{ t('adminSettings.heapInUse') }}</NText><NText>{{ formatBytes(goroutineStats?.mem_stats?.heap_inuse || 0) }}</NText>
+              </NSpace>
+              <NSpace justify="space-between">
+                <NText>{{ t('adminSettings.gcCount') }}</NText><NText>{{ formatInteger(goroutineStats?.mem_stats?.num_gc || 0) }}</NText>
+              </NSpace>
+              <NSpace justify="space-between">
+                <NText>{{ t('adminSettings.totalAlloc') }}</NText><NText>{{ formatBytes(goroutineStats?.mem_stats?.total_alloc || 0) }}</NText>
+              </NSpace>
+              <NSpace justify="space-between">
+                <NText>{{ t('adminSettings.heapObjects') }}</NText><NText>{{ formatInteger(goroutineStats?.mem_stats?.heap_objects || 0) }}</NText>
+              </NSpace>
+              <NSpace justify="space-between">
+                <NText>{{ t('adminSettings.numCgoCall') }}</NText><NText>{{ formatInteger(goroutineStats?.num_cgo_call || 0) }}</NText>
+              </NSpace>
+              <NSpace justify="space-between">
+                <NText>{{ t('adminSettings.potentialLeaks') }}</NText><NText type="error">
+                  {{ formatInteger(goroutineStats?.potential_leaks || 0) }}
+                </NText>
+              </NSpace>
             </NSpace>
           </NCard>
         </NGi>
@@ -260,35 +294,113 @@ const {
 
       <NCard size="small" :title="t('adminSettings.memoryDetails')" style="margin-top: 12px;">
         <NGrid :x-gap="10" :y-gap="10" cols="1 s:2 m:4 l:4" responsive="screen">
-          <NGi><NStatistic :label="t('adminSettings.heapSys')"><template #default>{{ formatBytes(goroutineStats?.mem_stats?.heap_sys || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.heapIdle')"><template #default>{{ formatBytes(goroutineStats?.mem_stats?.heap_idle || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.heapReleased')"><template #default>{{ formatBytes(goroutineStats?.mem_stats?.heap_released || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.stackInUse')"><template #default>{{ formatBytes(goroutineStats?.mem_stats?.stack_inuse || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.stackSys')"><template #default>{{ formatBytes(goroutineStats?.mem_stats?.stack_sys || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.runtimeSys')"><template #default>{{ formatBytes(goroutineStats?.mem_stats?.sys || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.mallocs')"><template #default>{{ formatInteger(goroutineStats?.mem_stats?.mallocs || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.frees')"><template #default>{{ formatInteger(goroutineStats?.mem_stats?.frees || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.nextGC')"><template #default>{{ formatBytes(goroutineStats?.mem_stats?.next_gc || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.lastGC')"><template #default>{{ formatRuntimeTimestamp(goroutineStats?.mem_stats?.last_gc || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.pauseTotal')"><template #default>{{ formatNsDuration(goroutineStats?.mem_stats?.pause_total_ns || 0) }}</template></NStatistic></NGi>
-          <NGi><NStatistic :label="t('adminSettings.forcedGC')"><template #default>{{ formatInteger(goroutineStats?.mem_stats?.num_forced_gc || 0) }}</template></NStatistic></NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.heapSys')">
+              <template #default>
+                {{ formatBytes(goroutineStats?.mem_stats?.heap_sys || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.heapIdle')">
+              <template #default>
+                {{ formatBytes(goroutineStats?.mem_stats?.heap_idle || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.heapReleased')">
+              <template #default>
+                {{ formatBytes(goroutineStats?.mem_stats?.heap_released || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.stackInUse')">
+              <template #default>
+                {{ formatBytes(goroutineStats?.mem_stats?.stack_inuse || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.stackSys')">
+              <template #default>
+                {{ formatBytes(goroutineStats?.mem_stats?.stack_sys || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.runtimeSys')">
+              <template #default>
+                {{ formatBytes(goroutineStats?.mem_stats?.sys || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.mallocs')">
+              <template #default>
+                {{ formatInteger(goroutineStats?.mem_stats?.mallocs || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.frees')">
+              <template #default>
+                {{ formatInteger(goroutineStats?.mem_stats?.frees || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.nextGC')">
+              <template #default>
+                {{ formatBytes(goroutineStats?.mem_stats?.next_gc || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.lastGC')">
+              <template #default>
+                {{ formatRuntimeTimestamp(goroutineStats?.mem_stats?.last_gc || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.pauseTotal')">
+              <template #default>
+                {{ formatNsDuration(goroutineStats?.mem_stats?.pause_total_ns || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
+          <NGi>
+            <NStatistic :label="t('adminSettings.forcedGC')">
+              <template #default>
+                {{ formatInteger(goroutineStats?.mem_stats?.num_forced_gc || 0) }}
+              </template>
+            </NStatistic>
+          </NGi>
         </NGrid>
       </NCard>
     </NCard>
 
     <NCard :title="t('adminSettings.pprofTitle')" size="small">
       <template #header-extra>
-        <NButton size="small" @click="clearAllPprofResults">{{ t('adminSettings.clearResults') }}</NButton>
+        <NButton size="small" @click="clearAllPprofResults">
+          {{ t('adminSettings.clearResults') }}
+        </NButton>
       </template>
 
       <NGrid :x-gap="12" :y-gap="12" cols="1 s:2 m:3 l:3" responsive="screen">
         <NGi>
           <NCard size="small" :title="t('adminSettings.cpuProfile')">
             <NSpace vertical size="small">
-              <NText depth="3">{{ t('adminSettings.cpuProfileDesc') }}</NText>
+              <NText depth="3">
+                {{ t('adminSettings.cpuProfileDesc') }}
+              </NText>
               <NSpace>
                 <NInputNumber v-model:value="cpuSeconds" :min="5" :max="120" size="small" style="width: 90px" />
-                <NButton size="small" type="primary" :loading="debugLoading.cpu" @click="captureProfile('cpu')">{{ t('adminSettings.capture') }}</NButton>
+                <NButton size="small" type="primary" :loading="debugLoading.cpu" @click="captureProfile('cpu')">
+                  {{ t('adminSettings.capture') }}
+                </NButton>
               </NSpace>
             </NSpace>
           </NCard>
@@ -296,59 +408,89 @@ const {
         <NGi>
           <NCard size="small" :title="t('adminSettings.heapProfile')">
             <NSpace vertical size="small">
-              <NText depth="3">{{ t('adminSettings.heapProfileDesc') }}</NText>
-              <NButton size="small" type="primary" :loading="debugLoading.heap" @click="captureProfile('heap')">{{ t('adminSettings.capture') }}</NButton>
+              <NText depth="3">
+                {{ t('adminSettings.heapProfileDesc') }}
+              </NText>
+              <NButton size="small" type="primary" :loading="debugLoading.heap" @click="captureProfile('heap')">
+                {{ t('adminSettings.capture') }}
+              </NButton>
             </NSpace>
           </NCard>
         </NGi>
         <NGi>
           <NCard size="small" :title="t('adminSettings.goroutineProfile')">
             <NSpace vertical size="small">
-              <NText depth="3">{{ t('adminSettings.goroutineProfileDesc') }}</NText>
-              <NButton size="small" type="primary" :loading="debugLoading.goroutine" @click="captureProfile('goroutine')">{{ t('adminSettings.capture') }}</NButton>
+              <NText depth="3">
+                {{ t('adminSettings.goroutineProfileDesc') }}
+              </NText>
+              <NButton size="small" type="primary" :loading="debugLoading.goroutine" @click="captureProfile('goroutine')">
+                {{ t('adminSettings.capture') }}
+              </NButton>
             </NSpace>
           </NCard>
         </NGi>
         <NGi>
           <NCard size="small" :title="t('adminSettings.allocsProfile')">
             <NSpace vertical size="small">
-              <NText depth="3">{{ t('adminSettings.allocsProfileDesc') }}</NText>
-              <NButton size="small" type="primary" :loading="debugLoading.allocs" @click="captureProfile('allocs')">{{ t('adminSettings.capture') }}</NButton>
+              <NText depth="3">
+                {{ t('adminSettings.allocsProfileDesc') }}
+              </NText>
+              <NButton size="small" type="primary" :loading="debugLoading.allocs" @click="captureProfile('allocs')">
+                {{ t('adminSettings.capture') }}
+              </NButton>
             </NSpace>
           </NCard>
         </NGi>
         <NGi>
           <NCard size="small" :title="t('adminSettings.blockProfile')">
             <NSpace vertical size="small">
-              <NText depth="3">{{ t('adminSettings.blockProfileDesc') }}</NText>
-              <NButton size="small" type="primary" :loading="debugLoading.block" @click="captureProfile('block')">{{ t('adminSettings.capture') }}</NButton>
+              <NText depth="3">
+                {{ t('adminSettings.blockProfileDesc') }}
+              </NText>
+              <NButton size="small" type="primary" :loading="debugLoading.block" @click="captureProfile('block')">
+                {{ t('adminSettings.capture') }}
+              </NButton>
             </NSpace>
           </NCard>
         </NGi>
         <NGi>
           <NCard size="small" :title="t('adminSettings.mutexProfile')">
             <NSpace vertical size="small">
-              <NText depth="3">{{ t('adminSettings.mutexProfileDesc') }}</NText>
-              <NButton size="small" type="primary" :loading="debugLoading.mutex" @click="captureProfile('mutex')">{{ t('adminSettings.capture') }}</NButton>
+              <NText depth="3">
+                {{ t('adminSettings.mutexProfileDesc') }}
+              </NText>
+              <NButton size="small" type="primary" :loading="debugLoading.mutex" @click="captureProfile('mutex')">
+                {{ t('adminSettings.capture') }}
+              </NButton>
             </NSpace>
           </NCard>
         </NGi>
         <NGi>
           <NCard size="small" :title="t('adminSettings.threadCreateProfile')">
             <NSpace vertical size="small">
-              <NText depth="3">{{ t('adminSettings.threadCreateProfileDesc') }}</NText>
-              <NButton size="small" type="primary" :loading="debugLoading.threadcreate" @click="captureProfile('threadcreate')">{{ t('adminSettings.capture') }}</NButton>
+              <NText depth="3">
+                {{ t('adminSettings.threadCreateProfileDesc') }}
+              </NText>
+              <NButton size="small" type="primary" :loading="debugLoading.threadcreate" @click="captureProfile('threadcreate')">
+                {{ t('adminSettings.capture') }}
+              </NButton>
             </NSpace>
           </NCard>
         </NGi>
         <NGi>
           <NCard size="small" :title="t('adminSettings.traceProfile')">
             <NSpace vertical size="small">
-              <NText depth="3">{{ t('adminSettings.traceProfileDesc') }}</NText>
+              <NText depth="3">
+                {{ t('adminSettings.traceProfileDesc') }}
+              </NText>
               <NSpace>
                 <NInputNumber v-model:value="traceSeconds" :min="1" :max="30" size="small" style="width: 90px" />
-                <NButton size="small" type="primary" :loading="debugLoading.trace" @click="previewTraceProfile">{{ t('common.preview') }}</NButton>
-                <NButton size="small" :loading="debugLoading.trace" @click="downloadTraceProfile">{{ t('adminSettings.downloadBinary') }}</NButton>
+                <NButton size="small" type="primary" :loading="debugLoading.trace" @click="previewTraceProfile">
+                  {{ t('common.preview') }}
+                </NButton>
+                <NButton size="small" :loading="debugLoading.trace" @click="downloadTraceProfile">
+                  {{ t('adminSettings.downloadBinary') }}
+                </NButton>
               </NSpace>
             </NSpace>
           </NCard>
@@ -400,8 +542,12 @@ const {
             </template>
             {{ t('adminSettings.filterTooltip') }}
           </NTooltip>
-          <NButton size="small" :loading="debugLoading.stacks" @click="loadRuntimeStacks">{{ t('adminSettings.loadStacks') }}</NButton>
-          <NButton size="small" @click="clearRuntimeStacks">{{ t('adminSettings.clearStacks') }}</NButton>
+          <NButton size="small" :loading="debugLoading.stacks" @click="loadRuntimeStacks">
+            {{ t('adminSettings.loadStacks') }}
+          </NButton>
+          <NButton size="small" @click="clearRuntimeStacks">
+            {{ t('adminSettings.clearStacks') }}
+          </NButton>
         </NSpace>
       </template>
       <NAlert v-if="potentialLeakStacks.length > 0" type="error" :title="t('adminSettings.suspectedLeakTitle')" style="margin-bottom: 12px">
@@ -433,7 +579,9 @@ const {
       <NEmpty v-if="!runtimeStacksLoaded" :description="t('adminSettings.clickToLoadStacks')" />
       <template v-else>
         <NSpace wrap size="small" style="margin-bottom: 12px">
-          <NTag type="info">{{ t('adminSettings.runtimeTotal') }}: {{ formatInteger(runtimeStacks.length) }}</NTag>
+          <NTag type="info">
+            {{ t('adminSettings.runtimeTotal') }}: {{ formatInteger(runtimeStacks.length) }}
+          </NTag>
           <NTag
             v-for="summary in runtimeStateSummary"
             :key="summary.key"
@@ -448,17 +596,29 @@ const {
           <NCollapseItem v-for="stack in runtimeStacks" :key="stack.id" :name="stack.id">
             <template #header>
               <NSpace align="center">
-                <NText code>#{{ stack.id }}</NText>
+                <NText code>
+                  #{{ stack.id }}
+                </NText>
                 <NText>{{ stack.function }}</NText>
-                <NTag v-if="potentialLeakIdSet.has(stack.id)" type="error" size="small">{{ t('adminSettings.suspectedLeakTag') }}</NTag>
-                <NTag v-if="stack.locked_to_thread" type="warning" size="small">{{ t('adminSettings.lockedToThread') }}</NTag>
+                <NTag v-if="potentialLeakIdSet.has(stack.id)" type="error" size="small">
+                  {{ t('adminSettings.suspectedLeakTag') }}
+                </NTag>
+                <NTag v-if="stack.locked_to_thread" type="warning" size="small">
+                  {{ t('adminSettings.lockedToThread') }}
+                </NTag>
               </NSpace>
             </template>
             <template #header-extra>
               <NSpace size="small">
-                <NTag :type="getRuntimeStateTagType(stack.state) as any" size="small">{{ stack.state }}</NTag>
-                <NText v-if="stack.wait_time" depth="3" style="font-size: 12px">{{ stack.wait_time }}</NText>
-                <NText depth="3" style="font-size: 11px">{{ t('adminSettings.stackLines', { count: stack.stack_lines }) }}</NText>
+                <NTag :type="getRuntimeStateTagType(stack.state) as any" size="small">
+                  {{ stack.state }}
+                </NTag>
+                <NText v-if="stack.wait_time" depth="3" style="font-size: 12px">
+                  {{ stack.wait_time }}
+                </NText>
+                <NText depth="3" style="font-size: 11px">
+                  {{ t('adminSettings.stackLines', { count: stack.stack_lines }) }}
+                </NText>
               </NSpace>
             </template>
             <NSpace vertical>

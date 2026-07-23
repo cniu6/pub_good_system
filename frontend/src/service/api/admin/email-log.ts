@@ -1,7 +1,9 @@
 import { request } from '@/service/http'
 import { getAdminApiBase } from './base'
 
-function baseUrl() { return `${getAdminApiBase()}/email-logs` }
+function baseUrl() {
+  return `${getAdminApiBase()}/email-logs`
+}
 
 export interface EmailLog {
   id: number
@@ -30,12 +32,12 @@ export interface EmailLogStats {
   today_count: number
   success_count: number
   fail_count: number
-  top_templates: Array<{ template_name: string; count: number }>
+  top_templates: Array<{ template_name: string, count: number }>
 }
 
 export const adminEmailLogApi = {
   list(params?: EmailLogListParams) {
-    return request.Get<Service.ResponseResult<{ list: EmailLog[]; total: number; page: number; page_size: number }>>(baseUrl(), { params })
+    return request.Get<Service.ResponseResult<{ list: EmailLog[], total: number, page: number, page_size: number }>>(baseUrl(), { params })
   },
 
   detail(id: number) {

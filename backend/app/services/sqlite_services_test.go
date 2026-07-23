@@ -135,3 +135,46 @@ func TestOperateUserMoney_AutoCreatedOrderUsesAbsoluteAmount(t *testing.T) {
 		t.Fatalf("自动建单金额应为操作幅度的绝对值 15，实际 Amount=%v PayAmount=%v", order.Amount, order.PayAmount)
 	}
 }
+
+// TestOperateUserMoney_RejectNearZeroAmount 按「分」判零：浮点噪声 / 不足 1 分应被拒绝
+func TestOperateUserMoney_RejectNearZeroAmount(t *testing.T) {
+	cleanup := testutil.SetupSQLite(t)
+	defer cleanup()
+
+	u := testutil.CreateTestUser(t, "svc-user-near-zero")
+
+	cases := []struct {
+		name   string
+		amount float64
+	}{
+		{name: "精确0", amount: 0},
+		{name: "亚分噪声正", amount: 0.0000001},
+		{name: "亚分噪声负", amount: -0.0000001},
+		{name: "不足半分", amount: 0.004},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := services.OperateUserMoney(u.ID, services.MoneyOperationRequest{
+				Amount:    tc.amount,
+				Operation: "balance_only",
+				Memo:      "near-zero",
+			})
+			if err == nil {
+				t.Fatalf("金额=%v 应按分判零被拒绝", tc.amount)
+			}
+		})
+	}
+
+	// 刚好 1 分应放行
+	res, err := services.OperateUserMoney(u.ID, services.MoneyOperationRequest{
+		Amount:    0.01,
+		Operation: "balance_only",
+		Memo:      "one-fen",
+	})
+	if err != nil {
+		t.Fatalf("0.01 元应成功: %v", err)
+	}
+	if res.AfterMoney != u.Money+0.01 {
+		t.Fatalf("after=%v want %v", res.AfterMoney, u.Money+0.01)
+	}
+}

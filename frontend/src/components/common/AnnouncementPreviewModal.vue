@@ -2,9 +2,9 @@
 /**
  * 公告正文预览弹窗（MdPreview）：铃铛 / 工作台 / 登录弹窗共用
  */
-import { computed, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NModal, NButton, NSpace, NTag } from 'naive-ui'
+import { NButton, NModal, NSpace, NTag } from 'naive-ui'
 import { MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
 import { useAppStore } from '@/store'

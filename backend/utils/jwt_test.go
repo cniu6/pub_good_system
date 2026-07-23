@@ -43,7 +43,7 @@ func TestTokenTypeSeparationCurrentTokens(t *testing.T) {
 	}
 }
 
-func TestTokenTypeSeparationLegacyTokens(t *testing.T) {
+func TestTokenTypeSeparationRejectsMissingType(t *testing.T) {
 	restore := useTestJWTConfig()
 	defer restore()
 
@@ -56,7 +56,7 @@ func TestTokenTypeSeparationLegacyTokens(t *testing.T) {
 	}
 	legacyAccessToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, legacyAccessClaims).SignedString([]byte(config.GlobalConfig.JWTSecret))
 	if err != nil {
-		t.Fatalf("failed to sign legacy access token: %v", err)
+		t.Fatalf("failed to sign token without type: %v", err)
 	}
 
 	legacyRefreshClaims := &RefreshClaims{
@@ -67,20 +67,14 @@ func TestTokenTypeSeparationLegacyTokens(t *testing.T) {
 	}
 	legacyRefreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, legacyRefreshClaims).SignedString([]byte(config.GlobalConfig.JWTSecret))
 	if err != nil {
-		t.Fatalf("failed to sign legacy refresh token: %v", err)
+		t.Fatalf("failed to sign refresh without type: %v", err)
 	}
 
-	if _, err := ParseToken(legacyAccessToken); err != nil {
-		t.Fatalf("ParseToken should accept legacy access token: %v", err)
+	if _, err := ParseToken(legacyAccessToken); err == nil {
+		t.Fatal("ParseToken should reject token without token_type")
 	}
-	if _, err := ParseRefreshToken(legacyRefreshToken); err != nil {
-		t.Fatalf("ParseRefreshToken should accept legacy refresh token: %v", err)
-	}
-	if _, err := ParseRefreshToken(legacyAccessToken); err == nil {
-		t.Fatal("ParseRefreshToken should reject legacy access token")
-	}
-	if _, err := ParseToken(legacyRefreshToken); err == nil {
-		t.Fatal("ParseToken should reject legacy refresh token")
+	if _, err := ParseRefreshToken(legacyRefreshToken); err == nil {
+		t.Fatal("ParseRefreshToken should reject token without token_type")
 	}
 }
 

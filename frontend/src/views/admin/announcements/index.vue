@@ -5,6 +5,7 @@
 import { computed, h, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
+
   NButton,
   NCard,
   NDataTable,
@@ -19,11 +20,12 @@ import {
   NTag,
   useDialog,
   useMessage,
-  type DataTableColumns,
 } from 'naive-ui'
+import type { DataTableColumns } from 'naive-ui'
 import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
-import { adminAnnouncementApi, type AdminAnnouncement, type AnnouncementUpsertPayload } from '@/service/api/admin/announcement'
+import { adminAnnouncementApi } from '@/service/api/admin/announcement'
+import type { AdminAnnouncement, AnnouncementUpsertPayload } from '@/service/api/admin/announcement'
 import { useAppStore } from '@/store'
 import { useRequestGuard } from '@/hooks'
 import { sanitizeMarkdownHtml } from '@/utils/safeMarkdown'
@@ -41,7 +43,7 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
 const keyword = ref('')
-const statusFilter = ref<number | null>(null)
+const statusFilter = ref<number | ''>('')
 
 const showModal = ref(false)
 const saving = ref(false)
@@ -58,7 +60,7 @@ const form = ref<AnnouncementUpsertPayload>({
 })
 
 const statusOptions = computed(() => [
-  { label: t('announcements.statusAll'), value: null },
+  { label: t('announcements.statusAll'), value: '' as const },
   { label: t('announcements.statusDraft'), value: 0 },
   { label: t('announcements.statusPublished'), value: 1 },
   { label: t('announcements.statusUnpublished'), value: 2 },
@@ -129,7 +131,7 @@ async function loadList() {
       page: page.value,
       page_size: pageSize.value,
       keyword: keyword.value || undefined,
-      status: statusFilter.value === null ? undefined : statusFilter.value,
+      status: statusFilter.value === '' ? undefined : statusFilter.value,
     })
     if (!listFetchGuard.isLatest(token))
       return

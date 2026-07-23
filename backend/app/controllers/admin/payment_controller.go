@@ -226,6 +226,10 @@ func (ctrl *PaymentController) ResolveException(c *gin.Context) {
 		return
 	}
 	req.Remark = utils.Clean_XSS(req.Remark)
+	if err := utils.ValidateRuneLen(req.Remark, "处理备注", utils.MaxResolveRemarkLength); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
 	status := models.PaymentExceptionStatusResolved
 	switch req.Action {
 	case "resolve":
@@ -432,7 +436,7 @@ func (ctrl *PaymentController) RegisterPaymentRoutes(group *gin.RouterGroup) {
 		// 订单管理（补单/取消属于资金相关写操作，强制幂等键防双击）
 		payment.GET("/orders", ctrl.ListOrders)
 		payment.GET("/orders/:id", ctrl.OrderDetail)
-		payment.POST("/orders/:id/complete", middleware.RequirePermission("payment:write"), middleware.RequireRecentTOTP(), middleware.RequireIdempotency("admin_payment_complete", 10*time.Minute), ctrl.CompleteOrder)
+		payment.POST("/orders/:id/complete", middleware.RequireIdempotency("admin_payment_complete", 10*time.Minute), ctrl.CompleteOrder)
 		payment.POST("/orders/:id/cancel", middleware.RequireIdempotency("admin_payment_cancel", 10*time.Minute), ctrl.CancelOrder)
 		payment.POST("/orders/:id/reconcile", middleware.RequireIdempotency("admin_payment_reconcile", 10*time.Minute), ctrl.ReconcileOrder)
 		payment.DELETE("/orders/:id", ctrl.DeleteOrder)

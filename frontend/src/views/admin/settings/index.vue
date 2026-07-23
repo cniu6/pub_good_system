@@ -10,6 +10,7 @@ import SmsTab from './tabs/SmsTab.vue'
 import SecurityTab from './tabs/SecurityTab.vue'
 import RealnameApiTab from './tabs/RealnameApiTab.vue'
 import PaymentTab from './tabs/PaymentTab.vue'
+import UserLevelsTab from './tabs/UserLevelsTab.vue'
 import CustomTab from './tabs/CustomTab.vue'
 
 const { t } = useI18n()
@@ -63,6 +64,9 @@ onMounted(() => {
         </n-tab-pane>
         <n-tab-pane name="payment" :tab="t('adminSettings.paymentSettings')">
           <PaymentTab />
+        </n-tab-pane>
+        <n-tab-pane name="user-levels" :tab="t('adminSettings.userLevels')">
+          <UserLevelsTab />
         </n-tab-pane>
         <n-tab-pane name="custom" :tab="t('adminSettings.customConfig')">
           <CustomTab />

@@ -47,29 +47,27 @@ const moneyFetchGuard = useRequestGuard()
 const scoreFetchGuard = useRequestGuard()
 const withdrawFetchGuard = useRequestGuard()
 const sessionFetchGuard = useRequestGuard()
+const userFetchGuard = useRequestGuard()
 
 /**
- * API Key 默认脱敏，点击后再完整展示，降低屏幕偷看/录屏风险。
- * 注意：后端 GET 接口现在始终只返回掩码（形如 ********xxxx，仅末4位），
- * 完整明文只会在「重置API密钥」成功的那一次响应里短暂出现在本地 user.apikey，
- * 刷新/重新拉取详情后即恢复为掩码，这里的显示/隐藏开关只对这种“本地临时明文”生效。
+ * API Key：列表/详情只显示掩码；重置成功后的明文只在本地短暂展示一次。
  */
 const showApiKey = ref(false)
 
-/** 判断当前值是否已经是后端下发的掩码格式（无需也不能再展示更多信息） */
-function isServerMaskedApiKey(value: string) {
-  return value.startsWith('********')
-}
-
-function maskedApiKey(key?: string | null) {
+function displayApiKey(key?: string | null) {
   const value = String(key || '').trim()
   if (!value)
     return '-'
-  if (isServerMaskedApiKey(value) || showApiKey.value)
+  if (value.startsWith('********'))
     return value
-  if (value.length <= 8)
-    return '*'.repeat(value.length)
-  return `${value.slice(0, 4)}${'*'.repeat(Math.min(value.length - 8, 16))}${value.slice(-4)}`
+  if (showApiKey.value)
+    return value
+  return `********${value.slice(-4)}`
+}
+
+function isTemporaryPlainApiKey(key?: string | null) {
+  const value = String(key || '').trim()
+  return Boolean(value) && !value.startsWith('********')
 }
 
 /** 返回用户列表（hash 路由用 name） */
@@ -351,9 +349,12 @@ async function fetchUserData() {
   if (!userId.value)
     return
 
+  const token = userFetchGuard.begin()
   loading.value = true
   try {
     const response = await adminUserApi.detail(userId.value)
+    if (!userFetchGuard.isLatest(token))
+      return
     if (response.isSuccess) {
       user.value = response.data?.user || null
       realname.value = response.data?.realname || { has_verification: false }
@@ -363,12 +364,15 @@ async function fetchUserData() {
     }
   }
   catch (error) {
+    if (!userFetchGuard.isLatest(token))
+      return
     if (import.meta.env.DEV)
       console.error('[adminUsersDetail] fetch user failed', error)
     message.error(t('adminUsersDetail.fetchUserFailed'))
   }
   finally {
-    loading.value = false
+    if (userFetchGuard.isLatest(token))
+      loading.value = false
   }
 }
 
@@ -966,10 +970,10 @@ onMounted(() => {
                 <n-descriptions-item :label="t('adminUsersDetail.apiKey')" :span="2">
                   <n-space align="center">
                     <n-text code>
-                      {{ maskedApiKey(user?.apikey) }}
+                      {{ displayApiKey(user?.apikey) }}
                     </n-text>
                     <n-button
-                      v-if="user?.apikey && !isServerMaskedApiKey(String(user.apikey))"
+                      v-if="isTemporaryPlainApiKey(user?.apikey)"
                       size="tiny"
                       quaternary
                       @click="showApiKey = !showApiKey"
