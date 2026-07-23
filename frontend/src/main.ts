@@ -1,4 +1,8 @@
 import { bootstrap } from './bootstrap'
+import { printBuildBanner } from './utils/buildBanner'
+
+// 控制台启动标识：品牌 + 编译时间（CSS 双徽章）
+printBuildBanner()
 
 // 根据当前 URL pathname 自动判断运行模式
 // 管理端使用 hash 路由，访问路径为 VITE_ADMIN_BASE_PATH（如 /system-mgr，与 ADMIN_PATH 一致）

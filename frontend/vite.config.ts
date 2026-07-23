@@ -23,6 +23,12 @@ function ensureAdminEntryHtml(rootDir: string, adminEntryDir: string): string {
   return targetPath
 }
 
+/** 编译时间统一成图示风格：YYYY/MM/DD HH:mm:ss */
+function formatBuildTimestamp(date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // 根据当前工作目录中的 `mode` 加载 .env 文件
@@ -33,7 +39,7 @@ export default defineConfig(({ mode }) => {
   return {
     base: env.VITE_BASE_URL,
     define: {
-      __BUILD_TIMESTAMP__: JSON.stringify(new Date().toLocaleString()),
+      __BUILD_TIMESTAMP__: JSON.stringify(formatBuildTimestamp()),
     },
     plugins: createVitePlugins(env),
     resolve: {
