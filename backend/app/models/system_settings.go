@@ -151,7 +151,8 @@ var defaultSettings = []SystemSetting{
 	{Key: "operation_log_per_user_max_count", Value: "1000", Type: "number", Category: "security", Label: "操作日志每用户上限", Description: "每个用户最多保留的操作日志条数（需开启开关）", IsPublic: false, IsEditable: true, SortOrder: 9},
 	{Key: "api_access_log_enabled", Value: "true", Type: "boolean", Category: "security", Label: "启用API接口日志", Description: "是否记录API接口访问日志（请求/响应体截断入库；请求头凭证字段脱敏）", IsPublic: false, IsEditable: true, SortOrder: 10},
 	{Key: "api_log_query_days", Value: "7", Type: "number", Category: "security", Label: "API日志查询天数", Description: "API接口日志默认查询范围（天）", IsPublic: false, IsEditable: true, SortOrder: 11},
-	{Key: "api_log_max_count", Value: "1000", Type: "number", Category: "security", Label: "API日志保留上限", Description: "API接口日志自动保留的最大条数", IsPublic: false, IsEditable: true, SortOrder: 12},
+	{Key: "api_log_max_count", Value: "5000", Type: "number", Category: "security", Label: "API日志保留上限", Description: "API接口日志自动保留的最大条数", IsPublic: false, IsEditable: true, SortOrder: 12},
+	{Key: "api_log_cleanup_interval_seconds", Value: "600", Type: "number", Category: "security", Label: "API日志自动清理间隔", Description: "API日志保留清理任务的最小执行间隔（秒）", IsPublic: false, IsEditable: true, SortOrder: 12},
 	{Key: "api_log_per_user_limit_enabled", Value: "false", Type: "boolean", Category: "security", Label: "API日志每用户上限开关", Description: "开启后额外限制每个用户保留的API日志条数", IsPublic: false, IsEditable: true, SortOrder: 12},
 	{Key: "api_log_per_user_max_count", Value: "1000", Type: "number", Category: "security", Label: "API日志每用户上限", Description: "每个用户最多保留的API日志条数（需开启开关）", IsPublic: false, IsEditable: true, SortOrder: 12},
 	// 用户中心可见性：记录仍走管理端；是否给用户看由下列开关控制

@@ -353,4 +353,7 @@ const res = await adminApi.user.list({ page: 1 })
 - SQLite 库中 `verification_codes` 同时存在 `email` 与 `contact` 列属预期（SQLite 不可靠改名，采用加列拷贝并保留旧列），业务只读写 `contact`
 - `utils.Fail` 的业务码 400–599 同时作为 HTTP 状态码是设计意图（让网关/中间件按 c.Writer.Status() 统计 4xx/5xx 准确）
 - 支付通道密钥管理端列表/详情掩码，更新时 `***` 不覆盖真密钥——不是脱敏失败
-- API Key 库内存明文 + 末4位 hint；管理端列表/详情只下发掩码，用户中心可随时查看明文；启动时会把旧 SHA256 哈希密钥自动重置为新明文
+- **JWT ≠ API Key**：JWT 只服务人登录会话（Bearer + `token_type`/`auth_guard`）；API Key 只服务程序调用（`X-Api-Key`）。二者用途不同，互不替代。详见 `backend/留档.md`「鉴权两套」
+- JWT 强制 `token_type` + `auth_guard`：升级后旧 Token 失效需重新登录——预期，不是鉴权回归
+- API Key 库内存明文 + 末4位 hint；管理端列表/详情只下发掩码，用户中心可随时查看明文；启动时会把旧 SHA256 哈希密钥自动重置为新明文（旧 Key 失效需换新——预期，与登录 JWT 无关）
+- 管理端数据库控制台（`/db/*`）是正式管理功能，不要用 debug 运维开关关掉；只读 SQL 不得放行可写 `WITH`/`PRAGMA`

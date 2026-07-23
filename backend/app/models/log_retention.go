@@ -10,10 +10,13 @@ import (
 	"time"
 )
 
+const logRetentionDeleteBatchSize = 200
+
 // log_retention.go：email_logs / sms_logs / operation_logs / api_access_logs 四类日志的
 // 「保留清理」逻辑高度重复，这里抽成通用实现。
 
-// cleanExcessRowsGeneric 全局保留最新 maxCount 条（按 timeCol 排序），删除更旧的记录。
+// cleanExcessRowsGeneric 全局保留最新 maxCount 条（按 timeCol 排序），小批删除更旧的记录。
+// 不再使用 DELETE ... NOT IN (SELECT ...)，以缩短锁持有时间，避免与高频写日志竞争。
 func cleanExcessRowsGeneric(table, timeCol string, maxCount int) (int64, error) {
 	if maxCount <= 0 {
 		return 0, nil
@@ -26,11 +29,25 @@ func cleanExcessRowsGeneric(table, timeCol string, maxCount int) (int64, error) 
 		return 0, nil
 	}
 
-	deleteSQL := fmt.Sprintf(
-		"DELETE FROM %s WHERE id NOT IN (SELECT id FROM (SELECT id FROM %s ORDER BY %s DESC, id DESC LIMIT ?) AS keep_rows)",
-		table, table, timeCol,
-	)
-	result := db.DB.Exec(deleteSQL, maxCount)
+	deleteCount := min(int64(logRetentionDeleteBatchSize), total-int64(maxCount))
+	var rows []struct {
+		ID uint64 `gorm:"column:id"`
+	}
+	if err := db.DB.Table(table).
+		Select("id").
+		Order(fmt.Sprintf("%s ASC, id ASC", timeCol)).
+		Limit(int(deleteCount)).
+		Scan(&rows).Error; err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	ids := make([]uint64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	result := db.DB.Exec(fmt.Sprintf("DELETE FROM %s WHERE id IN ?", table), ids)
 	if result.Error != nil {
 		return 0, result.Error
 	}
@@ -57,14 +74,30 @@ func cleanExcessRowsPerGroupGeneric[G any](table, groupCol, timeCol string, maxP
 		return 0, err
 	}
 
-	deleteSQL := fmt.Sprintf(
-		"DELETE FROM %s WHERE %s = ? AND id NOT IN (SELECT id FROM (SELECT id FROM %s WHERE %s = ? ORDER BY %s DESC, id DESC LIMIT ?) AS keep_rows)",
-		table, groupCol, table, groupCol, timeCol,
-	)
-
 	var totalAffected int64
 	for _, g := range groups {
-		result := db.DB.Exec(deleteSQL, g.Grp, g.Grp, maxPerGroup)
+		deleteCount := min(int64(logRetentionDeleteBatchSize), g.Cnt-int64(maxPerGroup))
+		var rows []struct {
+			ID uint64 `gorm:"column:id"`
+		}
+		query := db.DB.Table(table).
+			Select("id").
+			Where(fmt.Sprintf("%s = ?", groupCol), g.Grp)
+		if strings.TrimSpace(extraWhere) != "" {
+			query = query.Where(extraWhere)
+		}
+		if err := query.Order(fmt.Sprintf("%s ASC, id ASC", timeCol)).Limit(int(deleteCount)).Scan(&rows).Error; err != nil {
+			log.Printf("[LogRetention] 查询待清理记录失败 table=%s group_col=%s grp=%v: %v", table, groupCol, g.Grp, err)
+			continue
+		}
+		if len(rows) == 0 {
+			continue
+		}
+		ids := make([]uint64, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.ID)
+		}
+		result := db.DB.Exec(fmt.Sprintf("DELETE FROM %s WHERE id IN ?", table), ids)
 		if result.Error != nil {
 			log.Printf("[LogRetention] 按分组清理超限记录失败 table=%s group_col=%s grp=%v: %v", table, groupCol, g.Grp, result.Error)
 			continue

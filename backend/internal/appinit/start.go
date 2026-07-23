@@ -17,6 +17,7 @@ import (
 	"fst/backend/app/plugins"
 	"fst/backend/app/services"
 	"fst/backend/internal/migrate"
+	"fst/backend/pkg/apilog"
 	"fst/backend/pkg/config"
 	"fst/backend/pkg/db"
 	"fst/backend/pkg/middleware"
@@ -54,6 +55,10 @@ func Bootstrap() {
 	// ---------- 4. 业务服务（非定时任务） ----------
 	services.InitSettingsService() // 系统配置缓存
 	services.InitSMSService()      // 短信发送服务
+	if err := apilog.Start(); err != nil {
+		// WAL 目录不可用不能阻断业务服务启动；中间件会记录入队失败，运维可据此修复目录权限。
+		log.Printf("[AppInit] API访问日志 writer 启动失败: %v", err)
+	}
 
 	// ---------- 5. 后台异步任务（统一走 internal/task 管理器） ----------
 	services.StartBackgroundTasks()

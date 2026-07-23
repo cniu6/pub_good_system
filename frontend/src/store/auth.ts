@@ -325,9 +325,13 @@ export const useAuthStore = defineStore('auth-store', {
       // 上报周期取管理端可配置的「在线心跳上报周期」（默认30秒），未加载完成时组合式函数内部兜底为30秒。
       const settingsStore = useSettingsStore()
       const intervalMs = settingsStore.onlineReportIntervalSeconds * 1000
+      const userID = this.userInfo?.id
+      if (!userID)
+        return
+      const guard = getRuntimeRouteMode() === 'admin' ? 'admin' : 'user'
       startPresence(this.token, () => {
         this.requireReauthentication()
-      }, intervalMs)
+      }, userID, guard, intervalMs)
     },
 
     async restoreLanguageFromBackend() {

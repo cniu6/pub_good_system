@@ -9,11 +9,10 @@ import (
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
+	"fst/backend/pkg/apilog"
 	"fst/backend/pkg/config"
-	"fst/backend/pkg/panicsafe"
 	"fst/backend/utils"
 	"io"
-	"log"
 	"net"
 	"net/url"
 	"strings"
@@ -23,12 +22,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// API 访问日志 body 截断与操作日志共用常量（见 log_sanitize.go）：
-// MEDIUMTEXT ≈ 16MB，实际存库上限 maxLogStoredBodyBytes = 64KB，并标记「已截断」。
-const apiAccessLogCleanupInterval = 30 * time.Second
-
 var apiAccessLogRequestSeq atomic.Uint64
-var apiAccessLogCleanupNextAt atomic.Int64
 
 // adminAPIBasePath 返回管理端 API 完整前缀 /api/v1{ADMIN_API_PATH}
 func adminAPIBasePath() string {
@@ -128,7 +122,8 @@ func sanitizePathParams(params gin.Params) *string {
 	return &value
 }
 
-func sanitizeRequestHeaders(headers map[string][]string) *string {
+// captureRequestHeaders 原样保存 API 请求头；单个值与总内容仍会截断，避免日志无限膨胀。
+func captureRequestHeaders(headers map[string][]string) *string {
 	if len(headers) == 0 {
 		return nil
 	}
@@ -275,37 +270,6 @@ func newAPIAccessRequestID() string {
 	return string(hexbuf)
 }
 
-func scheduleAPIAccessLogRetentionCleanup() {
-	cfg := services.GetGlobalAPILogRuntimeConfig()
-	maxCount := cfg.MaxCount
-	if maxCount <= 0 && !(cfg.PerUserLimitEnabled && cfg.PerUserMaxCount > 0) {
-		return
-	}
-
-	now := time.Now().UnixNano()
-	nextAt := apiAccessLogCleanupNextAt.Load()
-	if nextAt > now {
-		return
-	}
-
-	scheduledAt := now + int64(apiAccessLogCleanupInterval)
-	if !apiAccessLogCleanupNextAt.CompareAndSwap(nextAt, scheduledAt) {
-		return
-	}
-
-	if maxCount > 0 {
-		if _, err := models.CleanExcessAPIAccessLogs(maxCount); err != nil {
-			apiAccessLogCleanupNextAt.Store(now)
-			log.Printf("[APIAccessLog] 自动清理超限日志失败: %v", err)
-		}
-	}
-	if cfg.PerUserLimitEnabled && cfg.PerUserMaxCount > 0 {
-		if _, err := models.CleanExcessAPIAccessLogsPerUser(cfg.PerUserMaxCount); err != nil {
-			log.Printf("[APIAccessLog] 按用户清理超限日志失败: %v", err)
-		}
-	}
-}
-
 func sanitizeResponseBodyByType(raw, contentType, transport string, statusCode int, maskSensitive bool) string {
 	trimmedType := normalizeContentType(contentType)
 	if transport == "websocket" && statusCode == 101 {
@@ -380,7 +344,7 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 		transport := resolveAPITransport(c, requestBody, responseContentType)
 		responseBody := sanitizeResponseBodyByType(blw.body.String(), responseContentType, transport, c.Writer.Status(), false)
 		requestBody = truncateForLog(requestBody, maxLogStoredBodyBytes)
-		requestHeaders := sanitizeRequestHeaders(c.Request.Header)
+		requestHeaders := captureRequestHeaders(c.Request.Header)
 		pathParams := sanitizePathParams(c.Params)
 
 		var userID uint64
@@ -452,15 +416,11 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 			ResponseSize:        blw.written,
 		}
 
-		panicsafe.Go("APIAccessLog.write", func() {
-			if err := models.CreateAPIAccessLog(entry); err != nil {
-				log.Printf("[APIAccessLog] 保存失败: %v", err)
-				return
-			}
-			if err := models.RecordAPIAccessLogAggregate(entry); err != nil {
-				log.Printf("[APIAccessLog] 汇总更新失败: %v", err)
-			}
-			scheduleAPIAccessLogRetentionCleanup()
-		})
+		// 请求线程只负责投递。单实例 writer 按“100 条或 2 秒”批量落库，
+		// 队列满或数据库死锁重试失败时会同步 fsync 到本地 WAL。
+		if err := apilog.Enqueue(entry); err != nil {
+			// 业务响应已经结束，不能因审计日志基础设施故障改写本次 HTTP 结果。
+			gin.DefaultErrorWriter.Write([]byte("[APIAccessLog] 入队失败: " + err.Error() + "\n"))
+		}
 	}
 }

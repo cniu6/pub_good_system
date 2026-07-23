@@ -30,6 +30,9 @@ data/
 *.db-shm
 *.db-wal
 
+# API 访问日志本地 WAL（数据库短暂不可用时的落盘队列）
+api-access-log-wal/
+
 # 日志
 *.log
 npm-debug.log*

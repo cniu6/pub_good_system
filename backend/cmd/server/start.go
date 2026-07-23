@@ -1,11 +1,15 @@
 package server
 
 import (
+	"context"
 	"embed"
+	"errors"
 	"io/fs"
 	"log"
+	"time"
 
 	"fst/backend/internal/appinit"
+	"fst/backend/pkg/apilog"
 	"fst/backend/pkg/config"
 	"fst/backend/utils"
 
@@ -53,7 +57,17 @@ func Start(opts Options) {
 	log.Printf("[Server] 已加载插件数量: %d", pluginMgr.Count())
 	log.Printf("===================================================")
 
-	if err := utils.ServeHTTPServer(httpServer, pluginMgr.ShutdownAll); err != nil { //启动服务，并监听插件关闭信号
+	if err := utils.ServeHTTPServer(httpServer, func() error {
+		// HTTP 已停止接收新请求后再 flush，避免关闭期间继续向队列写入。
+		// 预留一部分 HTTP 优雅关闭时间给插件，超时的内存日志会落入 WAL 等待下次启动重放。
+		flushTimeout := 8 * time.Second
+		if cfg := config.CloneGlobalConfig(); cfg != nil && cfg.HTTPShutdownTimeoutSeconds > 0 {
+			flushTimeout = time.Duration(cfg.HTTPShutdownTimeoutSeconds) * time.Second * 8 / 10
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
+		defer cancel()
+		return errors.Join(apilog.Stop(ctx), pluginMgr.ShutdownAll())
+	}); err != nil { //启动服务，并监听插件关闭信号
 		log.Fatalf("[Server] 启动失败: %v", err)
 	}
 

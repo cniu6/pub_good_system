@@ -186,3 +186,30 @@ func TestGetGlobalPaymentRuntimeHelpers(t *testing.T) {
 		t.Fatalf("GetGlobalPaymentEnabled() = true, want false")
 	}
 }
+
+func TestGetGlobalAPILogRuntimeConfigNormalizesCleanupInterval(t *testing.T) {
+	oldSettingsService := GlobalSettingsService
+	defer func() {
+		GlobalSettingsService = oldSettingsService
+	}()
+
+	GlobalSettingsService = &SettingsService{
+		cache: map[string]*models.SystemSetting{
+			"api_log_max_count":                {Key: "api_log_max_count", Value: "5000"},
+			"api_log_cleanup_interval_seconds": {Key: "api_log_cleanup_interval_seconds", Value: "5"},
+		},
+		cacheTime: time.Now(),
+		ttl:       time.Hour,
+	}
+
+	if got := GetGlobalAPILogRuntimeConfig().CleanupIntervalSeconds; got != 600 {
+		t.Fatalf("CleanupIntervalSeconds = %d, want fallback 600", got)
+	}
+
+	GlobalSettingsService.cache["api_log_cleanup_interval_seconds"] = &models.SystemSetting{
+		Key: "api_log_cleanup_interval_seconds", Value: "1200",
+	}
+	if got := GetGlobalAPILogRuntimeConfig().CleanupIntervalSeconds; got != 1200 {
+		t.Fatalf("CleanupIntervalSeconds = %d, want 1200", got)
+	}
+}

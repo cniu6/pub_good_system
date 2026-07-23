@@ -64,6 +64,32 @@ func TestInitConfig_PostgresEnv(t *testing.T) {
 	}
 }
 
+func TestInitConfig_APILogWriterEnv(t *testing.T) {
+	t.Setenv("DB_DRIVER", "sqlite")
+	t.Setenv("DB_PATH", t.TempDir()+"/cfg-api-log.db")
+	t.Setenv("JWT_SECRET", "config-test-jwt-secret-16")
+	t.Setenv("CORS_ORIGINS", "*")
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("API_LOG_QUEUE_CAPACITY", "123")
+	t.Setenv("API_LOG_QUEUE_MAX_BYTES", "456789")
+	t.Setenv("API_LOG_BATCH_SIZE", "17")
+	t.Setenv("API_LOG_FLUSH_INTERVAL_MILLISECONDS", "2500")
+	t.Setenv("API_LOG_WAL_DIR", t.TempDir()+"/wal")
+
+	config.InitConfig()
+	cfg := config.CloneGlobalConfig()
+	if cfg == nil {
+		t.Fatal("GlobalConfig 为空")
+	}
+	if cfg.APILogQueueCapacity != 123 || cfg.APILogQueueMaxBytes != 456789 ||
+		cfg.APILogBatchSize != 17 || cfg.APILogFlushIntervalMillis != 2500 {
+		t.Fatalf("API 日志队列配置不正确: %+v", cfg)
+	}
+	if cfg.APILogWALDir == "" {
+		t.Fatal("APILogWALDir 不应为空")
+	}
+}
+
 func TestIsProductionMode_Development(t *testing.T) {
 	t.Setenv("DB_DRIVER", "sqlite")
 	t.Setenv("DB_PATH", t.TempDir()+"/cfg2.db")

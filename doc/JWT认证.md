@@ -2,12 +2,17 @@
 
 > 🔐 **文档位置**: `doc/JWT认证.md`
 > 
-> **最后更新**: 2026-07-20  
+> **最后更新**: 2026-07-24  
 > **关联文件**:
 > - `backend/utils/jwt.go` - JWT 生成和验证（含 `ParseTokenForGuardIgnoreExpiry`）
 > - `backend/pkg/middleware/auth.go` - 认证中间件
 > - `backend/pkg/config/config.go` - JWT 密钥配置
 > - `backend/app/controllers/public/session_controller.go` - 过期 token 强退会话
+
+**一句话**：JWT 只给人**登录会话**用（Bearer）；程序直调走 **API Key**（`X-Api-Key`），不是登录。  
+现行 Claims 必须带 `token_type`（access/refresh）与 `auth_guard`（user/admin）；缺字段的旧 Token 会校验失败 → **重新登录**，属设计。
+
+**刷新相关（必要）**：refresh **单次轮换**；旧 token 再提交视为重放 → 吊销该用户同 `auth_guard` 下全部会话。多设备各自会话正常互不影响；同浏览器多标签并发刷新靠前端锁/BroadcastChannel（见 `frontend/留档.md`）。过期会话由自动任务 `cleanup_sessions_codes` 清理。完整清单见 [`backend/留档.md`](../backend/留档.md)。
 
 ---
 

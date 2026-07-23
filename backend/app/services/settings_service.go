@@ -200,30 +200,30 @@ func (s *SettingsService) InvalidateCache() {
 
 // PublicAppConfig is the public-facing app config payload.
 type PublicAppConfig struct {
-	SiteName           string `json:"site_name"`
-	SiteDesc           string `json:"site_desc"`
-	SiteLogo           string `json:"site_logo"`
-	Copyright          string `json:"copyright"`
-	ICP                string `json:"icp"`
-	AllowRegister      bool   `json:"allow_register"`
-	AnnouncementEnabled bool  `json:"announcement_enabled"`
-	AllowDeleteAccount bool   `json:"allow_delete_account"`
-	DefaultLang        string `json:"default_lang"`
-	Version            string `json:"version"`
-	GeetestEnabled     bool   `json:"geetest_enabled"`
-	GeetestCaptchaId   string `json:"geetest_captcha_id"`
-	EmailVerifyEnabled bool   `json:"email_verify_enabled"`
-	SMSVerifyEnabled   bool   `json:"sms_verify_enabled"`
+	SiteName            string `json:"site_name"`
+	SiteDesc            string `json:"site_desc"`
+	SiteLogo            string `json:"site_logo"`
+	Copyright           string `json:"copyright"`
+	ICP                 string `json:"icp"`
+	AllowRegister       bool   `json:"allow_register"`
+	AnnouncementEnabled bool   `json:"announcement_enabled"`
+	AllowDeleteAccount  bool   `json:"allow_delete_account"`
+	DefaultLang         string `json:"default_lang"`
+	Version             string `json:"version"`
+	GeetestEnabled      bool   `json:"geetest_enabled"`
+	GeetestCaptchaId    string `json:"geetest_captcha_id"`
+	EmailVerifyEnabled  bool   `json:"email_verify_enabled"`
+	SMSVerifyEnabled    bool   `json:"sms_verify_enabled"`
 	// MobileCNOnly 为 true 时仅允许中国大陆手机号（+86）；false 时允许国际 E.164
 	MobileCNOnly bool `json:"mobile_cn_only"`
 	// MobileIPCountryDetect 国际号模式下是否按 IP/CDN 头预选国家区号
-	MobileIPCountryDetect bool `json:"mobile_ip_country_detect"`
-	RealnameEnabled       bool `json:"realname_enabled"`
-	RealnameNotifyText string `json:"realname_notify_text"`
-	WithdrawEnabled    bool     `json:"withdraw_enabled"`
-	WithdrawMinAmount  float64  `json:"withdraw_min_amount"`
-	WithdrawNotifyText string   `json:"withdraw_notify_text"`
-	WithdrawAccountTypes []string `json:"withdraw_account_types"`
+	MobileIPCountryDetect bool     `json:"mobile_ip_country_detect"`
+	RealnameEnabled       bool     `json:"realname_enabled"`
+	RealnameNotifyText    string   `json:"realname_notify_text"`
+	WithdrawEnabled       bool     `json:"withdraw_enabled"`
+	WithdrawMinAmount     float64  `json:"withdraw_min_amount"`
+	WithdrawNotifyText    string   `json:"withdraw_notify_text"`
+	WithdrawAccountTypes  []string `json:"withdraw_account_types"`
 	// WithdrawRequireRealname 提现前是否必须已完成实名认证并通过审核，默认 false
 	WithdrawRequireRealname bool `json:"withdraw_require_realname"`
 	// AdminAPIPath 管理端 REST API 在 /api/v1 下的前缀（来自 env ADMIN_API_PATH，默认 /admin）
@@ -246,26 +246,41 @@ type VerifyConfig struct {
 
 // SMSRuntimeConfig 短信服务运行时配置
 type SMSRuntimeConfig struct {
-	Provider     string
-	AccessKey    string
-	SecretKey    string
-	SignName     string
-	TemplateCode string
+	Provider       string
+	AccessKey      string
+	SecretKey      string
+	SignName       string
+	TemplateCode   string
 	TemplateCodeEN string
-	Region       string
-	Endpoint     string
-	SdkAppID     string
-	BodyFormat   string
+	Region         string
+	Endpoint       string
+	SdkAppID       string
+	BodyFormat     string
 }
 
 // APILogRuntimeConfig API访问日志运行时配置
 type APILogRuntimeConfig struct {
-	Enabled             bool
-	QueryDays           int
-	MaxCount            int
-	PerUserLimitEnabled bool
-	PerUserMaxCount     int
-	UserVisible         bool // 用户中心是否可见本人 API Key 日志
+	Enabled                bool
+	QueryDays              int
+	MaxCount               int
+	CleanupIntervalSeconds int
+	PerUserLimitEnabled    bool
+	PerUserMaxCount        int
+	UserVisible            bool // 用户中心是否可见本人 API Key 日志
+}
+
+const (
+	defaultAPILogCleanupIntervalSeconds = 600
+	minAPILogCleanupIntervalSeconds     = 60
+	maxAPILogCleanupIntervalSeconds     = 86400
+)
+
+// normalizeAPILogCleanupIntervalSeconds 限制自动清理间隔，避免错误配置导致高频删除。
+func normalizeAPILogCleanupIntervalSeconds(value int) int {
+	if value < minAPILogCleanupIntervalSeconds || value > maxAPILogCleanupIntervalSeconds {
+		return defaultAPILogCleanupIntervalSeconds
+	}
+	return value
 }
 
 // OperationLogRuntimeConfig 操作日志运行时配置
@@ -569,12 +584,13 @@ func GetGlobalSMSRuntimeConfig() SMSRuntimeConfig {
 
 func (s *SettingsService) GetAPILogRuntimeConfig() APILogRuntimeConfig {
 	return APILogRuntimeConfig{
-		Enabled:             s.getRuntimeBool("api_access_log_enabled", true),
-		QueryDays:           s.getRuntimePositiveInt("api_log_query_days", 7),
-		MaxCount:            s.getRuntimePositiveInt("api_log_max_count", 1000),
-		PerUserLimitEnabled: s.getRuntimeBool("api_log_per_user_limit_enabled", false),
-		PerUserMaxCount:     s.getRuntimePositiveInt("api_log_per_user_max_count", 1000),
-		UserVisible:         s.getRuntimeBool("user_api_log_visible", true),
+		Enabled:                s.getRuntimeBool("api_access_log_enabled", true),
+		QueryDays:              s.getRuntimePositiveInt("api_log_query_days", 7),
+		MaxCount:               s.getRuntimePositiveInt("api_log_max_count", 5000),
+		CleanupIntervalSeconds: normalizeAPILogCleanupIntervalSeconds(s.getRuntimePositiveInt("api_log_cleanup_interval_seconds", defaultAPILogCleanupIntervalSeconds)),
+		PerUserLimitEnabled:    s.getRuntimeBool("api_log_per_user_limit_enabled", false),
+		PerUserMaxCount:        s.getRuntimePositiveInt("api_log_per_user_max_count", 1000),
+		UserVisible:            s.getRuntimeBool("user_api_log_visible", true),
 	}
 }
 
@@ -583,12 +599,13 @@ func GetGlobalAPILogRuntimeConfig() APILogRuntimeConfig {
 		return GlobalSettingsService.GetAPILogRuntimeConfig()
 	}
 	return APILogRuntimeConfig{
-		Enabled:             getDirectSettingBool("api_access_log_enabled", true),
-		QueryDays:           getDirectSettingPositiveInt("api_log_query_days", 7),
-		MaxCount:            getDirectSettingPositiveInt("api_log_max_count", 1000),
-		PerUserLimitEnabled: getDirectSettingBool("api_log_per_user_limit_enabled", false),
-		PerUserMaxCount:     getDirectSettingPositiveInt("api_log_per_user_max_count", 1000),
-		UserVisible:         getDirectSettingBool("user_api_log_visible", true),
+		Enabled:                getDirectSettingBool("api_access_log_enabled", true),
+		QueryDays:              getDirectSettingPositiveInt("api_log_query_days", 7),
+		MaxCount:               getDirectSettingPositiveInt("api_log_max_count", 5000),
+		CleanupIntervalSeconds: normalizeAPILogCleanupIntervalSeconds(getDirectSettingPositiveInt("api_log_cleanup_interval_seconds", defaultAPILogCleanupIntervalSeconds)),
+		PerUserLimitEnabled:    getDirectSettingBool("api_log_per_user_limit_enabled", false),
+		PerUserMaxCount:        getDirectSettingPositiveInt("api_log_per_user_max_count", 1000),
+		UserVisible:            getDirectSettingBool("user_api_log_visible", true),
 	}
 }
 
@@ -876,31 +893,31 @@ func (s *SettingsService) GetPublicAppConfig() *PublicAppConfig {
 	}
 
 	return &PublicAppConfig{
-		SiteName:           s.GetWithDefault("site_name", "F.st"),
-		SiteDesc:           s.GetWithDefault("site_desc", "Full-stack admin template based on Go + Vue 3"),
-		SiteLogo:           s.GetWithDefault("site_logo", ""),
-		Copyright:          s.GetWithDefault("copyright", "(c) 2024 F.st"),
-		ICP:                s.GetWithDefault("icp", ""),
-		AllowRegister:      s.GetBoolWithDefault("allow_register", true),
-		AllowUserLogin:     s.GetBoolWithDefault("allow_user_login", true),
-		AnnouncementEnabled: s.GetBoolWithDefault("announcement_enabled", true),
-		AllowDeleteAccount: s.GetBool("allow_delete_account"),
-		DefaultLang:        s.GetWithDefault("default_lang", "zhCN"),
-		Version:            s.GetWithDefault("version", "1.0.0"),
-		GeetestEnabled:     geetestConfig.Enabled,
-		GeetestCaptchaId:   geetestConfig.CaptchaID,
-		EmailVerifyEnabled: verifyConfig.EmailEnabled,
-		SMSVerifyEnabled:   verifyConfig.SMSEnabled,
-		MobileCNOnly:          s.GetBoolWithDefault("mobile_cn_only", true),
-		MobileIPCountryDetect: s.GetBoolWithDefault("mobile_ip_country_detect", false),
-		RealnameEnabled:       s.GetBoolWithDefault("realname_enabled", true),
-		RealnameNotifyText: s.GetWithDefault("realname_notify_text", ""),
-		WithdrawEnabled:    s.GetBoolWithDefault("withdraw_enabled", true),
-		WithdrawMinAmount:  parseJSONFloatWithDefault(s.GetWithDefault("withdraw_min_amount", "10"), 10),
-		WithdrawNotifyText: s.GetWithDefault("withdraw_notify_text", ""),
-		WithdrawAccountTypes: parseJSONStringArrayWithDefault(s.GetWithDefault("withdraw_account_types", "[\"bank\",\"alipay\",\"wechat\",\"usdt\"]"), []string{"bank", "alipay", "wechat", "usdt"}),
-		WithdrawRequireRealname: s.GetBoolWithDefault("withdraw_require_realname", false),
-		AdminAPIPath:       adminAPIPath,
+		SiteName:                    s.GetWithDefault("site_name", "F.st"),
+		SiteDesc:                    s.GetWithDefault("site_desc", "Full-stack admin template based on Go + Vue 3"),
+		SiteLogo:                    s.GetWithDefault("site_logo", ""),
+		Copyright:                   s.GetWithDefault("copyright", "(c) 2024 F.st"),
+		ICP:                         s.GetWithDefault("icp", ""),
+		AllowRegister:               s.GetBoolWithDefault("allow_register", true),
+		AllowUserLogin:              s.GetBoolWithDefault("allow_user_login", true),
+		AnnouncementEnabled:         s.GetBoolWithDefault("announcement_enabled", true),
+		AllowDeleteAccount:          s.GetBool("allow_delete_account"),
+		DefaultLang:                 s.GetWithDefault("default_lang", "zhCN"),
+		Version:                     s.GetWithDefault("version", "1.0.0"),
+		GeetestEnabled:              geetestConfig.Enabled,
+		GeetestCaptchaId:            geetestConfig.CaptchaID,
+		EmailVerifyEnabled:          verifyConfig.EmailEnabled,
+		SMSVerifyEnabled:            verifyConfig.SMSEnabled,
+		MobileCNOnly:                s.GetBoolWithDefault("mobile_cn_only", true),
+		MobileIPCountryDetect:       s.GetBoolWithDefault("mobile_ip_country_detect", false),
+		RealnameEnabled:             s.GetBoolWithDefault("realname_enabled", true),
+		RealnameNotifyText:          s.GetWithDefault("realname_notify_text", ""),
+		WithdrawEnabled:             s.GetBoolWithDefault("withdraw_enabled", true),
+		WithdrawMinAmount:           parseJSONFloatWithDefault(s.GetWithDefault("withdraw_min_amount", "10"), 10),
+		WithdrawNotifyText:          s.GetWithDefault("withdraw_notify_text", ""),
+		WithdrawAccountTypes:        parseJSONStringArrayWithDefault(s.GetWithDefault("withdraw_account_types", "[\"bank\",\"alipay\",\"wechat\",\"usdt\"]"), []string{"bank", "alipay", "wechat", "usdt"}),
+		WithdrawRequireRealname:     s.GetBoolWithDefault("withdraw_require_realname", false),
+		AdminAPIPath:                adminAPIPath,
 		OnlineReportIntervalSeconds: s.GetOnlinePresenceRuntimeConfig().ReportIntervalSeconds,
 		UserAPILogVisible:           s.GetBoolWithDefault("user_api_log_visible", true),
 		UserOperationLogVisible:     s.GetBoolWithDefault("user_operation_log_visible", true),

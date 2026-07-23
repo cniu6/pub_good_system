@@ -27,6 +27,11 @@ type Config struct {
 	HTTPIdleTimeoutSeconds       int
 	HTTPShutdownTimeoutSeconds   int
 	HTTPMaxHeaderBytes           int
+	APILogQueueCapacity          int
+	APILogQueueMaxBytes          int64
+	APILogBatchSize              int
+	APILogFlushIntervalMillis    int
+	APILogWALDir                 string
 	DBDriver                     string
 	DBDSN                        string
 	GeetestEnabled               bool
@@ -50,14 +55,17 @@ type Config struct {
 	EnableSwagger bool
 	// EnableAdminDebugOps 是否开放管理端 debug/pprof/强制 GC 等高危运维接口。
 	// 生产环境一律视为关闭；非生产默认 true，可用 ENABLE_ADMIN_DEBUG=false 关闭。
-	EnableAdminDebugOps       bool
-	FrontendURL               string
-	BackendAPIURL             string
-	SMTPHost                  string
-	SMTPPort                  string
-	SMTPUser                  string
-	SMTPPass                  string
-	SMTPSSL                   bool
+	EnableAdminDebugOps bool
+	// EnableAdminDBWrite 是否允许数据库控制台执行写 SQL 与结构化行级 CRUD。
+	// 生产环境一律视为关闭；非生产默认 true，可用 ENABLE_ADMIN_DB_WRITE=false 关闭。
+	EnableAdminDBWrite bool
+	FrontendURL        string
+	BackendAPIURL      string
+	SMTPHost           string
+	SMTPPort           string
+	SMTPUser           string
+	SMTPPass           string
+	SMTPSSL            bool
 	// SMTP 出站代理（国内访问 Yandex/Gmail 等时开启；默认关，直连）
 	SMTPProxyEnabled          bool
 	SMTPProxyType             string // http / https / socks5 / socks5h
@@ -252,6 +260,19 @@ func IsAdminDebugOpsEnabled() bool {
 	return cfg.EnableAdminDebugOps
 }
 
+// IsAdminDBWriteEnabled 判断数据库控制台是否允许写入。
+// 生产环境始终只读，避免通过通用控制台绕过业务规则和数据权限。
+func IsAdminDBWriteEnabled() bool {
+	if IsProductionMode() {
+		return false
+	}
+	cfg := GetGlobalConfig()
+	if cfg == nil {
+		return true
+	}
+	return cfg.EnableAdminDBWrite
+}
+
 // GetGlobalConfig 返回当前全局配置指针（只读场景请优先 CloneGlobalConfig）。
 // 指针本身在锁内读取；调用方不得直接写字段，写入请用 UpdateGlobalConfig。
 func GetGlobalConfig() *Config {
@@ -437,6 +458,15 @@ func InitConfig() {
 			enableAdminDebugOps = false
 		}
 	}
+	// 非生产默认允许数据库控制台受控写入；生产仍由 IsAdminDBWriteEnabled 强制关闭。
+	enableAdminDBWrite := true
+	if v := strings.TrimSpace(getEnv("ENABLE_ADMIN_DB_WRITE", "true")); v != "" {
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			enableAdminDBWrite = parsed
+		} else if v == "0" {
+			enableAdminDBWrite = false
+		}
+	}
 
 	geetestID := getEnv("GEETEST_ID", "")
 	if geetestID == "" {
@@ -465,6 +495,11 @@ func InitConfig() {
 		HTTPIdleTimeoutSeconds:       getEnvAsPositiveInt("HTTP_IDLE_TIMEOUT_SECONDS", 120),
 		HTTPShutdownTimeoutSeconds:   getEnvAsPositiveInt("HTTP_SHUTDOWN_TIMEOUT_SECONDS", 10),
 		HTTPMaxHeaderBytes:           getEnvAsPositiveInt("HTTP_MAX_HEADER_BYTES", 1<<20),
+		APILogQueueCapacity:          getEnvAsPositiveInt("API_LOG_QUEUE_CAPACITY", 5000),
+		APILogQueueMaxBytes:          int64(getEnvAsPositiveInt("API_LOG_QUEUE_MAX_BYTES", 32<<20)),
+		APILogBatchSize:              getEnvAsPositiveInt("API_LOG_BATCH_SIZE", 100),
+		APILogFlushIntervalMillis:    getEnvAsPositiveInt("API_LOG_FLUSH_INTERVAL_MILLISECONDS", 2000),
+		APILogWALDir:                 getEnv("API_LOG_WAL_DIR", "./api-access-log-wal"),
 		DBDriver:                     getEnv("DB_DRIVER", "mysql"),
 		DBDSN:                        buildDSN(),
 		GeetestEnabled:               geetestEnabled && geetestID != "" && geetestKey != "",
@@ -487,6 +522,7 @@ func InitConfig() {
 		WSCorsOrigins:       strings.TrimSpace(getEnv("WS_CORS_ORIGINS", "")),
 		EnableSwagger:       enableSwagger,
 		EnableAdminDebugOps: enableAdminDebugOps,
+		EnableAdminDBWrite:  enableAdminDBWrite,
 		FrontendURL:         getEnv("FRONTEND_URL", ""),
 		BackendAPIURL:       getEnv("BACKEND_API_URL", ""),
 		SMTPHost:            getEnv("SMTP_HOST", ""),
@@ -498,11 +534,11 @@ func InitConfig() {
 			v, _ := strconv.ParseBool(strings.TrimSpace(getEnv("SMTP_PROXY_ENABLED", "false")))
 			return v
 		}(),
-		SMTPProxyType: getEnv("SMTP_PROXY_TYPE", "socks5"),
-		SMTPProxyHost: getEnv("SMTP_PROXY_HOST", ""),
-		SMTPProxyPort: getEnv("SMTP_PROXY_PORT", "1080"),
-		SMTPProxyUser: getEnv("SMTP_PROXY_USERNAME", ""),
-		SMTPProxyPass: getEnv("SMTP_PROXY_PASSWORD", ""),
+		SMTPProxyType:   getEnv("SMTP_PROXY_TYPE", "socks5"),
+		SMTPProxyHost:   getEnv("SMTP_PROXY_HOST", ""),
+		SMTPProxyPort:   getEnv("SMTP_PROXY_PORT", "1080"),
+		SMTPProxyUser:   getEnv("SMTP_PROXY_USERNAME", ""),
+		SMTPProxyPass:   getEnv("SMTP_PROXY_PASSWORD", ""),
 		SystemEmail:     getEnv("SYSTEM_EMAIL_ADDRESS", ""),
 		SystemEmailName: getEnv("SYSTEM_EMAIL_NAME", ""),
 		RegisterCodeExpireMinutes: func() int {
@@ -686,6 +722,7 @@ type jsonDotEnv struct {
 	GeetestCaptchaID             string `json:"geetest_captcha_id"`
 	GeetestCaptchaKey            string `json:"geetest_captcha_key"`
 	EnableSwagger                string `json:"enable_swagger"`
+	EnableAdminDBWrite           string `json:"enable_admin_db_write"`
 	SMTPHost                     string `json:"smtp_host"`
 	SMTPPort                     string `json:"smtp_port"`
 	SMTPUser                     string `json:"smtp_username"`
@@ -758,6 +795,14 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 
 	geetestEnabled, _ := strconv.ParseBool(strings.TrimSpace(raw.GeetestEnabled))
 	enableSwagger, _ := strconv.ParseBool(strings.TrimSpace(raw.EnableSwagger))
+	enableAdminDBWrite := true
+	if v := strings.TrimSpace(raw.EnableAdminDBWrite); v != "" {
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			enableAdminDBWrite = parsed
+		} else if v == "0" {
+			enableAdminDBWrite = false
+		}
+	}
 
 	user := raw.DBUser
 	if user == "" {
@@ -790,6 +835,11 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 		HTTPIdleTimeoutSeconds:       parsePositiveIntValue(raw.HTTPIdleTimeoutSeconds, 120),
 		HTTPShutdownTimeoutSeconds:   parsePositiveIntValue(raw.HTTPShutdownTimeoutSeconds, 10),
 		HTTPMaxHeaderBytes:           parsePositiveIntValue(raw.HTTPMaxHeaderBytes, 1<<20),
+		APILogQueueCapacity:          5000,
+		APILogQueueMaxBytes:          32 << 20,
+		APILogBatchSize:              100,
+		APILogFlushIntervalMillis:    2000,
+		APILogWALDir:                 "./api-access-log-wal",
 		DBDriver:                     "mysql",
 		DBDSN:                        dsn,
 		GeetestEnabled:               geetestEnabled && raw.GeetestCaptchaID != "" && raw.GeetestCaptchaKey != "",
@@ -818,6 +868,7 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 		EnableSwagger: enableSwagger,
 		// JSON .env 无独立开关时默认开启；生产仍会被 IsAdminDebugOpsEnabled 拦截
 		EnableAdminDebugOps: true,
+		EnableAdminDBWrite:  enableAdminDBWrite,
 		FrontendURL:         raw.FrontendURL,
 		BackendAPIURL:       raw.BackendAPIURL,
 		SMTPHost:            raw.SMTPHost,

@@ -5,6 +5,7 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/internal/task"
+	"fst/backend/pkg/apilog"
 	"fst/backend/pkg/config"
 	"fst/backend/pkg/db"
 	"fst/backend/pkg/middleware"
@@ -40,6 +41,13 @@ func (ctrl *SettingsController) RestartBackend(c *gin.Context) {
 	utils.Success(c, gin.H{"message": "Backend restart requested"})
 	go func() {
 		time.Sleep(500 * time.Millisecond)
+		// 该重启路径使用 os.Exit，不会经过 HTTP 服务的优雅关闭钩子。
+		// 主动 flush 队列，超时未写入的记录会转存 WAL，避免丢失最近 2 秒的批次。
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		if err := apilog.Stop(ctx); err != nil {
+			log.Printf("[Server] 重启前 flush API访问日志失败: %v", err)
+		}
+		cancel()
 		os.Exit(0)
 	}()
 }
@@ -183,11 +191,12 @@ func (ctrl *SettingsController) GetServerOperationsStatus(c *gin.Context) {
 		"tasks":       taskItems,
 		"rate_limits": middleware.GetDynamicRateLimitSnapshots(),
 		"api_log": gin.H{
-			"enabled":                 apiLogConfig.Enabled,
-			"query_days":              apiLogConfig.QueryDays,
-			"max_count":               apiLogConfig.MaxCount,
-			"per_user_limit_enabled":  apiLogConfig.PerUserLimitEnabled,
-			"per_user_max_count":      apiLogConfig.PerUserMaxCount,
+			"enabled":                  apiLogConfig.Enabled,
+			"query_days":               apiLogConfig.QueryDays,
+			"max_count":                apiLogConfig.MaxCount,
+			"cleanup_interval_seconds": apiLogConfig.CleanupIntervalSeconds,
+			"per_user_limit_enabled":   apiLogConfig.PerUserLimitEnabled,
+			"per_user_max_count":       apiLogConfig.PerUserMaxCount,
 		},
 	})
 }

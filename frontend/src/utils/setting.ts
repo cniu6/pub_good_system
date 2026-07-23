@@ -37,6 +37,11 @@ export function normalizeLogMaxCount(value: unknown, fallback = 1000): number {
   return Math.min(200000, Math.max(100, Math.floor(parseNumberSetting(value, fallback))))
 }
 
+/** API 日志自动清理间隔（秒）：60~86400 */
+export function normalizeAPILogCleanupIntervalSeconds(value: unknown, fallback = 600): number {
+  return Math.min(86400, Math.max(60, Math.floor(parseNumberSetting(value, fallback))))
+}
+
 /** 日志按用户/收件人保留上限（条）：1~200000 */
 export function normalizeLogPerUserMaxCount(value: unknown, fallback = 1000): number {
   return Math.min(200000, Math.max(1, Math.floor(parseNumberSetting(value, fallback))))

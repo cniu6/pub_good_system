@@ -8,9 +8,10 @@ import (
 )
 
 // MySQL 文本类型容量（字节）：
-//   TEXT       ≈ 65,535
-//   MEDIUMTEXT ≈ 16,777,215（约 16MB）
-//   LONGTEXT   ≈ 4GB
+//
+//	TEXT       ≈ 65,535
+//	MEDIUMTEXT ≈ 16,777,215（约 16MB）
+//	LONGTEXT   ≈ 4GB
 //
 // 本项目 operation_logs / api_access_logs 的 request_body、response_body 均为 MEDIUMTEXT。
 // 存库前统一截断到远小于上限的安全值，避免撑爆数据库与拖慢详情接口。
@@ -36,8 +37,7 @@ const (
 	logTruncateMarker = "...(已截断)"
 )
 
-// sensitiveLogHeaderFields 仅用于请求头脱敏（Authorization / Cookie / Token 等）。
-// 注意：使用“包含匹配”以覆盖各种命名风格（如 Authorization / X-Access-Token）。
+// sensitiveLogHeaderFields 用于识别敏感请求头；保留该规则供安全策略和单元测试复用。
 var sensitiveLogHeaderFields = []string{
 	"password", "passwd", "pwd",
 	"token", "accesstoken", "refreshtoken", "apikey", "api_key", "authorization", "cookie", "session", "jwt",
@@ -169,17 +169,14 @@ func sanitizeLogBody(raw string, limit int, isRequest bool) string {
 	return truncateForLog(masked, limit)
 }
 
-// isSensitiveLogField 判断请求头字段名是否涉及敏感凭证（仅用于请求头脱敏）。
+// isSensitiveLogField 判断请求头字段名是否涉及敏感凭证。
 func isSensitiveLogField(key string) bool {
 	normalized := strings.ToLower(key)
 	normalized = strings.ReplaceAll(normalized, "-", "")
 	normalized = strings.ReplaceAll(normalized, "_", "")
 	for _, keyword := range sensitiveLogHeaderFields {
 		clean := strings.ReplaceAll(keyword, "_", "")
-		if clean == "" {
-			continue
-		}
-		if strings.Contains(normalized, clean) {
+		if clean != "" && strings.Contains(normalized, clean) {
 			return true
 		}
 	}

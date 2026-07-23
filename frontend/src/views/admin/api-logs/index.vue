@@ -29,7 +29,7 @@ import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { adminAPILogApi } from '@/service/api/admin/api-log'
 import type { APIAccessLog, APIAccessLogListParams, APIAccessLogStats } from '@/service/api/admin/api-log'
-import { normalizeLogMaxCount, normalizeLogPerUserMaxCount, normalizeLogQueryDays, parseBooleanSetting } from '@/utils'
+import { normalizeAPILogCleanupIntervalSeconds, normalizeLogMaxCount, normalizeLogPerUserMaxCount, normalizeLogQueryDays, parseBooleanSetting } from '@/utils'
 import { formatPrettyJSON } from '@/utils/format'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 
@@ -78,7 +78,8 @@ const pagination = reactive({
 const runtimeForm = reactive({
   api_access_log_enabled: true,
   api_log_query_days: 7,
-  api_log_max_count: 1000,
+  api_log_max_count: 5000,
+  api_log_cleanup_interval_seconds: 600,
   api_log_per_user_limit_enabled: false,
   api_log_per_user_max_count: 1000,
   user_api_log_visible: true,
@@ -365,7 +366,8 @@ async function loadRuntimeConfig() {
     if (apiLogConfig) {
       runtimeForm.api_access_log_enabled = parseBooleanSetting(apiLogConfig.enabled, true)
       runtimeForm.api_log_query_days = normalizeLogQueryDays(apiLogConfig.query_days, 7)
-      runtimeForm.api_log_max_count = normalizeLogMaxCount(apiLogConfig.max_count)
+      runtimeForm.api_log_max_count = normalizeLogMaxCount(apiLogConfig.max_count, 5000)
+      runtimeForm.api_log_cleanup_interval_seconds = normalizeAPILogCleanupIntervalSeconds(apiLogConfig.cleanup_interval_seconds, 600)
       if (apiLogConfig.per_user_limit_enabled !== undefined)
         runtimeForm.api_log_per_user_limit_enabled = parseBooleanSetting(apiLogConfig.per_user_limit_enabled, false)
       if (apiLogConfig.per_user_max_count !== undefined)
@@ -381,6 +383,8 @@ async function loadRuntimeConfig() {
           runtimeForm.api_log_per_user_limit_enabled = parseBooleanSetting(item.value, false)
         if (item.key === 'api_log_per_user_max_count')
           runtimeForm.api_log_per_user_max_count = normalizeLogPerUserMaxCount(item.value)
+        if (item.key === 'api_log_cleanup_interval_seconds')
+          runtimeForm.api_log_cleanup_interval_seconds = normalizeAPILogCleanupIntervalSeconds(item.value, 600)
         if (item.key === 'user_api_log_visible')
           runtimeForm.user_api_log_visible = parseBooleanSetting(item.value, true)
       }
@@ -459,13 +463,15 @@ async function handleSaveRuntimeConfig() {
   runtimeSaving.value = true
   try {
     runtimeForm.api_log_query_days = normalizeLogQueryDays(runtimeForm.api_log_query_days, 7)
-    runtimeForm.api_log_max_count = normalizeLogMaxCount(runtimeForm.api_log_max_count)
+    runtimeForm.api_log_max_count = normalizeLogMaxCount(runtimeForm.api_log_max_count, 5000)
+    runtimeForm.api_log_cleanup_interval_seconds = normalizeAPILogCleanupIntervalSeconds(runtimeForm.api_log_cleanup_interval_seconds, 600)
     runtimeForm.api_log_per_user_max_count = normalizeLogPerUserMaxCount(runtimeForm.api_log_per_user_max_count)
 
     const res = await adminApi.settings.batchUpdate({
       api_access_log_enabled: String(runtimeForm.api_access_log_enabled),
       api_log_query_days: String(runtimeForm.api_log_query_days),
       api_log_max_count: String(runtimeForm.api_log_max_count),
+      api_log_cleanup_interval_seconds: String(runtimeForm.api_log_cleanup_interval_seconds),
       api_log_per_user_limit_enabled: String(runtimeForm.api_log_per_user_limit_enabled),
       api_log_per_user_max_count: String(runtimeForm.api_log_per_user_max_count),
       user_api_log_visible: String(runtimeForm.user_api_log_visible),
@@ -681,6 +687,10 @@ onMounted(() => {
               {{ t('adminServer.runtimeConfig.maxCount') }}
             </NText>
             <NInputNumber v-model:value="runtimeForm.api_log_max_count" :min="100" :max="200000" size="small" style="width: 130px;" />
+            <NText depth="3">
+              {{ t('adminServer.runtimeConfig.cleanupInterval') }}
+            </NText>
+            <NInputNumber v-model:value="runtimeForm.api_log_cleanup_interval_seconds" :min="60" :max="86400" size="small" style="width: 130px;" />
             <NText depth="3">
               {{ t('adminAPILogs.perUserLimitEnabled') }}
             </NText>

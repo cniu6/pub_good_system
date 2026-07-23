@@ -23,6 +23,7 @@
 │   ├── settings / email-templates / email-logs
 │   ├── sms-templates / sms-logs
 │   ├── payment / payment/gateways / withdraw / realname
+│   ├── db/*              # 数据库控制台：表/数据/结构/DDL；生产环境强制只读
 │   ├── generate-nos
 │   └── debug/*        # 仅 IsAdminDebugOpsEnabled 时注册
 └── 插件路由           # pluginregistry 自动注册
@@ -57,3 +58,11 @@ router.GET("/swagger/*any",
 - 新接口按 public / user / admin 分层注册。
 - 管理写操作可挂 `SimpleLogMiddleware` 做操作审计。
 - 支付回调必须在 public，且服务层做签名与订单绑定校验。
+
+## 数据库控制台
+
+`/db/*` 仅允许管理员访问，提供表列表、分页数据预览、字段/索引/联合索引/外键元数据和 DDL 查看。
+
+- 生产环境固定只读，禁用写 SQL、行级 CRUD 与 SQLite 备份下载。
+- 非生产环境由 `ENABLE_ADMIN_DB_WRITE` 控制受限写能力；仅允许单条 `INSERT` 或带 `WHERE` 的 `UPDATE`/`DELETE`，写入使用事务与影响行数上限。
+- 在线字段、索引、表结构变更不开放；结构变更仍由 `internal/migrate` 统一管理。

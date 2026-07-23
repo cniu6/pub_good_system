@@ -18,11 +18,10 @@ let nextAllowedConnectAt = 0
 let shouldReconnect = false
 let activeToken = ''
 let handlingAuthFailure = false
-// 当前会话的分组 key（按 token 派生）：管理端每个标签用 sessionStorage 隔离，
-// 同一浏览器可能同时开着「管理员本人」和「login-as 出的另一个用户/管理员」两个不同会话的标签。
-// 选主必须按会话分组，否则会把两个不同的人错误当成"同一个人的重复标签"抢主，
-// 导致其中一个会话永远连不上 Presence、在线列表里一直显示离线。
-let activeSessionKey = ''
+// Presence 选主按「账号 + 登录端」分组，而非按 token 分组。管理端标签的 token 会按
+// sessionStorage 隔离；若按 token 分组，同一管理员的每个标签都会独立建立 WS 并反复重连。
+// 不同账号或 user/admin 两套登录态仍各自维护独立的 Presence 连接。
+let activePresenceGroupKey = ''
 let activePingInterval = DEFAULT_PING_INTERVAL
 let forceLogoutHandler: (() => void) | null = null
 
@@ -41,12 +40,8 @@ function ensureTabId() {
   return tabId
 }
 
-// 仅用于同浏览器内区分"是不是同一个会话"，无安全用途，故用普通哈希即可，不必是 token 原文。
-function computeSessionKey(token: string): string {
-  let hash = 0
-  for (let i = 0; i < token.length; i++)
-    hash = (hash * 31 + token.charCodeAt(i)) | 0
-  return hash.toString(36)
+function buildPresenceGroupKey(userID: number, guard: 'admin' | 'user'): string {
+  return `${guard}:${userID}`
 }
 
 function clearTimers() {
@@ -179,7 +174,7 @@ async function connect() {
       if (message?.type === 'announcement' || message?.type === 'unread_count') {
         window.dispatchEvent(new CustomEvent('fst:announcement', { detail: message }))
         try {
-          presenceChannel?.postMessage({ type: 'announcement', payload: message, sessionKey: activeSessionKey })
+          presenceChannel?.postMessage({ type: 'announcement', payload: message, sessionKey: activePresenceGroupKey })
         }
         catch { /* ignore */ }
       }
@@ -217,11 +212,11 @@ function becomeLeader() {
     return
   isLeader = true
   lastLeaderSeenAt = Date.now()
-  presenceChannel?.postMessage({ type: 'leader', tabId: ensureTabId(), sessionKey: activeSessionKey })
+  presenceChannel?.postMessage({ type: 'leader', tabId: ensureTabId(), sessionKey: activePresenceGroupKey })
   if (!leaderHeartbeatTimer) {
     leaderHeartbeatTimer = setInterval(() => {
       if (isLeader)
-        presenceChannel?.postMessage({ type: 'leader', tabId: ensureTabId(), sessionKey: activeSessionKey })
+        presenceChannel?.postMessage({ type: 'leader', tabId: ensureTabId(), sessionKey: activePresenceGroupKey })
     }, 2000)
   }
   void connect()
@@ -247,7 +242,7 @@ function attemptBecomeLeader() {
 // 收到即可直接抢主（仍走 attemptBecomeLeader 的抖动+复核，不会立刻一堆标签同时连）。
 function notifyLeaderDeparture() {
   if (isLeader)
-    presenceChannel?.postMessage({ type: 'leader-left', tabId, sessionKey: activeSessionKey })
+    presenceChannel?.postMessage({ type: 'leader-left', tabId, sessionKey: activePresenceGroupKey })
 }
 
 function resignLeader() {
@@ -280,9 +275,8 @@ function setupPresenceLeaderElection() {
     const data = event.data as { type?: string, tabId?: string, sessionKey?: string, payload?: unknown } | null
     if (!data?.type)
       return
-    // 不同会话（如管理员本人 + login-as 出的另一个用户/管理员窗口）互不干扰，
-    // 各自独立选主/连接，不能被对方的 leader 状态误判为"已有人接管"。
-    if (data.sessionKey !== activeSessionKey)
+    // 不同账号或 user/admin 登录端互不干扰，不能被对方的 leader 状态误判为"已有人接管"。
+    if (data.sessionKey !== activePresenceGroupKey)
       return
     if (data.type === 'leader' && data.tabId && data.tabId !== tabId) {
       lastLeaderSeenAt = Date.now()
@@ -293,7 +287,7 @@ function setupPresenceLeaderElection() {
     }
     else if (data.type === 'need-leader') {
       if (isLeader)
-        presenceChannel?.postMessage({ type: 'leader', tabId: ensureTabId(), sessionKey: activeSessionKey })
+        presenceChannel?.postMessage({ type: 'leader', tabId: ensureTabId(), sessionKey: activePresenceGroupKey })
     }
     else if (data.type === 'announcement') {
       // 非 leader 标签也刷新铃铛
@@ -308,7 +302,7 @@ function setupPresenceLeaderElection() {
   window.addEventListener('pagehide', handlePageHide)
 
   // 先问有没有现成 leader；没有则自己上位（经 attemptBecomeLeader 抖动+复核，避免多标签同时抢主）
-  presenceChannel.postMessage({ type: 'need-leader', tabId, sessionKey: activeSessionKey })
+  presenceChannel.postMessage({ type: 'need-leader', tabId, sessionKey: activePresenceGroupKey })
   window.setTimeout(() => {
     if (!shouldReconnect)
       return
@@ -349,10 +343,18 @@ function teardownPresenceLeaderElection() {
  * 建立 Presence 心跳连接。
  * @param token 当前会话 JWT，用于 Presence WebSocket 鉴权
  * @param onForceLogout 服务端强退时的本地登出回调
+ * @param userID 当前登录账号 ID，用于跨标签页 Presence 选主。
+ * @param guard 当前登录端类型，admin 与 user 会话互不复用连接。
  * @param intervalMs 心跳上报周期（毫秒），来自管理端可配置的「在线心跳上报周期」设置，默认 30 秒。
  */
-export function startPresence(token: string, onForceLogout: () => void, intervalMs?: number) {
-  if (!token)
+export function startPresence(
+  token: string,
+  onForceLogout: () => void,
+  userID: number,
+  guard: 'admin' | 'user',
+  intervalMs?: number,
+) {
+  if (!token || !Number.isSafeInteger(userID) || userID <= 0)
     return
   forceLogoutHandler = onForceLogout
   activePingInterval = intervalMs && intervalMs > 0 ? intervalMs : DEFAULT_PING_INTERVAL
@@ -365,7 +367,7 @@ export function startPresence(token: string, onForceLogout: () => void, interval
     handlingAuthFailure = false
   }
   activeToken = token
-  activeSessionKey = computeSessionKey(token)
+  activePresenceGroupKey = buildPresenceGroupKey(userID, guard)
   shouldReconnect = true
   setupPresenceLeaderElection()
   if (isLeader)
@@ -374,11 +376,11 @@ export function startPresence(token: string, onForceLogout: () => void, interval
 
 export function stopPresence() {
   shouldReconnect = false
-  // 必须先让位广播（带着仍然有效的 sessionKey），再清空 activeSessionKey，
-  // 否则其它同会话标签会因为 sessionKey 不匹配而过滤掉这条"让位"消息，白白多等 5s 心跳超时。
+  // 必须先让位广播（带着仍然有效的分组 key），再清空它，
+  // 否则同组标签会因为 key 不匹配而过滤掉这条"让位"消息，白白多等 5s 心跳超时。
   teardownPresenceLeaderElection()
   activeToken = ''
-  activeSessionKey = ''
+  activePresenceGroupKey = ''
   handlingAuthFailure = false
   reconnectAttempts = 0
   nextAllowedConnectAt = 0

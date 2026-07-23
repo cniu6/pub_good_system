@@ -4,11 +4,15 @@ import (
 	"database/sql"
 	"errors"
 	"fst/backend/pkg/db"
+	"math/rand"
 	"strings"
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+const apiAccessLogWriteMaxAttempts = 3
 
 // APIAccessLog API接口访问日志
 type APIAccessLog struct {
@@ -52,9 +56,84 @@ func (APIAccessLog) TableName() string {
 
 // CreateAPIAccessLog 创建 API 访问日志
 func CreateAPIAccessLog(item *APIAccessLog) error {
+	_, err := CreateAPIAccessLogs([]*APIAccessLog{item})
+	return err
+}
+
+// CreateAPIAccessLogs 批量创建 API 访问日志。
+// request_id 是唯一键：WAL 重放或进程关闭期间的重复投递不会重复落库。
+// 返回值只包含本次确认需要写入的记录，调用方据此更新聚合表，避免重复计数。
+func CreateAPIAccessLogs(items []*APIAccessLog) ([]*APIAccessLog, error) {
+	if len(items) == 0 {
+		return nil, nil
+	}
+
 	now := time.Now().Unix()
-	item.CreateTime = &now
-	return db.DB.Create(item).Error
+	requestIDs := make([]string, 0, len(items))
+	seenRequestIDs := make(map[string]struct{}, len(items))
+	pending := make([]*APIAccessLog, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		item.RequestID = strings.TrimSpace(item.RequestID)
+		if item.RequestID == "" {
+			return nil, errors.New("api access log request_id is required")
+		}
+		if _, duplicated := seenRequestIDs[item.RequestID]; duplicated {
+			continue
+		}
+		seenRequestIDs[item.RequestID] = struct{}{}
+		if item.CreateTime == nil || *item.CreateTime <= 0 {
+			createTime := now
+			item.CreateTime = &createTime
+		}
+		requestIDs = append(requestIDs, item.RequestID)
+		pending = append(pending, item)
+	}
+	if len(pending) == 0 {
+		return nil, nil
+	}
+
+	// 先排除已持久化的请求。WAL 重放会重复投递成功但尚未来得及清理的记录，
+	// 此处跳过它们，后续聚合表也不会再次 +1。
+	var existingRequestIDs []string
+	if err := db.DB.Model(&APIAccessLog{}).
+		Where("request_id IN ?", requestIDs).
+		Pluck("request_id", &existingRequestIDs).Error; err != nil {
+		return nil, err
+	}
+	existing := make(map[string]struct{}, len(existingRequestIDs))
+	for _, requestID := range existingRequestIDs {
+		existing[requestID] = struct{}{}
+	}
+	newItems := pending[:0]
+	for _, item := range pending {
+		if _, found := existing[item.RequestID]; !found {
+			newItems = append(newItems, item)
+		}
+	}
+	if len(newItems) == 0 {
+		return nil, nil
+	}
+
+	var err error
+	for attempt := 0; attempt < apiAccessLogWriteMaxAttempts; attempt++ {
+		err = db.DB.Clauses(clause.OnConflict{DoNothing: true}).CreateInBatches(newItems, len(newItems)).Error
+		if err == nil || !db.IsRetryableTransactionError(err) {
+			break
+		}
+		if attempt+1 < apiAccessLogWriteMaxAttempts {
+			// 批量 worker 与清理任务可能同时访问相邻索引范围。指数退避叠加随机抖动，
+			// 避免多个实例在同一时刻再次提交并持续互相死锁。
+			backoff := time.Duration(1<<attempt)*50*time.Millisecond + time.Duration(rand.Intn(50))*time.Millisecond
+			time.Sleep(backoff)
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	return newItems, nil
 }
 
 // GetAPIAccessLogByID 按 ID 获取
