@@ -8,6 +8,10 @@ import (
 	"fst/backend/app/models"
 )
 
+// PaymentReconcileBatchFn 由 services.StartBackgroundTasks 注入，避免 task↔services 循环依赖。
+// 返回 detail 映射：scanned/recovered/exceptions/skipped/errors
+var PaymentReconcileBatchFn func(ctx context.Context, limit int) (map[string]interface{}, error)
+
 // handlers 内置任务：handler_key → 函数。新任务加一行即可。
 var handlers = map[string]JobHandler{
 	HandlerPruneAutoJobRuns:          handlePruneAutoJobRuns,
@@ -15,6 +19,7 @@ var handlers = map[string]JobHandler{
 	HandlerCleanupExpiredIdempotency: handleCleanupExpiredIdempotency,
 	HandlerCleanupSessionsCodes:      handleCleanupSessionsCodes,
 	HandlerCleanupExpiredOrders:      handleCleanupExpiredOrders,
+	HandlerReconcilePaymentOrders:    handleReconcilePaymentOrders,
 }
 
 func GetHandler(key string) (JobHandler, bool) {
@@ -172,5 +177,30 @@ func handleCleanupExpiredOrders(ctx context.Context, job *JobDefinition) (*Handl
 		Message: fmt.Sprintf("取消过期支付单 %d", aff),
 		Detail:  map[string]interface{}{"affected": aff},
 		Quiet:   aff == 0,
+	}, nil
+}
+
+// handleReconcilePaymentOrders 主动对账：扫描待支付与近期取消/失败单，向网关查单并补账
+func handleReconcilePaymentOrders(ctx context.Context, job *JobDefinition) (*HandlerResult, error) {
+	_ = job
+	if err := errIfCanceled(ctx); err != nil {
+		return nil, err
+	}
+	if PaymentReconcileBatchFn == nil {
+		return nil, fmt.Errorf("支付对账回调未注入")
+	}
+	detail, err := PaymentReconcileBatchFn(ctx, 50)
+	if err != nil {
+		return nil, err
+	}
+	scanned, _ := detail["scanned"].(int)
+	recovered, _ := detail["recovered"].(int)
+	exceptions, _ := detail["exceptions"].(int)
+	skipped, _ := detail["skipped"].(int)
+	msg := fmt.Sprintf("对账扫描 %d，补单 %d，异常 %d，跳过 %d", scanned, recovered, exceptions, skipped)
+	return &HandlerResult{
+		Message: msg,
+		Detail:  detail,
+		Quiet:   scanned == 0 || (recovered == 0 && exceptions == 0),
 	}, nil
 }

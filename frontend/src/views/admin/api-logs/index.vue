@@ -21,6 +21,7 @@ import {
   NSwitch,
   NTag,
   NText,
+  useDialog,
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
@@ -32,6 +33,7 @@ import { normalizeLogMaxCount, normalizeLogPerUserMaxCount, normalizeLogQueryDay
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 
 const message = useMessage()
+const dialog = useDialog()
 const { t } = useI18n()
 
 const loading = ref(false)
@@ -83,6 +85,8 @@ const runtimeForm = reactive({
 const showDetail = ref(false)
 const detailLoading = ref(false)
 const detailData = ref<APIAccessLog | null>(null)
+/** 详情弹窗内是否已二次确认展示敏感字段（请求头/请求体/响应体） */
+const showSensitiveDetail = ref(false)
 
 const showClean = ref(false)
 const cleanBefore = ref<number | null>(null)
@@ -479,6 +483,8 @@ async function handleDetail(id: number | string) {
   showDetail.value = true
   detailLoading.value = true
   detailData.value = null
+  // 每次打开详情默认隐藏敏感正文，需再次确认
+  showSensitiveDetail.value = false
   try {
     const res = await adminAPILogApi.detail(id)
     detailData.value = res.data || null
@@ -490,6 +496,19 @@ async function handleDetail(id: number | string) {
   finally {
     detailLoading.value = false
   }
+}
+
+/** 二次确认后才展示请求头 / 请求体 / 响应体 */
+function handleRevealSensitiveDetail() {
+  dialog.warning({
+    title: t('adminAPILogs.viewSensitiveDetail'),
+    content: t('adminAPILogs.viewSensitiveConfirm'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: () => {
+      showSensitiveDetail.value = true
+    },
+  })
 }
 
 function handleSearch() {
@@ -686,17 +705,28 @@ onMounted(() => {
           <NCode :code="formattedPathParams || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
         </NCard>
 
-        <NCard size="small" embedded :title="t('adminAPILogs.requestHeaders')">
-          <NCode :code="formattedRequestHeaders || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
+        <!-- 敏感字段默认隐藏，需「查看敏感详情」二次确认 -->
+        <NCard v-if="!showSensitiveDetail" size="small" embedded :title="t('adminAPILogs.sensitiveSection')">
+          <NSpace vertical :size="8">
+            <NText depth="3">{{ t('adminAPILogs.sensitiveHiddenHint') }}</NText>
+            <NButton type="warning" size="small" @click="handleRevealSensitiveDetail">
+              {{ t('adminAPILogs.viewSensitiveDetail') }}
+            </NButton>
+          </NSpace>
         </NCard>
+        <template v-else>
+          <NCard size="small" embedded :title="t('adminAPILogs.requestHeaders')">
+            <NCode :code="formattedRequestHeaders || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
+          </NCard>
 
-        <NCard size="small" embedded :title="t('adminAPILogs.requestBody')">
-          <NCode :code="formattedRequestBody || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
-        </NCard>
+          <NCard size="small" embedded :title="t('adminAPILogs.requestBody')">
+            <NCode :code="formattedRequestBody || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
+          </NCard>
 
-        <NCard size="small" embedded :title="t('adminAPILogs.responseBody')">
-          <NCode :code="formattedResponseBody || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
-        </NCard>
+          <NCard size="small" embedded :title="t('adminAPILogs.responseBody')">
+            <NCode :code="formattedResponseBody || '-'" language="json" word-wrap style="max-height: 280px; overflow: auto;" />
+          </NCard>
+        </template>
       </NSpace>
       <NText v-else depth="3">{{ t('adminAPILogs.noDetailData') }}</NText>
     </NModal>

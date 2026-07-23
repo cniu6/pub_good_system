@@ -291,17 +291,23 @@ export const adminUserApi = {
     return request.Post<Service.ResponseResult<ResetApiKeyResponse>>(`${baseUrl()}/${id}/reset-apikey`)
   },
 
-  // 变更用户余额（增减）
-  changeMoney(id: number, data: { money: number, memo?: string }) {
+  // 变更用户余额（增减）；启用 TOTP 时传 totpCode
+  changeMoney(id: number, data: { money: number, memo?: string }, totpCode?: string) {
+    const headers: Record<string, string> = { 'X-Idempotency-Key': createIdempotencyKey(`money-change-${id}`) }
+    if (totpCode)
+      headers['X-Totp-Code'] = totpCode
     return request.Post<Service.ResponseResult<UserMoneyChangeResponse>>(`${baseUrl()}/${id}/money/change`, data, {
-      headers: { 'X-Idempotency-Key': createIdempotencyKey(`money-change-${id}`) },
+      headers,
     })
   },
 
   // 直接设置用户余额
-  setMoney(id: number, data: { money: number, memo?: string }) {
+  setMoney(id: number, data: { money: number, memo?: string }, totpCode?: string) {
+    const headers: Record<string, string> = { 'X-Idempotency-Key': createIdempotencyKey(`money-set-${id}`) }
+    if (totpCode)
+      headers['X-Totp-Code'] = totpCode
     return request.Put<Service.ResponseResult<UserMoneyChangeResponse>>(`${baseUrl()}/${id}/money`, data, {
-      headers: { 'X-Idempotency-Key': createIdempotencyKey(`money-set-${id}`) },
+      headers,
     })
   },
 

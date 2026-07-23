@@ -41,7 +41,7 @@ function clearTimers() {
   }
 }
 
-function getPresenceUrl(token: string) {
+function getPresenceUrl(ticket: string) {
   // Prefer rawPath for direct backend WS (dev proxy often has ws:false).
   const apiBase = __URL_MAP__.url.rawPath || __URL_MAP__.url.path || window.location.origin
   const url = new URL(apiBase, window.location.origin)
@@ -50,10 +50,24 @@ function getPresenceUrl(token: string) {
   url.pathname = `${basePath}/api/v1/ws/presence`.replace(/\/{2,}/g, '/')
   if (!url.pathname.startsWith('/'))
     url.pathname = `/${url.pathname}`
-  url.searchParams.set('token', token)
+  // 使用短时一次性 ticket，避免 JWT 出现在 URL / 代理日志
+  url.searchParams.set('ticket', ticket)
   // 同浏览器实例 ID，供后端收口多标签重复会话
   url.searchParams.set('browser_id', getBrowserId())
   return url.toString()
+}
+
+async function fetchPresenceTicket(): Promise<string | null> {
+  try {
+    const { request } = await import('@/service/http')
+    const res = await request.Post<Service.ResponseResult<{ ticket: string }>>('/api/v1/system/ws-ticket')
+    if (res?.isSuccess && res.data?.ticket)
+      return res.data.ticket
+  }
+  catch {
+    // 走退避重连
+  }
+  return null
 }
 
 function scheduleReconnect() {
@@ -63,16 +77,22 @@ function scheduleReconnect() {
   reconnectAttempts++
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null
-    connect()
+    void connect()
   }, delay)
 }
 
-function connect() {
+async function connect() {
   if (!shouldReconnect || !activeToken || !isLeader || socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING)
     return
 
+  const ticket = await fetchPresenceTicket()
+  if (!ticket) {
+    scheduleReconnect()
+    return
+  }
+
   try {
-    socket = new WebSocket(getPresenceUrl(activeToken))
+    socket = new WebSocket(getPresenceUrl(ticket))
   }
   catch {
     scheduleReconnect()
@@ -148,7 +168,7 @@ function becomeLeader() {
         presenceChannel?.postMessage({ type: 'leader', tabId: ensureTabId() })
     }, 2000)
   }
-  connect()
+  void connect()
 }
 
 function resignLeader() {

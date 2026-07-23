@@ -1,9 +1,12 @@
 package controllers
 
 import (
+	"fst/backend/app/models"
 	"fst/backend/internal/task"
 	"fst/backend/pkg/config"
+	"fst/backend/pkg/presence"
 	"fst/backend/utils"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -59,4 +62,46 @@ func (ctrl *SystemController) GetCleanupStatus(c *gin.Context) {
 	}
 
 	utils.Success(c, result)
+}
+
+// CreatePresenceTicket 签发 Presence WebSocket 一次性短时票据（JWT 不进 URL）
+// @Summary 获取 Presence WS 票据
+// @Tags 系统管理
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /api/v1/system/ws-ticket [post]
+func (ctrl *SystemController) CreatePresenceTicket(c *gin.Context) {
+	userIDVal, ok := c.Get("userID")
+	if !ok {
+		utils.Fail(c, 401, "未登录")
+		return
+	}
+	userID, _ := userIDVal.(uint64)
+	guardVal, _ := c.Get("authGuard")
+	guard, _ := guardVal.(string)
+	if guard == "" {
+		guard = utils.UserAuthGuard
+	}
+
+	auth := strings.TrimSpace(c.GetHeader("Authorization"))
+	parts := strings.SplitN(auth, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || strings.TrimSpace(parts[1]) == "" {
+		utils.Fail(c, 401, "需要 Bearer Token")
+		return
+	}
+	sess, err := models.GetActiveSessionByTokenHash(utils.HashToken(strings.TrimSpace(parts[1])))
+	if err != nil || sess == nil || sess.UserID != userID || sess.AuthGuard != guard {
+		utils.Fail(c, 401, "会话无效")
+		return
+	}
+
+	ticket, exp, err := presence.IssueWSTicket(userID, guard, sess.ID)
+	if err != nil {
+		utils.Fail(c, 500, "签发票据失败")
+		return
+	}
+	utils.Success(c, gin.H{
+		"ticket":     ticket,
+		"expires_at": exp.Unix(),
+	})
 }

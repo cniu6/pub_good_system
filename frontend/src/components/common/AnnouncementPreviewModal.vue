@@ -8,6 +8,7 @@ import { NModal, NButton, NSpace, NTag } from 'naive-ui'
 import { MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
 import { useAppStore } from '@/store'
+import { sanitizeMarkdownHtml } from '@/utils/safeMarkdown'
 
 const props = defineProps<{
   show: boolean
@@ -69,6 +70,7 @@ watch(() => props.content, () => {})
         :model-value="content || ''"
         :theme="editorTheme"
         language="zh-CN"
+        :sanitize="sanitizeMarkdownHtml"
       />
     </div>
     <template #footer>

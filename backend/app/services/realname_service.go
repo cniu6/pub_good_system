@@ -142,6 +142,9 @@ func (s *RealnameService) Submit(userID uint64, req *RealnameSubmitRequest) erro
 	}
 
 	if err := models.CreateRealnameVerificationTx(tx, verification); err != nil {
+		if db.IsDuplicateKeyError(err) {
+			return NewClientError("该证件号已被其他账号实名认证，请核对后重试")
+		}
 		return err
 	}
 

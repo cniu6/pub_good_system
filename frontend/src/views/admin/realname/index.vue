@@ -60,7 +60,7 @@
           <n-text>{{ getCertificateTypeText(currentVerification?.certificate_type) }}</n-text>
         </n-form-item>
         <n-form-item :label="t('realname.certificateNo')">
-          <n-text>{{ currentVerification?.certificate_no || '-' }}</n-text>
+          <n-text>{{ currentVerification?.certificate_no ? maskCertificateNo(currentVerification.certificate_no) : '-' }}</n-text>
         </n-form-item>
         <n-form-item :label="t('adminRealname.certificatePhotos')">
           <n-space>
@@ -114,7 +114,7 @@
         <n-descriptions-item :label="t('realname.certificateType')">
           {{ getCertificateTypeText(currentVerification.certificate_type) }}
         </n-descriptions-item>
-        <n-descriptions-item :label="t('realname.certificateNo')">{{ currentVerification.certificate_no }}</n-descriptions-item>
+        <n-descriptions-item :label="t('realname.certificateNo')">{{ maskCertificateNo(currentVerification.certificate_no || '') || '-' }}</n-descriptions-item>
         <n-descriptions-item :label="t('realname.certificateFront')">
           <n-image
             v-if="currentVerification.certificate_front"
@@ -160,6 +160,7 @@ import type { DataTableColumns } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
+import { maskCertificateNo } from '@/utils/mask'
 import {
   realnameStatusOptions,
   type RealnameVerification,
@@ -262,7 +263,11 @@ const columns: DataTableColumns<RealnameVerification> = [
       return getCertificateTypeText(row.certificate_type)
     },
   },
-  { title: t('realname.certificateNo'), key: 'certificate_no', width: 180, ellipsis: { tooltip: true } },
+  { title: t('realname.certificateNo'), key: 'certificate_no', width: 180, ellipsis: { tooltip: true },
+    render(row) {
+      return row.certificate_no ? maskCertificateNo(row.certificate_no) : '-'
+    },
+  },
   {
     title: t('realname.status'),
     key: 'status',

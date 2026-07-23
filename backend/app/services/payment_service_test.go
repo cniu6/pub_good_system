@@ -135,10 +135,11 @@ func TestValidateCallbackMoney(t *testing.T) {
 }
 
 func TestValidatePaymentOrderDeletion(t *testing.T) {
+	// 物理删除已禁用；保留状态校验函数供历史兼容/测试
 	allowed := []int{models.PaymentStatusCanceled, models.PaymentStatusFailed}
 	for _, status := range allowed {
 		if err := validatePaymentOrderDeletion(status); err != nil {
-			t.Fatalf("status %d should be deletable, got %v", status, err)
+			t.Fatalf("status %d should be deletable by validator, got %v", status, err)
 		}
 	}
 
@@ -147,5 +148,9 @@ func TestValidatePaymentOrderDeletion(t *testing.T) {
 		if err := validatePaymentOrderDeletion(status); err == nil {
 			t.Fatalf("status %d should not be deletable", status)
 		}
+	}
+
+	if err := AdminDeleteOrder(1); err == nil || !IsClientError(err) {
+		t.Fatalf("AdminDeleteOrder should be disabled, got %v", err)
 	}
 }

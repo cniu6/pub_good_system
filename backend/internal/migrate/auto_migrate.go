@@ -132,6 +132,7 @@ func migrateCoreSchemas() {
 			real_name VARCHAR(100) NOT NULL COMMENT '真实姓名',
 			certificate_type TINYINT UNSIGNED NOT NULL COMMENT '证件类型:1=身份证,2=护照,3=军官证',
 			certificate_no VARCHAR(50) NOT NULL COMMENT '证件号码',
+			cert_unique_key VARCHAR(64) NULL DEFAULT NULL COMMENT '有效证件唯一键(待审/通过)',
 			certificate_front VARCHAR(500) NOT NULL COMMENT '证件正面照',
 			certificate_back VARCHAR(500) NOT NULL COMMENT '证件背面照',
 			status TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态:0=待审核,1=通过,2=拒绝',
@@ -144,7 +145,8 @@ func migrateCoreSchemas() {
 			delete_time BIGINT UNSIGNED NULL COMMENT '删除时间',
 			INDEX idx_user_id (user_id),
 			INDEX idx_status (status),
-			INDEX idx_submitted_at (submitted_at)
+			INDEX idx_submitted_at (submitted_at),
+			UNIQUE KEY uk_realname_cert_unique_key (cert_unique_key)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 		`CREATE TABLE IF NOT EXISTS auto_job_definitions (
 			job_code VARCHAR(64) NOT NULL PRIMARY KEY COMMENT '任务业务主键',
@@ -202,6 +204,9 @@ func migrateCoreSchemas() {
 		}
 	}
 
+	// 实名证件号并发唯一约束（存量库补列/回填/唯一索引）
+	models.EnsureRealnameCertUniqueConstraint()
+
 	// users 表缺失字段自动补齐（按 AFTER 顺序）
 	if db.CheckTableExists("users") {
 		repairs := []columnRepair{
@@ -226,12 +231,17 @@ func migrateCoreSchemas() {
 			{"admin_remark", "ALTER TABLE users ADD COLUMN admin_remark TEXT COMMENT '管理员备注' AFTER motto"},
 			{"apikey", "ALTER TABLE users ADD COLUMN apikey VARCHAR(255) NULL DEFAULT NULL COMMENT 'API密钥(存储SHA256哈希，不存明文)' AFTER status"},
 			{"apikey_hint", "ALTER TABLE users ADD COLUMN apikey_hint VARCHAR(8) NULL DEFAULT NULL COMMENT 'API密钥末4位(仅展示用)' AFTER apikey"},
-			{"language", "ALTER TABLE users ADD COLUMN language VARCHAR(20) NOT NULL DEFAULT 'zh-CN' COMMENT '语言' AFTER apikey_hint"},
+			{"apikey_expires_at", "ALTER TABLE users ADD COLUMN apikey_expires_at BIGINT NULL DEFAULT NULL COMMENT 'API Key过期时间unix' AFTER apikey_hint"},
+			{"apikey_allow_ips", "ALTER TABLE users ADD COLUMN apikey_allow_ips VARCHAR(500) NULL DEFAULT NULL COMMENT 'API Key IP白名单逗号分隔' AFTER apikey_expires_at"},
+			{"apikey_scopes", "ALTER TABLE users ADD COLUMN apikey_scopes VARCHAR(100) NULL DEFAULT NULL COMMENT 'API Key scope:user,admin,*' AFTER apikey_allow_ips"},
+			{"language", "ALTER TABLE users ADD COLUMN language VARCHAR(20) NOT NULL DEFAULT 'zh-CN' COMMENT '语言' AFTER apikey_scopes"},
 			{"country", "ALTER TABLE users ADD COLUMN country VARCHAR(50) NOT NULL DEFAULT '' COMMENT '国家' AFTER language"},
 			{"token", "ALTER TABLE users ADD COLUMN token VARCHAR(255) NOT NULL DEFAULT '' COMMENT 'Token' AFTER country"},
 			{"update_time", "ALTER TABLE users ADD COLUMN update_time BIGINT UNSIGNED NULL DEFAULT NULL COMMENT '更新时间' AFTER token"},
 			{"create_time", "ALTER TABLE users ADD COLUMN create_time BIGINT UNSIGNED NULL DEFAULT NULL COMMENT '创建时间' AFTER update_time"},
 			{"delete_time", "ALTER TABLE users ADD COLUMN delete_time BIGINT UNSIGNED NULL DEFAULT NULL COMMENT '删除时间' AFTER create_time"},
+			{"totp_secret", "ALTER TABLE users ADD COLUMN totp_secret VARCHAR(64) NULL DEFAULT NULL COMMENT 'TOTP密钥' AFTER delete_time"},
+			{"totp_enabled", "ALTER TABLE users ADD COLUMN totp_enabled TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '是否启用TOTP' AFTER totp_secret"},
 		}
 
 		for _, r := range repairs {
@@ -302,12 +312,17 @@ func migrateBusinessTables() {
 
 	// ---------- 支付 / 提现 / 幂等键 / 支付通道 ----------
 	models.InitPaymentOrdersTable()
+	models.InitPaymentExceptionsTable()
 	models.InitWithdrawRequestsTable()
 	models.InitIdempotencyKeysTable()
 	models.InitPayGatewaysTable()
 
 	// ---------- 站内公告 ----------
 	models.InitAnnouncementTables()
+
+	// ---------- RBAC / 审批（管理端产品完成 MVP） ----------
+	models.InitRBACTables()
+	models.InitApprovalRequestsTable()
 
 	log.Println("[Migrate] 业务表 Init* 完成")
 }

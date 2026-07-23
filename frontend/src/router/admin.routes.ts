@@ -144,12 +144,30 @@ export function getAdminRoutes(): RouteRecordRaw[] {
               },
             },
             {
+              path: 'payment-exceptions',
+              name: 'admin-payment-exceptions',
+              component: () => import('@/views/admin/payment-exceptions/index.vue'),
+              meta: {
+                title: 'route.paymentExceptions',
+                icon: 'icon-park-outline:abnormal',
+              },
+            },
+            {
               path: 'withdraw',
               name: 'admin-withdraw',
               component: () => import('@/views/admin/withdraw/index.vue'),
               meta: {
                 title: 'route.withdrawManagement',
                 icon: 'icon-park-outline:wallet-two',
+              },
+            },
+            {
+              path: 'approvals',
+              name: 'admin-approvals',
+              component: () => import('@/views/admin/approvals/index.vue'),
+              meta: {
+                title: 'route.adminApprovals',
+                icon: 'icon-park-outline:file-date',
               },
             },
           ],
@@ -233,6 +251,33 @@ export function getAdminRoutes(): RouteRecordRaw[] {
               meta: {
                 title: 'route.autoJobManager',
                 icon: 'icon-park-outline:timer',
+              },
+            },
+            {
+              path: 'profile',
+              name: 'admin-profile',
+              component: () => import('@/views/admin/profile/index.vue'),
+              meta: {
+                title: 'route.adminProfile',
+                icon: 'icon-park-outline:user',
+              },
+            },
+            {
+              path: 'import-export',
+              name: 'admin-import-export',
+              component: () => import('@/views/admin/import-export/index.vue'),
+              meta: {
+                title: 'route.adminImportExport',
+                icon: 'icon-park-outline:upload-one',
+              },
+            },
+            {
+              path: 'rbac',
+              name: 'admin-rbac',
+              component: () => import('@/views/admin/rbac/index.vue'),
+              meta: {
+                title: 'route.adminRbac',
+                icon: 'icon-park-outline:permissions',
               },
             },
           ],

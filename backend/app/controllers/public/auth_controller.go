@@ -166,6 +166,12 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 		return
 	}
 
+	// 管理端需 TOTP 第二步：此时尚未签发正式 Token，不创建会话
+	if result.NeedTOTP {
+		utils.Success(c, result)
+		return
+	}
+
 	// 记录登录会话
 	userAgent := c.GetHeader("User-Agent")
 	device := utils.ParseDeviceFromUserAgent(userAgent)
@@ -183,6 +189,53 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 		return
 	}
 
+	utils.Success(c, result)
+}
+
+// LoginTOTPRequest 管理端 TOTP 第二步登录
+type LoginTOTPRequest struct {
+	TempToken  string `json:"temp_token" binding:"required"`
+	Code       string `json:"code" binding:"required"`
+	ClientType string `json:"clientType"`
+}
+
+// LoginTOTP 管理端密码通过后的 TOTP 校验，完成正式登录
+// @Summary 管理端 TOTP 登录第二步
+// @Tags Public-认证
+// @Accept json
+// @Produce json
+// @Param request body LoginTOTPRequest true "临时令牌与动态码"
+// @Success 200 {object} utils.Response
+// @Router /api/v1/public/login/totp [post]
+func (ctrl *AuthController) LoginTOTP(c *gin.Context) {
+	var req LoginTOTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+	clientIP := utils.GetClientIP(c)
+	clientType := resolveClientType(c, req.ClientType)
+
+	result, svcErr := services.CompleteAdminLoginWithTOTP(req.TempToken, strings.TrimSpace(req.Code), clientIP)
+	if svcErr != nil {
+		utils.Fail(c, svcErr.Code, svcErr.Message)
+		return
+	}
+
+	userAgent := c.GetHeader("User-Agent")
+	device := utils.ParseDeviceFromUserAgent(userAgent)
+	accessTokenHash := utils.HashToken(result.AccessToken)
+	refreshTokenHash := utils.HashToken(result.RefreshToken)
+	browserID := strings.TrimSpace(c.GetHeader("X-Browser-Id"))
+	if browserID == "" {
+		browserID = strings.TrimSpace(c.Query("browser_id"))
+	}
+	authGuard := utils.AdminAuthGuard
+	if err := models.CreateUserSession(result.ID, authGuard, accessTokenHash, refreshTokenHash, clientIP, userAgent, device, models.NormalizeClientType(clientType), browserID, result.ExpiresAt, result.RefreshExpiresAt); err != nil {
+		log.Printf("[AUTH] create totp login session failed: user_id=%d err=%v", result.ID, err)
+		utils.Fail(c, 500, "登录会话创建失败，请重新登录重试")
+		return
+	}
 	utils.Success(c, result)
 }
 
@@ -301,6 +354,18 @@ func (ctrl *AuthController) SendRegisterCode(c *gin.Context) {
 		utils.Fail(c, 403, "Registration is disabled")
 		return
 	}
+
+	// 人机校验 + IP/邮箱配额，防刷验证码
+	geetestConfig := services.GetGlobalGeetestRuntimeConfig()
+	if err := utils.ValidateGeetestFromHeaders(c, geetestConfig.CaptchaID, geetestConfig.CaptchaKey, geetestConfig.Enabled); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+	if !utils.DefaultCodeSendLimiter.Allow(c.ClientIP(), strings.ToLower(strings.TrimSpace(req.Email))) {
+		utils.Fail(c, 429, "Too many verification code requests")
+		return
+	}
+
 	hasRecentCode, err := models.HasRecentVerificationCode(req.Email, "register", time.Now().Add(-time.Minute))
 	if err != nil {
 		utils.Fail(c, 500, "Failed to check verification cooldown")
@@ -372,6 +437,16 @@ func (ctrl *AuthController) SendResetEmail(c *gin.Context) {
 	// 过滤用户输入
 	req.Email = utils.Clean_XSS(req.Email)
 	req.Lang = utils.Clean_XSS(req.Lang)
+
+	geetestConfig := services.GetGlobalGeetestRuntimeConfig()
+	if err := utils.ValidateGeetestFromHeaders(c, geetestConfig.CaptchaID, geetestConfig.CaptchaKey, geetestConfig.Enabled); err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+	if !utils.DefaultCodeSendLimiter.Allow(c.ClientIP(), strings.ToLower(strings.TrimSpace(req.Email))) {
+		utils.Fail(c, 429, "Too many verification code requests")
+		return
+	}
 
 	// 检查邮箱是否存在
 	user, err := models.GetUserByUsernameOrEmail(req.Email)
@@ -537,6 +612,7 @@ func (ctrl *AuthController) RegisterRoutes(group *gin.RouterGroup) {
 	authGroup.Use(middleware.StrictRateLimitMiddleware())
 	{
 		authGroup.POST("/login", ctrl.Login)
+		authGroup.POST("/login/totp", ctrl.LoginTOTP)
 		authGroup.POST("/register", ctrl.Register)
 		authGroup.POST("/send-register-code", ctrl.SendRegisterCode)
 		authGroup.POST("/forgot-password", ctrl.SendResetEmail)

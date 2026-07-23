@@ -38,6 +38,40 @@ func TestSetupRoutes_HealthAndPublic(t *testing.T) {
 		}
 	})
 
+	t.Run("ready", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+		req.Header.Set("X-Request-Id", "test-ready-rid")
+		r.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+		}
+		var resp map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("json: %v", err)
+		}
+		if resp["code"] != float64(200) {
+			t.Fatalf("code=%v body=%s", resp["code"], w.Body.String())
+		}
+		data, _ := resp["data"].(map[string]any)
+		if data["status"] != "ready" {
+			t.Fatalf("data.status=%v", data["status"])
+		}
+	})
+
+	t.Run("metrics", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+		r.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+		}
+		body := w.Body.String()
+		if !strings.Contains(body, "fst_uptime_seconds") {
+			t.Fatalf("metrics missing uptime: %s", body)
+		}
+	})
+
 	t.Run("公开app-config", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/public/app-config", nil)

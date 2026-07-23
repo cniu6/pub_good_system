@@ -122,8 +122,8 @@ export const useAuthStore = defineStore('auth-store', {
       }
     },
 
-    /* 用户登录 */
-    async login(userName: string, password: string) {
+    /* 用户登录；管理端若启用 TOTP，返回 need_totp 而不落正式会话 */
+    async login(userName: string, password: string): Promise<{ status: 'ok' | 'need_totp' | 'fail', tempToken?: string }> {
       try {
         const mode = getRuntimeRouteMode()
         const authGuard = mode === 'admin' ? 'admin' : 'user'
@@ -131,26 +131,51 @@ export const useAuthStore = defineStore('auth-store', {
         const { isSuccess, data } = result
         const loginData = data as LoginInfoPayload | undefined
         if (!isSuccess || !loginData) {
-          // 拦截器通常已 toast 业务错误；这里再兜底一次，避免完全静默
           const tip = typeof (result as { message?: string }).message === 'string'
             && (result as { message?: string }).message
             ? (result as { message: string }).message
             : $t('login.loginFailed')
           window.$message?.error(tip)
-          return
+          return { status: 'fail' }
         }
 
-        // 处理登录信息
+        if (loginData.need_totp && loginData.temp_token) {
+          return { status: 'need_totp', tempToken: loginData.temp_token }
+        }
+
         await this.handleLoginInfo(loginData)
+        return { status: 'ok' }
       }
       catch (error: unknown) {
-        // handleLoginInfo 抛错或网络异常时给出明确提示（网络层可能已 toast，这里兜底）
         const tip = error && typeof error === 'object' && 'message' in error
           && typeof (error as { message?: unknown }).message === 'string'
           && (error as { message: string }).message
           ? (error as { message: string }).message
           : $t('login.loginFailed')
         window.$message?.error(tip)
+        return { status: 'fail' }
+      }
+    },
+
+    /** 管理端 TOTP 第二步：用临时令牌 + 动态码换正式会话 */
+    async loginWithTotp(tempToken: string, code: string): Promise<boolean> {
+      try {
+        const { fetchLoginTotp } = await import('@/service/api/user/login')
+        const result = await fetchLoginTotp({ temp_token: tempToken, code, clientType: 'web' })
+        if (!result.isSuccess || !result.data) {
+          window.$message?.error(result.message || $t('login.totpFailed'))
+          return false
+        }
+        await this.handleLoginInfo(result.data as LoginInfoPayload)
+        return true
+      }
+      catch (error: unknown) {
+        const tip = error && typeof error === 'object' && 'message' in error
+          && typeof (error as { message?: unknown }).message === 'string'
+          ? (error as { message: string }).message
+          : $t('login.totpFailed')
+        window.$message?.error(tip)
+        return false
       }
     },
 

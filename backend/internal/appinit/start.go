@@ -33,6 +33,8 @@ func Bootstrap() {
 	// ---------- 1. 配置与 Gin 运行模式 ----------
 	config.InitConfig()
 	log.Println("[AppInit] 配置初始化完成")
+	// 生产误配强警告（CORS=* / Swagger / 弱 JWT 等），不中断启动
+	config.WarnProductionMisconfig()
 	if config.IsProductionMode() {
 		gin.SetMode(gin.ReleaseMode)
 		log.Println("[AppInit] 生产模式")
@@ -77,6 +79,8 @@ func SetupHTTP(router *gin.Engine, disableSlashRedirect bool) *plugins.Manager {
 	// 请求日志统一走 LoggerMiddleware（可配置跳过路径），不再叠加 gin.Logger
 	router.Use(gin.Recovery())
 	router.SetTrustedProxies(nil)
+	router.Use(middleware.RequestIDMiddleware()) // 尽早写入 X-Request-Id，供日志 /ready 等使用
+	router.Use(middleware.MetricsMiddleware())
 	router.Use(middleware.SecurityHeadersMiddleware())
 	router.Use(middleware.CorsMiddleware())
 	router.Use(middleware.LoggerMiddleware())

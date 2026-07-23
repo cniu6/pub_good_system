@@ -26,6 +26,7 @@ import 'md-editor-v3/lib/style.css'
 import { adminAnnouncementApi, type AdminAnnouncement, type AnnouncementUpsertPayload } from '@/service/api/admin/announcement'
 import { useAppStore } from '@/store'
 import { useRequestGuard } from '@/hooks'
+import { sanitizeMarkdownHtml } from '@/utils/safeMarkdown'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -347,6 +348,7 @@ onMounted(() => loadList())
             v-model="form.content"
             :theme="editorTheme"
             language="zh-CN"
+            :sanitize="sanitizeMarkdownHtml"
             style="height: 360px; width: 100%"
           />
         </NFormItem>

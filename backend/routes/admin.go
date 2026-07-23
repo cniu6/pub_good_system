@@ -117,12 +117,17 @@ func registerAdminRoutes(v1 *gin.RouterGroup) {
 			announcements.DELETE("/:id", adminAnnouncementCtrl.Delete)
 		}
 
-		adminMoneyScoreCtrl.RegisterRoutes(adminGroup)     //用户积分
-		adminSettingsCtrl.RegisterRoutes(adminGroup)       //系统设置
-		adminPaymentCtrl.RegisterPaymentRoutes(adminGroup) //支付
-		adminRealnameCtrl.RegisterRoutes(adminGroup)       //实名认证
-		adminWithdrawCtrl.RegisterRoutes(adminGroup)       //提现
-		adminDebugCtrl.RegisterRoutes(adminGroup)          //调试
-		adminAutoJobCtrl.RegisterRoutes(adminGroup)        //自动任务管理器
+	adminMoneyScoreCtrl.RegisterRoutes(adminGroup)     //用户积分
+	adminSettingsCtrl.RegisterRoutes(adminGroup)       //系统设置
+	adminPaymentCtrl.RegisterPaymentRoutes(adminGroup) //支付
+	adminRealnameCtrl.RegisterRoutes(adminGroup)       //实名认证
+	adminWithdrawCtrl.RegisterRoutes(adminGroup)       //提现
+	adminDebugCtrl.RegisterRoutes(adminGroup)          //调试
+	adminAutoJobCtrl.RegisterRoutes(adminGroup)        //自动任务管理器
+	adminRBACCtrl.RegisterRoutes(adminGroup)           //RBAC
+	adminProfileCtrl.RegisterRoutes(adminGroup)        //管理员个人设置/TOTP
+	adminTodoCtrl.RegisterRoutes(adminGroup)           //待办聚合
+	adminExportCtrl.RegisterRoutes(adminGroup)         //导入导出
+	adminApprovalCtrl.RegisterRoutes(adminGroup)       //财务审批
 	}
 }

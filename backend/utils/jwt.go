@@ -32,6 +32,7 @@ const (
 	AdminAuthGuard   = "admin"
 	accessTokenType  = "access"
 	refreshTokenType = "refresh"
+	totpPendingType  = "totp_pending" // 管理端密码通过后、待校验 TOTP 的临时令牌
 )
 
 func getJWTSecretByGuard(authGuard string) (string, error) {
@@ -271,6 +272,51 @@ func ParseRefreshTokenForGuard(tokenString, expectedGuard string) (*RefreshClaim
 		return nil, fmt.Errorf("unexpected auth guard: %s", authGuard)
 	}
 	claims.AuthGuard = authGuard
+	return claims, nil
+}
+
+// GenerateTOTPPendingToken 签发管理端登录第二步用的临时令牌（短 TTL，不可当 access 用）
+func GenerateTOTPPendingToken(userID uint64, role string, ttl time.Duration) (string, error) {
+	if ttl <= 0 {
+		ttl = 5 * time.Minute
+	}
+	expirationTime := time.Now().Add(ttl)
+	claims := &Claims{
+		UserID:    userID,
+		Role:      role,
+		AuthGuard: AdminAuthGuard,
+		TokenType: totpPendingType,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	secret, err := getJWTSecretByGuard(AdminAuthGuard)
+	if err != nil {
+		return "", err
+	}
+	return token.SignedString([]byte(secret))
+}
+
+// ParseTOTPPendingToken 解析并校验 totp_pending 临时令牌
+func ParseTOTPPendingToken(tokenString string) (*Claims, error) {
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, jwtSigningKeyByGuard(AdminAuthGuard))
+	if err != nil {
+		return nil, err
+	}
+	if !token.Valid {
+		return nil, jwt.ErrSignatureInvalid
+	}
+	if claims.TokenType != totpPendingType {
+		return nil, fmt.Errorf("unexpected token type: %s", claims.TokenType)
+	}
+	if claims.AuthGuard != AdminAuthGuard {
+		return nil, fmt.Errorf("unexpected auth guard: %s", claims.AuthGuard)
+	}
+	if claims.Role != AdminAuthGuard {
+		return nil, fmt.Errorf("admin token requires admin role")
+	}
 	return claims, nil
 }
 

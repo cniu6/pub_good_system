@@ -6,6 +6,7 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -17,11 +18,100 @@ type CustomProvider struct {
 	httpClient *http.Client
 }
 
+// newSSRFSafeHTTPClient 创建带 SSRF 防护的 HTTP 客户端：
+// 最多跟随 2 次重定向，且每次重定向目标都重新走 ValidateOutboundURL。
+func newSSRFSafeHTTPClient(timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout: timeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// 限制跳转次数，避免无限重定向与跳转链绕过
+			if len(via) >= 2 {
+				return fmt.Errorf("stopped after 2 redirects (SSRF protection)")
+			}
+			if req == nil || req.URL == nil {
+				return fmt.Errorf("redirect URL is empty")
+			}
+			if err := ValidateOutboundURL(req.URL.String()); err != nil {
+				return fmt.Errorf("redirect blocked: %w", err)
+			}
+			return nil
+		},
+	}
+}
+
 func NewCustomProvider(cfg services.SMSConfig) *CustomProvider {
 	return &CustomProvider{
 		config:     cfg,
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		httpClient: newSSRFSafeHTTPClient(10 * time.Second),
 	}
+}
+
+// ValidateOutboundURL 校验自定义短信网关等出站 URL，防止 SSRF。
+// 规则：仅允许 http/https；解析 IP 或 DNS；拒绝回环/私网/链路本地/云元数据地址。
+func ValidateOutboundURL(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fmt.Errorf("endpoint URL is empty")
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("unsupported URL scheme %q: only http/https allowed", u.Scheme)
+	}
+	host := u.Hostname()
+	if host == "" {
+		return fmt.Errorf("URL host is empty")
+	}
+	// 显式拒绝常见本机主机名（即便 DNS 被劫持也先挡一层）
+	if strings.EqualFold(host, "localhost") {
+		return fmt.Errorf("URL host %q is blocked (loopback)", host)
+	}
+
+	ips, err := resolveOutboundHostIPs(host)
+	if err != nil {
+		return err
+	}
+	for _, ip := range ips {
+		if isBlockedOutboundIP(ip) {
+			return fmt.Errorf("URL resolves to blocked address %s", ip.String())
+		}
+	}
+	return nil
+}
+
+// resolveOutboundHostIPs 将主机名解析为 IP 列表；已是字面量 IP 则直接返回。
+func resolveOutboundHostIPs(host string) ([]net.IP, error) {
+	if ip := net.ParseIP(host); ip != nil {
+		return []net.IP{ip}, nil
+	}
+	addrs, err := net.LookupIP(host)
+	if err != nil {
+		return nil, fmt.Errorf("DNS lookup failed for %q: %w", host, err)
+	}
+	if len(addrs) == 0 {
+		return nil, fmt.Errorf("no IP addresses for host %q", host)
+	}
+	return addrs, nil
+}
+
+// isBlockedOutboundIP 判断 IP 是否属于禁止出站访问的地址段（SSRF 黑名单）。
+func isBlockedOutboundIP(ip net.IP) bool {
+	if ip == nil {
+		return true
+	}
+	// 回环 / 私网 / 链路本地 / 未指定 / 组播
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast() {
+		return true
+	}
+	// 云元数据地址 169.254.169.254（已被链路本地覆盖，此处再显式强调）
+	if ip4 := ip.To4(); ip4 != nil && ip4[0] == 169 && ip4[1] == 254 {
+		return true
+	}
+	return false
 }
 
 func (p *CustomProvider) Name() string { return "custom" }
@@ -118,6 +208,11 @@ func (p *CustomProvider) buildBody(phone, content string, params map[string]stri
 }
 
 func (p *CustomProvider) doPost(body string) (string, error) {
+	// 发请求前强制 SSRF 校验，避免自定义 Endpoint 打到内网/元数据
+	if err := ValidateOutboundURL(p.config.Endpoint); err != nil {
+		return "", fmt.Errorf("SSRF protection: %w", err)
+	}
+
 	req, err := http.NewRequest("POST", p.config.Endpoint, strings.NewReader(body))
 	if err != nil {
 		return "", err

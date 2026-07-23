@@ -3,6 +3,7 @@ package middleware
 import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
+	"fst/backend/pkg/config"
 	"fst/backend/utils"
 	"log"
 	"strings"
@@ -123,9 +124,32 @@ func authenticateWithAPIKey(c *gin.Context, apiKey string, acceptGuards []string
 		return
 	}
 
+	// 默认禁止 API Key 调用管理端写接口（资金/配置变更等高危操作只允许 JWT 会话）
+	if isAdminMutatingRequest(c) {
+		log.Printf("[SECURITY] API Key blocked on admin write | ip=%s method=%s path=%s", c.ClientIP(), c.Request.Method, c.Request.URL.Path)
+		utils.Fail(c, 403, "API Key cannot be used on admin write endpoints")
+		c.Abort()
+		return
+	}
+
 	user, err := models.GetUserByApiKey(apiKey)
 	if err != nil || user == nil {
 		utils.Fail(c, 401, "Invalid API Key")
+		c.Abort()
+		return
+	}
+
+	// IP 白名单（用户级 apikey_allow_ips，逗号分隔；空=不限制）
+	if !apiKeyIPAllowed(user, c.ClientIP()) {
+		log.Printf("[SECURITY] API Key IP denied | user_id=%d ip=%s", user.ID, c.ClientIP())
+		utils.Fail(c, 403, "API Key not allowed from this IP")
+		c.Abort()
+		return
+	}
+
+	// 过期检查
+	if user.ApikeyExpiresAt != nil && *user.ApikeyExpiresAt > 0 && *user.ApikeyExpiresAt < time.Now().Unix() {
+		utils.Fail(c, 401, "API Key expired")
 		c.Abort()
 		return
 	}
@@ -143,10 +167,89 @@ func authenticateWithAPIKey(c *gin.Context, apiKey string, acceptGuards []string
 		return
 	}
 
+	// scope：若配置了 apikey_scopes，管理端路径要求含 admin 或 *
+	if !apiKeyScopeAllowed(user, c.Request.URL.Path, actualGuard) {
+		utils.Fail(c, 403, "API Key scope insufficient")
+		c.Abort()
+		return
+	}
+
 	if !setAuthUserContext(c, user, actualGuard, AuthMethodAPIKey) {
 		return
 	}
+	log.Printf("[AUDIT][APIKEY] user_id=%d guard=%s method=%s path=%s ip=%s", user.ID, actualGuard, c.Request.Method, c.Request.URL.Path, c.ClientIP())
 	c.Next()
+}
+
+func isAdminMutatingRequest(c *gin.Context) bool {
+	method := strings.ToUpper(c.Request.Method)
+	if method == "GET" || method == "HEAD" || method == "OPTIONS" {
+		return false
+	}
+	path := strings.ToLower(c.Request.URL.Path)
+	// 匹配 /api/v1/{admin_api_path}/...
+	return strings.Contains(path, "/api/v1/") && (strings.Contains(path, "/admin/") || isConfiguredAdminAPIPath(path))
+}
+
+func isConfiguredAdminAPIPath(path string) bool {
+	cfg := config.CloneGlobalConfig()
+	if cfg == nil {
+		return false
+	}
+	adminPath := config.NormalizeAdminAPIPath(cfg.AdminAPIPath)
+	if adminPath == "" || adminPath == "/admin" {
+		return false
+	}
+	needle := "/api/v1" + strings.ToLower(adminPath) + "/"
+	return strings.Contains(path, needle)
+}
+
+func apiKeyIPAllowed(user *models.User, clientIP string) bool {
+	if user == nil || user.ApikeyAllowIPs == nil {
+		return true
+	}
+	raw := strings.TrimSpace(*user.ApikeyAllowIPs)
+	if raw == "" {
+		return true
+	}
+	clientIP = strings.TrimSpace(clientIP)
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if part == "*" || part == clientIP {
+			return true
+		}
+	}
+	return false
+}
+
+func apiKeyScopeAllowed(user *models.User, path, guard string) bool {
+	if user == nil || user.ApikeyScopes == nil {
+		return true
+	}
+	raw := strings.TrimSpace(*user.ApikeyScopes)
+	if raw == "" {
+		return true
+	}
+	scopes := map[string]struct{}{}
+	for _, s := range strings.Split(strings.ToLower(raw), ",") {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			scopes[s] = struct{}{}
+		}
+	}
+	if _, ok := scopes["*"]; ok {
+		return true
+	}
+	path = strings.ToLower(path)
+	if guard == utils.AdminAuthGuard || strings.Contains(path, "/admin/") {
+		_, ok := scopes["admin"]
+		return ok
+	}
+	_, ok := scopes["user"]
+	return ok
 }
 
 func guardAccepted(acceptGuards []string, guard string) bool {

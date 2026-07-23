@@ -26,6 +26,8 @@ interface RouteMenuStateItem {
 
 interface RoutesStatus {
   isInitAuthRoute: boolean
+  /** 管理端路由加载失败时的错误；成功后清空。避免空菜单被当成初始化成功 */
+  authRouteError: string | null
   menus: RouteMenuStateItem[]
   adminMenus: RouteMenuStateItem[]
   rowRoutes: AppRoute.RowRoute[]
@@ -38,6 +40,7 @@ export const useRouteStore = defineStore('route-store', {
   state: (): RoutesStatus => {
     return {
       isInitAuthRoute: false,
+      authRouteError: null,
       activeMenu: null,
       menus: [],
       adminMenus: [],
@@ -101,6 +104,7 @@ export const useRouteStore = defineStore('route-store', {
     },
     async initAuthRoute(mode: AppRouteMode = 'user') {
       this.isInitAuthRoute = false
+      this.authRouteError = null
 
       try {
         if (mode === 'user') {
@@ -144,13 +148,19 @@ export const useRouteStore = defineStore('route-store', {
             this.setAdminMenus(adminMenus)
           }
           catch (error) {
+            // 管理端路由加载失败：不能标成初始化成功，否则会出现空侧边栏却继续当成功态
             reportRouteInitError('[Security] Failed to load admin routes:', error)
+            this.authRouteError = error instanceof Error ? error.message : String(error)
+            this.isInitAuthRoute = false
+            this.setAdminMenus([])
+            throw error
           }
         }
         else {
           this.setAdminMenus([])
         }
 
+        this.authRouteError = null
         this.isInitAuthRoute = true
       }
       catch (error) {

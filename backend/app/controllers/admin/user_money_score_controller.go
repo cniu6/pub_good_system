@@ -386,11 +386,12 @@ func (ctrl *UserMoneyScoreController) RegisterRoutes(adminGroup *gin.RouterGroup
 	// 用户余额/积分操作（挂在 users/:id 下）
 	// 资金/积分变更均要求幂等键，防止网络重试或双击导致重复加减款
 	users := adminGroup.Group("/users")
+	users.Use(middleware.SimpleLogMiddleware("资金调账"))
 	{
-		users.POST("/:id/money/change", middleware.RequireIdempotency("admin_money_change", 10*time.Minute), ctrl.ChangeMoney)
-		users.PUT("/:id/money", middleware.RequireIdempotency("admin_money_set", 10*time.Minute), ctrl.SetMoney)
-		users.POST("/:id/money/log", middleware.RequireIdempotency("admin_money_log", 10*time.Minute), ctrl.AddMoneyLog)
-		users.POST("/:id/money/operate", middleware.RequireIdempotency("admin_money_operate", 10*time.Minute), ctrl.OperateMoney)
+		users.POST("/:id/money/change", middleware.RequirePermission("finance:write"), middleware.RequireRecentTOTP(), middleware.RequireIdempotency("admin_money_change", 10*time.Minute), ctrl.ChangeMoney)
+		users.PUT("/:id/money", middleware.RequirePermission("finance:write"), middleware.RequireRecentTOTP(), middleware.RequireIdempotency("admin_money_set", 10*time.Minute), ctrl.SetMoney)
+		users.POST("/:id/money/log", middleware.RequirePermission("finance:write"), middleware.RequireRecentTOTP(), middleware.RequireIdempotency("admin_money_log", 10*time.Minute), ctrl.AddMoneyLog)
+		users.POST("/:id/money/operate", middleware.RequirePermission("finance:write"), middleware.RequireRecentTOTP(), middleware.RequireIdempotency("admin_money_operate", 10*time.Minute), ctrl.OperateMoney)
 		users.POST("/:id/score/change", middleware.RequireIdempotency("admin_score_change", 10*time.Minute), ctrl.ChangeScore)
 		users.PUT("/:id/score", middleware.RequireIdempotency("admin_score_set", 10*time.Minute), ctrl.SetScore)
 		users.POST("/:id/score/log", middleware.RequireIdempotency("admin_score_log", 10*time.Minute), ctrl.AddScoreLog)
@@ -399,8 +400,9 @@ func (ctrl *UserMoneyScoreController) RegisterRoutes(adminGroup *gin.RouterGroup
 	// 生成订单号/交易号
 	adminGroup.GET("/generate-nos", ctrl.GenerateNos)
 
-	// 余额日志
+	// 余额日志（删除入口保留为软删，仍挂审计）
 	moneyLogs := adminGroup.Group("/money-logs")
+	moneyLogs.Use(middleware.SimpleLogMiddleware("余额日志"))
 	{
 		moneyLogs.GET("", ctrl.MoneyLogList)
 		moneyLogs.GET("/:id", ctrl.MoneyLogDetail)
@@ -409,6 +411,7 @@ func (ctrl *UserMoneyScoreController) RegisterRoutes(adminGroup *gin.RouterGroup
 
 	// 积分日志
 	scoreLogs := adminGroup.Group("/score-logs")
+	scoreLogs.Use(middleware.SimpleLogMiddleware("积分日志"))
 	{
 		scoreLogs.GET("", ctrl.ScoreLogList)
 		scoreLogs.GET("/:id", ctrl.ScoreLogDetail)

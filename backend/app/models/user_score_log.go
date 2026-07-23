@@ -16,12 +16,18 @@ type UserScoreLog struct {
 	After      int64  `db:"after" json:"after"`         // 变更后积分
 	Memo       string `db:"memo" json:"memo"`           // 备注
 	CreateTime int64  `db:"create_time" json:"create_time"`
+	DeleteTime *int64 `db:"delete_time" json:"delete_time,omitempty"`
 }
 
 // InitUserScoreLogsTable 初始化积分变动日志表
 func InitUserScoreLogsTable() {
 	if db.CheckTableExists("user_score_logs") {
 		db.EnsureIndex("user_score_logs", "idx_user_create_time", "ALTER TABLE user_score_logs ADD INDEX idx_user_create_time (user_id, create_time)")
+		if !db.CheckColumnExists("user_score_logs", "delete_time") {
+			if _, err := db.Exec("ALTER TABLE user_score_logs ADD COLUMN delete_time BIGINT NULL DEFAULT NULL COMMENT '软删除时间'"); err != nil {
+				log.Printf("[Init] add user_score_logs.delete_time failed: %v", err)
+			}
+		}
 		return
 	}
 
@@ -33,6 +39,7 @@ func InitUserScoreLogsTable() {
 		` + "`after`" + ` BIGINT NOT NULL DEFAULT 0 COMMENT '变更后积分',
 		memo VARCHAR(255) NOT NULL DEFAULT '' COMMENT '备注',
 		create_time BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间',
+		delete_time BIGINT NULL DEFAULT NULL COMMENT '软删除时间',
 		INDEX idx_user_id (user_id),
 		INDEX idx_create_time (create_time),
 		INDEX idx_user_create_time (user_id, create_time)
@@ -83,7 +90,7 @@ func GetUserScoreLogList(onlyUserID uint64, page, pageSize int, keyword string) 
 	var logs []UserScoreLog
 	var total int64
 
-	where := "WHERE 1=1"
+	where := "WHERE delete_time IS NULL"
 	args := []interface{}{}
 
 	if onlyUserID > 0 {
@@ -106,7 +113,7 @@ func GetUserScoreLogList(onlyUserID uint64, page, pageSize int, keyword string) 
 
 	// 分页
 	offset := (page - 1) * pageSize
-	query := "SELECT id, user_id, score, `before`, `after`, memo, create_time FROM user_score_logs " + where + " ORDER BY create_time DESC LIMIT ? OFFSET ?"
+	query := "SELECT id, user_id, score, `before`, `after`, memo, create_time, delete_time FROM user_score_logs " + where + " ORDER BY create_time DESC LIMIT ? OFFSET ?"
 	args = append(args, pageSize, offset)
 	err = db.DB.Select(&logs, query, args...)
 	if err != nil {
@@ -116,9 +123,10 @@ func GetUserScoreLogList(onlyUserID uint64, page, pageSize int, keyword string) 
 	return logs, total, nil
 }
 
-// DeleteUserScoreLog 删除积分变动记录
+// DeleteUserScoreLog 软删除积分变动记录（财务审计：禁止物理删除）
 func DeleteUserScoreLog(id uint64) error {
-	_, err := db.Exec("DELETE FROM user_score_logs WHERE id = ?", id)
+	now := time.Now().Unix()
+	_, err := db.Exec("UPDATE user_score_logs SET delete_time = ? WHERE id = ? AND delete_time IS NULL", now, id)
 	return err
 }
 

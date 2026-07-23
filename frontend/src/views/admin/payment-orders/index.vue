@@ -426,9 +426,13 @@ function handleComplete(row: PaymentOrder) {
 
 async function handleCompleteSubmit() {
   if (!completeOrder.value) return
+  const { promptSensitiveTotpCode } = await import('@/composables/useSensitiveTotp')
+  const totpCode = await promptSensitiveTotpCode()
+  if (totpCode === null)
+    return
   submitting.value = true
   try {
-    const res = await adminPaymentApi.completeOrder(completeOrder.value.id, { memo: completeMemo.value })
+    const res = await adminPaymentApi.completeOrder(completeOrder.value.id, { memo: completeMemo.value }, totpCode || undefined)
     if (res.isSuccess) {
       message.success(t('adminPaymentOrders.completeSuccess'))
       showComplete.value = false

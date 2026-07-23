@@ -1,0 +1,99 @@
+# FST Docker Compose（默认 MySQL；可选 profile=postgres）
+# 用法见 deploy/README.md
+#
+# 在仓库根目录执行：
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example up -d --build
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: fst-app
+    restart: unless-stopped
+    ports:
+      - "${FST_PORT:-8080}:8080"
+    env_file:
+      - .env.example
+    environment:
+      APP_ENV: production
+      APP_MODE: prod
+      PORT: "8080"
+      DB_DRIVER: ${DB_DRIVER:-mysql}
+      DB_HOST: ${DB_HOST:-mysql}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-fst}
+      DB_PASSWORD: ${DB_PASSWORD:-fst_change_me}
+      DB_NAME: ${DB_NAME:-fst_platform}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      JWT_SECRET: ${JWT_SECRET:-change_me_to_a_long_random_secret}
+    depends_on:
+      mysql:
+        condition: service_healthy
+        required: false
+      postgres:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 25s
+    networks:
+      - fst-net
+
+  # 默认栈：MySQL。若只要 Postgres：加 --profile postgres，并把 DB_DRIVER/DB_HOST 改成 postgres，
+  # 同时可 docker compose stop mysql（或自行改 compose 给 mysql 加 profiles: [mysql]）。
+  mysql:
+    image: mysql:8.0
+    container_name: fst-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_change_me}
+      MYSQL_DATABASE: ${DB_NAME:-fst_platform}
+      MYSQL_USER: ${DB_USER:-fst}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-fst_change_me}
+    ports:
+      - "${MYSQL_PUBLISH_PORT:-3306}:3306"
+    volumes:
+      - fst_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root_change_me}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - fst-net
+
+  # 可选：docker compose --profile postgres up
+  postgres:
+    image: postgres:16-alpine
+    container_name: fst-postgres
+    restart: unless-stopped
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_DB: ${DB_NAME:-fst_platform}
+      POSTGRES_USER: ${DB_USER:-fst}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-fst_change_me}
+    ports:
+      - "${POSTGRES_PUBLISH_PORT:-5432}:5432"
+    volumes:
+      - fst_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-fst} -d ${DB_NAME:-fst_platform}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - fst-net
+
+volumes:
+  fst_mysql_data:
+  fst_pg_data:
+
+networks:
+  fst-net:
+    driver: bridge

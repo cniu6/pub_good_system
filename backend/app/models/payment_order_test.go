@@ -87,9 +87,9 @@ func TestCanTransitionPaymentStatus(t *testing.T) {
 		{name: "已支付不能改已取消", from: PaymentStatusPaid, to: PaymentStatusCanceled, expected: false},
 		{name: "已支付不能改失败", from: PaymentStatusPaid, to: PaymentStatusFailed, expected: false},
 		{name: "已取消不能回待支付", from: PaymentStatusCanceled, to: PaymentStatusPending, expected: false},
-		{name: "已取消不能改已支付", from: PaymentStatusCanceled, to: PaymentStatusPaid, expected: false},
+		{name: "已取消可迟到恢复已支付", from: PaymentStatusCanceled, to: PaymentStatusPaid, expected: true},
 		{name: "已失败不能回待支付", from: PaymentStatusFailed, to: PaymentStatusPending, expected: false},
-		{name: "已失败不能改已支付", from: PaymentStatusFailed, to: PaymentStatusPaid, expected: false},
+		{name: "已失败可迟到恢复已支付", from: PaymentStatusFailed, to: PaymentStatusPaid, expected: true},
 		{name: "已支付不能回待支付", from: PaymentStatusPaid, to: PaymentStatusPending, expected: false},
 		{name: "已退款不能回已支付", from: PaymentStatusRefunded, to: PaymentStatusPaid, expected: false},
 	}

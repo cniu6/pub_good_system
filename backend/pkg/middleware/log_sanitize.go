@@ -55,7 +55,10 @@ var sensitiveBodyFieldNames = map[string]struct{}{
 	// 验证码类字段：这些字段名本身语义明确是验证码，请求/响应体中都脱敏
 	"smscode": {}, "emailcode": {}, "verifycode": {}, "verificationcode": {}, "authcode": {}, "otp": {}, "captchacode": {}, "resetcode": {},
 	// 证件号：与 utils.MaskCertificateNo 双重保护，日志层再兜底一次
-	"certificateno": {}, "idcard": {},
+	"certificateno": {}, "certificatno": {}, "idcard": {}, "idnumber": {},
+	// 银行卡 / 账号 / 手机号：提现与实名相关字段兜底脱敏
+	"accountno": {}, "bankcard": {}, "bankaccount": {}, "cardno": {},
+	"mobileno": {}, "phone": {},
 }
 
 // normalizeBodyFieldName 归一化字段名：小写 + 去掉下划线/连字符，兼容 snake_case / camelCase / kebab-case。

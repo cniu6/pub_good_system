@@ -210,13 +210,32 @@ func bytesToGB(v uint64) float64 {
 	return float64(v) / 1024.0 / 1024.0 / 1024.0
 }
 
+// dbDriverDisplayName 把归一化驱动名转成管理端展示名（勿写死 MySQL）。
+func dbDriverDisplayName() string {
+	switch db.DriverName() {
+	case "sqlite":
+		return "SQLite"
+	case "postgres":
+		return "PostgreSQL"
+	case "mysql":
+		return "MySQL"
+	default:
+		if name := db.DriverName(); name != "" {
+			return name
+		}
+		return "Database"
+	}
+}
+
 func buildDatabaseStatus() gin.H {
+	name := dbDriverDisplayName()
 	database := db.GetDB()
 	if database == nil {
 		return gin.H{
-			"name":    "MySQL",
-			"status":  "down",
-			"message": "数据库连接未初始化",
+			"name":      name,
+			"db_driver": db.DriverName(),
+			"status":    "down",
+			"message":   "数据库连接未初始化",
 		}
 	}
 
@@ -225,15 +244,17 @@ func buildDatabaseStatus() gin.H {
 
 	if err := database.PingContext(ctx); err != nil {
 		return gin.H{
-			"name":    "MySQL",
-			"status":  "down",
-			"message": err.Error(),
+			"name":      name,
+			"db_driver": db.DriverName(),
+			"status":    "down",
+			"message":   err.Error(),
 		}
 	}
 
 	stats := database.Stats()
 	return gin.H{
-		"name":             "MySQL",
+		"name":             name,
+		"db_driver":        db.DriverName(),
 		"status":           "up",
 		"message":          "连接正常",
 		"open_connections": stats.OpenConnections,

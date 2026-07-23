@@ -36,6 +36,15 @@ export function fetchLogin(data: Ilogin) {
   return methodInstance
 }
 
+/** 管理端 TOTP 登录第二步 */
+export function fetchLoginTotp(data: { temp_token: string, code: string, clientType?: string }) {
+  const methodInstance = request.Post<Service.ResponseResult<Api.Login.Info>>('/api/v1/public/login/totp', data)
+  methodInstance.meta = {
+    authRole: null,
+  }
+  return methodInstance
+}
+
 /** 刷新Token */
 export function fetchUpdateToken(data: { refreshToken: string | null, authGuard?: 'user' | 'admin' }) {
   const method = request.Post<Service.ResponseResult<Api.Login.Info>>('/api/v1/public/refresh-token', data)

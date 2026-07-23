@@ -78,6 +78,22 @@ function resetSetting() {
       <n-space vertical>
         <n-divider>{{ $t('app.layoutSetting') }}</n-divider>
         <LayoutSelector v-model:value="appStore.layoutMode" />
+        <n-space vertical :size="4">
+          <n-space align="center" justify="space-between">
+            <span>{{ $t('app.sidebarWidth') }}</span>
+            <n-text depth="3">{{ appStore.sidebarWidth }}px</n-text>
+          </n-space>
+          <n-slider
+            :value="appStore.sidebarWidth"
+            :min="160"
+            :max="480"
+            :step="4"
+            @update:value="(v: number) => appStore.setSidebarWidth(v)"
+          />
+          <n-text depth="3" style="font-size: 12px;">
+            {{ $t('app.sidebarWidthHint') }}
+          </n-text>
+        </n-space>
         <n-divider>{{ $t('app.themeSetting') }}</n-divider>
         <n-space justify="space-between">
           {{ $t('app.colorWeak') }}

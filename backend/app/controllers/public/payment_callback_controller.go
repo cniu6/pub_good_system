@@ -58,8 +58,17 @@ func (ctrl *PaymentCallbackController) Notify(c *gin.Context) {
 	log.Printf("[Payment Notify] 收到回调: %v", sanitizePaymentCallbackLog(params))
 
 	ok, err := services.HandlePaymentNotify(params)
-	if !ok || err != nil {
-		log.Printf("[Payment Notify] 处理失败: order_no=%s err=%v", params["out_trade_no"], err)
+	if err != nil {
+		log.Printf("[Payment Notify] 处理失败: order_no=%s permanent=%v err=%v", params["out_trade_no"], services.IsPermanentPaymentNotifyError(err), err)
+		// 永久错误（验签/金额/绑定等）返回 SUCCESS，避免网关无限重试；可重试错误返回 FAIL
+		if services.IsPermanentPaymentNotifyError(err) {
+			c.String(http.StatusOK, "SUCCESS")
+			return
+		}
+		c.String(http.StatusOK, "FAIL")
+		return
+	}
+	if !ok {
 		c.String(http.StatusOK, "FAIL")
 		return
 	}

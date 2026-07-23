@@ -41,6 +41,7 @@ export const switchLoading = reactive({
   payment_enabled: false,
   withdraw_enabled: false,
   withdraw_require_realname: false,
+  finance_dual_approval: false,
   mobile_cn_only: false,
   mobile_ip_country_detect: false,
 })
@@ -125,6 +126,8 @@ export const paymentForm = reactive({
   withdraw_notify_text: '',
   withdraw_account_types_text: '["bank","alipay","wechat","usdt"]',
   withdraw_require_realname: false,
+  // 默认关：只影响「管理员强制补单」等人工高危操作，不影响用户正常支付回调自动入账
+  finance_dual_approval: false,
 })
 
 export const customSettings = ref<SettingDTO[]>([])

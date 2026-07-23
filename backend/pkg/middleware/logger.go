@@ -26,6 +26,8 @@ type LoggerConfig struct {
 var DefaultLoggerConfig = LoggerConfig{
 	SkipPaths: []string{
 		"/health",
+		"/ready",
+		"/metrics",
 		"/favicon.ico",
 	},
 	SkipPathPrefixes: []string{
@@ -72,8 +74,9 @@ func LoggerMiddlewareWithConfig(config LoggerConfig) gin.HandlerFunc {
 		// 获取请求方法
 		method := c.Request.Method
 
-		// 构建日志
-		log_line := buildLogLine(start_time, status_code, latency, client_ip, method, path)
+		// 构建日志（附带 request_id，便于与 /ready、访问日志关联）
+		requestID := GetRequestID(c)
+		log_line := buildLogLine(start_time, status_code, latency, client_ip, method, path, requestID)
 
 		// 根据状态码选择日志级别
 		if status_code >= 500 {
@@ -105,23 +108,20 @@ func shouldSkip(path string, config LoggerConfig) bool {
 	return false
 }
 
-// buildLogLine 构建日志行
-func buildLogLine(start_time time.Time, status_code int, latency time.Duration, client_ip, method, path string) string {
+// buildLogLine 构建日志行（含可选 request_id）
+func buildLogLine(start_time time.Time, status_code int, latency time.Duration, client_ip, method, path, requestID string) string {
 	// 格式化时间
 	time_str := start_time.Format("2006/01/02 - 15:04:05")
 
 	// 格式化延迟
 	latency_str := formatLatency(latency)
 
-	// 构建日志
-	return fmt.Sprintf("%s | %3d | %13s | %15s | %-7s %s",
-		time_str,
-		status_code,
-		latency_str,
-		client_ip,
-		method,
-		path,
-	)
+	if requestID == "" {
+		return fmt.Sprintf("%s | %3d | %13s | %15s | %-7s %s",
+			time_str, status_code, latency_str, client_ip, method, path)
+	}
+	return fmt.Sprintf("%s | %3d | %13s | %15s | %-7s %s | request_id=%s",
+		time_str, status_code, latency_str, client_ip, method, path, requestID)
 }
 
 // formatLatency 格式化延迟时间

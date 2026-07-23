@@ -158,6 +158,8 @@ var defaultSettings = []SystemSetting{
 	{Key: "admin_rate_limit_burst", Value: "120", Type: "number", Category: "security", Label: "管理端突发上限", Description: "管理员后台接口限流突发流量上限", IsPublic: false, IsEditable: true, SortOrder: 18},
 	// 默认关闭：未显式开启前，任何 X-Api-Key 请求都会被拒绝，必须走 Bearer JWT；管理员主动开启后才允许 APIKey 鉴权方式
 	{Key: "api_key_auth_enabled", Value: "false", Type: "boolean", Category: "security", Label: "允许APIKey鉴权", Description: "关闭后所有 X-Api-Key 请求直接拒绝（仅允许 Authorization: Bearer 登录），默认关闭，需管理员主动开启", IsPublic: false, IsEditable: true, SortOrder: 19},
+	// 财务双人复核：开启后强制补单不立即入账，而是创建 pending 审批；另一管理员批准后才执行。默认关闭（单管理员场景友好）。
+	{Key: "finance_dual_approval", Value: "false", Type: "boolean", Category: "payment", Label: "财务双人复核", Description: "开启后强制补单等高危财务操作需另一管理员审批后才生效；默认关闭", IsPublic: false, IsEditable: true, SortOrder: 30},
 
 	// ===== 邮件设置 =====
 	{Key: "email_verify_enabled", Value: "true", Type: "boolean", Category: "email", Label: "邮箱验证码", Description: "是否启用邮箱验证码功能（关闭后修改邮箱无需验证）", IsPublic: true, IsEditable: true, SortOrder: 0},
@@ -227,7 +229,8 @@ func initDefaultSettings() {
 			_, err := db.Exec(`
 				INSERT INTO system_settings (setting_key, setting_value, setting_type, category, label, description, is_public, is_editable, sort_order)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				setting.Key, setting.Value, setting.Type, setting.Category, setting.Label, setting.Description, setting.IsPublic, setting.IsEditable, setting.SortOrder)
+				setting.Key, setting.Value, setting.Type, setting.Category, setting.Label, setting.Description,
+				db.BoolAsTinyInt(setting.IsPublic), db.BoolAsTinyInt(setting.IsEditable), setting.SortOrder)
 			if err != nil {
 				log.Printf("[Init] Failed to insert default setting %s: %v", setting.Key, err)
 			} else {
@@ -241,7 +244,8 @@ func initDefaultSettings() {
 					UPDATE system_settings
 					SET setting_type = ?, category = ?, label = ?, description = ?, is_public = ?, is_editable = ?, sort_order = ?, updated_at = NOW()
 					WHERE setting_key = ?`,
-					setting.Type, setting.Category, setting.Label, setting.Description, setting.IsPublic, setting.IsEditable, setting.SortOrder, setting.Key)
+					setting.Type, setting.Category, setting.Label, setting.Description,
+					db.BoolAsTinyInt(setting.IsPublic), db.BoolAsTinyInt(setting.IsEditable), setting.SortOrder, setting.Key)
 				if err != nil {
 					log.Printf("[Init] Failed to sync default setting meta %s: %v", setting.Key, err)
 				}
@@ -329,7 +333,8 @@ func UpdateSettingWithMeta(setting *SystemSetting) error {
 		UPDATE system_settings 
 		SET setting_value = ?, setting_type = ?, category = ?, label = ?, description = ?, is_public = ?, is_editable = ?, sort_order = ?, updated_at = NOW()
 		WHERE setting_key = ?`,
-		setting.Value, setting.Type, setting.Category, setting.Label, setting.Description, setting.IsPublic, setting.IsEditable, setting.SortOrder, setting.Key)
+		setting.Value, setting.Type, setting.Category, setting.Label, setting.Description,
+		db.BoolAsTinyInt(setting.IsPublic), db.BoolAsTinyInt(setting.IsEditable), setting.SortOrder, setting.Key)
 	return err
 }
 
@@ -338,7 +343,8 @@ func CreateSetting(setting *SystemSetting) error {
 	_, err := db.Exec(`
 		INSERT INTO system_settings (setting_key, setting_value, setting_type, category, label, description, is_public, is_editable, sort_order)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		setting.Key, setting.Value, setting.Type, setting.Category, setting.Label, setting.Description, setting.IsPublic, setting.IsEditable, setting.SortOrder)
+		setting.Key, setting.Value, setting.Type, setting.Category, setting.Label, setting.Description,
+		db.BoolAsTinyInt(setting.IsPublic), db.BoolAsTinyInt(setting.IsEditable), setting.SortOrder)
 	return err
 }
 

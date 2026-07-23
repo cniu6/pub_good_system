@@ -31,3 +31,20 @@ func MaskCertificateNo(no string) string {
 		return string(runes[:prefixLen]) + strings.Repeat("*", maskLen) + string(runes[n-suffixLen:])
 	}
 }
+
+// MaskAccountNo 对银行卡/收款账号做掩码，默认列表展示用；打款时再按需取明文。
+func MaskAccountNo(no string) string {
+	no = strings.TrimSpace(no)
+	if no == "" {
+		return ""
+	}
+	runes := []rune(no)
+	n := len(runes)
+	if n <= 4 {
+		return strings.Repeat("*", n)
+	}
+	if n <= 8 {
+		return string(runes[0]) + strings.Repeat("*", n-2) + string(runes[n-1])
+	}
+	return string(runes[:4]) + strings.Repeat("*", n-8) + string(runes[n-4:])
+}

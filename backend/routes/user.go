@@ -32,5 +32,6 @@ func registerUserRoutes(v1 *gin.RouterGroup) {
 	system.Use(middleware.AuthMiddlewareForGuard("user", "admin"))
 	{
 		system.GET("/cleanup-status", systemCtrl.GetCleanupStatus)
+		system.POST("/ws-ticket", systemCtrl.CreatePresenceTicket)
 	}
 }

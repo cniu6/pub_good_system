@@ -71,6 +71,18 @@ func DefaultPresets() []PresetJob {
 			ParamsJSON:      `{}`,
 		},
 		{
+			JobCode:         "reconcile_payment_orders",
+			Name:            "支付订单主动对账",
+			Description:     "扫描待支付与近期取消/失败订单，向网关查单并补账，异常写入 payment_exceptions",
+			Category:        "payment",
+			HandlerKey:      HandlerReconcilePaymentOrders,
+			IntervalSeconds: 180,
+			Timezone:        "Asia/Shanghai",
+			Enabled:         true,
+			TimeoutSec:      180,
+			ParamsJSON:      `{}`,
+		},
+		{
 			JobCode:         "cleanup_sessions_codes",
 			Name:            "验证码/会话清理",
 			Description:     "软删过期验证码并清理过期会话",
@@ -171,16 +183,9 @@ func ImportPresets(mode string) (map[string]interface{}, error) {
 	}, nil
 }
 
-// EnsurePresetsIfEmpty 表为空时自动导入默认任务
+// EnsurePresetsIfEmpty 确保默认任务存在：库空则全量导入；已有库则按 skip 补齐缺失 job_code（如新增对账任务）
 func EnsurePresetsIfEmpty() error {
-	total, _, err := CountDefinitions()
-	if err != nil {
-		return err
-	}
-	if total > 0 {
-		return nil
-	}
-	_, err = ImportPresets("skip")
+	_, err := ImportPresets("skip")
 	return err
 }
 
@@ -192,6 +197,7 @@ func softenHighFrequencyIntervals() {
 	}{
 		{"mark_stuck_auto_jobs", 180},
 		{"cleanup_expired_orders", 120},
+		{"reconcile_payment_orders", 180},
 	} {
 		def, err := GetDefinition(b.code)
 		if err != nil || def == nil {

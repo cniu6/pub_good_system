@@ -314,7 +314,39 @@ func GetDB() *sqlx.DB {
 	return DB
 }
 
-// DriverName 返回当前归一化驱动名（mysql / sqlite），未初始化时为空。
+// DriverName 返回当前归一化驱动名（mysql / sqlite / postgres），未初始化时为空。
 func DriverName() string {
 	return activeDriver
+}
+
+// BoolAsTinyInt 把 Go bool 编成 0/1，供写入 TINYINT/SMALLINT 列。
+// Postgres 把 TINYINT 映射为 SMALLINT(int2)，直接绑 bool 会报无法编码。
+func BoolAsTinyInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// LastInsertID 兼容三驱动取自增主键。
+// MySQL/SQLite 走 Result.LastInsertId；Postgres 不支持该接口，改为同会话 lastval()。
+// 注意：Postgres 分支依赖连接池里「刚执行完 INSERT 的那条连接」——sqlx 默认可能换连接，
+// 因此对关键路径更推荐 INSERT ... RETURNING；本函数作为广泛 LastInsertId 调用点的兜底。
+func LastInsertID(result sql.Result) (int64, error) {
+	if result != nil {
+		if id, err := result.LastInsertId(); err == nil && id > 0 {
+			return id, nil
+		}
+	}
+	if IsPostgres() {
+		var id int64
+		if err := DB.Get(&id, "SELECT lastval()"); err != nil {
+			return 0, fmt.Errorf("postgres lastval: %w", err)
+		}
+		return id, nil
+	}
+	if result == nil {
+		return 0, fmt.Errorf("nil sql.Result")
+	}
+	return result.LastInsertId()
 }

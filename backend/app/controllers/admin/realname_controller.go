@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
+	"fst/backend/pkg/middleware"
 	"fst/backend/utils"
 	"log"
 	"strconv"
@@ -59,6 +60,11 @@ func (c *RealnameController) List(ctx *gin.Context) {
 		return
 	}
 
+	// 列表默认掩码证件号；需要明文走 reveal 接口并写审计
+	for i := range result.List {
+		result.List[i].CertificateNo = utils.MaskCertificateNo(result.List[i].CertificateNo)
+	}
+
 	utils.Success(ctx, result)
 }
 
@@ -91,8 +97,41 @@ func (c *RealnameController) Detail(ctx *gin.Context) {
 	}
 
 	utils.Success(ctx, gin.H{
-		"verification": verification,
+		"verification": maskRealnameForAdmin(verification),
 	})
+}
+
+// RevealCertificate 临时查看证件号明文（二次确认后由前端调用；本接口写操作审计）
+func (c *RealnameController) RevealCertificate(ctx *gin.Context) {
+	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(ctx, 400, "无效的ID")
+		return
+	}
+	verification, err := c.realnameService.GetByID(id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			utils.Fail(ctx, 404, "实名认证记录不存在")
+			return
+		}
+		utils.Fail(ctx, 500, "查询失败")
+		return
+	}
+	adminID, _ := ctx.Get("userID")
+	log.Printf("[ADMIN REALNAME][PII_REVEAL] admin_id=%v realname_id=%d user_id=%d", adminID, id, verification.UserID)
+	utils.Success(ctx, gin.H{
+		"id":             verification.ID,
+		"certificate_no": verification.CertificateNo,
+	})
+}
+
+func maskRealnameForAdmin(v *models.RealnameVerification) *models.RealnameVerification {
+	if v == nil {
+		return nil
+	}
+	cp := *v
+	cp.CertificateNo = utils.MaskCertificateNo(v.CertificateNo)
+	return &cp
 }
 
 // Review 审核实名认证
@@ -142,8 +181,13 @@ func (c *RealnameController) Review(ctx *gin.Context) {
 
 // RegisterRoutes 注册实名认证管理路由
 func (c *RealnameController) RegisterRoutes(group *gin.RouterGroup) {
-	group.GET("/realname", c.List)
-	group.GET("/realname/:id", c.Detail)
-	group.POST("/realname/review", c.Review)
+	rn := group.Group("/realname")
+	rn.Use(middleware.SimpleLogMiddleware("实名认证"))
+	{
+		rn.GET("", c.List)
+		rn.GET("/:id", c.Detail)
+		rn.POST("/review", c.Review)
+		rn.POST("/:id/reveal-certificate", middleware.RequireRecentTOTP(), c.RevealCertificate)
+	}
 }
 

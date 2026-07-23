@@ -25,7 +25,13 @@ func NewPaymentController() *PaymentController {
 // ========================================
 
 type AdminCompleteOrderRequest struct {
-	Memo string `json:"memo"`
+	Memo  string `json:"memo"`
+	Force bool   `json:"force"` // 强制补单（canceled/failed 高危路径，须填 memo）
+}
+
+type AdminResolveExceptionRequest struct {
+	Action string `json:"action"` // resolve | ignore
+	Remark string `json:"remark"`
 }
 
 // ========================================
@@ -124,7 +130,10 @@ func (ctrl *PaymentController) CompleteOrder(c *gin.Context) {
 	}
 	req.Memo = utils.Clean_XSS(req.Memo)
 
-	if err := services.AdminCompleteOrder(orderID, req.Memo); err != nil {
+	adminID, _ := c.Get("userID")
+	adminUserID, _ := adminID.(uint64)
+
+	if err := services.AdminCompleteOrder(orderID, req.Memo, req.Force, adminUserID, false); err != nil {
 		if services.IsClientError(err) {
 			utils.Fail(c, 400, err.Error())
 			return
@@ -135,6 +144,111 @@ func (ctrl *PaymentController) CompleteOrder(c *gin.Context) {
 	}
 
 	utils.SuccessMsg(c, "补单成功", nil)
+}
+
+// ReconcileOrder 单笔主动对账
+// @Summary 管理端-支付订单对账
+// @Tags 管理端-支付
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "订单ID"
+// @Success 200 {object} utils.Response
+// @Router /api/v1/admin/payment/orders/{id}/reconcile [post]
+func (ctrl *PaymentController) ReconcileOrder(c *gin.Context) {
+	orderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "无效的订单ID")
+		return
+	}
+	order, changed, err := services.ReconcilePaymentOrderByID(orderID)
+	if err != nil {
+		if services.IsClientError(err) {
+			utils.Fail(c, 400, err.Error())
+			return
+		}
+		log.Printf("[ADMIN][PAYMENT] reconcile failed order_id=%d: %v", orderID, err)
+		utils.Fail(c, 500, "对账失败，请稍后重试")
+		return
+	}
+	utils.Success(c, gin.H{"changed": changed, "order": order})
+}
+
+// ListExceptions 支付异常列表
+// @Summary 管理端-支付异常列表
+// @Tags 管理端-支付
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Router /api/v1/admin/payment/exceptions [get]
+func (ctrl *PaymentController) ListExceptions(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize = utils.NormalizePagination(page, pageSize)
+
+	var statusPtr *int
+	if s := c.Query("status"); s != "" {
+		v, err := strconv.Atoi(s)
+		if err == nil {
+			statusPtr = &v
+		}
+	}
+	exceptionType := c.Query("exception_type")
+	orderNo := c.Query("order_no")
+	var userID uint64
+	if u := c.Query("user_id"); u != "" {
+		userID, _ = strconv.ParseUint(u, 10, 64)
+	}
+
+	list, total, err := models.ListPaymentExceptions(page, pageSize, statusPtr, exceptionType, orderNo, userID)
+	if err != nil {
+		log.Printf("[ADMIN][PAYMENT] list exceptions failed: %v", err)
+		utils.Fail(c, 500, "查询异常列表失败")
+		return
+	}
+	utils.Success(c, gin.H{"list": list, "total": total, "page": page, "page_size": pageSize})
+}
+
+// ResolveException 处理/忽略支付异常
+// @Summary 管理端-处理支付异常
+// @Tags 管理端-支付
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "异常ID"
+// @Success 200 {object} utils.Response
+// @Router /api/v1/admin/payment/exceptions/{id}/resolve [post]
+func (ctrl *PaymentController) ResolveException(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "无效的异常ID")
+		return
+	}
+	var req AdminResolveExceptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Fail(c, 400, "参数错误")
+		return
+	}
+	req.Remark = utils.Clean_XSS(req.Remark)
+	status := models.PaymentExceptionStatusResolved
+	switch req.Action {
+	case "resolve":
+		status = models.PaymentExceptionStatusResolved
+	case "ignore":
+		status = models.PaymentExceptionStatusIgnored
+	default:
+		utils.Fail(c, 400, "action 仅支持 resolve/ignore")
+		return
+	}
+	adminID, exists := c.Get("userID")
+	if !exists {
+		utils.Fail(c, 401, "用户未登录")
+		return
+	}
+	if err := models.ResolvePaymentException(id, adminID.(uint64), status, req.Remark); err != nil {
+		utils.Fail(c, 400, "处理失败: "+err.Error())
+		return
+	}
+	utils.SuccessMsg(c, "已处理", nil)
 }
 
 // CancelOrder 取消订单
@@ -316,14 +430,20 @@ func (ctrl *PaymentController) DeleteGateway(c *gin.Context) {
 // RegisterPaymentRoutes 注册管理端支付路由
 func (ctrl *PaymentController) RegisterPaymentRoutes(group *gin.RouterGroup) {
 	payment := group.Group("/payment")
+	payment.Use(middleware.SimpleLogMiddleware("支付管理"))
 	{
 		// 订单管理（补单/取消属于资金相关写操作，强制幂等键防双击）
 		payment.GET("/orders", ctrl.ListOrders)
 		payment.GET("/orders/:id", ctrl.OrderDetail)
-		payment.POST("/orders/:id/complete", middleware.RequireIdempotency("admin_payment_complete", 10*time.Minute), ctrl.CompleteOrder)
+		payment.POST("/orders/:id/complete", middleware.RequirePermission("payment:write"), middleware.RequireRecentTOTP(), middleware.RequireIdempotency("admin_payment_complete", 10*time.Minute), ctrl.CompleteOrder)
 		payment.POST("/orders/:id/cancel", middleware.RequireIdempotency("admin_payment_cancel", 10*time.Minute), ctrl.CancelOrder)
+		payment.POST("/orders/:id/reconcile", middleware.RequireIdempotency("admin_payment_reconcile", 10*time.Minute), ctrl.ReconcileOrder)
 		payment.DELETE("/orders/:id", ctrl.DeleteOrder)
 		payment.GET("/stats", ctrl.GetStats)
+
+		// 支付异常工作台
+		payment.GET("/exceptions", ctrl.ListExceptions)
+		payment.POST("/exceptions/:id/resolve", middleware.RequireIdempotency("admin_payment_exception_resolve", 10*time.Minute), ctrl.ResolveException)
 
 		// 支付通道管理
 		payment.POST("/gateways", ctrl.CreateGateway)

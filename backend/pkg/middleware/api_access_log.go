@@ -346,9 +346,14 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		requestID := newAPIAccessRequestID()
-		c.Set("requestID", requestID)
-		c.Writer.Header().Set("X-Request-ID", requestID)
+		// 优先复用 RequestIDMiddleware 已写入的 ID，避免访问日志与响应头不一致
+		requestID := GetRequestID(c)
+		if requestID == "" {
+			requestID = newAPIAccessRequestID()
+			c.Set(CtxRequestID, requestID)
+			c.Writer.Header().Set(HeaderRequestID, requestID)
+			c.Writer.Header().Set("X-Request-ID", requestID)
+		}
 
 		startTime := time.Now()
 		requestSize := c.Request.ContentLength

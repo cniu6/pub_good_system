@@ -59,10 +59,20 @@ export const adminPaymentApi = {
     return request.Get<Service.ResponseResult<PaymentOrder>>(`${baseUrl()}/orders/${id}`)
   },
 
-  /** 手动补单 */
-  completeOrder(id: number, data?: { memo?: string }) {
+  /** 手动补单（force=true 可对取消/失败单强制补单，须填 memo；启用 TOTP 时传 totpCode） */
+  completeOrder(id: number, data?: { memo?: string, force?: boolean }, totpCode?: string) {
+    const headers: Record<string, string> = { 'X-Idempotency-Key': createIdempotencyKey(`payment-complete-${id}`) }
+    if (totpCode)
+      headers['X-Totp-Code'] = totpCode
     return request.Post<Service.ResponseResult<{ message: string }>>(`${baseUrl()}/orders/${id}/complete`, data || {}, {
-      headers: { 'X-Idempotency-Key': createIdempotencyKey(`payment-complete-${id}`) },
+      headers,
+    })
+  },
+
+  /** 单笔主动对账 */
+  reconcileOrder(id: number) {
+    return request.Post<Service.ResponseResult<{ changed: boolean, order: PaymentOrder }>>(`${baseUrl()}/orders/${id}/reconcile`, {}, {
+      headers: { 'X-Idempotency-Key': createIdempotencyKey(`payment-reconcile-${id}`) },
     })
   },
 
@@ -82,4 +92,35 @@ export const adminPaymentApi = {
   getStats() {
     return request.Get<Service.ResponseResult<PaymentStats>>(`${baseUrl()}/stats`)
   },
+
+  /** 支付异常列表 */
+  listExceptions(params: { page?: number, page_size?: number, status?: number, exception_type?: string, order_no?: string, user_id?: number }) {
+    return request.Get<Service.ResponseResult<{ list: PaymentException[], total: number }>>(`${baseUrl()}/exceptions`, { params })
+  },
+
+  /** 处理/忽略异常 */
+  resolveException(id: number, data: { action: 'resolve' | 'ignore', remark?: string }) {
+    return request.Post<Service.ResponseResult<{ message: string }>>(`${baseUrl()}/exceptions/${id}/resolve`, data, {
+      headers: { 'X-Idempotency-Key': createIdempotencyKey(`payment-exception-${id}`) },
+    })
+  },
+}
+
+export interface PaymentException {
+  id: number
+  order_no: string
+  user_id: number
+  gateway_id: number
+  exception_type: string
+  status: number
+  source: string
+  message: string
+  detail: string
+  order_status: number
+  trade_no: string
+  resolved_by: number
+  resolved_at: number | null
+  resolve_remark: string
+  create_time: number
+  update_time: number
 }

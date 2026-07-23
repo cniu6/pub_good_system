@@ -149,13 +149,17 @@ async function handleSubmit() {
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
+      const { promptSensitiveTotpCode } = await import('@/composables/useSensitiveTotp')
+      const totpCode = await promptSensitiveTotpCode()
+      if (totpCode === null)
+        return false
       submitting.value = true
       try {
         const memoStr = Object.keys(memo).length > 0 ? JSON.stringify(memo) : ''
         const res = await adminUserApi.changeMoney(userId, {
           money,
           memo: memoStr,
-        })
+        }, totpCode || undefined)
         if (res.isSuccess) {
           message.success(res.message || t('adminMoneyLogs.changeSuccess'))
           showModal.value = false
@@ -163,10 +167,12 @@ async function handleSubmit() {
         }
         else {
           message.error(res.message || t('adminMoneyLogs.changeFailed'))
+          return false
         }
       }
       catch (e: unknown) {
         message.error((e instanceof Error ? e.message : null) || t('adminUsers.operationFailed'))
+        return false
       }
       finally {
         submitting.value = false

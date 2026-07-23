@@ -111,6 +111,21 @@ func (ctrl *WithdrawController) Detail(c *gin.Context) {
 	utils.Success(c, item)
 }
 
+// LegacyRisk 只读检测：已审核通过/已打款但 balance_deducted=false 的历史风险单（防重复扣款排查）
+func (ctrl *WithdrawController) LegacyRisk(c *gin.Context) {
+	list, err := models.ListWithdrawLegacyBalanceRisk(50)
+	if err != nil {
+		log.Printf("[ADMIN][WITHDRAW] legacy risk query failed: %v", err)
+		utils.Fail(c, 500, "查询历史风险单失败")
+		return
+	}
+	utils.Success(c, gin.H{
+		"list":    list,
+		"total":   len(list),
+		"message": "只读检测：status 已通过/已打款且 balance_deducted=false 的记录，处理前请人工核对余额流水",
+	})
+}
+
 func (ctrl *WithdrawController) Review(c *gin.Context) {
 	adminID, exists := c.Get("userID")
 	if !exists {
@@ -184,11 +199,13 @@ func (ctrl *WithdrawController) MarkPaid(c *gin.Context) {
 
 func (ctrl *WithdrawController) RegisterRoutes(group *gin.RouterGroup) {
 	withdraw := group.Group("/withdraw")
+	withdraw.Use(middleware.SimpleLogMiddleware("提现管理"))
 	{
 		withdraw.GET("", ctrl.List)
 		withdraw.GET("/stats", ctrl.Stats)
+		withdraw.GET("/legacy-risk", ctrl.LegacyRisk)
 		withdraw.GET("/:id", ctrl.Detail)
-		withdraw.POST("/:id/review", middleware.RequireIdempotency("admin_withdraw_review", 10*time.Minute), ctrl.Review)
+		withdraw.POST("/:id/review", middleware.RequirePermission("finance:write"), middleware.RequireIdempotency("admin_withdraw_review", 10*time.Minute), ctrl.Review)
 		withdraw.POST("/:id/pay", middleware.RequireIdempotency("admin_withdraw_pay", 10*time.Minute), ctrl.MarkPaid)
 	}
 }

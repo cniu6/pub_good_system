@@ -251,7 +251,9 @@ func GetPaymentOrderForUpdate(tx *sql.Tx, orderNo string) (*PaymentOrder, error)
 	return &order, nil
 }
 
-// canTransitionPaymentStatus 校验订单状态流转是否合法
+// canTransitionPaymentStatus 校验订单状态流转是否合法。
+// 允许 canceled/failed → paid：过期取消或本地落库失败后，网关迟到成功回调/主动对账仍可安全恢复到账
+//（前提是服务层已完成验签、金额与通道绑定校验，且余额入账与状态变更同事务）。
 func canTransitionPaymentStatus(fromStatus, toStatus int) bool {
 	if fromStatus == toStatus {
 		return true
@@ -260,6 +262,9 @@ func canTransitionPaymentStatus(fromStatus, toStatus int) bool {
 	switch fromStatus {
 	case PaymentStatusPending:
 		return toStatus == PaymentStatusPaid || toStatus == PaymentStatusCanceled || toStatus == PaymentStatusFailed
+	case PaymentStatusCanceled, PaymentStatusFailed:
+		// 迟到成功支付：仅允许恢复为已支付，禁止回退到 pending 等其它状态
+		return toStatus == PaymentStatusPaid
 	case PaymentStatusPaid:
 		return toStatus == PaymentStatusRefunded
 	default:

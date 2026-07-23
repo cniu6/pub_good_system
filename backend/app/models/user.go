@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"fst/backend/pkg/db"
 	"log"
 	"regexp"
@@ -69,15 +70,23 @@ type User struct {
 	// 展示统一走 MaskedApikey()（仅末4位），明文只在生成/重置的响应中一次性返回。
 	Apikey     *string `db:"apikey" json:"-"`
 	ApikeyHint *string `db:"apikey_hint" json:"-"` // API Key 明文末4位，仅用于拼出展示用的掩码，不是敏感信息
-	UpdateTime *int64  `db:"update_time" json:"update_time"`
-	CreateTime *int64  `db:"create_time" json:"create_time"`
-	DeleteTime *int64  `db:"delete_time" json:"-"`
+	// API Key 收紧：过期时间、IP 白名单（逗号分隔）、scope（user,admin,*）
+	ApikeyExpiresAt *int64  `db:"apikey_expires_at" json:"-"`
+	ApikeyAllowIPs  *string `db:"apikey_allow_ips" json:"-"`
+	ApikeyScopes    *string `db:"apikey_scopes" json:"-"`
+	UpdateTime      *int64  `db:"update_time" json:"update_time"`
+	CreateTime      *int64  `db:"create_time" json:"create_time"`
+	DeleteTime      *int64  `db:"delete_time" json:"-"`
 
 	// Requested additions
 	Language string `db:"language" json:"language"`
 	Country  string `db:"country" json:"country"`
 	// Token 为历史兼容字段，可能含敏感值，禁止随 JSON 响应下发
 	Token string `db:"token" json:"-"`
+
+	// 管理端 TOTP 二次验证（secret 禁止下发；enabled 可展示）
+	TotpSecret  *string `db:"totp_secret" json:"-"`
+	TotpEnabled bool    `db:"totp_enabled" json:"totp_enabled"`
 }
 
 func (u *User) TableName() string {
@@ -135,12 +144,17 @@ func BuildUserSelectColumns(tableAlias string) string {
 		qualified("status"),
 		qualified("apikey"),
 		qualified("apikey_hint"),
+		qualified("apikey_expires_at"),
+		qualified("apikey_allow_ips"),
+		qualified("apikey_scopes"),
 		qualified("update_time"),
 		qualified("create_time"),
 		qualified("delete_time"),
 		qualified("language"),
 		qualified("country"),
 		qualified("token"),
+		qualified("totp_secret"),
+		"COALESCE(" + qualified("totp_enabled") + ", 0) AS totp_enabled",
 	}
 	return strings.Join(columns, ", ")
 }
@@ -195,11 +209,29 @@ func CreateUser(user *User) error {
 		user.Language = "zh-CN"
 	}
 
+	// Postgres 不支持 LastInsertId：直接 INSERT ... RETURNING id（只执行一次）
+	if db.IsPostgres() {
+		rows, qErr := db.DB.NamedQuery(query+" RETURNING id", user)
+		if qErr != nil {
+			return qErr
+		}
+		defer rows.Close()
+		if !rows.Next() {
+			return fmt.Errorf("postgres insert user: no returning id")
+		}
+		var id uint64
+		if scanErr := rows.Scan(&id); scanErr != nil {
+			return scanErr
+		}
+		user.ID = id
+		return nil
+	}
+
 	result, err := db.DB.NamedExec(query, user)
 	if err != nil {
 		return err
 	}
-	id, err := result.LastInsertId()
+	id, err := db.LastInsertID(result)
 	if err != nil {
 		return err
 	}
@@ -390,5 +422,29 @@ func IncrementLoginFailure(userID uint64, maxFailureCount int, lockDurationMinut
 	}
 
 	return nil
+}
+
+// UpdateUserTOTPSecret 写入 TOTP 密钥；enabled=true 时同时开启 2FA
+func UpdateUserTOTPSecret(userID uint64, secret string, enabled bool) error {
+	now := time.Now().Unix()
+	en := 0
+	if enabled {
+		en = 1
+	}
+	_, err := db.Exec(
+		`UPDATE users SET totp_secret = ?, totp_enabled = ?, update_time = ? WHERE id = ? AND delete_time IS NULL`,
+		secret, en, now, userID,
+	)
+	return err
+}
+
+// ClearUserTOTP 清空并禁用 TOTP
+func ClearUserTOTP(userID uint64) error {
+	now := time.Now().Unix()
+	_, err := db.Exec(
+		`UPDATE users SET totp_secret = NULL, totp_enabled = 0, update_time = ? WHERE id = ? AND delete_time IS NULL`,
+		now, userID,
+	)
+	return err
 }
 

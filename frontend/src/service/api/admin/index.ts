@@ -51,4 +51,9 @@ export const adminApi = {
   // 财务：余额/积分操作 + 提现审核（懒加载，与其它 admin 子模块一致）
   finance: createLazyModule(() => import('./finance').then(m => m.adminFinanceApi)),
   announcement: createLazyModule(() => import('./announcement').then(m => m.adminAnnouncementApi)),
+  profile: createLazyModule(() => import('./profile').then(m => m.adminProfileApi)),
+  todo: createLazyModule(() => import('./todo').then(m => m.adminTodoApi)),
+  importExport: createLazyModule(() => import('./import-export').then(m => m.adminImportExportApi)),
+  approval: createLazyModule(() => import('./approval').then(m => m.adminApprovalApi)),
+  rbac: createLazyModule(() => import('./rbac').then(m => m.adminRbacApi)),
 }

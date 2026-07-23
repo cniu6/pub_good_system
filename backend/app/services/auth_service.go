@@ -114,6 +114,9 @@ type LoginResult struct {
 	ExpiresAt        int64                `json:"expiresAt"`
 	RefreshExpiresAt int64                `json:"-"`
 	Realname         LoginRealnameSummary `json:"realname,omitempty"`
+	// 管理端 TOTP 第二步：NeedTOTP=true 时只回 temp_token，不签发正式 access/refresh
+	NeedTOTP  bool   `json:"need_totp,omitempty"`
+	TempToken string `json:"temp_token,omitempty"`
 }
 
 func buildLoginRealnameSummary(userID uint64) LoginRealnameSummary {
@@ -232,6 +235,22 @@ func (s *AuthService) Login(username, password, authGuard, clientType, clientIP 
 		loginMaxFailureCount, loginLockDurationMinutes, _, _ := getAuthRuntimeDefaults()
 		s.userService.IncrementLoginFailureWithLock(user.ID, loginMaxFailureCount, loginLockDurationMinutes)
 		return nil, NewServiceError(401, "Invalid account or password")
+	}
+
+	// 管理端已启用 TOTP：密码通过后不签发正式 Token，返回临时令牌走第二步
+	if authGuard == utils.AdminAuthGuard && user.TotpEnabled {
+		tempToken, terr := utils.GenerateTOTPPendingToken(user.ID, user.Role, 5*time.Minute)
+		if terr != nil {
+			return nil, NewServiceError(500, "Failed to generate temp token")
+		}
+		return &LoginResult{
+			ID:        user.ID,
+			UserName:  user.Username,
+			Email:     user.Email,
+			Role:      []string{user.Role},
+			NeedTOTP:  true,
+			TempToken: tempToken,
+		}, nil
 	}
 
 	// 更新登录信息

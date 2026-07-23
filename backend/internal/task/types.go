@@ -38,6 +38,7 @@ const (
 	HandlerCleanupExpiredIdempotency = "cleanup_expired_idempotency"
 	HandlerCleanupExpiredOrders      = "cleanup_expired_orders"
 	HandlerCleanupSessionsCodes      = "cleanup_sessions_codes"
+	HandlerReconcilePaymentOrders    = "reconcile_payment_orders"
 )
 
 // JobDefinition 任务定义

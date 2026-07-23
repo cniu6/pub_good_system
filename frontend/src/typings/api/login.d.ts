@@ -26,6 +26,10 @@ namespace Api {
       refreshToken: string
       /** 实名认证摘要 */
       realname?: RealnameSummary
+      /** 管理端 TOTP 第二步：为 true 时仅返回 temp_token，尚未正式登录 */
+      need_totp?: boolean
+      /** TOTP 临时令牌（短时有效） */
+      temp_token?: string
     }
   }
 }

@@ -50,6 +50,10 @@ const formValue = ref({
 })
 const isRemember = ref(false)
 const isLoading = ref(false)
+// 管理端 TOTP 第二步
+const needTotp = ref(false)
+const totpTempToken = ref('')
+const totpCode = ref('')
 
 const formRef = ref<FormInst | null>(null)
 
@@ -82,7 +86,15 @@ async function handleLogin() {
   else local.remove('loginAccount')
 
   const hadToken = Boolean(authStorage.get('accessToken'))
-  await authStore.login(account, pwd)
+  const loginResult = await authStore.login(account, pwd)
+  if (loginResult.status === 'need_totp' && loginResult.tempToken) {
+    needTotp.value = true
+    totpTempToken.value = loginResult.tempToken
+    totpCode.value = ''
+    isLoading.value = false
+    return
+  }
+
   const hasTokenNow = Boolean(authStorage.get('accessToken'))
 
   if (!hadToken && !hasTokenNow) {
@@ -91,6 +103,29 @@ async function handleLogin() {
     captchaKey.value++ // 登录失败，重新渲染极验
   }
   isLoading.value = false
+}
+
+async function handleTotpLogin() {
+  if (!totpCode.value || !totpTempToken.value) {
+    window.$message.warning(t('login.totpRequired'))
+    return
+  }
+  isLoading.value = true
+  const ok = await authStore.loginWithTotp(totpTempToken.value, totpCode.value.trim())
+  if (!ok) {
+    isLoading.value = false
+    return
+  }
+  needTotp.value = false
+  totpTempToken.value = ''
+  totpCode.value = ''
+  isLoading.value = false
+}
+
+function cancelTotp() {
+  needTotp.value = false
+  totpTempToken.value = ''
+  totpCode.value = ''
 }
 
 async function onGeetestSuccess() {
@@ -156,10 +191,30 @@ function checkUserAccount() {
 <template>
   <div>
     <n-h2 depth="3" class="text-center">
-      {{ $t('login.signInTitle') }}
+      {{ needTotp ? $t('login.totpTitle') : $t('login.signInTitle') }}
     </n-h2>
     <n-alert v-if="isWebLoginDisabled" type="warning" :show-icon="true" class="mb-16" :title="$t('login.webLoginDisabledTip')" />
-    <n-form ref="formRef" :rules="rules" :model="formValue" :show-label="false" size="large" :disabled="isWebLoginDisabled">
+
+    <!-- 管理端 TOTP 第二步：输入动态码 -->
+    <n-space v-if="needTotp" vertical :size="20">
+      <n-alert type="info" :show-icon="true" :title="$t('login.totpHint')" />
+      <n-input
+        v-model:value="totpCode"
+        size="large"
+        maxlength="8"
+        :placeholder="$t('login.totpPlaceholder')"
+        :input-props="{ autocomplete: 'one-time-code', inputmode: 'numeric' }"
+        @keyup.enter="handleTotpLogin"
+      />
+      <n-button block type="primary" size="large" :loading="isLoading" :disabled="isLoading" @click="handleTotpLogin">
+        {{ $t('login.totpConfirm') }}
+      </n-button>
+      <n-button block quaternary :disabled="isLoading" @click="cancelTotp">
+        {{ $t('common.cancel') }}
+      </n-button>
+    </n-space>
+
+    <n-form v-else ref="formRef" :rules="rules" :model="formValue" :show-label="false" size="large" :disabled="isWebLoginDisabled">
       <!-- 账号 username / 密码 current-password：配合浏览器密码管理器，不写 localStorage 明文密码 -->
       <n-form-item path="account">
         <n-input v-model:value="formValue.account" clearable :placeholder="$t('login.accountOrEmailPlaceholder')" name="username" :input-props="{ autocomplete: 'username', name: 'username' }" />
@@ -195,26 +250,28 @@ function checkUserAccount() {
         </n-flex>
       </n-space>
     </n-form>
-    <n-divider>
-      <span op-80>{{ $t('login.or') }}</span>
-    </n-divider>
-    <n-space justify="center">
-      <n-button circle>
-        <template #icon>
-          <n-icon><icon-park-outline-wechat /></n-icon>
-        </template>
-      </n-button>
-      <n-button circle>
-        <template #icon>
-          <n-icon><icon-park-outline-tencent-qq /></n-icon>
-        </template>
-      </n-button>
-      <n-button circle>
-        <template #icon>
-          <n-icon><icon-park-outline-github-one /></n-icon>
-        </template>
-      </n-button>
-    </n-space>
+    <template v-if="!needTotp">
+      <n-divider>
+        <span op-80>{{ $t('login.or') }}</span>
+      </n-divider>
+      <n-space justify="center">
+        <n-button circle>
+          <template #icon>
+            <n-icon><icon-park-outline-wechat /></n-icon>
+          </template>
+        </n-button>
+        <n-button circle>
+          <template #icon>
+            <n-icon><icon-park-outline-tencent-qq /></n-icon>
+          </template>
+        </n-button>
+        <n-button circle>
+          <template #icon>
+            <n-icon><icon-park-outline-github-one /></n-icon>
+          </template>
+        </n-button>
+      </n-space>
+    </template>
   </div>
 </template>
 

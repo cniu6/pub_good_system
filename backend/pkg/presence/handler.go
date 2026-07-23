@@ -36,21 +36,29 @@ func HandlePresence(c *gin.Context) {
 		return
 	}
 
-	token := strings.TrimSpace(c.Query("token"))
-	if token == "" {
+	ticket := strings.TrimSpace(c.Query("ticket"))
+	if ticket == "" {
+		// 兼容过渡期：仍拒绝裸 JWT 出现在 query，避免日志/Referer 泄露
+		if strings.TrimSpace(c.Query("token")) != "" {
+			c.Abort()
+			utils.Fail(c, http.StatusUnauthorized, "use ticket instead of token")
+			return
+		}
 		c.Abort()
-		utils.Fail(c, http.StatusUnauthorized, "token is required")
+		utils.Fail(c, http.StatusUnauthorized, "ticket is required")
 		return
 	}
 
-	claims, guard := parsePresenceToken(token)
-	if claims == nil {
+	wt, err := ConsumeWSTicket(ticket)
+	if err != nil || wt == nil {
 		c.Abort()
-		utils.Fail(c, http.StatusUnauthorized, "invalid or expired token")
+		utils.Fail(c, http.StatusUnauthorized, "invalid or expired ticket")
 		return
 	}
-	session, err := models.GetActiveSessionByTokenHash(utils.HashToken(token))
-	if err != nil || session == nil || session.UserID != claims.UserID || session.AuthGuard != guard {
+	session, err := models.GetUserSessionByID(wt.SessionID)
+	now := time.Now().Unix()
+	if err != nil || session == nil || session.UserID != wt.UserID || session.AuthGuard != wt.Guard ||
+		!session.IsActive || session.ExpiresAt <= now {
 		c.Abort()
 		utils.Fail(c, http.StatusUnauthorized, "session expired or revoked")
 		return

@@ -203,6 +203,41 @@ func IsProductionMode() bool {
 	return isProductionEnvMode(cfg.Environment) || isProductionEnvMode(cfg.AppMode)
 }
 
+// corsAllowsAnyOrigin 判断 CORS_ORIGINS 是否包含裸通配符「*」（不含 *.example.com 这类泛域名）。
+func corsAllowsAnyOrigin(cors string) bool {
+	for _, part := range strings.Split(cors, ",") {
+		if strings.TrimSpace(part) == "*" {
+			return true
+		}
+	}
+	return false
+}
+
+// WarnProductionMisconfig 生产模式下对危险配置打强警告（不中断启动）。
+// 典型误配：CORS 通配 *、开启 Swagger、JWT 仍为弱/占位密钥。
+func WarnProductionMisconfig() {
+	if !IsProductionMode() {
+		return
+	}
+	cfg := CloneGlobalConfig()
+	if cfg == nil {
+		return
+	}
+	if corsAllowsAnyOrigin(cfg.CorsOrigins) {
+		log.Println("[Security Warning] 生产环境 CORS_ORIGINS 含 *，任意来源可跨域访问，强烈建议改为具体域名白名单")
+	}
+	if cfg.EnableSwagger {
+		log.Println("[Security Warning] 生产环境 ENABLE_SWAGGER=true，Swagger 文档会暴露接口细节，建议关闭")
+	}
+	if isWeakJWTSecret(cfg.JWTSecret) {
+		log.Println("[Security Warning] 生产环境 JWT_SECRET 为弱/占位值，存在令牌伪造风险，请立即更换强随机密钥")
+	}
+	adminSecret := strings.TrimSpace(cfg.AdminJWTSecret)
+	if adminSecret != "" && adminSecret != strings.TrimSpace(cfg.JWTSecret) && isWeakJWTSecret(adminSecret) {
+		log.Println("[Security Warning] 生产环境 JWT_ADMIN_SECRET 为弱/占位值，请立即更换强随机密钥")
+	}
+}
+
 // IsAdminDebugOpsEnabled 管理端 debug/pprof/重启类高危能力是否可用。
 // 规则：生产永远 false；非生产看 EnableAdminDebugOps（默认 true）。
 func IsAdminDebugOpsEnabled() bool {

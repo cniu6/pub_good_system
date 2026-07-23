@@ -291,3 +291,21 @@ func MarkWithdrawPaidTx(tx *sql.Tx, id uint64, transferRemark string, adminID ui
 	)
 	return err
 }
+
+// ListWithdrawLegacyBalanceRisk 只读：已通过/已打款但未标记预扣的历史风险单（排查重复扣款）
+func ListWithdrawLegacyBalanceRisk(limit int) ([]WithdrawRequest, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	var list []WithdrawRequest
+	err := db.DB.Select(&list, `
+		SELECT id, user_id, amount, account_type, account_name, account_no, real_name, remark, status, balance_deducted,
+		       review_remark, transfer_remark, reviewed_at, reviewed_by, paid_at, paid_by, create_time, update_time, delete_time
+		FROM withdraw_requests
+		WHERE delete_time IS NULL AND balance_deducted = 0 AND status IN (?, ?)
+		ORDER BY id ASC
+		LIMIT ?`,
+		WithdrawStatusApproved, WithdrawStatusPaid, limit,
+	)
+	return list, err
+}

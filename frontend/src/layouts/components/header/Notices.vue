@@ -1,18 +1,21 @@
 <script setup lang="ts">
 /**
- * 顶栏铃铛：三 Tab 壳保留；「通知」= 站内公告；消息/待办空态。
- * 点击条目弹出可关闭 MdPreview 预览窗并标记已读。
+ * 顶栏铃铛：通知=站内公告；待办=管理端聚合 todos；消息暂空。
  */
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMessage } from 'naive-ui'
+import { useRouter } from 'vue-router'
 import NoticeList from '../common/NoticeList.vue'
 import AnnouncementPreviewModal from '@/components/common/AnnouncementPreviewModal.vue'
 import { userAnnouncementApi, type UserAnnouncementItem } from '@/service/api/user/announcement'
+import { adminTodoApi } from '@/service/api/admin/todo'
 import { useAuthStore } from '@/store'
+import { getRuntimeRouteMode } from '@/router/runtime-mode'
 
 const { t } = useI18n()
 const message = useMessage()
+const router = useRouter()
 const authStore = useAuthStore()
 
 const currentTab = ref(0)
@@ -20,6 +23,9 @@ const loading = ref(false)
 const enabled = ref(false)
 const announcements = ref<UserAnnouncementItem[]>([])
 const unreadCount = ref(0)
+
+const todos = ref<Array<{ type: string, title: string, count: number, link: string }>>([])
+const todoBadge = computed(() => todos.value.reduce((s, i) => s + (i.count || 0), 0))
 
 const previewShow = ref(false)
 const previewItem = ref<UserAnnouncementItem | null>(null)
@@ -53,7 +59,37 @@ const noticeList = computed<Entity.Message[]>(() => {
   }))
 })
 
-const badgeTotal = computed(() => unreadCount.value)
+const todoList = computed<Entity.Message[]>(() => {
+  return todos.value.map((item, idx) => ({
+    id: idx + 1,
+    type: 2,
+    title: `${item.title} (${item.count})`,
+    icon: 'icon-park-outline:list',
+    tagTitle: item.type,
+    tagType: 'error' as any,
+    description: '',
+    date: '',
+    isRead: false,
+    // 自定义字段：跳转
+    _link: item.link,
+  })) as any
+})
+
+const badgeTotal = computed(() => unreadCount.value + todoBadge.value)
+
+async function refreshTodos() {
+  // 仅管理端会话拉待办，避免用户端 403
+  if (!authStore.token || getRuntimeRouteMode() !== 'admin')
+    return
+  try {
+    const res = await adminTodoApi.list()
+    if (res.isSuccess && res.data)
+      todos.value = res.data.list || []
+  }
+  catch {
+    /* ignore */
+  }
+}
 
 async function refresh() {
   if (!authStore.token)
@@ -72,6 +108,7 @@ async function refresh() {
       unreadCount.value = countRes.data.count || 0
       enabled.value = countRes.data.enabled ?? enabled.value
     }
+    await refreshTodos()
   }
   catch (e) {
     if (import.meta.env.DEV)
@@ -86,7 +123,6 @@ async function openPreview(id: number) {
   const item = announcements.value.find(a => a.id === id)
   if (!item)
     return
-  // 若列表无全文，再拉详情
   let content = item.content
   if (!content || content === item.summary) {
     try {
@@ -109,6 +145,12 @@ async function openPreview(id: number) {
       unreadCount.value = c.data.count || 0
   }
   catch { /* ignore */ }
+}
+
+function openTodo(id: number) {
+  const item = todos.value[id - 1]
+  if (item?.link)
+    router.push(item.link)
 }
 
 async function markAllRead() {
@@ -159,16 +201,15 @@ defineExpose({ refresh })
         <template #tab>
           <n-space class="w-130px" justify="center">
             {{ $t('app.notifications') }}
-            <n-badge type="info" :value="badgeTotal" :max="99" />
+            <n-badge type="info" :value="unreadCount" :max="99" />
           </n-space>
         </template>
-        <!-- 开关关或列表空：统一「暂无」，不向用户暴露「未启用」管理态 -->
         <div class="flex justify-end px-12px py-6px">
           <n-button
             text
             type="primary"
             size="tiny"
-            :disabled="!enabled || badgeTotal === 0"
+            :disabled="!enabled || unreadCount === 0"
             @click="markAllRead"
           >
             {{ t('announcements.markAllRead') }}
@@ -194,10 +235,11 @@ defineExpose({ refresh })
         <template #tab>
           <n-space class="w-130px" justify="center">
             {{ $t('app.todos') }}
-            <n-badge type="error" :value="0" :max="99" />
+            <n-badge type="error" :value="todoBadge" :max="99" />
           </n-space>
         </template>
-        <div class="px-16px py-32px text-center opacity-60 text-13px">
+        <NoticeList v-if="todoList.length" :list="todoList" @read="openTodo" />
+        <div v-else class="px-16px py-32px text-center opacity-60 text-13px">
           {{ t('announcements.todosEmpty') }}
         </div>
       </n-tab-pane>
