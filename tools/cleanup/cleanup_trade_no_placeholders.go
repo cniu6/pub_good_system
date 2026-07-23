@@ -3,6 +3,7 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"fmt"
 	"log"
@@ -12,14 +13,13 @@ import (
 	"fst/backend/app/models"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
 )
 
 type paymentOrderTradeNoRow struct {
-	ID      uint64 `db:"id"`
-	OrderNo string `db:"order_no"`
-	TradeNo string `db:"trade_no"`
+	ID      uint64
+	OrderNo string
+	TradeNo string
 }
 
 type cleanupItem struct {
@@ -37,20 +37,35 @@ func main() {
 	_ = godotenv.Load(".env")
 
 	resolvedDSN := resolveDSN(*dsn)
-	db, err := sqlx.Connect("mysql", resolvedDSN)
+	db, err := sql.Open("mysql", resolvedDSN)
 	if err != nil {
 		log.Fatalf("连接数据库失败: %v", err)
 	}
 	defer db.Close()
+	if err := db.Ping(); err != nil {
+		log.Fatalf("数据库 Ping 失败: %v", err)
+	}
 
-	var rows []paymentOrderTradeNoRow
-	err = db.Select(&rows, "SELECT id, order_no, trade_no FROM payment_orders WHERE trade_no <> '' ORDER BY id ASC")
+	rows, err := db.Query("SELECT id, order_no, trade_no FROM payment_orders WHERE trade_no <> '' ORDER BY id ASC")
 	if err != nil {
 		log.Fatalf("查询 payment_orders 失败: %v", err)
 	}
+	defer rows.Close()
+
+	var scanned []paymentOrderTradeNoRow
+	for rows.Next() {
+		var row paymentOrderTradeNoRow
+		if err := rows.Scan(&row.ID, &row.OrderNo, &row.TradeNo); err != nil {
+			log.Fatalf("扫描 payment_orders 行失败: %v", err)
+		}
+		scanned = append(scanned, row)
+	}
+	if err := rows.Err(); err != nil {
+		log.Fatalf("遍历 payment_orders 结果失败: %v", err)
+	}
 
 	items := make([]cleanupItem, 0)
-	for _, row := range rows {
+	for _, row := range scanned {
 		normalized := models.NormalizeTradeNo(row.TradeNo)
 		if normalized == row.TradeNo {
 			continue
@@ -63,7 +78,7 @@ func main() {
 		})
 	}
 
-	fmt.Printf("扫描完成：共检查 %d 条 trade_no 非空订单，发现 %d 条需要清理。\n", len(rows), len(items))
+	fmt.Printf("扫描完成：共检查 %d 条 trade_no 非空订单，发现 %d 条需要清理。\n", len(scanned), len(items))
 	if len(items) == 0 {
 		fmt.Println("没有发现需要处理的历史 trade_no 脏数据。")
 		return
@@ -78,7 +93,7 @@ func main() {
 		return
 	}
 
-	tx, err := db.Beginx()
+	tx, err := db.Begin()
 	if err != nil {
 		log.Fatalf("开启事务失败: %v", err)
 	}

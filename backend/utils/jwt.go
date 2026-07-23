@@ -183,29 +183,6 @@ func ParseTokenForGuardIgnoreExpiry(tokenString, expectedGuard string) (*Claims,
 	return claims, nil
 }
 
-// ParseTokenLegacy keeps compatibility for older callers.
-func ParseTokenLegacy(tokenString string) (*Claims, error) {
-	claims := &Claims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, jwtSigningKey)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if !token.Valid {
-		return nil, jwt.ErrSignatureInvalid
-	}
-	if claims.TokenType != "" {
-		if claims.TokenType != accessTokenType {
-			return nil, fmt.Errorf("unexpected token type: %s", claims.TokenType)
-		}
-	} else if claims.Role == "" {
-		return nil, fmt.Errorf("unexpected token type")
-	}
-
-	return claims, nil
-}
-
 func HashToken(token string) string {
 	h := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(h[:])

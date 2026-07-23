@@ -2,14 +2,14 @@ package models
 
 import (
 	crypto_rand "crypto/rand"
-	"database/sql"
 	"fmt"
 	"fst/backend/pkg/db"
-	"log"
 	"math/big"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // 原子自增序列号，防止同一纳秒内碰撞
@@ -60,81 +60,30 @@ const RealPaidOrderFilterSQL = "gateway_id > 0 AND payment_channel <> 'admin' AN
 
 // PaymentOrder 支付订单
 type PaymentOrder struct {
-	ID             uint64  `db:"id" json:"id"`
-	OrderNo        string  `db:"order_no" json:"order_no"`               // 系统订单号
-	UserID         uint64  `db:"user_id" json:"user_id"`                 // 用户ID
-	GatewayID      uint64  `db:"gateway_id" json:"gateway_id"`           // 支付通道ID
-	TradeNo        string  `db:"trade_no" json:"trade_no"`               // 第三方交易号
-	PaymentChannel string  `db:"payment_channel" json:"payment_channel"` // 支付通道类型：epay
-	PaymentType    string  `db:"payment_type" json:"payment_type"`       // 支付方式：alipay/wxpay/qqpay
-	Amount         float64 `db:"amount" json:"amount"`                   // 充值金额（用户希望到账的金额）
-	Fee            float64 `db:"fee" json:"fee"`                         // 手续费
-	PayAmount      float64 `db:"pay_amount" json:"pay_amount"`           // 实际支付金额
-	Subject        string  `db:"subject" json:"subject"`                 // 订单标题
-	Status         int     `db:"status" json:"status"`                   // 状态：0=待支付,1=已支付,2=已取消,3=已退款,4=失败
-	NotifyCount    int     `db:"notify_count" json:"notify_count"`       // 回调通知次数
-	PayURL         string  `db:"pay_url" json:"pay_url"`                 // 支付链接
-	PaidAt         *int64  `db:"paid_at" json:"paid_at"`                 // 支付完成时间
-	ExpireAt       int64   `db:"expire_at" json:"expire_at"`             // 订单过期时间
-	ClientIP       string  `db:"client_ip" json:"client_ip"`             // 下单客户端IP
-	Extra          string  `db:"extra" json:"extra"`                     // 扩展信息（JSON）
-	CreateTime     int64   `db:"create_time" json:"create_time"`
-	UpdateTime     int64   `db:"update_time" json:"update_time"`
+	ID             uint64  `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	OrderNo        string  `gorm:"column:order_no;size:64;not null;uniqueIndex:idx_order_no" json:"order_no"`
+	UserID         uint64  `gorm:"column:user_id;not null;default:0;index:idx_po_user_id;index:idx_po_user_status_create,priority:1" json:"user_id"`
+	GatewayID      uint64  `gorm:"column:gateway_id;not null;default:0;index:idx_po_gateway_id;index:idx_po_gateway_status,priority:1" json:"gateway_id"`
+	TradeNo        string  `gorm:"column:trade_no;size:64;not null;default:'';index:idx_po_trade_no" json:"trade_no"`
+	PaymentChannel string  `gorm:"column:payment_channel;size:20;not null;default:'epay'" json:"payment_channel"`
+	PaymentType    string  `gorm:"column:payment_type;size:20;not null;default:'alipay'" json:"payment_type"`
+	Amount         float64 `gorm:"column:amount;type:decimal(10,2);not null;default:0" json:"amount"`
+	Fee            float64 `gorm:"column:fee;type:decimal(10,2);not null;default:0" json:"fee"`
+	PayAmount      float64 `gorm:"column:pay_amount;type:decimal(10,2);not null;default:0" json:"pay_amount"`
+	Subject        string  `gorm:"column:subject;size:255;not null;default:''" json:"subject"`
+	Status         int     `gorm:"column:status;not null;default:0;index:idx_po_status;index:idx_po_gateway_status,priority:2;index:idx_po_status_expire,priority:1;index:idx_po_user_status_create,priority:2" json:"status"`
+	NotifyCount    int     `gorm:"column:notify_count;not null;default:0" json:"notify_count"`
+	PayURL         string  `gorm:"column:pay_url;type:text" json:"pay_url"`
+	PaidAt         *int64  `gorm:"column:paid_at" json:"paid_at"`
+	ExpireAt       int64   `gorm:"column:expire_at;not null;default:0;index:idx_po_status_expire,priority:2" json:"expire_at"`
+	ClientIP       string  `gorm:"column:client_ip;size:50;not null;default:''" json:"client_ip"`
+	Extra          string  `gorm:"column:extra;type:text" json:"extra"`
+	CreateTime     int64   `gorm:"column:create_time;not null;default:0;index:idx_po_create_time;index:idx_po_user_status_create,priority:3" json:"create_time"`
+	UpdateTime     int64   `gorm:"column:update_time;not null;default:0" json:"update_time"`
 }
 
-// InitPaymentOrdersTable 初始化支付订单表
-func InitPaymentOrdersTable() {
-	if db.CheckTableExists("payment_orders") {
-		indexRepairs := map[string]string{
-			"idx_gateway_status":     "ALTER TABLE payment_orders ADD INDEX idx_gateway_status (gateway_id, status)",
-			"idx_status_expire":      "ALTER TABLE payment_orders ADD INDEX idx_status_expire (status, expire_at)",
-			"idx_user_status_create": "ALTER TABLE payment_orders ADD INDEX idx_user_status_create (user_id, status, create_time)",
-		}
-
-		for indexName, alterSQL := range indexRepairs {
-			db.EnsureIndex("payment_orders", indexName, alterSQL)
-		}
-		return
-	}
-
-	schema := `CREATE TABLE IF NOT EXISTS payment_orders (
-		id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-		order_no        VARCHAR(64)      NOT NULL COMMENT '系统订单号',
-		user_id         BIGINT UNSIGNED  NOT NULL DEFAULT 0 COMMENT '用户ID',
-		gateway_id      BIGINT UNSIGNED  NOT NULL DEFAULT 0 COMMENT '支付通道ID',
-		trade_no        VARCHAR(64)      NOT NULL DEFAULT '' COMMENT '第三方交易号',
-		payment_channel VARCHAR(20)      NOT NULL DEFAULT 'epay' COMMENT '支付通道类型',
-		payment_type    VARCHAR(20)      NOT NULL DEFAULT 'alipay' COMMENT '支付方式',
-		amount          DECIMAL(10,2)    NOT NULL DEFAULT 0.00 COMMENT '充值金额',
-		fee             DECIMAL(10,2)    NOT NULL DEFAULT 0.00 COMMENT '手续费',
-		pay_amount      DECIMAL(10,2)    NOT NULL DEFAULT 0.00 COMMENT '实际支付金额',
-		subject         VARCHAR(255)     NOT NULL DEFAULT '' COMMENT '订单标题',
-		status          TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态:0=待支付,1=已支付,2=已取消,3=已退款,4=失败',
-		notify_count    INT UNSIGNED     NOT NULL DEFAULT 0 COMMENT '回调通知次数',
-		pay_url         TEXT             COMMENT '支付链接',
-		paid_at         BIGINT           NULL DEFAULT NULL COMMENT '支付完成时间',
-		expire_at       BIGINT           NOT NULL DEFAULT 0 COMMENT '订单过期时间',
-		client_ip       VARCHAR(50)      NOT NULL DEFAULT '' COMMENT '下单客户端IP',
-		extra           TEXT             COMMENT '扩展信息JSON',
-		create_time     BIGINT           NOT NULL DEFAULT 0 COMMENT '创建时间',
-		update_time     BIGINT           NOT NULL DEFAULT 0 COMMENT '更新时间',
-		UNIQUE KEY idx_order_no (order_no),
-		INDEX idx_user_id (user_id),
-		INDEX idx_gateway_id (gateway_id),
-		INDEX idx_status (status),
-		INDEX idx_gateway_status (gateway_id, status),
-		INDEX idx_status_expire (status, expire_at),
-		INDEX idx_user_status_create (user_id, status, create_time),
-		INDEX idx_trade_no (trade_no),
-		INDEX idx_create_time (create_time)
-	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='支付订单表';`
-
-	_, err := db.Exec(schema)
-	if err != nil {
-		log.Printf("[Init] Failed to create payment_orders table: %v", err)
-	} else {
-		log.Println("[Init] Created payment_orders table")
-	}
+func (PaymentOrder) TableName() string {
+	return "payment_orders"
 }
 
 // GenerateOrderNo 生成唯一订单号: P + 年月日时分秒 + 4位序列 + 4位密码学随机数
@@ -152,52 +101,24 @@ func CreatePaymentOrder(order *PaymentOrder) error {
 	order.TradeNo = NormalizeTradeNo(order.TradeNo)
 	order.CreateTime = now
 	order.UpdateTime = now
-
-	result, err := db.Exec(
-		`INSERT INTO payment_orders (order_no, user_id, gateway_id, trade_no, payment_channel, payment_type, amount, fee, pay_amount, subject, status, notify_count, pay_url, paid_at, expire_at, client_ip, extra, create_time, update_time)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		order.OrderNo, order.UserID, order.GatewayID, order.TradeNo, order.PaymentChannel, order.PaymentType,
-		order.Amount, order.Fee, order.PayAmount, order.Subject, order.Status, order.NotifyCount,
-		order.PayURL, order.PaidAt, order.ExpireAt, order.ClientIP, order.Extra,
-		order.CreateTime, order.UpdateTime,
-	)
-	if err != nil {
-		return err
-	}
-	id, _ := result.LastInsertId()
-	order.ID = uint64(id)
-	return nil
+	return db.DB.Create(order).Error
 }
 
 // CreatePaymentOrderTx 在已有事务中创建支付订单（与余额操作同事务时用）
-func CreatePaymentOrderTx(tx *sql.Tx, order *PaymentOrder) error {
+func CreatePaymentOrderTx(tx *gorm.DB, order *PaymentOrder) error {
 	now := time.Now().Unix()
 	order.TradeNo = NormalizeTradeNo(order.TradeNo)
 	order.CreateTime = now
 	order.UpdateTime = now
-
-	result, err := tx.Exec(
-		`INSERT INTO payment_orders (order_no, user_id, gateway_id, trade_no, payment_channel, payment_type, amount, fee, pay_amount, subject, status, notify_count, pay_url, paid_at, expire_at, client_ip, extra, create_time, update_time)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		order.OrderNo, order.UserID, order.GatewayID, order.TradeNo, order.PaymentChannel, order.PaymentType,
-		order.Amount, order.Fee, order.PayAmount, order.Subject, order.Status, order.NotifyCount,
-		order.PayURL, order.PaidAt, order.ExpireAt, order.ClientIP, order.Extra,
-		order.CreateTime, order.UpdateTime,
-	)
-	if err != nil {
-		return err
-	}
-	id, _ := result.LastInsertId()
-	order.ID = uint64(id)
-	return nil
+	return tx.Create(order).Error
 }
 
 // GetPaymentOrderByOrderNo 按系统订单号查询
 func GetPaymentOrderByOrderNo(orderNo string) (*PaymentOrder, error) {
 	var order PaymentOrder
-	err := db.DB.Get(&order, "SELECT * FROM payment_orders WHERE order_no = ?", orderNo)
+	err := db.DB.Where("order_no = ?", orderNo).First(&order).Error
 	if err != nil {
-		return nil, err
+		return nil, db.MapGormNotFound(err)
 	}
 	normalizePaymentOrder(&order)
 	return &order, nil
@@ -206,46 +127,30 @@ func GetPaymentOrderByOrderNo(orderNo string) (*PaymentOrder, error) {
 // GetPaymentOrderByID 按ID查询
 func GetPaymentOrderByID(id uint64) (*PaymentOrder, error) {
 	var order PaymentOrder
-	err := db.DB.Get(&order, "SELECT * FROM payment_orders WHERE id = ?", id)
+	err := db.DB.Where("id = ?", id).First(&order).Error
 	if err != nil {
-		return nil, err
+		return nil, db.MapGormNotFound(err)
 	}
 	normalizePaymentOrder(&order)
 	return &order, nil
 }
 
-func GetPaymentOrderByIDForUpdate(tx *sql.Tx, id uint64) (*PaymentOrder, error) {
+func GetPaymentOrderByIDForUpdate(tx *gorm.DB, id uint64) (*PaymentOrder, error) {
 	var order PaymentOrder
-	err := tx.QueryRow(
-		db.Q("SELECT id, order_no, user_id, gateway_id, trade_no, payment_channel, payment_type, amount, fee, pay_amount, subject, status, notify_count, COALESCE(pay_url,''), paid_at, expire_at, client_ip, COALESCE(extra,''), create_time, update_time FROM payment_orders WHERE id = ? FOR UPDATE"),
-		id,
-	).Scan(
-		&order.ID, &order.OrderNo, &order.UserID, &order.GatewayID, &order.TradeNo,
-		&order.PaymentChannel, &order.PaymentType, &order.Amount, &order.Fee, &order.PayAmount, &order.Subject,
-		&order.Status, &order.NotifyCount, &order.PayURL, &order.PaidAt, &order.ExpireAt,
-		&order.ClientIP, &order.Extra, &order.CreateTime, &order.UpdateTime,
-	)
+	err := db.ForUpdate(tx).Where("id = ?", id).First(&order).Error
 	if err != nil {
-		return nil, err
+		return nil, db.MapGormNotFound(err)
 	}
 	normalizePaymentOrder(&order)
 	return &order, nil
 }
 
 // GetPaymentOrderForUpdate 在事务中锁定订单（SELECT ... FOR UPDATE）
-func GetPaymentOrderForUpdate(tx *sql.Tx, orderNo string) (*PaymentOrder, error) {
+func GetPaymentOrderForUpdate(tx *gorm.DB, orderNo string) (*PaymentOrder, error) {
 	var order PaymentOrder
-	err := tx.QueryRow(
-		db.Q("SELECT id, order_no, user_id, gateway_id, trade_no, payment_channel, payment_type, amount, fee, pay_amount, subject, status, notify_count, COALESCE(pay_url,''), paid_at, expire_at, client_ip, COALESCE(extra,''), create_time, update_time FROM payment_orders WHERE order_no = ? FOR UPDATE"),
-		orderNo,
-	).Scan(
-		&order.ID, &order.OrderNo, &order.UserID, &order.GatewayID, &order.TradeNo,
-		&order.PaymentChannel, &order.PaymentType, &order.Amount, &order.Fee, &order.PayAmount, &order.Subject,
-		&order.Status, &order.NotifyCount, &order.PayURL, &order.PaidAt, &order.ExpireAt,
-		&order.ClientIP, &order.Extra, &order.CreateTime, &order.UpdateTime,
-	)
+	err := db.ForUpdate(tx).Where("order_no = ?", orderNo).First(&order).Error
 	if err != nil {
-		return nil, err
+		return nil, db.MapGormNotFound(err)
 	}
 	normalizePaymentOrder(&order)
 	return &order, nil
@@ -274,77 +179,62 @@ func canTransitionPaymentStatus(fromStatus, toStatus int) bool {
 
 // UpdatePaymentOrderStatusTx 在事务中更新订单状态
 // 仅当 tradeNo 非空时才更新 trade_no 字段，避免覆盖已保存的第三方交易号
-func UpdatePaymentOrderStatusTx(tx *sql.Tx, orderNo string, status int, tradeNo string) error {
-	var currentStatus int
-	if err := tx.QueryRow(db.Q("SELECT status FROM payment_orders WHERE order_no = ? FOR UPDATE"), orderNo).Scan(&currentStatus); err != nil {
-		return err
+func UpdatePaymentOrderStatusTx(tx *gorm.DB, orderNo string, status int, tradeNo string) error {
+	var current PaymentOrder
+	if err := db.ForUpdate(tx).Where("order_no = ?", orderNo).First(&current).Error; err != nil {
+		return db.MapGormNotFound(err)
 	}
-	if !canTransitionPaymentStatus(currentStatus, status) {
-		return fmt.Errorf("非法订单状态流转: %d -> %d", currentStatus, status)
+	if !canTransitionPaymentStatus(current.Status, status) {
+		return fmt.Errorf("非法订单状态流转: %d -> %d", current.Status, status)
 	}
 
 	tradeNo = NormalizeTradeNo(tradeNo)
 	now := time.Now().Unix()
-	var paidAt *int64
+	updates := map[string]interface{}{
+		"status":       status,
+		"notify_count": gorm.Expr("notify_count + 1"),
+		"update_time":  now,
+	}
 	if status == PaymentStatusPaid {
-		paidAt = &now
+		updates["paid_at"] = now
+	} else {
+		updates["paid_at"] = nil
 	}
 	if tradeNo != "" {
-		_, err := tx.Exec(
-			"UPDATE payment_orders SET status = ?, trade_no = ?, paid_at = ?, notify_count = notify_count + 1, update_time = ? WHERE order_no = ?",
-			status, tradeNo, paidAt, now, orderNo,
-		)
-		return err
+		updates["trade_no"] = tradeNo
 	}
-	_, err := tx.Exec(
-		"UPDATE payment_orders SET status = ?, paid_at = ?, notify_count = notify_count + 1, update_time = ? WHERE order_no = ?",
-		status, paidAt, now, orderNo,
-	)
-	return err
+	return tx.Model(&PaymentOrder{}).Where("order_no = ?", orderNo).Updates(updates).Error
 }
 
 func UpdatePaymentOrderPaymentInfo(orderNo, tradeNo, payURL string) error {
 	tradeNo = NormalizeTradeNo(tradeNo)
 	now := time.Now().Unix()
-	if tradeNo != "" {
-		_, err := db.Exec(
-			"UPDATE payment_orders SET trade_no = ?, pay_url = ?, update_time = ? WHERE order_no = ?",
-			tradeNo,
-			payURL,
-			now,
-			orderNo,
-		)
-		return err
+	updates := map[string]interface{}{
+		"pay_url":     payURL,
+		"update_time": now,
 	}
-	_, err := db.Exec(
-		"UPDATE payment_orders SET pay_url = ?, update_time = ? WHERE order_no = ?",
-		payURL,
-		now,
-		orderNo,
-	)
-	return err
+	if tradeNo != "" {
+		updates["trade_no"] = tradeNo
+	}
+	return db.DB.Model(&PaymentOrder{}).Where("order_no = ?", orderNo).Updates(updates).Error
 }
 
 // UpdatePaymentOrderStatus 更新订单状态（非事务）
 // 仅当 tradeNo 非空时才更新 trade_no 字段，避免覆盖已保存的第三方交易号
 func UpdatePaymentOrderStatus(orderNo string, status int, tradeNo string) error {
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if err := UpdatePaymentOrderStatusTx(tx, orderNo, status, tradeNo); err != nil {
-		return err
-	}
-
-	return tx.Commit()
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		return UpdatePaymentOrderStatusTx(tx, orderNo, status, tradeNo)
+	})
 }
 
 // IncrementNotifyCount 增加通知次数
 func IncrementNotifyCount(orderNo string) error {
-	_, err := db.Exec("UPDATE payment_orders SET notify_count = notify_count + 1, update_time = ? WHERE order_no = ?", time.Now().Unix(), orderNo)
-	return err
+	return db.DB.Model(&PaymentOrder{}).
+		Where("order_no = ?", orderNo).
+		Updates(map[string]interface{}{
+			"notify_count": gorm.Expr("notify_count + 1"),
+			"update_time":  time.Now().Unix(),
+		}).Error
 }
 
 // GetPaymentOrderList 分页获取订单列表
@@ -353,36 +243,24 @@ func GetPaymentOrderList(userID uint64, page, pageSize int, status int, keyword 
 	var orders []PaymentOrder
 	var total int64
 
-	where := "WHERE 1=1"
-	args := []interface{}{}
-
+	q := db.DB.Model(&PaymentOrder{})
 	if userID > 0 {
-		where += " AND user_id = ?"
-		args = append(args, userID)
+		q = q.Where("user_id = ?", userID)
 	}
 	if status >= 0 {
-		where += " AND status = ?"
-		args = append(args, status)
+		q = q.Where("status = ?", status)
 	}
 	if keyword != "" {
-		where += " AND (order_no LIKE ? OR trade_no LIKE ? OR subject LIKE ?)"
 		kw := "%" + keyword + "%"
-		args = append(args, kw, kw, kw)
+		q = q.Where("order_no LIKE ? OR trade_no LIKE ? OR subject LIKE ?", kw, kw, kw)
 	}
 
-	// 总数
-	countArgs := make([]interface{}, len(args))
-	copy(countArgs, args)
-	err := db.DB.Get(&total, "SELECT COUNT(*) FROM payment_orders "+where, countArgs...)
-	if err != nil {
+	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// 分页
 	offset := (page - 1) * pageSize
-	query := "SELECT * FROM payment_orders " + where + " ORDER BY create_time DESC LIMIT ? OFFSET ?"
-	args = append(args, pageSize, offset)
-	err = db.DB.Select(&orders, query, args...)
+	err := q.Order("create_time DESC").Limit(pageSize).Offset(offset).Find(&orders).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -394,27 +272,25 @@ func GetPaymentOrderList(userID uint64, page, pageSize int, status int, keyword 
 // CancelExpiredOrders 取消过期未支付的订单
 func CancelExpiredOrders() (int64, error) {
 	now := time.Now().Unix()
-	result, err := db.Exec(
-		"UPDATE payment_orders SET status = ?, update_time = ? WHERE status = ? AND expire_at > 0 AND expire_at < ?",
-		PaymentStatusCanceled, now, PaymentStatusPending, now,
-	)
-	if err != nil {
-		return 0, err
-	}
-	affected, _ := result.RowsAffected()
-	return affected, nil
+	result := db.DB.Model(&PaymentOrder{}).
+		Where("status = ? AND expire_at > 0 AND expire_at < ?", PaymentStatusPending, now).
+		Updates(map[string]interface{}{
+			"status":      PaymentStatusCanceled,
+			"update_time": now,
+		})
+	return result.RowsAffected, result.Error
 }
 
 // GetPaymentStats 获取支付统计
 type PaymentStats struct {
-	TotalOrders   int64   `db:"total_orders" json:"total_orders"`
-	PaidOrders    int64   `db:"paid_orders" json:"paid_orders"`
-	TotalAmount   float64 `db:"total_amount" json:"total_amount"`
-	TodayOrders   int64   `db:"today_orders" json:"today_orders"`
-	TodayAmount   float64 `db:"today_amount" json:"today_amount"`
-	MonthAmount   float64 `db:"month_amount" json:"month_amount"`
-	YearAmount    float64 `db:"year_amount" json:"year_amount"`
-	PendingOrders int64   `db:"pending_orders" json:"pending_orders"`
+	TotalOrders   int64   `gorm:"column:total_orders" json:"total_orders"`
+	PaidOrders    int64   `gorm:"column:paid_orders" json:"paid_orders"`
+	TotalAmount   float64 `gorm:"column:total_amount" json:"total_amount"`
+	TodayOrders   int64   `gorm:"column:today_orders" json:"today_orders"`
+	TodayAmount   float64 `gorm:"column:today_amount" json:"today_amount"`
+	MonthAmount   float64 `gorm:"column:month_amount" json:"month_amount"`
+	YearAmount    float64 `gorm:"column:year_amount" json:"year_amount"`
+	PendingOrders int64   `gorm:"column:pending_orders" json:"pending_orders"`
 }
 
 func GetPaymentStats() (*PaymentStats, error) {
@@ -437,7 +313,7 @@ func GetPaymentStats() (*PaymentStats, error) {
 		FROM payment_orders
 	`, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL)
 
-	err := db.DB.Get(&stats, query, todayStart, todayStart, monthStart, yearStart)
+	err := db.DB.Raw(query, todayStart, todayStart, monthStart, yearStart).Scan(&stats).Error
 	if err != nil {
 		return nil, err
 	}
@@ -446,13 +322,14 @@ func GetPaymentStats() (*PaymentStats, error) {
 
 // DeletePaymentOrder 删除订单（仅管理员）
 func DeletePaymentOrder(id uint64) error {
-	_, err := db.Exec("DELETE FROM payment_orders WHERE id = ?", id)
-	return err
+	return db.DB.Delete(&PaymentOrder{}, id).Error
 }
 
 func CountPendingOrdersByGatewayID(gatewayID uint64) (int64, error) {
 	var count int64
-	err := db.DB.Get(&count, "SELECT COUNT(*) FROM payment_orders WHERE gateway_id = ? AND status = ?", gatewayID, PaymentStatusPending)
+	err := db.DB.Model(&PaymentOrder{}).
+		Where("gateway_id = ? AND status = ?", gatewayID, PaymentStatusPending).
+		Count(&count).Error
 	if err != nil {
 		return 0, err
 	}
@@ -460,11 +337,10 @@ func CountPendingOrdersByGatewayID(gatewayID uint64) (int64, error) {
 }
 
 // CountPendingOrdersByUserIDTx 在事务中统计用户待支付订单数（配合用户行锁一起使用，防止并发建单绕过限流）
-func CountPendingOrdersByUserIDTx(tx *sql.Tx, userID uint64) (int64, error) {
+func CountPendingOrdersByUserIDTx(tx *gorm.DB, userID uint64) (int64, error) {
 	var count int64
-	err := tx.QueryRow(db.Q("SELECT COUNT(*) FROM payment_orders WHERE user_id = ? AND status = ?"), userID, PaymentStatusPending).Scan(&count)
-	if err != nil {
-		return 0, err
-	}
-	return count, nil
+	err := tx.Model(&PaymentOrder{}).
+		Where("user_id = ? AND status = ?", userID, PaymentStatusPending).
+		Count(&count).Error
+	return count, err
 }

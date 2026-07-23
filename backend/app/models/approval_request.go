@@ -3,9 +3,11 @@ package models
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fst/backend/pkg/db"
-	"log"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // 审批状态
@@ -23,38 +25,19 @@ const (
 
 // ApprovalRequest 高危操作审批/审计记录
 type ApprovalRequest struct {
-	ID          uint64  `db:"id" json:"id"`
-	Type        string  `db:"type" json:"type"`
-	PayloadJSON string  `db:"payload_json" json:"payload_json"`
-	Status      string  `db:"status" json:"status"`
-	RequesterID uint64  `db:"requester_id" json:"requester_id"`
-	ReviewerID  *uint64 `db:"reviewer_id" json:"reviewer_id"`
-	Comment     string  `db:"comment" json:"comment"`
-	CreateTime  int64   `db:"create_time" json:"create_time"`
-	ReviewTime  *int64  `db:"review_time" json:"review_time"`
+	ID          uint64  `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	Type        string  `gorm:"column:type;size:64;not null;default:''" json:"type"`
+	PayloadJSON string  `gorm:"column:payload_json;type:text;not null" json:"payload_json"`
+	Status      string  `gorm:"column:status;size:20;not null;default:'pending'" json:"status"`
+	RequesterID uint64  `gorm:"column:requester_id;not null;default:0" json:"requester_id"`
+	ReviewerID  *uint64 `gorm:"column:reviewer_id" json:"reviewer_id"`
+	Comment     string  `gorm:"column:comment;size:500;not null;default:''" json:"comment"`
+	CreateTime  int64   `gorm:"column:create_time;not null;default:0" json:"create_time"`
+	ReviewTime  *int64  `gorm:"column:review_time" json:"review_time"`
 }
 
-// InitApprovalRequestsTable 初始化审批表
-func InitApprovalRequestsTable() {
-	schema := `CREATE TABLE IF NOT EXISTS approval_requests (
-		id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-		type VARCHAR(64) NOT NULL DEFAULT '' COMMENT '审批类型',
-		payload_json TEXT NOT NULL COMMENT '请求载荷JSON',
-		status VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT 'pending/approved/rejected',
-		requester_id BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '申请人',
-		reviewer_id BIGINT UNSIGNED NULL DEFAULT NULL COMMENT '审批人',
-		comment VARCHAR(500) NOT NULL DEFAULT '' COMMENT '备注',
-		create_time BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间',
-		review_time BIGINT NULL DEFAULT NULL COMMENT '审批时间',
-		INDEX idx_ar_status_create (status, create_time),
-		INDEX idx_ar_type_status (type, status),
-		INDEX idx_ar_requester (requester_id)
-	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='高危操作审批/审计'`
-
-	if _, err := db.Exec(schema); err != nil {
-		log.Printf("[Init] Failed to create approval_requests: %v", err)
-	}
-}
+// TableName 表名
+func (ApprovalRequest) TableName() string { return "approval_requests" }
 
 // CreateApprovalRequest 创建审批记录
 func CreateApprovalRequest(req *ApprovalRequest) error {
@@ -63,27 +46,16 @@ func CreateApprovalRequest(req *ApprovalRequest) error {
 	if req.Status == "" {
 		req.Status = ApprovalStatusPending
 	}
-	res, err := db.Exec(`
-		INSERT INTO approval_requests (type, payload_json, status, requester_id, reviewer_id, comment, create_time, review_time)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		req.Type, req.PayloadJSON, req.Status, req.RequesterID, req.ReviewerID, req.Comment, req.CreateTime, req.ReviewTime,
-	)
-	if err != nil {
-		return err
-	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		return err
-	}
-	req.ID = uint64(id)
-	return nil
+	return db.DB.Create(req).Error
 }
 
 // GetApprovalRequestByID 按 ID 取审批
 func GetApprovalRequestByID(id uint64) (*ApprovalRequest, error) {
 	var item ApprovalRequest
-	err := db.DB.Get(&item, `SELECT id, type, payload_json, status, requester_id, reviewer_id, comment, create_time, review_time
-		FROM approval_requests WHERE id = ?`, id)
+	err := db.DB.Where("id = ?", id).First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, sql.ErrNoRows
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -93,17 +65,18 @@ func GetApprovalRequestByID(id uint64) (*ApprovalRequest, error) {
 // ApproveApprovalRequest 审批通过（双人复核）
 func ApproveApprovalRequest(id, reviewerID uint64, comment string) error {
 	now := time.Now().Unix()
-	res, err := db.Exec(`
-		UPDATE approval_requests
-		SET status = ?, reviewer_id = ?, comment = ?, review_time = ?
-		WHERE id = ? AND status = ?`,
-		ApprovalStatusApproved, reviewerID, comment, now, id, ApprovalStatusPending,
-	)
-	if err != nil {
-		return err
+	r := db.DB.Model(&ApprovalRequest{}).
+		Where("id = ? AND status = ?", id, ApprovalStatusPending).
+		Updates(map[string]any{
+			"status":      ApprovalStatusApproved,
+			"reviewer_id": reviewerID,
+			"comment":     comment,
+			"review_time": now,
+		})
+	if r.Error != nil {
+		return r.Error
 	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
+	if r.RowsAffected == 0 {
 		return sql.ErrNoRows
 	}
 	return nil
@@ -112,17 +85,18 @@ func ApproveApprovalRequest(id, reviewerID uint64, comment string) error {
 // RejectApprovalRequest 审批拒绝
 func RejectApprovalRequest(id, reviewerID uint64, comment string) error {
 	now := time.Now().Unix()
-	res, err := db.Exec(`
-		UPDATE approval_requests
-		SET status = ?, reviewer_id = ?, comment = ?, review_time = ?
-		WHERE id = ? AND status = ?`,
-		ApprovalStatusRejected, reviewerID, comment, now, id, ApprovalStatusPending,
-	)
-	if err != nil {
-		return err
+	r := db.DB.Model(&ApprovalRequest{}).
+		Where("id = ? AND status = ?", id, ApprovalStatusPending).
+		Updates(map[string]any{
+			"status":      ApprovalStatusRejected,
+			"reviewer_id": reviewerID,
+			"comment":     comment,
+			"review_time": now,
+		})
+	if r.Error != nil {
+		return r.Error
 	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
+	if r.RowsAffected == 0 {
 		return sql.ErrNoRows
 	}
 	return nil
@@ -134,10 +108,10 @@ func ListPendingApprovals(limit int) ([]ApprovalRequest, error) {
 		limit = 50
 	}
 	var list []ApprovalRequest
-	err := db.DB.Select(&list, `
-		SELECT id, type, payload_json, status, requester_id, reviewer_id, comment, create_time, review_time
-		FROM approval_requests WHERE status = ? ORDER BY id DESC LIMIT ?`,
-		ApprovalStatusPending, limit)
+	err := db.DB.Where("status = ?", ApprovalStatusPending).
+		Order("id DESC").
+		Limit(limit).
+		Find(&list).Error
 	return list, err
 }
 

@@ -27,7 +27,7 @@ func TestResetUserApiKeyStoresHashNotPlaintext(t *testing.T) {
 	}
 
 	var storedApikey, storedHint string
-	if err := db.DB.Get(&storedApikey, "SELECT apikey FROM users WHERE id = ?", u.ID); err != nil {
+	if err := db.DB.Raw("SELECT apikey FROM users WHERE id = ?", u.ID).Scan(&storedApikey).Error; err != nil {
 		t.Fatalf("查询 apikey 列失败: %v", err)
 	}
 	if storedApikey == plain {
@@ -37,7 +37,7 @@ func TestResetUserApiKeyStoresHashNotPlaintext(t *testing.T) {
 		t.Fatalf("apikey 列应为 SHA256 十六进制(64位)，实际长度=%d", len(storedApikey))
 	}
 
-	if err := db.DB.Get(&storedHint, "SELECT apikey_hint FROM users WHERE id = ?", u.ID); err != nil {
+	if err := db.DB.Raw("SELECT apikey_hint FROM users WHERE id = ?", u.ID).Scan(&storedHint).Error; err != nil {
 		t.Fatalf("查询 apikey_hint 列失败: %v", err)
 	}
 	if storedHint != plain[len(plain)-4:] {
@@ -52,7 +52,6 @@ func TestResetUserApiKeyStoresHashNotPlaintext(t *testing.T) {
 		t.Fatalf("GetUserByApiKey 命中用户ID=%d，期望=%d", found.ID, u.ID)
 	}
 
-	// MaskedApikey 只暴露末4位
 	masked := found.MaskedApikey()
 	want := "********" + plain[len(plain)-4:]
 	if masked != want {
@@ -69,7 +68,7 @@ func TestGetUserByApiKeyLegacyPlaintextCompat(t *testing.T) {
 	u := testutil.CreateTestUser(t, "apikey_legacy_user")
 
 	legacyPlain := "legacyplaintextapikey1234567890abcdef01"
-	if _, err := db.Exec("UPDATE users SET apikey = ?, apikey_hint = NULL WHERE id = ?", legacyPlain, u.ID); err != nil {
+	if err := db.DB.Exec("UPDATE users SET apikey = ?, apikey_hint = NULL WHERE id = ?", legacyPlain, u.ID).Error; err != nil {
 		t.Fatalf("模拟写入历史明文 apikey 失败: %v", err)
 	}
 
@@ -82,14 +81,13 @@ func TestGetUserByApiKeyLegacyPlaintextCompat(t *testing.T) {
 	}
 
 	var storedApikey string
-	if err := db.DB.Get(&storedApikey, "SELECT apikey FROM users WHERE id = ?", u.ID); err != nil {
+	if err := db.DB.Raw("SELECT apikey FROM users WHERE id = ?", u.ID).Scan(&storedApikey).Error; err != nil {
 		t.Fatalf("查询 apikey 列失败: %v", err)
 	}
 	if storedApikey == legacyPlain {
 		t.Fatalf("命中一次后应已回写为哈希，实际仍是明文")
 	}
 
-	// 回写后用同一明文再次查询，应走哈希命中路径，依然可用
 	found2, err := models.GetUserByApiKey(legacyPlain)
 	if err != nil {
 		t.Fatalf("回写后 GetUserByApiKey 应仍能命中: %v", err)

@@ -17,13 +17,12 @@ import (
 
 // TestPostgresIntegration 真机 PostgreSQL 集成测试。
 //
-// 重要：PostgreSQL 适配目前只做过字符串转换层单测，**在本测试于真实 PG 上通过之前，
-// 不能视为生产已认证**。请用真实实例跑：
+// 需要环境变量 FST_PG_DSN 或 TEST_POSTGRES_DSN 指向可写库；未设置则 Skip。
+// 覆盖：InitDB + RunAutoMigrate + 用户 CRUD 冒烟。
+// 支付/提现/CAST 关键词搜索等建议上生产前再加；本测试通过前勿把 postgres 当已验证生产路径。
 //
 //	set FST_PG_DSN=postgres://user:pass@127.0.0.1:5432/fst_test?sslmode=disable
 //	go test -tags integration ./backend/pkg/db/ -run Postgres -count=1
-//
-// 也可使用 TEST_POSTGRES_DSN（与 FST_PG_DSN 二选一）。未设置时 Skip，不影响默认 CI。
 func TestPostgresIntegration(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("FST_PG_DSN"))
 	if dsn == "" {
@@ -48,7 +47,7 @@ func TestPostgresIntegration(t *testing.T) {
 	db.InitDB()
 	t.Cleanup(func() {
 		if db.DB != nil {
-			_ = db.DB.Close()
+			_ = db.Close()
 		}
 	})
 
@@ -58,11 +57,15 @@ func TestPostgresIntegration(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := db.DB.PingContext(ctx); err != nil {
+	sqlDB, err := db.SQLDB()
+	if err != nil {
+		t.Fatalf("获取底层连接失败: %v", err)
+	}
+	if err := sqlDB.PingContext(ctx); err != nil {
 		t.Fatalf("Postgres Ping 失败: %v", err)
 	}
 
-	// 全量自迁移：真机验证 DDL 方言适配
+	// 全量自迁移：真机验证 AutoMigrate + 种子/补丁
 	migrate.RunAutoMigrate()
 
 	user := &models.User{

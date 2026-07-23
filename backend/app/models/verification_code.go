@@ -1,180 +1,164 @@
 package models
 
 import (
+	"database/sql"
+	"errors"
 	"fst/backend/pkg/db"
 	"log"
 	"time"
+
+	"gorm.io/gorm"
 )
 
-// InitVerificationCodeTable 初始化验证码表（如果不存在）
-func InitVerificationCodeTable() {
+// RepairVerificationCodeTable 存量库修复：email→contact 数据迁移、删除错误旧列，
+// 并对缺失的常规列做轻量 ADD（避免对残缺旧表跑 AutoMigrate 触发 SQLite 重建失败）。
+func RepairVerificationCodeTable() {
 	if !db.CheckTableExists("verification_codes") {
-		// 表不存在，创建新表
-		schema := `CREATE TABLE IF NOT EXISTS verification_codes (
-			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-			contact VARCHAR(255) NOT NULL COMMENT '联系方式(邮箱或手机号)',
-			code VARCHAR(10) NOT NULL COMMENT '验证码',
-			code_type VARCHAR(20) NOT NULL COMMENT '类型:register=注册,reset_password=重置密码',
-			expires_at TIMESTAMP NOT NULL COMMENT '过期时间',
-			is_used TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已使用:0=未使用,1=已使用',
-			is_deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否软删除:0=正常,1=已删除',
-			attempts INT NOT NULL DEFAULT 0 COMMENT '连续验证失败次数:达到上限后作废该码,防暴力猜解',
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-			INDEX idx_contact_type (contact, code_type),
-			INDEX idx_contact_type_active_created (contact, code_type, is_used, is_deleted, created_at),
-			INDEX idx_contact_code_type_active (contact, code, code_type, is_used, is_deleted),
-			INDEX idx_expires_at (expires_at),
-			INDEX idx_is_deleted (is_deleted)
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
+		return
+	}
+	migrateVerificationCodesEmailToContact()
+	dropLegacyVerificationCodeColumns()
+	ensureVerificationCodeColumns()
+}
 
-		_, err := db.Exec(schema)
-		if err != nil {
-			log.Printf("[Init] Failed to create verification_codes table: %v", err)
+func ensureVerificationCodeColumns() {
+	// 只补 AutoMigrate 正常路径会有、但存量残缺表可能缺的列
+	alters := []struct {
+		col string
+		sql string
+	}{
+		{"attempts", "ALTER TABLE verification_codes ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0"},
+		{"is_used", "ALTER TABLE verification_codes ADD COLUMN is_used INTEGER NOT NULL DEFAULT 0"},
+		{"is_deleted", "ALTER TABLE verification_codes ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0"},
+		{"code_type", "ALTER TABLE verification_codes ADD COLUMN code_type VARCHAR(20) NOT NULL DEFAULT 'register'"},
+		{"expires_at", "ALTER TABLE verification_codes ADD COLUMN expires_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"},
+		{"created_at", "ALTER TABLE verification_codes ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"},
+		{"updated_at", "ALTER TABLE verification_codes ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"},
+	}
+	for _, a := range alters {
+		if db.CheckColumnExists("verification_codes", a.col) {
+			continue
+		}
+		if err := db.DB.Exec(a.sql).Error; err != nil {
+			log.Printf("[Migrate] 补 verification_codes.%s 失败: %v", a.col, err)
 		} else {
-			log.Println("[Init] Created verification_codes table")
+			log.Printf("[Migrate] 已补 verification_codes.%s", a.col)
 		}
-		return
 	}
-
-	// 表已存在，检查并修复字段
-	repairVerificationCodeTable()
 }
 
-// renameVerificationCodesEmailToContact 将旧列 email 迁移为 contact。
-// MySQL 用 CHANGE COLUMN；SQLite 跳过 CHANGE，改为 ADD + UPDATE 拷贝。
-func renameVerificationCodesEmailToContact() {
+// migrateVerificationCodesEmailToContact 把旧列 email 的数据拷到 contact。
+// AutoMigrate 可能已先加好空 contact 列，因此「两列都在」时仍要做空 contact 回填。
+func migrateVerificationCodesEmailToContact() {
 	hasEmail := db.CheckColumnExists("verification_codes", "email")
+	if !hasEmail {
+		return
+	}
 	hasContact := db.CheckColumnExists("verification_codes", "contact")
-	if !hasEmail || hasContact {
-		return
-	}
 
-	// SQLite / PostgreSQL 都不支持 MySQL 的 CHANGE COLUMN 语法，统一走「加列 + 拷贝」这条可移植路径
-	// （旧 email 列保留不删，业务只读写 contact，属既有设计，见 CLAUDE.md「已知设计」）。
-	if db.IsSQLite() || db.IsPostgres() {
-		if _, err := db.Exec("ALTER TABLE verification_codes ADD COLUMN contact VARCHAR(255) NOT NULL DEFAULT ''"); err != nil {
-			log.Printf("[Init] 补 verification_codes.contact 失败: %v", err)
+	if !hasContact {
+		if db.IsMySQL() {
+			if err := db.DB.Exec("ALTER TABLE verification_codes CHANGE COLUMN email contact VARCHAR(255) NOT NULL COMMENT '联系方式(邮箱或手机号)'").Error; err != nil {
+				log.Printf("[Migrate] verification_codes.email→contact 改名失败: %v", err)
+				return
+			}
+			log.Println("[Migrate] 已将 verification_codes.email 改名为 contact")
 			return
 		}
-		if _, err := db.Exec("UPDATE verification_codes SET contact = email WHERE contact = '' OR contact IS NULL"); err != nil {
-			log.Printf("[Init] 拷贝 email→contact 失败: %v", err)
+		if err := db.DB.Exec("ALTER TABLE verification_codes ADD COLUMN contact VARCHAR(255) NOT NULL DEFAULT ''").Error; err != nil {
+			log.Printf("[Migrate] 补 verification_codes.contact 失败: %v", err)
 			return
 		}
-		log.Println("[Init] 已把 verification_codes.email 数据拷贝到 contact（旧 email 列保留）")
-		return
+		hasContact = true
 	}
 
-	if _, err := db.Exec("ALTER TABLE verification_codes CHANGE COLUMN email contact VARCHAR(255) NOT NULL COMMENT '联系方式(邮箱或手机号)'"); err != nil {
-		log.Printf("[Init] Failed to rename verification_codes.email to contact: %v", err)
+	if !hasContact {
 		return
 	}
-	log.Println("[Init] Renamed verification_codes.email to contact")
+	res := db.DB.Exec("UPDATE verification_codes SET contact = email WHERE (contact = '' OR contact IS NULL) AND email IS NOT NULL AND email <> ''")
+	if res.Error != nil {
+		log.Printf("[Migrate] 拷贝 email→contact 失败: %v", res.Error)
+		return
+	}
+	if res.RowsAffected > 0 {
+		log.Printf("[Migrate] 已从 email 回填 contact，影响 %d 行", res.RowsAffected)
+	}
 }
 
-// repairVerificationCodeTable 检查并修复表字段
-func repairVerificationCodeTable() {
-	// 兼容旧表：早期字段名使用 email，但现在验证码同时服务邮箱与手机号。
-	// 注意：SQLite 方言会静默跳过 CHANGE COLUMN，必须走「加列 + 拷贝」路径。
-	renameVerificationCodesEmailToContact()
-
-	// 定义需要删除的错误字段名（之前版本创建的错误字段）
-	wrongColumns := []string{"type", "expire_at"}
-	for _, col := range wrongColumns {
-		if db.CheckColumnExists("verification_codes", col) {
-			_, err := db.Exec("ALTER TABLE verification_codes DROP COLUMN " + col)
-			if err != nil {
-				log.Printf("[Init] Failed to drop old '%s' column: %v", col, err)
-			} else {
-				log.Printf("[Init] Dropped old '%s' column", col)
-			}
-		}
-	}
-
-	// 定义需要的正确字段
-	requiredColumns := map[string]string{
-		"contact":    "ALTER TABLE verification_codes ADD COLUMN contact VARCHAR(255) NOT NULL DEFAULT '' COMMENT '联系方式(邮箱或手机号)'",
-		"code_type":  "ALTER TABLE verification_codes ADD COLUMN code_type VARCHAR(20) NOT NULL DEFAULT 'register' COMMENT '类型:register=注册,reset_password=重置密码'",
-		"expires_at": "ALTER TABLE verification_codes ADD COLUMN expires_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '过期时间'",
-		"is_used":    "ALTER TABLE verification_codes ADD COLUMN is_used TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已使用:0=未使用,1=已使用'",
-		"is_deleted": "ALTER TABLE verification_codes ADD COLUMN is_deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否软删除:0=正常,1=已删除'",
-		"attempts":   "ALTER TABLE verification_codes ADD COLUMN attempts INT NOT NULL DEFAULT 0 COMMENT '连续验证失败次数:达到上限后作废该码,防暴力猜解'",
-		"created_at": "ALTER TABLE verification_codes ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'",
-		"updated_at": "ALTER TABLE verification_codes ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'",
-	}
-
-	for col, alterSQL := range requiredColumns {
+func dropLegacyVerificationCodeColumns() {
+	for _, col := range []string{"type", "expire_at"} {
 		if !db.CheckColumnExists("verification_codes", col) {
-			_, err := db.Exec(alterSQL)
-			if err != nil {
-				log.Printf("[Init] Failed to add column %s: %v", col, err)
-			} else {
-				log.Printf("[Init] Added column %s to verification_codes table", col)
-			}
+			continue
 		}
-	}
-
-	indexRepairs := map[string]string{
-		"idx_contact_type_active_created": "ALTER TABLE verification_codes ADD INDEX idx_contact_type_active_created (contact, code_type, is_used, is_deleted, created_at)",
-		"idx_contact_code_type_active":    "ALTER TABLE verification_codes ADD INDEX idx_contact_code_type_active (contact, code, code_type, is_used, is_deleted)",
-	}
-
-	for indexName, alterSQL := range indexRepairs {
-		db.EnsureIndex("verification_codes", indexName, alterSQL)
+		// SQLite 对部分保留字/探测可能误报，删除失败只打日志不阻断
+		if err := db.DB.Exec("ALTER TABLE verification_codes DROP COLUMN " + db.QuoteIdent(col)).Error; err != nil {
+			log.Printf("[Migrate] 删除旧列 verification_codes.%s 跳过: %v", col, err)
+		} else {
+			log.Printf("[Migrate] 已删除旧列 verification_codes.%s", col)
+		}
 	}
 }
 
 // VerificationCode 验证码模型
 type VerificationCode struct {
-	ID        uint64    `db:"id" json:"id"`
-	Contact   string    `db:"contact" json:"contact"`
-	Code      string    `db:"code" json:"code"`
-	CodeType  string    `db:"code_type" json:"code_type"`
-	ExpiresAt time.Time `db:"expires_at" json:"expires_at"`
-	IsUsed    int       `db:"is_used" json:"is_used"`
-	IsDeleted int       `db:"is_deleted" json:"is_deleted"`
-	Attempts  int       `db:"attempts" json:"attempts"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID        uint64    `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	Contact   string    `gorm:"column:contact;size:255;not null;default:'';index:idx_vc_contact_type_active_created,priority:1;index:idx_vc_contact_code_type_active,priority:1" json:"contact"`
+	Code      string    `gorm:"column:code;size:32;not null;default:'';index:idx_vc_contact_code_type_active,priority:2" json:"code"`
+	CodeType  string    `gorm:"column:code_type;size:20;not null;default:'register';index:idx_vc_contact_type_active_created,priority:2;index:idx_vc_contact_code_type_active,priority:3" json:"code_type"`
+	ExpiresAt time.Time `gorm:"column:expires_at;index:idx_vc_expires_at" json:"expires_at"`
+	IsUsed    int       `gorm:"column:is_used;not null;default:0;index:idx_vc_contact_type_active_created,priority:3;index:idx_vc_contact_code_type_active,priority:4" json:"is_used"`
+	IsDeleted int       `gorm:"column:is_deleted;not null;default:0;index:idx_vc_contact_type_active_created,priority:4;index:idx_vc_contact_code_type_active,priority:5" json:"is_deleted"`
+	Attempts  int       `gorm:"column:attempts;not null;default:0" json:"attempts"`
+	CreatedAt time.Time `gorm:"column:created_at;index:idx_vc_contact_type_active_created,priority:5" json:"created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
 
-// CreateVerificationCode 创建验证码记录。
-// contact 既可以是邮箱，也可以是手机号。
+func (VerificationCode) TableName() string {
+	return "verification_codes"
+}
+
+// CreateVerificationCode 创建验证码记录。contact 可以是邮箱或手机号。
 func CreateVerificationCode(contact, code, codeType string, expiresAt time.Time) error {
-	// 先将该联系方式该类型的旧验证码标记为软删除
-	_, err := db.Exec(
-		"UPDATE verification_codes SET is_deleted = 1 WHERE contact = ? AND code_type = ? AND is_deleted = 0 AND is_used = 0",
-		contact, codeType,
-	)
-	if err != nil {
+	if err := db.DB.Model(&VerificationCode{}).
+		Where("contact = ? AND code_type = ? AND is_deleted = 0 AND is_used = 0", contact, codeType).
+		Update("is_deleted", 1).Error; err != nil {
 		return err
 	}
 
-	query := `INSERT INTO verification_codes (contact, code, code_type, expires_at, is_used, is_deleted) 
-			  VALUES (?, ?, ?, ?, 0, 0)`
-	_, err = db.Exec(query, contact, code, codeType, expiresAt)
-	return err
+	vc := VerificationCode{
+		Contact:   contact,
+		Code:      code,
+		CodeType:  codeType,
+		ExpiresAt: expiresAt,
+		IsUsed:    0,
+		IsDeleted: 0,
+	}
+	// created_at/updated_at 交给数据库默认值，避免 GORM 零值覆盖
+	return db.DB.Omit("CreatedAt", "UpdatedAt").Create(&vc).Error
 }
 
+// HasRecentVerificationCode 是否在 since 之后发过同类型未用验证码（限流）
 func HasRecentVerificationCode(contact, codeType string, since time.Time) (bool, error) {
-	var count int
-	err := db.DB.Get(&count,
-		"SELECT COUNT(*) FROM verification_codes WHERE contact = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND created_at >= ?",
-		contact, codeType, since,
-	)
+	var count int64
+	err := db.DB.Model(&VerificationCode{}).
+		Where("contact = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND created_at >= ?", contact, codeType, since).
+		Count(&count).Error
 	if err != nil {
 		return false, err
 	}
 	return count > 0, nil
 }
 
-// GetValidVerificationCode 获取有效的验证码（未使用、未过期、未软删除）。
+// GetValidVerificationCode 获取有效验证码（未使用、未过期、未软删）
 func GetValidVerificationCode(contact, codeType string) (*VerificationCode, error) {
 	var vc VerificationCode
-	query := db.Q(`SELECT * FROM verification_codes 
-			  WHERE contact = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND expires_at > NOW()
-			  ORDER BY created_at DESC LIMIT 1`)
-	err := db.DB.Get(&vc, query, contact, codeType)
+	err := db.DB.Where(
+		"contact = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND expires_at > ?",
+		contact, codeType, time.Now(),
+	).Order("created_at DESC").First(&vc).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, sql.ErrNoRows
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -183,63 +167,47 @@ func GetValidVerificationCode(contact, codeType string) (*VerificationCode, erro
 
 // MarkVerificationCodeAsUsed 标记验证码为已使用
 func MarkVerificationCodeAsUsed(id uint64) error {
-	_, err := db.Exec("UPDATE verification_codes SET is_used = 1 WHERE id = ?", id)
-	return err
+	return db.DB.Model(&VerificationCode{}).Where("id = ?", id).Update("is_used", 1).Error
 }
 
-// maxVerificationAttempts 单个验证码允许的最大验证失败次数。
-// 验证码为 6 位数字（100 万种组合），单纯靠 IP 限流不足以挡住多 IP/代理池的分布式猜解，
-// 因此在验证码本身维度做失败计数：连续失败达到上限后立即作废该码，
-// 攻击者必须重新申请验证码（受发码冷却限制，且新码只会发到真实持有者邮箱/手机）。
+// maxVerificationAttempts 单个验证码允许的最大验证失败次数
 const maxVerificationAttempts = 5
 
-// ConsumeVerificationCode 校验并消费验证码。
-// 命中：原子置为已使用并返回 true（天然幂等、防并发重复消费）。
-// 未命中：对当前有效验证码累加失败次数，达到上限即作废，防止暴力猜解。
+// ConsumeVerificationCode 校验并消费验证码。成功返回 (true, nil)；错误码返回 (false, nil) 并累加 attempts。
 func ConsumeVerificationCode(contact, code, codeType string) (bool, error) {
-	// 1) 先尝试原子命中并消费匹配的验证码。
-	result, err := db.Exec(
+	now := time.Now()
+	result := db.DB.Exec(
 		`UPDATE verification_codes
 		 SET is_used = 1
 		 WHERE id = (
 		 	SELECT id FROM (
 		 		SELECT id FROM verification_codes
-		 		WHERE contact = ? AND code = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND expires_at > NOW()
+		 		WHERE contact = ? AND code = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND expires_at > ?
 		 		ORDER BY created_at DESC LIMIT 1
 		 	) AS latest
 		 ) AND is_used = 0`,
-		contact, code, codeType,
+		contact, code, codeType, now,
 	)
-	if err != nil {
-		return false, err
+	if result.Error != nil {
+		return false, result.Error
 	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return false, err
-	}
-	if rows > 0 {
+	if result.RowsAffected > 0 {
 		return true, nil
 	}
 
-	// 2) 未命中（验证码错误或已失效）：对当前有效验证码原子累加失败次数，
-	//    达到上限同时软删作废，堵住持续猜解（一步完成，避免 +1 与作废之间的竞态窗口）。
-	//    双层子查询是 MySQL「不能在 UPDATE 中直接子查询同表」的既有规避写法，SQLite 同样适用。
-	//    is_deleted 表达式写在 attempts 赋值之前，并用「旧 attempts+1」判断：
-	//    MySQL 单表 UPDATE 自左向右、SQLite 全程用旧值，两种方言下结果一致。
-	//    仅当存在有效验证码时才会真正改行；无有效码时不影响任何行，避免无意义计数。
-	if _, err := db.Exec(
+	if err := db.DB.Exec(
 		`UPDATE verification_codes
 		 SET is_deleted = CASE WHEN attempts + 1 >= ? THEN 1 ELSE is_deleted END,
 		     attempts = attempts + 1
 		 WHERE id = (
 		 	SELECT id FROM (
 		 		SELECT id FROM verification_codes
-		 		WHERE contact = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND expires_at > NOW()
+		 		WHERE contact = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 AND expires_at > ?
 		 		ORDER BY created_at DESC LIMIT 1
 		 	) AS latest
 		 )`,
-		maxVerificationAttempts, contact, codeType,
-	); err != nil {
+		maxVerificationAttempts, contact, codeType, now,
+	).Error; err != nil {
 		return false, err
 	}
 
@@ -248,59 +216,55 @@ func ConsumeVerificationCode(contact, code, codeType string) (bool, error) {
 
 // MarkVerificationCodeAsDeleted 软删除验证码
 func MarkVerificationCodeAsDeleted(id uint64) error {
-	_, err := db.Exec("UPDATE verification_codes SET is_deleted = 1 WHERE id = ?", id)
-	return err
+	return db.DB.Model(&VerificationCode{}).Where("id = ?", id).Update("is_deleted", 1).Error
 }
 
-// DeleteVerificationCodesByContact 彻底删除指定联系方式的所有验证码记录（用于注册/重置成功后清理）
+// DeleteVerificationCodesByContact 彻底删除指定联系方式的验证码（注册/重置成功后清理）
 func DeleteVerificationCodesByContact(contact string, codeType string) error {
-	query := `DELETE FROM verification_codes WHERE contact = ?`
-	args := []interface{}{contact}
+	q := db.DB.Where("contact = ?", contact)
 	if codeType != "" {
-		query += ` AND code_type = ?`
-		args = append(args, codeType)
+		q = q.Where("code_type = ?", codeType)
 	}
-	_, err := db.Exec(query, args...)
-	return err
+	return q.Delete(&VerificationCode{}).Error
 }
 
 // SoftDeleteExpiredCodes 软删除已过期的验证码
 func SoftDeleteExpiredCodes() (int64, error) {
-	res, err := db.Exec("UPDATE verification_codes SET is_deleted = 1 WHERE expires_at <= NOW() AND is_deleted = 0")
-	if err != nil {
-		return 0, err
+	result := db.DB.Model(&VerificationCode{}).
+		Where("expires_at <= ? AND is_deleted = 0", time.Now()).
+		Update("is_deleted", 1)
+	if result.Error != nil {
+		return 0, result.Error
 	}
-	aff, _ := res.RowsAffected()
-	return aff, nil
+	return result.RowsAffected, nil
 }
 
-// CleanupOldVerificationCodes 清理7天前的已删除或已使用记录（硬删除）
+// CleanupOldVerificationCodes 清理 7 天前的已删/已用记录（硬删除）
 func CleanupOldVerificationCodes() (int64, error) {
-	res, err := db.Exec(
-		"DELETE FROM verification_codes WHERE (is_deleted = 1 OR is_used = 1) AND updated_at < DATE_SUB(NOW(), INTERVAL 7 DAY)",
-	)
-	if err != nil {
-		return 0, err
+	cutoff := time.Now().Add(-7 * 24 * time.Hour)
+	result := db.DB.Where("(is_deleted = 1 OR is_used = 1) AND updated_at < ?", cutoff).
+		Delete(&VerificationCode{})
+	if result.Error != nil {
+		return 0, result.Error
 	}
-	aff, _ := res.RowsAffected()
-	return aff, nil
+	return result.RowsAffected, nil
 }
 
-// VerifyCode 验证验证码是否正确（改进版：直接匹配代码）
+// VerifyCode 验证验证码是否正确（直接匹配）
 func VerifyCode(contact, code, codeType string) (bool, uint64, error) {
 	var vc VerificationCode
-	query := `SELECT id, code, expires_at FROM verification_codes 
-			  WHERE contact = ? AND code = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0 
-			  ORDER BY created_at DESC LIMIT 1`
-	err := db.DB.Get(&vc, query, contact, code, codeType)
+	err := db.DB.Select("id", "code", "expires_at").
+		Where("contact = ? AND code = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0", contact, code, codeType).
+		Order("created_at DESC").
+		First(&vc).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, 0, sql.ErrNoRows
+	}
 	if err != nil {
 		return false, 0, err
 	}
-
-	// 检查是否过期
 	if vc.ExpiresAt.Before(time.Now()) {
 		return false, 0, nil
 	}
-
 	return true, vc.ID, nil
 }

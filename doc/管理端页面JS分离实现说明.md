@@ -16,11 +16,11 @@
 
 ### 2. 动态路径配置
 
-管理端路径通过环境变量 `VITE_ADMIN_PATH` 配置，每次打包可以修改，防止被猜测：
+管理端路径通过环境变量 `VITE_ADMIN_BASE_PATH` 配置，每次打包可以修改，防止被猜测：
 
 ```env
 # 前端 .env
-VITE_ADMIN_PATH=/system-mgr
+VITE_ADMIN_BASE_PATH=/system-mgr
 
 # 后端 .env
 ADMIN_PATH=/system-mgr
@@ -108,7 +108,7 @@ async initAuthRoute() {
 
 ```typescript
 // 判断是否是管理端路由
-const adminPath = import.meta.env.VITE_ADMIN_PATH || '/admin'
+const adminPath = import.meta.env.VITE_ADMIN_BASE_PATH || '/admin'
 const isAdminRoute = to.path.startsWith(adminPath)
 
 // 处理管理端路由访问权限
@@ -150,7 +150,7 @@ if (isAdminRoute && (!isLogin || !hasAdminRole)) {
 **前端配置** (`frontend/.env`):
 
 ```env
-VITE_ADMIN_PATH=/system-mgr
+VITE_ADMIN_BASE_PATH=/system-mgr
 VITE_BASE_URL=/
 ```
 
@@ -160,7 +160,7 @@ VITE_BASE_URL=/
 ADMIN_PATH=/system-mgr
 ```
 
-> ⚠️ **安全提示**: 每次部署时建议修改 `VITE_ADMIN_PATH` 和 `ADMIN_PATH` 的值，使用不易猜测的路径。
+> ⚠️ **安全提示**: 每次部署时建议修改 `VITE_ADMIN_BASE_PATH` 和 `ADMIN_PATH` 的值，使用不易猜测的路径。
 
 ### 2. 打包验证
 
@@ -198,7 +198,7 @@ ADMIN_PATH=/system-mgr
 ## 注意事项
 
 1. **环境变量同步**: 前端和后端的 `ADMIN_PATH` 必须保持一致
-2. **路径修改**: 修改 `VITE_ADMIN_PATH` 后需要重新打包前端
+2. **路径修改**: 修改 `VITE_ADMIN_BASE_PATH` 后需要重新打包前端
 3. **权限检查**: 确保后端 API 也有相应的管理员权限验证
 4. **路由命名**: 管理端路由名称建议使用 `admin-` 前缀，便于识别
 

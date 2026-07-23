@@ -1,49 +1,99 @@
 package models
 
 import (
-	"database/sql"
+	"errors"
 	"fst/backend/pkg/db"
 	"log"
 	"strings"
 	"time"
 
-	"github.com/jmoiron/sqlx"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const operationLogAggregateGlobalKey = "global"
 
+// OperationLogStat 操作日志全局汇总
+type OperationLogStat struct {
+	StatKey          string `gorm:"column:stat_key;primaryKey;size:32"`
+	TotalCount       int64  `gorm:"column:total_count;not null;default:0"`
+	SuccessCount     int64  `gorm:"column:success_count;not null;default:0"`
+	ClientErrorCount int64  `gorm:"column:client_error_count;not null;default:0"`
+	ServerErrorCount int64  `gorm:"column:server_error_count;not null;default:0"`
+	TotalDuration    int64  `gorm:"column:total_duration;not null;default:0"`
+	UpdatedAt        int64  `gorm:"column:updated_at;not null;default:0"`
+}
+
+func (OperationLogStat) TableName() string { return "operation_log_stats" }
+
+// OperationLogDailyStat 操作日志按天汇总
+type OperationLogDailyStat struct {
+	DayKey     int   `gorm:"column:day_key;primaryKey"`
+	TotalCount int64 `gorm:"column:total_count;not null;default:0"`
+	UpdatedAt  int64 `gorm:"column:updated_at;not null;default:0"`
+}
+
+func (OperationLogDailyStat) TableName() string { return "operation_log_daily_stats" }
+
+// OperationLogModuleStatRow 操作日志按模块汇总
+type OperationLogModuleStatRow struct {
+	Module     string `gorm:"column:module;primaryKey;size:100"`
+	TotalCount int64  `gorm:"column:total_count;not null;default:0"`
+	UpdatedAt  int64  `gorm:"column:updated_at;not null;default:0"`
+}
+
+func (OperationLogModuleStatRow) TableName() string { return "operation_log_module_stats" }
+
+// OperationLogActionStatRow 操作日志按动作汇总
+type OperationLogActionStatRow struct {
+	Action     string `gorm:"column:action;primaryKey;size:100"`
+	TotalCount int64  `gorm:"column:total_count;not null;default:0"`
+	UpdatedAt  int64  `gorm:"column:updated_at;not null;default:0"`
+}
+
+func (OperationLogActionStatRow) TableName() string { return "operation_log_action_stats" }
+
+// OperationLogMethodStatRow 操作日志按 HTTP 方法汇总
+type OperationLogMethodStatRow struct {
+	Method     string `gorm:"column:method;primaryKey;size:20"`
+	TotalCount int64  `gorm:"column:total_count;not null;default:0"`
+	UpdatedAt  int64  `gorm:"column:updated_at;not null;default:0"`
+}
+
+func (OperationLogMethodStatRow) TableName() string { return "operation_log_method_stats" }
+
 type operationLogAggregateGlobal struct {
-	TotalCount       int64 `db:"total_count"`
-	SuccessCount     int64 `db:"success_count"`
-	ClientErrorCount int64 `db:"client_error_count"`
-	ServerErrorCount int64 `db:"server_error_count"`
-	TotalDuration    int64 `db:"total_duration"`
+	TotalCount       int64 `gorm:"column:total_count"`
+	SuccessCount     int64 `gorm:"column:success_count"`
+	ClientErrorCount int64 `gorm:"column:client_error_count"`
+	ServerErrorCount int64 `gorm:"column:server_error_count"`
+	TotalDuration    int64 `gorm:"column:total_duration"`
 }
 
 type operationLogAggregateDailyRow struct {
-	DayKey     int   `db:"day_key"`
-	TotalCount int64 `db:"total_count"`
+	DayKey     int   `gorm:"column:day_key"`
+	TotalCount int64 `gorm:"column:total_count"`
 }
 
 type operationLogAggregateModuleRow struct {
-	Module     string `db:"module"`
-	TotalCount int64  `db:"total_count"`
+	Module     string `gorm:"column:module"`
+	TotalCount int64  `gorm:"column:total_count"`
 }
 
 type operationLogAggregateActionRow struct {
-	Action     string `db:"action"`
-	TotalCount int64  `db:"total_count"`
+	Action     string `gorm:"column:action"`
+	TotalCount int64  `gorm:"column:total_count"`
 }
 
 type operationLogAggregateMethodRow struct {
-	Method     string `db:"method"`
-	TotalCount int64  `db:"total_count"`
+	Method     string `gorm:"column:method"`
+	TotalCount int64  `gorm:"column:total_count"`
 }
 
 // OperationActionStat 操作日志按动作统计项
 type OperationActionStat struct {
-	Action string `db:"action" json:"action"`
-	Count  int64  `db:"count" json:"count"`
+	Action string `gorm:"column:action" json:"action"`
+	Count  int64  `gorm:"column:count" json:"count"`
 }
 
 // OperationLogStatsDetail 操作日志详细统计（读聚合表，清理明细不影响累计）
@@ -59,57 +109,14 @@ type OperationLogStatsDetail struct {
 	MethodStats      []MethodStat          `json:"method_stats"`
 }
 
-// InitOperationLogAggregateTables 初始化操作日志聚合表
-func InitOperationLogAggregateTables() {
-	schemas := []string{
-		`CREATE TABLE IF NOT EXISTS operation_log_stats (
-      stat_key VARCHAR(32) NOT NULL PRIMARY KEY,
-      total_count BIGINT NOT NULL DEFAULT 0,
-      success_count BIGINT NOT NULL DEFAULT 0,
-      client_error_count BIGINT NOT NULL DEFAULT 0,
-      server_error_count BIGINT NOT NULL DEFAULT 0,
-      total_duration BIGINT NOT NULL DEFAULT 0,
-      updated_at BIGINT NOT NULL DEFAULT 0
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志累计汇总';`,
-		`CREATE TABLE IF NOT EXISTS operation_log_daily_stats (
-      day_key INT UNSIGNED NOT NULL PRIMARY KEY,
-      total_count BIGINT NOT NULL DEFAULT 0,
-      updated_at BIGINT NOT NULL DEFAULT 0
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志按天汇总';`,
-		`CREATE TABLE IF NOT EXISTS operation_log_module_stats (
-      module VARCHAR(100) NOT NULL PRIMARY KEY,
-      total_count BIGINT NOT NULL DEFAULT 0,
-      updated_at BIGINT NOT NULL DEFAULT 0
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志按模块汇总';`,
-		`CREATE TABLE IF NOT EXISTS operation_log_action_stats (
-      action VARCHAR(100) NOT NULL PRIMARY KEY,
-      total_count BIGINT NOT NULL DEFAULT 0,
-      updated_at BIGINT NOT NULL DEFAULT 0
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志按动作汇总';`,
-		`CREATE TABLE IF NOT EXISTS operation_log_method_stats (
-      method VARCHAR(20) NOT NULL PRIMARY KEY,
-      total_count BIGINT NOT NULL DEFAULT 0,
-      updated_at BIGINT NOT NULL DEFAULT 0
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志按方法汇总';`,
-	}
-
-	for _, schema := range schemas {
-		if _, err := db.Exec(schema); err != nil {
-			log.Printf("[Init] Failed to create operation log aggregate table: %v", err)
-		}
-	}
-
-	backfillOperationLogAggregateIfNeeded()
-}
-
-func backfillOperationLogAggregateIfNeeded() {
-	// 日报查询统一经 db.Q 适配；SQLite 也需要回填已有日志，避免切换或重启后统计为空。
+// BackfillOperationLogAggregateIfNeeded 聚合表由 migrate.RunAutoMigrate 建表，仅回填历史数据
+func BackfillOperationLogAggregateIfNeeded() {
 	if !db.CheckTableExists("operation_logs") || !db.CheckTableExists("operation_log_stats") {
 		return
 	}
 
-	var existing int
-	if err := db.DB.Get(&existing, "SELECT COUNT(*) FROM operation_log_stats WHERE stat_key = ?", operationLogAggregateGlobalKey); err != nil {
+	var existing int64
+	if err := db.DB.Model(&OperationLogStat{}).Where("stat_key = ?", operationLogAggregateGlobalKey).Count(&existing).Error; err != nil {
 		log.Printf("[Init] Failed to check operation log aggregate data: %v", err)
 		return
 	}
@@ -117,102 +124,83 @@ func backfillOperationLogAggregateIfNeeded() {
 		return
 	}
 
-	tx, err := db.DB.Beginx()
-	if err != nil {
-		log.Printf("[Init] Failed to begin operation log aggregate backfill: %v", err)
-		return
-	}
-
-	if err := rebuildOperationLogAggregate(tx); err != nil {
-		_ = tx.Rollback()
+	if err := db.WithTx(rebuildOperationLogAggregate); err != nil {
 		log.Printf("[Init] Failed to backfill operation log aggregate data: %v", err)
-		return
-	}
-
-	if err := tx.Commit(); err != nil {
-		log.Printf("[Init] Failed to commit operation log aggregate backfill: %v", err)
 	}
 }
 
-func rebuildOperationLogAggregate(tx *sqlx.Tx) error {
-	tables := []string{
-		"operation_log_stats",
-		"operation_log_daily_stats",
-		"operation_log_module_stats",
-		"operation_log_action_stats",
-		"operation_log_method_stats",
-	}
-	for _, tableName := range tables {
-		if _, err := tx.Exec("DELETE FROM " + tableName); err != nil {
+func rebuildOperationLogAggregate(tx *gorm.DB) error {
+	for _, m := range []interface{}{
+		&OperationLogStat{}, &OperationLogDailyStat{},
+		&OperationLogModuleStatRow{}, &OperationLogActionStatRow{}, &OperationLogMethodStatRow{},
+	} {
+		if err := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Where("1=1").Delete(m).Error; err != nil {
 			return err
 		}
 	}
 
 	now := time.Now().Unix()
 	var global operationLogAggregateGlobal
-	if err := tx.Get(&global, `SELECT
+	if err := tx.Raw(`SELECT
     COUNT(*) AS total_count,
     COALESCE(SUM(CASE WHEN status_code >= 200 AND status_code < 400 THEN 1 ELSE 0 END), 0) AS success_count,
     COALESCE(SUM(CASE WHEN status_code >= 400 AND status_code < 500 THEN 1 ELSE 0 END), 0) AS client_error_count,
     COALESCE(SUM(CASE WHEN status_code >= 500 THEN 1 ELSE 0 END), 0) AS server_error_count,
     COALESCE(SUM(duration), 0) AS total_duration
-    FROM operation_logs`); err != nil {
+    FROM operation_logs`).Scan(&global).Error; err != nil {
 		return err
 	}
 
-	if _, err := tx.Exec(
-		`INSERT INTO operation_log_stats (stat_key, total_count, success_count, client_error_count, server_error_count, total_duration, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		operationLogAggregateGlobalKey,
-		global.TotalCount,
-		global.SuccessCount,
-		global.ClientErrorCount,
-		global.ServerErrorCount,
-		global.TotalDuration,
-		now,
-	); err != nil {
+	if err := tx.Create(&OperationLogStat{
+		StatKey: operationLogAggregateGlobalKey,
+		TotalCount: global.TotalCount, SuccessCount: global.SuccessCount,
+		ClientErrorCount: global.ClientErrorCount, ServerErrorCount: global.ServerErrorCount,
+		TotalDuration: global.TotalDuration, UpdatedAt: now,
+	}).Error; err != nil {
 		return err
 	}
 
-	var dailyRows []operationLogAggregateDailyRow
-	if err := tx.Select(&dailyRows, db.Q(`SELECT CAST(DATE_FORMAT(FROM_UNIXTIME(create_time), '%Y%m%d') AS UNSIGNED) AS day_key, COUNT(*) AS total_count FROM operation_logs GROUP BY day_key ORDER BY day_key ASC`)); err != nil {
+	var dailyRows []aggregateDailyRow
+	if rows, err := scanDailyCountsFromUnixColumn(tx, "operation_logs", "create_time", resolveOperationLogDayKey); err != nil {
 		return err
+	} else {
+		dailyRows = rows
 	}
 	for _, row := range dailyRows {
 		if row.DayKey <= 0 {
 			continue
 		}
-		if _, err := tx.Exec(`INSERT INTO operation_log_daily_stats (day_key, total_count, updated_at) VALUES (?, ?, ?)`, row.DayKey, row.TotalCount, now); err != nil {
+		if err := tx.Create(&OperationLogDailyStat{DayKey: row.DayKey, TotalCount: row.TotalCount, UpdatedAt: now}).Error; err != nil {
 			return err
 		}
 	}
 
 	var moduleRows []operationLogAggregateModuleRow
-	if err := tx.Select(&moduleRows, `SELECT COALESCE(NULLIF(module, ''), 'unknown') AS module, COUNT(*) AS total_count FROM operation_logs GROUP BY COALESCE(NULLIF(module, ''), 'unknown') ORDER BY total_count DESC`); err != nil {
+	if err := tx.Raw(`SELECT COALESCE(NULLIF(module, ''), 'unknown') AS module, COUNT(*) AS total_count FROM operation_logs GROUP BY COALESCE(NULLIF(module, ''), 'unknown') ORDER BY total_count DESC`).Scan(&moduleRows).Error; err != nil {
 		return err
 	}
 	for _, row := range moduleRows {
-		if _, err := tx.Exec(`INSERT INTO operation_log_module_stats (module, total_count, updated_at) VALUES (?, ?, ?)`, row.Module, row.TotalCount, now); err != nil {
+		if err := tx.Create(&OperationLogModuleStatRow{Module: row.Module, TotalCount: row.TotalCount, UpdatedAt: now}).Error; err != nil {
 			return err
 		}
 	}
 
 	var actionRows []operationLogAggregateActionRow
-	if err := tx.Select(&actionRows, `SELECT COALESCE(NULLIF(action, ''), 'unknown') AS action, COUNT(*) AS total_count FROM operation_logs GROUP BY COALESCE(NULLIF(action, ''), 'unknown') ORDER BY total_count DESC`); err != nil {
+	if err := tx.Raw(`SELECT COALESCE(NULLIF(action, ''), 'unknown') AS action, COUNT(*) AS total_count FROM operation_logs GROUP BY COALESCE(NULLIF(action, ''), 'unknown') ORDER BY total_count DESC`).Scan(&actionRows).Error; err != nil {
 		return err
 	}
 	for _, row := range actionRows {
-		if _, err := tx.Exec(`INSERT INTO operation_log_action_stats (action, total_count, updated_at) VALUES (?, ?, ?)`, row.Action, row.TotalCount, now); err != nil {
+		if err := tx.Create(&OperationLogActionStatRow{Action: row.Action, TotalCount: row.TotalCount, UpdatedAt: now}).Error; err != nil {
 			return err
 		}
 	}
 
 	var methodRows []operationLogAggregateMethodRow
-	if err := tx.Select(&methodRows, `SELECT COALESCE(NULLIF(method, ''), 'UNKNOWN') AS method, COUNT(*) AS total_count FROM operation_logs GROUP BY COALESCE(NULLIF(method, ''), 'UNKNOWN') ORDER BY total_count DESC`); err != nil {
+	if err := tx.Raw(`SELECT COALESCE(NULLIF(method, ''), 'UNKNOWN') AS method, COUNT(*) AS total_count FROM operation_logs GROUP BY COALESCE(NULLIF(method, ''), 'UNKNOWN') ORDER BY total_count DESC`).Scan(&methodRows).Error; err != nil {
 		return err
 	}
 	for _, row := range methodRows {
-		if _, err := tx.Exec(`INSERT INTO operation_log_method_stats (method, total_count, updated_at) VALUES (?, ?, ?)`, row.Method, row.TotalCount, now); err != nil {
+		if err := tx.Create(&OperationLogMethodStatRow{Method: row.Method, TotalCount: row.TotalCount, UpdatedAt: now}).Error; err != nil {
 			return err
 		}
 	}
@@ -226,122 +214,58 @@ func RecordOperationLogAggregate(item *OperationLog) error {
 		return nil
 	}
 
-	tx, err := db.DB.Beginx()
-	if err != nil {
-		return err
-	}
-
-	committed := false
-	defer func() {
-		if !committed {
-			_ = tx.Rollback()
+	return db.WithTx(func(tx *gorm.DB) error {
+		createTime := time.Now().Unix()
+		if item.CreateTime != nil && *item.CreateTime > 0 {
+			createTime = *item.CreateTime
 		}
-	}()
+		updatedAt := time.Now().Unix()
+		dayKey := resolveOperationLogDayKey(createTime)
+		module := resolveOperationLogAggregateModule(item.Module)
+		action := resolveOperationLogAggregateAction(item.Action)
+		method := resolveOperationLogAggregateMethod(item.Method)
 
-	createTime := time.Now().Unix()
-	if item.CreateTime != nil && *item.CreateTime > 0 {
-		createTime = *item.CreateTime
-	}
-	updatedAt := time.Now().Unix()
-	dayKey := resolveOperationLogDayKey(createTime)
-	module := resolveOperationLogAggregateModule(item.Module)
-	action := resolveOperationLogAggregateAction(item.Action)
-	method := resolveOperationLogAggregateMethod(item.Method)
+		successCount := int64(0)
+		clientErrorCount := int64(0)
+		serverErrorCount := int64(0)
+		switch {
+		case item.StatusCode >= 200 && item.StatusCode < 400:
+			successCount = 1
+		case item.StatusCode >= 400 && item.StatusCode < 500:
+			clientErrorCount = 1
+		case item.StatusCode >= 500:
+			serverErrorCount = 1
+		}
 
-	successCount := 0
-	clientErrorCount := 0
-	serverErrorCount := 0
-	switch {
-	case item.StatusCode >= 200 && item.StatusCode < 400:
-		successCount = 1
-	case item.StatusCode >= 400 && item.StatusCode < 500:
-		clientErrorCount = 1
-	case item.StatusCode >= 500:
-		serverErrorCount = 1
-	}
+		if err := tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "stat_key"}},
+			DoUpdates: clause.Assignments(map[string]interface{}{
+				"total_count":        gorm.Expr("total_count + 1"),
+				"success_count":      gorm.Expr("success_count + ?", successCount),
+				"client_error_count": gorm.Expr("client_error_count + ?", clientErrorCount),
+				"server_error_count": gorm.Expr("server_error_count + ?", serverErrorCount),
+				"total_duration":     gorm.Expr("total_duration + ?", item.Duration),
+				"updated_at":         updatedAt,
+			}),
+		}).Create(&OperationLogStat{
+			StatKey: operationLogAggregateGlobalKey, TotalCount: 1,
+			SuccessCount: successCount, ClientErrorCount: clientErrorCount,
+			ServerErrorCount: serverErrorCount, TotalDuration: int64(item.Duration), UpdatedAt: updatedAt,
+		}).Error; err != nil {
+			return err
+		}
 
-	if _, err := tx.Exec(
-		db.Q(`INSERT INTO operation_log_stats (stat_key, total_count, success_count, client_error_count, server_error_count, total_duration, updated_at)
-    VALUES (?, 1, ?, ?, ?, ?, ?)
-    ON DUPLICATE KEY UPDATE
-      total_count = total_count + 1,
-      success_count = success_count + ?,
-      client_error_count = client_error_count + ?,
-      server_error_count = server_error_count + ?,
-      total_duration = total_duration + ?,
-      updated_at = ?`),
-		operationLogAggregateGlobalKey,
-		successCount,
-		clientErrorCount,
-		serverErrorCount,
-		item.Duration,
-		updatedAt,
-		successCount,
-		clientErrorCount,
-		serverErrorCount,
-		item.Duration,
-		updatedAt,
-	); err != nil {
-		return err
-	}
-
-	if _, err := tx.Exec(
-		db.Q(`INSERT INTO operation_log_daily_stats (day_key, total_count, updated_at)
-    VALUES (?, 1, ?)
-    ON DUPLICATE KEY UPDATE
-      total_count = total_count + 1,
-      updated_at = ?`),
-		dayKey,
-		updatedAt,
-		updatedAt,
-	); err != nil {
-		return err
-	}
-
-	if _, err := tx.Exec(
-		db.Q(`INSERT INTO operation_log_module_stats (module, total_count, updated_at)
-    VALUES (?, 1, ?)
-    ON DUPLICATE KEY UPDATE
-      total_count = total_count + 1,
-      updated_at = ?`),
-		module,
-		updatedAt,
-		updatedAt,
-	); err != nil {
-		return err
-	}
-
-	if _, err := tx.Exec(
-		db.Q(`INSERT INTO operation_log_action_stats (action, total_count, updated_at)
-    VALUES (?, 1, ?)
-    ON DUPLICATE KEY UPDATE
-      total_count = total_count + 1,
-      updated_at = ?`),
-		action,
-		updatedAt,
-		updatedAt,
-	); err != nil {
-		return err
-	}
-
-	if _, err := tx.Exec(
-		db.Q(`INSERT INTO operation_log_method_stats (method, total_count, updated_at)
-    VALUES (?, 1, ?)
-    ON DUPLICATE KEY UPDATE
-      total_count = total_count + 1,
-      updated_at = ?`),
-		method,
-		updatedAt,
-		updatedAt,
-	); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	committed = true
-	return nil
+		if err := upsertDailyTotal(tx, "operation_log_daily_stats", dayKey, updatedAt); err != nil {
+			return err
+		}
+		if err := upsertKeyedTotal(tx, "operation_log_module_stats", "module", module, updatedAt); err != nil {
+			return err
+		}
+		if err := upsertKeyedTotal(tx, "operation_log_action_stats", "action", action, updatedAt); err != nil {
+			return err
+		}
+		return upsertKeyedTotal(tx, "operation_log_method_stats", "method", method, updatedAt)
+	})
 }
 
 // GetOperationLogStatsDetail 获取操作日志详细统计（优先聚合表，缺失时回退扫明细）
@@ -361,10 +285,14 @@ func getOperationLogStatsFromAggregate() (*OperationLogStatsDetail, error) {
 	}
 
 	var global operationLogAggregateGlobal
-	if err := db.DB.Get(&global, `SELECT total_count, success_count, client_error_count, server_error_count, total_duration FROM operation_log_stats WHERE stat_key = ?`, operationLogAggregateGlobalKey); err != nil {
-		if err == sql.ErrNoRows {
-			return getOperationLogStatsFromLogsFallback()
-		}
+	err := db.DB.Model(&OperationLogStat{}).
+		Select("total_count, success_count, client_error_count, server_error_count, total_duration").
+		Where("stat_key = ?", operationLogAggregateGlobalKey).
+		First(&global).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return getOperationLogStatsFromLogsFallback()
+	}
+	if err != nil {
 		return nil, err
 	}
 
@@ -377,16 +305,20 @@ func getOperationLogStatsFromAggregate() (*OperationLogStatsDetail, error) {
 	}
 
 	todayKey := resolveOperationLogDayKey(time.Now().Unix())
-	if err := db.DB.Get(&stats.TodayCount, `SELECT total_count FROM operation_log_daily_stats WHERE day_key = ?`, todayKey); err != nil && err != sql.ErrNoRows {
+	var daily OperationLogDailyStat
+	if err := db.DB.Select("total_count").Where("day_key = ?", todayKey).First(&daily).Error; err == nil {
+		stats.TodayCount = daily.TotalCount
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
-	if err := db.DB.Select(&stats.TopModules, `SELECT module, total_count AS count FROM operation_log_module_stats ORDER BY total_count DESC, module ASC LIMIT 10`); err != nil {
+
+	if err := db.DB.Raw(`SELECT module, total_count AS count FROM operation_log_module_stats ORDER BY total_count DESC, module ASC LIMIT 10`).Scan(&stats.TopModules).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Select(&stats.TopActions, `SELECT action, total_count AS count FROM operation_log_action_stats ORDER BY total_count DESC, action ASC LIMIT 10`); err != nil {
+	if err := db.DB.Raw(`SELECT action, total_count AS count FROM operation_log_action_stats ORDER BY total_count DESC, action ASC LIMIT 10`).Scan(&stats.TopActions).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Select(&stats.MethodStats, `SELECT method, total_count AS count FROM operation_log_method_stats ORDER BY total_count DESC, method ASC`); err != nil {
+	if err := db.DB.Raw(`SELECT method, total_count AS count FROM operation_log_method_stats ORDER BY total_count DESC, method ASC`).Scan(&stats.MethodStats).Error; err != nil {
 		return nil, err
 	}
 
@@ -401,31 +333,31 @@ func getOperationLogStatsFromLogsFallback() (*OperationLogStatsDetail, error) {
 	}
 	todayStart := resolveOperationLogStartOfLocalDay(time.Now()).Unix()
 
-	if err := db.DB.Get(&stats.TotalCount, "SELECT COUNT(*) FROM operation_logs"); err != nil {
+	if err := db.DB.Raw("SELECT COUNT(*) FROM operation_logs").Scan(&stats.TotalCount).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Get(&stats.TodayCount, "SELECT COUNT(*) FROM operation_logs WHERE create_time >= ?", todayStart); err != nil {
+	if err := db.DB.Raw("SELECT COUNT(*) FROM operation_logs WHERE create_time >= ?", todayStart).Scan(&stats.TodayCount).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Get(&stats.SuccessCount, "SELECT COUNT(*) FROM operation_logs WHERE status_code >= 200 AND status_code < 400"); err != nil {
+	if err := db.DB.Raw("SELECT COUNT(*) FROM operation_logs WHERE status_code >= 200 AND status_code < 400").Scan(&stats.SuccessCount).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Get(&stats.ClientErrorCount, "SELECT COUNT(*) FROM operation_logs WHERE status_code >= 400 AND status_code < 500"); err != nil {
+	if err := db.DB.Raw("SELECT COUNT(*) FROM operation_logs WHERE status_code >= 400 AND status_code < 500").Scan(&stats.ClientErrorCount).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Get(&stats.ServerErrorCount, "SELECT COUNT(*) FROM operation_logs WHERE status_code >= 500"); err != nil {
+	if err := db.DB.Raw("SELECT COUNT(*) FROM operation_logs WHERE status_code >= 500").Scan(&stats.ServerErrorCount).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Get(&stats.AvgDuration, "SELECT COALESCE(AVG(duration), 0) FROM operation_logs"); err != nil {
+	if err := db.DB.Raw("SELECT COALESCE(AVG(duration), 0) FROM operation_logs").Scan(&stats.AvgDuration).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Select(&stats.TopModules, `SELECT COALESCE(NULLIF(module, ''), 'unknown') AS module, COUNT(*) AS count FROM operation_logs GROUP BY COALESCE(NULLIF(module, ''), 'unknown') ORDER BY count DESC LIMIT 10`); err != nil {
+	if err := db.DB.Raw(`SELECT COALESCE(NULLIF(module, ''), 'unknown') AS module, COUNT(*) AS count FROM operation_logs GROUP BY COALESCE(NULLIF(module, ''), 'unknown') ORDER BY count DESC LIMIT 10`).Scan(&stats.TopModules).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Select(&stats.TopActions, `SELECT COALESCE(NULLIF(action, ''), 'unknown') AS action, COUNT(*) AS count FROM operation_logs GROUP BY COALESCE(NULLIF(action, ''), 'unknown') ORDER BY count DESC LIMIT 10`); err != nil {
+	if err := db.DB.Raw(`SELECT COALESCE(NULLIF(action, ''), 'unknown') AS action, COUNT(*) AS count FROM operation_logs GROUP BY COALESCE(NULLIF(action, ''), 'unknown') ORDER BY count DESC LIMIT 10`).Scan(&stats.TopActions).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Select(&stats.MethodStats, `SELECT COALESCE(NULLIF(method, ''), 'UNKNOWN') AS method, COUNT(*) AS count FROM operation_logs GROUP BY COALESCE(NULLIF(method, ''), 'UNKNOWN') ORDER BY count DESC`); err != nil {
+	if err := db.DB.Raw(`SELECT COALESCE(NULLIF(method, ''), 'UNKNOWN') AS method, COUNT(*) AS count FROM operation_logs GROUP BY COALESCE(NULLIF(method, ''), 'UNKNOWN') ORDER BY count DESC`).Scan(&stats.MethodStats).Error; err != nil {
 		return nil, err
 	}
 	return stats, nil

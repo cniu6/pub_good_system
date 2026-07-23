@@ -229,8 +229,8 @@ func dbDriverDisplayName() string {
 
 func buildDatabaseStatus() gin.H {
 	name := dbDriverDisplayName()
-	database := db.GetDB()
-	if database == nil {
+	database, err := db.SQLDB()
+	if err != nil || database == nil {
 		return gin.H{
 			"name":      name,
 			"db_driver": db.DriverName(),

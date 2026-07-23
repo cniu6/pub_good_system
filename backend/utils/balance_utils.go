@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +8,8 @@ import (
 	"fst/backend/pkg/db"
 	"log"
 	"math"
+
+	"gorm.io/gorm"
 )
 
 // ========================================
@@ -131,28 +132,22 @@ func ExecuteBalanceOp(req *BalanceReq, opType BalanceOpType) (*BalanceResult, er
 		return nil, errors.New("用户ID不能为空")
 	}
 
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return nil, fmt.Errorf("开启事务失败: %w", err)
-	}
-	defer tx.Rollback()
-
-	result, err := ExecuteBalanceOpTx(tx, req, opType)
+	var result *BalanceResult
+	err := db.DB.Transaction(func(tx *gorm.DB) error {
+		var innerErr error
+		result, innerErr = ExecuteBalanceOpTx(tx, req, opType)
+		return innerErr
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("提交事务失败: %w", err)
-	}
-
 	return result, nil
 }
 
 // ExecuteBalanceOpTx 在已有事务中执行余额操作
 // 用于嵌入到更大的事务流程中（如支付回调）
 // 内部计算全部按「分」整数进行，落库前再转回「元」，兼容现有 DECIMAL(10,2) 字段。
-func ExecuteBalanceOpTx(tx *sql.Tx, req *BalanceReq, opType BalanceOpType) (*BalanceResult, error) {
+func ExecuteBalanceOpTx(tx *gorm.DB, req *BalanceReq, opType BalanceOpType) (*BalanceResult, error) {
 	if req.UserID == 0 {
 		return nil, errors.New("用户ID不能为空")
 	}

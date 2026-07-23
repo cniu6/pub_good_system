@@ -7,22 +7,24 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"fst/backend/pkg/config"
 
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
-	_ "modernc.org/sqlite"
+	"github.com/glebarez/sqlite"
+	mysqlDriver "gorm.io/driver/mysql"
+	postgresDriver "gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
-// DB 全局 sqlx 连接。建表/自迁移请走 internal/migrate.RunAutoMigrate，不要在这里顺带 Migrate。
-var DB *sqlx.DB
+// DB 全局 GORM 连接（业务唯一入口）。
+var DB *gorm.DB
 
-// activeDriver 归一化后的驱动名：mysql / sqlite（由 InitDB 写入）。
+// activeDriver 归一化后的驱动名：mysql / sqlite / postgres。
 var activeDriver string
 
-// InitDB 仅建立数据库连接与连接池，不执行表迁移。
-// 支持 DB_DRIVER=mysql（默认）/ sqlite|sqlite3 / postgres|postgresql；不会在 MySQL 失败时偷偷切库。
+// InitDB 建立 GORM 连接。不执行表迁移（由 migrate.RunAutoMigrate 负责）。
 func InitDB() {
 	cfg := config.GlobalConfig
 	if cfg == nil {
@@ -32,16 +34,71 @@ func InitDB() {
 	driver := normalizeDriver(cfg.DBDriver)
 	activeDriver = driver
 
+	gormCfg := &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Warn),
+		NowFunc: func() time.Time {
+			return time.Now()
+		},
+		DisableForeignKeyConstraintWhenMigrating: true,
+	}
+
+	var (
+		gdb *gorm.DB
+		err error
+	)
+
 	switch driver {
 	case "mysql":
-		initMySQL(cfg)
+		gdb, err = gorm.Open(mysqlDriver.Open(cfg.DBDSN), gormCfg)
+		if err != nil {
+			logMySQLConnectFailure(err)
+			log.Fatalf("[数据库连接错误] 无法连接 MySQL，请检查服务与配置后重试")
+		}
+		log.Println("[DB] MySQL 连接已建立（GORM）")
 	case "sqlite":
-		initSQLite(cfg)
+		dsn := strings.TrimSpace(cfg.DBDSN)
+		if dsn == "" {
+			log.Fatalf("[数据库配置错误] SQLite DSN 为空，请检查 DB_PATH / DB_NAME")
+		}
+		if err := ensureSQLiteDir(dsn); err != nil {
+			log.Fatalf("[数据库配置错误] 无法创建 SQLite 数据目录: %v", err)
+		}
+		gdb, err = gorm.Open(sqlite.Open(sqliteOpenName(dsn)), gormCfg)
+		if err != nil {
+			log.Fatalf("[数据库连接错误] 无法打开 SQLite（DSN=%s）: %v", sanitizeSQLiteDSNForLog(dsn), err)
+		}
+		log.Printf("[DB] SQLite 连接已建立（GORM / glebarez；生产请改用 MySQL/Postgres）")
 	case "postgres":
-		initPostgres(cfg)
+		gdb, err = gorm.Open(postgresDriver.Open(cfg.DBDSN), gormCfg)
+		if err != nil {
+			log.Fatalf("[数据库连接错误] 无法连接 PostgreSQL: %v", err)
+		}
+		log.Println("[DB] PostgreSQL 连接已建立（GORM）")
 	default:
 		log.Fatalf("[数据库配置错误] 不支持的 DB_DRIVER=%q，请使用 mysql / sqlite / postgres", cfg.DBDriver)
 	}
+
+	sqlDB, err := gdb.DB()
+	if err != nil {
+		log.Fatalf("[数据库连接错误] 获取底层 *sql.DB 失败: %v", err)
+	}
+
+	if driver == "sqlite" {
+		sqlDB.SetMaxOpenConns(1)
+		sqlDB.SetMaxIdleConns(1)
+	} else {
+		sqlDB.SetMaxOpenConns(100)
+		sqlDB.SetMaxIdleConns(10)
+	}
+
+	DB = gdb
+}
+
+func sqliteOpenName(dsn string) string {
+	if p := extractSQLiteFilePath(dsn); p != "" {
+		return p
+	}
+	return dsn
 }
 
 func normalizeDriver(raw string) string {
@@ -58,72 +115,12 @@ func normalizeDriver(raw string) string {
 	}
 }
 
-func initMySQL(cfg *config.Config) {
-	var err error
-	DB, err = sqlx.Connect("mysql", cfg.DBDSN)
-	if err != nil {
-		logMySQLConnectFailure(err, cfg)
-		log.Fatalf("[数据库连接错误] 无法连接 MySQL，请检查服务与配置后重试")
-	}
-
-	DB.SetMaxOpenConns(100)
-	DB.SetMaxIdleConns(10)
-
-	log.Println("[DB] MySQL 连接已建立")
-}
-
-func initSQLite(cfg *config.Config) {
-	dsn := strings.TrimSpace(cfg.DBDSN)
-	if dsn == "" {
-		log.Fatalf("[数据库配置错误] SQLite DSN 为空，请检查 DB_PATH / DB_NAME")
-	}
-
-	// 从 file: 路径里取出文件，确保父目录存在（Windows 友好）
-	if err := ensureSQLiteDir(dsn); err != nil {
-		log.Fatalf("[数据库配置错误] 无法创建 SQLite 数据目录: %v", err)
-	}
-
-	var err error
-	// modernc.org/sqlite 注册名为 sqlite（纯 Go，Windows 无需 CGO）
-	DB, err = sqlx.Connect("sqlite", dsn)
-	if err != nil {
-		log.Fatalf("[数据库连接错误] 无法打开 SQLite（DSN=%s）: %v", sanitizeSQLiteDSNForLog(dsn), err)
-	}
-
-	// SQLite 写锁敏感：默认单连接更稳；已开 WAL 时可略放宽
-	DB.SetMaxOpenConns(1)
-	DB.SetMaxIdleConns(1)
-
-	log.Printf("[DB] SQLite 连接已建立（临时/本地模式，数据文件见 DB_PATH；生产请改用 MySQL）")
-}
-
-// initPostgres 建立 PostgreSQL 连接。走 pg-shim 驱动（见 pg_shim.go），
-// 对业务完全透明地把 MySQL 风格 SQL（? 占位符、反引号、ON DUPLICATE KEY 等）转换成 Postgres 可执行语句，
-// 不需要改动 models 层任何一行现有代码。
-func initPostgres(cfg *config.Config) {
-	var err error
-	DB, err = sqlx.Connect(pgShimDriverName, cfg.DBDSN)
-	if err != nil {
-		log.Fatalf("[数据库连接错误] 无法连接 PostgreSQL，请检查服务与配置后重试: %v", err)
-	}
-
-	DB.SetMaxOpenConns(100)
-	DB.SetMaxIdleConns(10)
-
-	log.Println("[DB] PostgreSQL 连接已建立（经 pg-shim 兼容层，MySQL 风格 SQL 自动转换）")
-}
-
-// logMySQLConnectFailure 打印中文失败原因 + 可改用 SQLite 的明确配置指引（不自动切库）。
-func logMySQLConnectFailure(err error, cfg *config.Config) {
+func logMySQLConnectFailure(err error) {
 	log.Printf("[数据库连接错误] 无法连接 MySQL: %v", err)
-	log.Println("[临时缓解] 本地暂时没有 MySQL（或连不上）时，可改用 SQLite，步骤如下：")
-	log.Println("  1) 在项目根目录 .env 设置：DB_DRIVER=sqlite")
-	log.Println("  2) 可选：DB_PATH=./fst.db  （默认 data/fst.db；本地可放运行目录同级，不要 data/）")
-	log.Println("  3) 保存后重启后端；SQLite 仅建议开发/临时使用，生产请恢复 MySQL")
-	if cfg != nil && strings.TrimSpace(cfg.DBDSN) != "" {
-		// 不打印密码：DSN 形如 user:pass@tcp(...)，只提示驱动与主机概念
-		log.Println("  当前仍按 MySQL 连接；不会自动切换，以免静默改库")
-	}
+	log.Println("[临时缓解] 本地暂时没有 MySQL（或连不上）时，可改用 SQLite：")
+	log.Println("  1) 根目录 .env：DB_DRIVER=sqlite")
+	log.Println("  2) 可选：DB_PATH=./fst.db")
+	log.Println("  3) 保存后重启后端")
 }
 
 func ensureSQLiteDir(dsn string) error {
@@ -138,7 +135,6 @@ func ensureSQLiteDir(dsn string) error {
 	return os.MkdirAll(dir, 0o755)
 }
 
-// extractSQLiteFilePath 从 modernc DSN（file:路径?参数 或裸路径）解析出文件系统路径。
 func extractSQLiteFilePath(dsn string) string {
 	s := strings.TrimSpace(dsn)
 	if s == "" {
@@ -146,7 +142,6 @@ func extractSQLiteFilePath(dsn string) string {
 	}
 	if strings.HasPrefix(s, "file:") {
 		s = strings.TrimPrefix(s, "file:")
-		// file:///C:/x 或 file:C:/x 或 file:./data/x.db
 		s = strings.TrimPrefix(s, "//")
 		if i := strings.Index(s, "?"); i >= 0 {
 			s = s[:i]
@@ -158,7 +153,6 @@ func extractSQLiteFilePath(dsn string) string {
 	if s == "" {
 		return ""
 	}
-	// URI 里是斜杠，转成本地路径
 	return filepath.FromSlash(s)
 }
 
@@ -169,42 +163,17 @@ func sanitizeSQLiteDSNForLog(dsn string) string {
 	return dsn
 }
 
-// Exec 执行 SQL。SQLite/Postgres 下：DDL 做 MySQL→目标方言适配（可能拆成多条语句，
-// 比如表内联索引要拆成独立 CREATE INDEX）；DML 走 Q() 做常见方言转换。
-func Exec(query string, args ...interface{}) (sql.Result, error) {
+// Close 关闭底层连接。
+func Close() error {
 	if DB == nil {
-		return nil, fmt.Errorf("数据库未初始化")
+		return nil
 	}
-	if isDDL(query) {
-		var stmts []string
-		switch {
-		case IsSQLite():
-			stmts = AdaptMySQLDDLToSQLite(query)
-		case IsPostgres():
-			stmts = AdaptMySQLDDLToPostgres(query)
-		default:
-			return DB.Exec(query, args...)
-		}
-		if len(stmts) == 0 {
-			// 例如 CHANGE COLUMN：SQLite/Postgres 临时模式直接跳过
-			return nil, nil
-		}
-		var res sql.Result
-		var err error
-		for _, stmt := range stmts {
-			// DDL 一般无占位参数；若有 args，仅第一条带上（兼容极少场景）
-			if res == nil && len(args) > 0 {
-				res, err = DB.Exec(stmt, args...)
-			} else {
-				res, err = DB.Exec(stmt)
-			}
-			if err != nil {
-				return res, err
-			}
-		}
-		return res, nil
+	sqlDB, err := DB.DB()
+	if err != nil {
+		return err
 	}
-	return DB.Exec(Q(query), args...)
+	DB = nil
+	return sqlDB.Close()
 }
 
 // CheckTableExists 当前库是否存在指定表。
@@ -212,25 +181,7 @@ func CheckTableExists(tableName string) bool {
 	if DB == nil {
 		return false
 	}
-	switch {
-	case IsSQLite():
-		var name string
-		err := DB.Get(&name, `SELECT name FROM sqlite_master WHERE type='table' AND name=?`, tableName)
-		return err == nil && name != ""
-	case IsPostgres():
-		// Postgres 没有 DATABASE() 这个 MySQL 函数，用 current_schema() 限定到当前连接的 schema（默认 public）
-		var count int
-		query := `SELECT COUNT(*) FROM information_schema.tables
-				  WHERE table_schema = current_schema() AND table_name = ?`
-		err := DB.Get(&count, query, tableName)
-		return err == nil && count > 0
-	default:
-		var count int
-		query := `SELECT COUNT(*) FROM information_schema.tables 
-				  WHERE table_schema = DATABASE() AND table_name = ?`
-		err := DB.Get(&count, query, tableName)
-		return err == nil && count > 0
-	}
+	return DB.Migrator().HasTable(tableName)
 }
 
 // CheckColumnExists 指定表是否存在指定列。
@@ -238,29 +189,7 @@ func CheckColumnExists(tableName, columnName string) bool {
 	if DB == nil {
 		return false
 	}
-	switch {
-	case IsSQLite():
-		var count int
-		// pragma_table_info 可作为表值函数查询
-		err := DB.Get(&count, `SELECT COUNT(*) FROM pragma_table_info(?) WHERE name=?`, tableName, columnName)
-		return err == nil && count > 0
-	case IsPostgres():
-		var count int
-		query := `SELECT COUNT(*) FROM information_schema.columns
-				  WHERE table_schema = current_schema()
-				  AND table_name = ?
-				  AND column_name = ?`
-		err := DB.Get(&count, query, tableName, columnName)
-		return err == nil && count > 0
-	default:
-		var count int
-		query := `SELECT COUNT(*) FROM information_schema.columns 
-				  WHERE table_schema = DATABASE() 
-				  AND table_name = ? 
-				  AND column_name = ?`
-		err := DB.Get(&count, query, tableName, columnName)
-		return err == nil && count > 0
-	}
+	return DB.Migrator().HasColumn(tableName, columnName)
 }
 
 // CheckIndexExists 指定表是否存在指定索引。
@@ -268,85 +197,38 @@ func CheckIndexExists(tableName, indexName string) bool {
 	if DB == nil {
 		return false
 	}
-	switch {
-	case IsSQLite():
-		var count int
-		err := DB.Get(&count,
-			`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=? AND tbl_name=?`,
-			indexName, tableName)
-		return err == nil && count > 0
-	case IsPostgres():
-		// Postgres 的索引名在同一 schema 下全局唯一（不像 MySQL 按表分区），
-		// 但这里仍带上 tablename 过滤，语义上与「指定表的指定索引」保持一致。
-		var count int
-		query := `SELECT COUNT(*) FROM pg_indexes
-				  WHERE schemaname = current_schema()
-				  AND tablename = ?
-				  AND indexname = ?`
-		err := DB.Get(&count, query, tableName, indexName)
-		return err == nil && count > 0
-	default:
-		var count int
-		query := `SELECT COUNT(*) FROM information_schema.statistics 
-				  WHERE table_schema = DATABASE() 
-				  AND table_name = ? 
-				  AND index_name = ?`
-		err := DB.Get(&count, query, tableName, indexName)
-		return err == nil && count > 0
-	}
+	return DB.Migrator().HasIndex(tableName, indexName)
 }
 
-// EnsureIndex 表存在且索引缺失时执行 ALTER/CREATE 补索引。
-func EnsureIndex(tableName, indexName, alterSQL string) {
-	if !CheckTableExists(tableName) || CheckIndexExists(tableName, indexName) {
-		return
-	}
-	_, err := Exec(alterSQL)
-	if err != nil {
-		log.Printf("[DB] 补索引 '%s' on '%s' 失败: %v", indexName, tableName, err)
-	} else {
-		log.Printf("[DB] 已补索引 '%s' on '%s'", indexName, tableName)
-	}
-}
-
-// GetDB 返回全局 sqlx 连接。
-func GetDB() *sqlx.DB {
+// GetDB 返回全局 GORM 连接。
+func GetDB() *gorm.DB {
 	return DB
 }
 
-// DriverName 返回当前归一化驱动名（mysql / sqlite / postgres），未初始化时为空。
+// SQLDB 返回底层 database/sql 连接（Ping/Stats 等用）。
+func SQLDB() (*sql.DB, error) {
+	if DB == nil {
+		return nil, fmt.Errorf("数据库未初始化")
+	}
+	return DB.DB()
+}
+
+// DriverName 返回当前归一化驱动名。
 func DriverName() string {
 	return activeDriver
 }
 
-// BoolAsTinyInt 把 Go bool 编成 0/1，供写入 TINYINT/SMALLINT 列。
-// Postgres 把 TINYINT 映射为 SMALLINT(int2)，直接绑 bool 会报无法编码。
-func BoolAsTinyInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
+// IsSQLite 当前是否 SQLite。
+func IsSQLite() bool {
+	return strings.EqualFold(activeDriver, "sqlite")
 }
 
-// LastInsertID 兼容三驱动取自增主键。
-// MySQL/SQLite 走 Result.LastInsertId；Postgres 不支持该接口，改为同会话 lastval()。
-// 注意：Postgres 分支依赖连接池里「刚执行完 INSERT 的那条连接」——sqlx 默认可能换连接，
-// 因此对关键路径更推荐 INSERT ... RETURNING；本函数作为广泛 LastInsertId 调用点的兜底。
-func LastInsertID(result sql.Result) (int64, error) {
-	if result != nil {
-		if id, err := result.LastInsertId(); err == nil && id > 0 {
-			return id, nil
-		}
-	}
-	if IsPostgres() {
-		var id int64
-		if err := DB.Get(&id, "SELECT lastval()"); err != nil {
-			return 0, fmt.Errorf("postgres lastval: %w", err)
-		}
-		return id, nil
-	}
-	if result == nil {
-		return 0, fmt.Errorf("nil sql.Result")
-	}
-	return result.LastInsertId()
+// IsMySQL 当前是否 MySQL。
+func IsMySQL() bool {
+	return strings.EqualFold(activeDriver, "mysql")
+}
+
+// IsPostgres 当前是否 PostgreSQL。
+func IsPostgres() bool {
+	return strings.EqualFold(activeDriver, "postgres")
 }

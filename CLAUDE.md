@@ -59,7 +59,7 @@ main.go (开发, tag !embedded) / main_embedded.go (tag embedded, //go:embed dis
 - `backend/app/` — 业务 MVC：controllers（**三层 public / user / admin**）+ models + services + plugins
 - `backend/routes/` — SetupRoutes 汇总，按 public.go / user.go / admin.go / ws.go 分文件；WS 自行鉴权不挂 HTTP AuthMiddleware
 - `backend/utils/` — Success/Fail 响应、JWT、邮件、手机区号等通用工具
-- 数据库用 sqlx，禁止绕过 models 层手拼 SQL；模型方法已封装软删除等约定
+- 数据库用 **GORM**（`db.DB *gorm.DB`），禁止绕过 models 层直接操作库；模型方法已封装软删除等约定
 
 ### 分层调用关系
 
@@ -70,7 +70,7 @@ HTTP → controllers → services → models → DB
 
 - **控制器**：参数绑定、权限上下文、响应封装
 - **服务**：事务边界、跨模型规则（支付绑定、提现状态机等）；控制器不直接操作数据库
-- **模型**：SQL 与字段映射，CRUD 命名统一 `动词+类型+条件`（如 `GetUserByID`、`CreatePaymentOrder`），禁止业务里写死 CamelCase 列名
+- **模型**：GORM CRUD 与字段映射，函数命名统一 `动词+类型+条件`（如 `GetUserByID`、`CreatePaymentOrder`），禁止业务里写死 CamelCase 列名；JSON/库列一律 snake_case
 
 ### 插件系统（全自动）
 
@@ -88,7 +88,7 @@ HTTP → controllers → services → models → DB
 
 - **只维护仓库根目录 `.env`**（参考 `.env.example`）；`backend/.env` 已废弃禁止再写。查找顺序：exe 同级 → `../.env` → 从 cwd 向上（跳过纯 VITE 文件）
 - 前端另有 `frontend/.env / .env.dev / .env.production`（Vite 分层），与后端根 `.env` 分开维护；仅需人工对齐 `VITE_ADMIN_BASE_PATH` ↔ `ADMIN_PATH`
-- `DB_DRIVER` 支持 mysql / sqlite / postgres（本地开发可用 sqlite，根目录 fst.db）。**没有用 ORM（无 gorm）**：是手写 SQL + `backend/pkg/db` 里的方言适配层做兼容，详见下方「数据库方言兼容层」
+- `DB_DRIVER` 支持 mysql / sqlite / postgres（本地开发可用 sqlite，根目录 fst.db）。**数据访问统一 GORM**：换库只改 `DB_DRIVER` + DSN，详见下方「数据库（GORM）」
 - 全局配置 `config.GlobalConfig` 并发安全（Clone/Update），运行时可被 system_settings 覆盖
 
 **并发安全 API（必用）**：
@@ -101,26 +101,24 @@ HTTP → controllers → services → models → DB
 | `IsProductionMode()` | 是否生产环境 |
 | `IsAdminDebugOpsEnabled()` | 是否允许 debug/pprof/重启/手动任务等 |
 
-### 数据库方言兼容层（`backend/pkg/db`，无 ORM）
+### 数据库（GORM，`backend/pkg/db`）
 
-项目不用 GORM/任何 ORM，models 层手写 MySQL 风格 SQL（`?` 占位符、反引号标识符、`ON DUPLICATE KEY UPDATE`、
-`FOR UPDATE`、`NOW()/FROM_UNIXTIME/DATE_FORMAT/UNIX_TIMESTAMP` 等），三种驱动共用同一份业务代码：
+业务数据访问统一为 GORM（`Create` / `Save` / `Updates` / `Where` / `First` / `Clauses(clause.Locking...)` / `Transaction` / `clause.OnConflict`）。**不要**再引入手写方言层或 sqlx。
 
 | 文件 | 作用 |
 |------|------|
-| `dialect.go` | `IsMySQL/IsSQLite/IsPostgres`；`Q(sql)` 按当前驱动做函数级方言转换；`AdaptMySQLDDLToSQLite`；CREATE TABLE 结构拆解共享逻辑 `adaptCreateTableGeneric`（拆内联索引，列清洗按方言传入） |
-| `dialect_postgres.go` | `AdaptMySQLQueryToPostgres`（DML：反引号剥除、`ON CONFLICT`、日期函数映射，占位符**不**在这里转换）；`AdaptMySQLDDLToPostgres`（DDL：`AUTO_INCREMENT`→`GENERATED ALWAYS AS IDENTITY`、`TINYINT`→`SMALLINT` 等）；`RebindPostgresPlaceholders`（`?`→`$N`，跳过字符串字面量里的 `?`） |
-| `pg_shim.go` | 注册 `pg-shim` 驱动包一层 `pgx/v5/stdlib`：**驱动层**统一对所有到达连接的 SQL 做转换，因为项目里大量 `tx.Exec("...?...")` / `db.DB.Exec(...)` 从来没经过 `Q()`/`Exec()` 包装，只在函数级做兼容覆盖不到 |
-| `db.go` | `InitDB`（按 `DB_DRIVER` 建连接）；`Exec()`（DDL 走对应方言适配，可能拆成多条语句执行；DML 走 `Q()`）；`CheckTableExists/CheckColumnExists/CheckIndexExists`（三种驱动各自查 `sqlite_master` / `information_schema` / `pg_indexes`） |
+| `db.go` | `InitDB` → `gorm.Open`（mysql / glebarez-sqlite / postgres）；导出 `DB *gorm.DB`；`IsMySQL/IsSQLite/IsPostgres`；`CheckTable*` 走 Migrator |
+| `gorm_helpers.go` | `ForUpdate`（SQLite 跳过行锁）、`MapGormNotFound`、`WithTx` |
+| `errors.go` | `IsDuplicateKeyError`（MySQL 1062 / SQLite UNIQUE / PG 23505） |
 
-**关键设计**：Postgres 的兼容比 SQLite 更依赖驱动层兜底（`pg_shim.go`），因为 SQLite 原生支持 `?` 占位符，
-唯独 Postgres 要求 `$N`——几乎每条 SQL 都要转换，不能只指望调用点显式包 `Q()`。DDL（`CREATE TABLE`）在这三种
-驱动下都统一走 `db.Exec(schema)` 这个函数级入口（项目约定，未见反例），所以 DDL 拆分多语句放在这里而不是驱动层。
+**约定**：
 
-新增/修改 model 层 SQL 时：不需要为多方言写三份代码；只要避免用「本项目没覆盖」的 MySQL 专属写法
-（比如 `CHANGE COLUMN` 目前对 SQLite/Postgres 都是跳过，历史遗留迁移路径只在 MySQL 生效）。
-**PostgreSQL 支持目前只做过字符串转换层的单元测试（`dialect_postgres_test.go`），没有真机连过 PostgreSQL 验证**，
-上生产前务必先用真实 Postgres 跑一遍 `internal/migrate.RunAutoMigrate` + 核心业务流程。
+- 时间字段继续 Unix `int64` / `*int64`（`create_time`/`update_time`/`delete_time`）；`system_settings` 的 `time.Time` 例外
+- 软删三套并存，**不用**默认 `gorm.DeletedAt`：`delete_time IS NULL`、`verification_codes.is_deleted`、`announcements.deleted_at=0`
+- **建表编排只在** `internal/migrate.RunAutoMigrate`：调 `db.DB.AutoMigrate(models.AllGormModels()...)` + 自动任务表，再跑种子与少量补丁（如实名 `cert_unique_key`）。`pkg/db` **不**负责迁移编排
+- 换库：只改 `.env` 的 `DB_DRIVER` + DSN，无需改 models
+
+SQLite 用 `github.com/glebarez/sqlite`（纯 Go，无 CGO）。Postgres 上生产前请用真实实例跑一遍 `RunAutoMigrate` + 支付/提现冒烟（integration：`FST_PG_DSN` + `-tags integration`）。
 
 ### 管理端两套路径（勿混淆）
 
@@ -333,7 +331,6 @@ const res = await adminApi.user.list({ page: 1 })
 ## 已知设计（勿当 Bug"修复"）
 
 - SQLite 库中 `verification_codes` 同时存在 `email` 与 `contact` 列属预期（SQLite 不可靠改名，采用加列拷贝并保留旧列），业务只读写 `contact`
-- `frontend/agents.md` 的 Stack 描述（shadcn-vue/tailwind 等）已过时，以 package.json 为准（Naive UI + UnoCSS + Alova）
 - `utils.Fail` 的业务码 400–599 同时作为 HTTP 状态码是设计意图（让网关/中间件按 c.Writer.Status() 统计 4xx/5xx 准确）
 - 支付通道密钥管理端列表/详情掩码，更新时 `***` 不覆盖真密钥——不是脱敏失败
 - API Key 库内存 SHA256，展示末 4 位，重新生成只返回一次明文——旧明文兼容回写哈希

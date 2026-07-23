@@ -83,8 +83,8 @@ package routes
 import (
     "fst/backend/app/controllers"
     _ "fst/backend/docs"
-    "fst/backend/internal/config"
-    "fst/backend/internal/middleware"
+    "fst/backend/pkg/config"
+    "fst/backend/pkg/middleware"
     "fst/backend/utils"
     
     "github.com/gin-gonic/gin"
@@ -210,45 +210,26 @@ router.Use(middleware.AuthMiddleware())
 
 ### 认证中间件
 
-**文件**: `backend/internal/middleware/auth.go`
+**文件**: `backend/pkg/middleware/auth.go`
 
 ```go
 package middleware
 
 import (
-    "net/http"
-    "strings"
     "fst/backend/utils"
     "github.com/gin-gonic/gin"
 )
 
-// AuthMiddleware JWT 认证中间件
+// AuthMiddleware JWT 认证中间件（实际实现见源码；失败统一 utils.Fail）
 func AuthMiddleware() gin.HandlerFunc {
     return func(c *gin.Context) {
         authHeader := c.GetHeader("Authorization")
         if authHeader == "" {
-            c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
+            utils.Fail(c, 401, "Authorization header required")
             c.Abort()
             return
         }
-        
-        parts := strings.SplitN(authHeader, " ", 2)
-        if !(len(parts) == 2 && parts[0] == "Bearer") {
-            c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization format"})
-            c.Abort()
-            return
-        }
-        
-        claims, err := utils.ParseToken(parts[1])
-        if err != nil {
-            c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
-            c.Abort()
-            return
-        }
-        
-        // 将用户信息存入上下文
-        c.Set("userID", claims.UserID)
-        c.Set("role", claims.Role)
+        // ... 解析 Bearer Token，写入 userID/role 等上下文
         c.Next()
     }
 }
@@ -258,7 +239,7 @@ func AdminOnly() gin.HandlerFunc {
     return func(c *gin.Context) {
         role, exists := c.Get("role")
         if !exists || role != "admin" {
-            c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
+            utils.Fail(c, 403, "Admin access required")
             c.Abort()
             return
         }
@@ -269,13 +250,13 @@ func AdminOnly() gin.HandlerFunc {
 
 ### CORS 中间件
 
-**文件**: `backend/internal/middleware/cors.go`
+**文件**: `backend/pkg/middleware/cors.go`
 
 ```go
 package middleware
 
 import (
-    "fst/backend/internal/config"
+    "fst/backend/pkg/config"
     "github.com/gin-gonic/gin"
 )
 

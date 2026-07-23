@@ -1,12 +1,13 @@
 package services
 
 import (
-	"database/sql"
 	"errors"
 	"fst/backend/app/models"
 	"fst/backend/pkg/db"
 	"fst/backend/utils"
 	"math"
+
+	"gorm.io/gorm"
 )
 
 // MoneyOperationRequest 统一余额操作请求
@@ -74,38 +75,32 @@ func SetUserMoney(userID uint64, newMoney float64, memo string) (*models.UserMon
 	}
 	newMoney = utils.FenToYuan(newFen)
 
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return nil, errors.New("开启事务失败: " + err.Error())
-	}
-	defer tx.Rollback()
-
-	beforeMoney, err := models.GetUserMoneyForUpdate(tx, userID)
-	if err != nil {
-		return nil, errors.New("用户不存在")
-	}
-	beforeFen, err := utils.YuanToFen(beforeMoney)
-	if err != nil {
-		return nil, errors.New("用户余额非法")
-	}
-
-	// 差值按分计算，再转回元交给统一入口
-	amount := utils.FenToYuan(newFen - beforeFen)
-
-	result, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
-		UserID: userID,
-		Amount: amount,
-		Memo:   memo,
-	}, utils.OpChangeAndLog)
+	var moneyLog *models.UserMoneyLog
+	err = db.DB.Transaction(func(tx *gorm.DB) error {
+		beforeMoney, err := models.GetUserMoneyForUpdate(tx, userID)
+		if err != nil {
+			return errors.New("用户不存在")
+		}
+		beforeFen, err := utils.YuanToFen(beforeMoney)
+		if err != nil {
+			return errors.New("用户余额非法")
+		}
+		amount := utils.FenToYuan(newFen - beforeFen)
+		result, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
+			UserID: userID,
+			Amount: amount,
+			Memo:   memo,
+		}, utils.OpChangeAndLog)
+		if err != nil {
+			return err
+		}
+		moneyLog = result.MoneyLog
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, errors.New("提交事务失败: " + err.Error())
-	}
-
-	return result.MoneyLog, nil
+	return moneyLog, nil
 }
 
 // GetUserMoneyLogList 获取余额变动列表
@@ -173,63 +168,51 @@ func OperateUserMoney(userID uint64, req MoneyOperationRequest) (*utils.BalanceR
 			return nil, errors.New("订单不属于当前用户")
 		}
 
-		tx, err := db.DB.Begin()
-		if err != nil {
-			return nil, errors.New("开启事务失败: " + err.Error())
-		}
-		defer tx.Rollback()
-
-		locked, lockErr := models.GetPaymentOrderForUpdate(tx, req.OrderNo)
-		if lockErr != nil {
-			return nil, errors.New("订单不存在")
-		}
-		if locked.UserID != userID {
-			return nil, errors.New("订单不属于当前用户")
-		}
-		// 涉及余额变动且目标订单状态与当前一致：视为重复操作（重试/重复提交），拒绝再次入账/扣款
-		if touchesBalance && locked.Status == req.OrderStatus {
-			return nil, errors.New("订单已处于目标状态，为避免重复变更余额已拒绝本次操作")
-		}
-
-		result, err := utils.ExecuteBalanceOpTx(tx, balanceReq, opType)
+		var result *utils.BalanceResult
+		err := db.DB.Transaction(func(tx *gorm.DB) error {
+			locked, lockErr := models.GetPaymentOrderForUpdate(tx, req.OrderNo)
+			if lockErr != nil {
+				return errors.New("订单不存在")
+			}
+			if locked.UserID != userID {
+				return errors.New("订单不属于当前用户")
+			}
+			if touchesBalance && locked.Status == req.OrderStatus {
+				return errors.New("订单已处于目标状态，为避免重复变更余额已拒绝本次操作")
+			}
+			var innerErr error
+			result, innerErr = utils.ExecuteBalanceOpTx(tx, balanceReq, opType)
+			return innerErr
+		})
 		if err != nil {
 			return nil, err
-		}
-		if err := tx.Commit(); err != nil {
-			return nil, errors.New("提交事务失败: " + err.Error())
 		}
 		return result, nil
 	}
 
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return nil, errors.New("开启事务失败: " + err.Error())
+	var operateResult *utils.BalanceResult
+	if txErr := db.DB.Transaction(func(tx *gorm.DB) error {
+		if createErr := createOrderForMoneyOperationTx(tx, userID, req); createErr != nil {
+			return createErr
+		}
+		locked, lockErr := models.GetPaymentOrderForUpdate(tx, req.OrderNo)
+		if lockErr != nil {
+			return errors.New("订单不存在")
+		}
+		if locked.UserID != userID {
+			return errors.New("订单不属于当前用户")
+		}
+		var innerErr error
+		operateResult, innerErr = utils.ExecuteBalanceOpTx(tx, balanceReq, opType)
+		return innerErr
+	}); txErr != nil {
+		return nil, txErr
 	}
-	defer tx.Rollback()
-
-	if createErr := createOrderForMoneyOperationTx(tx, userID, req); createErr != nil {
-		return nil, createErr
-	}
-	locked, lockErr := models.GetPaymentOrderForUpdate(tx, req.OrderNo)
-	if lockErr != nil {
-		return nil, errors.New("订单不存在")
-	}
-	if locked.UserID != userID {
-		return nil, errors.New("订单不属于当前用户")
-	}
-
-	result, err := utils.ExecuteBalanceOpTx(tx, balanceReq, opType)
-	if err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, errors.New("提交事务失败: " + err.Error())
-	}
-	return result, nil
+	return operateResult, nil
 }
 
 // createOrderForMoneyOperationTx 在事务内补建缺失订单（与余额操作同事务）
-func createOrderForMoneyOperationTx(tx *sql.Tx, userID uint64, req MoneyOperationRequest) error {
+func createOrderForMoneyOperationTx(tx *gorm.DB, userID uint64, req MoneyOperationRequest) error {
 	// 订单金额记录本次操作的绝对金额（扣款为负数时取其绝对值），避免审计记录里显示为 0 元、丢失操作幅度；
 	// 加款/扣款方向已由 req.OrderStatus / 余额日志本身体现，订单表这里只需要金额大小。
 	amount := math.Abs(req.Amount)
@@ -297,39 +280,32 @@ func mapMoneyOperationType(operation string) (utils.BalanceOpType, bool, error) 
 func ChangeUserScore(userID uint64, amount int64, memo string) (*models.UserScoreLog, error) {
 	memo = utils.Clean_XSS(memo)
 
-	tx, err := db.DB.Begin()
+	var logEntry *models.UserScoreLog
+	err := db.DB.Transaction(func(tx *gorm.DB) error {
+		beforeScore, err := models.GetUserScoreForUpdate(tx, userID)
+		if err != nil {
+			return errors.New("用户不存在")
+		}
+		afterScore := beforeScore + amount
+		if amount < 0 && afterScore < 0 {
+			return errors.New("扣减积分超出用户积分余额")
+		}
+		if amount > 0 && afterScore > 999999999999 {
+			return errors.New("增加积分超出上限")
+		}
+		if err := models.UpdateUserScoreTx(tx, userID, afterScore); err != nil {
+			return errors.New("更新用户积分失败: " + err.Error())
+		}
+		var createErr error
+		logEntry, createErr = models.CreateUserScoreLogTx(tx, userID, amount, beforeScore, afterScore, memo)
+		if createErr != nil {
+			return errors.New("记录积分变动日志失败: " + createErr.Error())
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, errors.New("开启事务失败: " + err.Error())
+		return nil, err
 	}
-	defer tx.Rollback()
-
-	beforeScore, err := models.GetUserScoreForUpdate(tx, userID)
-	if err != nil {
-		return nil, errors.New("用户不存在")
-	}
-
-	afterScore := beforeScore + amount
-
-	if amount < 0 && afterScore < 0 {
-		return nil, errors.New("扣减积分超出用户积分余额")
-	}
-	if amount > 0 && afterScore > 999999999999 {
-		return nil, errors.New("增加积分超出上限")
-	}
-
-	if err := models.UpdateUserScoreTx(tx, userID, afterScore); err != nil {
-		return nil, errors.New("更新用户积分失败: " + err.Error())
-	}
-
-	logEntry, err := models.CreateUserScoreLogTx(tx, userID, amount, beforeScore, afterScore, memo)
-	if err != nil {
-		return nil, errors.New("记录积分变动日志失败: " + err.Error())
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, errors.New("提交事务失败: " + err.Error())
-	}
-
 	return logEntry, nil
 }
 
@@ -345,32 +321,26 @@ func SetUserScore(userID uint64, newScore int64, memo string) (*models.UserScore
 		return nil, errors.New("积分超出上限")
 	}
 
-	tx, err := db.DB.Begin()
+	var logEntry *models.UserScoreLog
+	err := db.DB.Transaction(func(tx *gorm.DB) error {
+		beforeScore, err := models.GetUserScoreForUpdate(tx, userID)
+		if err != nil {
+			return errors.New("用户不存在")
+		}
+		amount := newScore - beforeScore
+		if err := models.UpdateUserScoreTx(tx, userID, newScore); err != nil {
+			return errors.New("更新用户积分失败: " + err.Error())
+		}
+		var createErr error
+		logEntry, createErr = models.CreateUserScoreLogTx(tx, userID, amount, beforeScore, newScore, memo)
+		if createErr != nil {
+			return errors.New("记录积分变动日志失败: " + createErr.Error())
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, errors.New("开启事务失败: " + err.Error())
+		return nil, err
 	}
-	defer tx.Rollback()
-
-	beforeScore, err := models.GetUserScoreForUpdate(tx, userID)
-	if err != nil {
-		return nil, errors.New("用户不存在")
-	}
-
-	amount := newScore - beforeScore
-
-	if err := models.UpdateUserScoreTx(tx, userID, newScore); err != nil {
-		return nil, errors.New("更新用户积分失败: " + err.Error())
-	}
-
-	logEntry, err := models.CreateUserScoreLogTx(tx, userID, amount, beforeScore, newScore, memo)
-	if err != nil {
-		return nil, errors.New("记录积分变动日志失败: " + err.Error())
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, errors.New("提交事务失败: " + err.Error())
-	}
-
 	return logEntry, nil
 }
 
@@ -385,33 +355,28 @@ func GetUserScoreLogList(onlyUserID uint64, page, pageSize int, keyword string) 
 func AddUserScoreLogOnly(userID uint64, amount int64, memo string) (*models.UserScoreLog, error) {
 	memo = utils.Clean_XSS(memo)
 
-	tx, err := db.DB.Begin()
+	var logEntry *models.UserScoreLog
+	err := db.DB.Transaction(func(tx *gorm.DB) error {
+		beforeScore, err := models.GetUserScoreForUpdate(tx, userID)
+		if err != nil {
+			return errors.New("用户不存在")
+		}
+		afterScore := beforeScore + amount
+		if amount < 0 && afterScore < 0 {
+			return errors.New("扣减积分超出用户积分余额")
+		}
+		if amount > 0 && afterScore > 999999999999 {
+			return errors.New("增加积分超出上限")
+		}
+		var createErr error
+		logEntry, createErr = models.CreateUserScoreLogTx(tx, userID, amount, beforeScore, afterScore, memo)
+		if createErr != nil {
+			return errors.New("记录积分变动日志失败: " + createErr.Error())
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, errors.New("开启事务失败: " + err.Error())
+		return nil, err
 	}
-	defer tx.Rollback()
-
-	beforeScore, err := models.GetUserScoreForUpdate(tx, userID)
-	if err != nil {
-		return nil, errors.New("用户不存在")
-	}
-
-	afterScore := beforeScore + amount
-	if amount < 0 && afterScore < 0 {
-		return nil, errors.New("扣减积分超出用户积分余额")
-	}
-	if amount > 0 && afterScore > 999999999999 {
-		return nil, errors.New("增加积分超出上限")
-	}
-
-	logEntry, err := models.CreateUserScoreLogTx(tx, userID, amount, beforeScore, afterScore, memo)
-	if err != nil {
-		return nil, errors.New("记录积分变动日志失败: " + err.Error())
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, errors.New("提交事务失败: " + err.Error())
-	}
-
 	return logEntry, nil
 }

@@ -43,48 +43,54 @@ const (
 
 // JobDefinition 任务定义
 type JobDefinition struct {
-	JobCode              string `db:"job_code" json:"job_code"`
-	Name                 string `db:"name" json:"name"`
-	Description          string `db:"description" json:"description"`
-	Category             string `db:"category" json:"category"`
-	HandlerKey           string `db:"handler_key" json:"handler_key"`
-	CronExpr             string `db:"cron_expr" json:"cron_expr"`
-	IntervalSeconds      int    `db:"interval_seconds" json:"interval_seconds"`
-	Timezone             string `db:"timezone" json:"timezone"`
-	Enabled         int    `db:"enabled" json:"enabled"`
-	TimeoutSec      int    `db:"timeout_sec" json:"timeout_sec"`
+	JobCode              string `gorm:"column:job_code;primaryKey" json:"job_code"`
+	Name                 string `gorm:"column:name" json:"name"`
+	Description          string `gorm:"column:description" json:"description"`
+	Category             string `gorm:"column:category" json:"category"`
+	HandlerKey           string `gorm:"column:handler_key" json:"handler_key"`
+	CronExpr             string `gorm:"column:cron_expr" json:"cron_expr"`
+	IntervalSeconds      int    `gorm:"column:interval_seconds" json:"interval_seconds"`
+	Timezone             string `gorm:"column:timezone" json:"timezone"`
+	Enabled              int    `gorm:"column:enabled;index:idx_auto_job_def_enabled" json:"enabled"`
+	TimeoutSec           int    `gorm:"column:timeout_sec" json:"timeout_sec"`
 	// MaxConcurrency 表字段占位：当前固定为 1，Trigger 用进程内互斥，不按该值做多并发
-	MaxConcurrency int `db:"max_concurrency" json:"max_concurrency"`
+	MaxConcurrency int `gorm:"column:max_concurrency" json:"max_concurrency"`
 	// ParamsJSON 预留：管理端可编辑，当前内置 handler 均未读取
-	ParamsJSON           string `db:"params_json" json:"params_json"`
-	LastStatus           string `db:"last_status" json:"last_status"`
-	LastStartedAt        int64  `db:"last_started_at" json:"last_started_at"`
-	LastFinishedAt       int64  `db:"last_finished_at" json:"last_finished_at"`
-	LastError            string `db:"last_error" json:"last_error"`
-	LifetimeRunCount     string `db:"lifetime_run_count" json:"lifetime_run_count"`
-	LifetimeSuccessCount string `db:"lifetime_success_count" json:"lifetime_success_count"`
-	LifetimeFailCount    string `db:"lifetime_fail_count" json:"lifetime_fail_count"`
-	CreateTime           int64  `db:"create_time" json:"create_time"`
-	UpdateTime           int64  `db:"update_time" json:"update_time"`
+	ParamsJSON           string `gorm:"column:params_json" json:"params_json"`
+	LastStatus           string `gorm:"column:last_status" json:"last_status"`
+	LastStartedAt        int64  `gorm:"column:last_started_at" json:"last_started_at"`
+	LastFinishedAt       int64  `gorm:"column:last_finished_at" json:"last_finished_at"`
+	LastError            string `gorm:"column:last_error" json:"last_error"`
+	LifetimeRunCount     string `gorm:"column:lifetime_run_count" json:"lifetime_run_count"`
+	LifetimeSuccessCount string `gorm:"column:lifetime_success_count" json:"lifetime_success_count"`
+	LifetimeFailCount    string `gorm:"column:lifetime_fail_count" json:"lifetime_fail_count"`
+	CreateTime           int64  `gorm:"column:create_time" json:"create_time"`
+	UpdateTime           int64  `gorm:"column:update_time" json:"update_time"`
 }
+
+// TableName GORM 表名
+func (JobDefinition) TableName() string { return "auto_job_definitions" }
 
 // JobRun 执行记录
 type JobRun struct {
-	ID          uint64 `db:"id" json:"id"`
-	RunUID      string `db:"run_uid" json:"run_uid"`
-	JobCode     string `db:"job_code" json:"job_code"`
-	Category    string `db:"category" json:"category"`
-	TriggerType string `db:"trigger_type" json:"trigger"`
-	Status      string `db:"status" json:"status"`
-	StartedAt   int64  `db:"started_at" json:"started_at"`
-	FinishedAt  int64  `db:"finished_at" json:"finished_at"`
-	DurationMs  int64  `db:"duration_ms" json:"duration_ms"`
-	Message     string `db:"message" json:"message"`
-	DetailJSON  string `db:"detail_json" json:"detail_json"`
-	ErrorText   string `db:"error_text" json:"error_text"`
-	KeepForever int    `db:"keep_forever" json:"keep_forever"`
-	Operator    string `db:"operator" json:"operator"`
+	ID          uint64 `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	RunUID      string `gorm:"column:run_uid" json:"run_uid"`
+	JobCode     string `gorm:"column:job_code;index:idx_auto_job_runs_job_started,priority:1" json:"job_code"`
+	Category    string `gorm:"column:category" json:"category"`
+	TriggerType string `gorm:"column:trigger_type" json:"trigger"`
+	Status      string `gorm:"column:status" json:"status"`
+	StartedAt   int64  `gorm:"column:started_at;index:idx_auto_job_runs_job_started,priority:2" json:"started_at"`
+	FinishedAt  int64  `gorm:"column:finished_at" json:"finished_at"`
+	DurationMs  int64  `gorm:"column:duration_ms" json:"duration_ms"`
+	Message     string `gorm:"column:message" json:"message"`
+	DetailJSON  string `gorm:"column:detail_json" json:"detail_json"`
+	ErrorText   string `gorm:"column:error_text" json:"error_text"`
+	KeepForever int    `gorm:"column:keep_forever" json:"keep_forever"`
+	Operator    string `gorm:"column:operator" json:"operator"`
 }
+
+// TableName GORM 表名
+func (JobRun) TableName() string { return "auto_job_runs" }
 
 // HandlerResult handler 返回
 type HandlerResult struct {

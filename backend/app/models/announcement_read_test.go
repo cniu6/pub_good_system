@@ -8,9 +8,8 @@ import (
 	"fst/backend/pkg/db"
 )
 
-// TestMarkAnnouncementReadIdempotent 回归 SQLite 下 MarkAnnouncementRead 的 ON CONFLICT bug：
-// user_announcement_reads 是复合唯一键，旧的 ON DUPLICATE KEY 通用适配会生成
-// ON CONFLICT(user_id) 而在 SQLite 报错。改成 UPDATE-then-INSERT 后应可重复标记且幂等。
+// TestMarkAnnouncementReadIdempotent 回归 SQLite 下 MarkAnnouncementRead 幂等：
+// user_announcement_reads 是复合唯一键；实现为 UPDATE-then-INSERT，应可重复标记且不报错。
 func TestMarkAnnouncementReadIdempotent(t *testing.T) {
 	cleanup := testutil.SetupSQLite(t)
 	defer cleanup()
@@ -43,8 +42,8 @@ func TestMarkAnnouncementReadIdempotent(t *testing.T) {
 		t.Fatalf("第二次 MarkAnnouncementRead（幂等）失败: %v", err)
 	}
 
-	var cnt int
-	if err := db.DB.Get(&cnt, "SELECT COUNT(*) FROM user_announcement_reads WHERE user_id=? AND announcement_id=?", u.ID, annID); err != nil {
+	var cnt int64
+	if err := db.DB.Raw("SELECT COUNT(*) FROM user_announcement_reads WHERE user_id=? AND announcement_id=?", u.ID, annID).Scan(&cnt).Error; err != nil {
 		t.Fatalf("查询已读记录失败: %v", err)
 	}
 	if cnt != 1 {

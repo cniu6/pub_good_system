@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@iconify-json/icon-park-outline':
+        specifier: ^1.2.2
+        version: 1.2.4
       '@vueuse/core':
         specifier: ^13.6.0
         version: 13.9.0(vue@3.5.28(typescript@5.9.3))
@@ -60,9 +63,6 @@ importers:
       '@antfu/eslint-config':
         specifier: ^5.0.0
         version: 5.4.1(@vue/compiler-sfc@3.5.28)(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.3)
-      '@iconify-json/icon-park-outline':
-        specifier: ^1.2.2
-        version: 1.2.4
       '@iconify/vue':
         specifier: ^5.0.0
         version: 5.0.0(vue@3.5.28(typescript@5.9.3))

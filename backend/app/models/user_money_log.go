@@ -4,85 +4,51 @@ import (
 	"database/sql"
 	"fmt"
 	"fst/backend/pkg/db"
-	"log"
 	"math"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // UserMoneyLog 会员余额变动表
 type UserMoneyLog struct {
-	ID         uint64  `db:"id" json:"id"`
-	UserID     uint64  `db:"user_id" json:"user_id"`
-	Money      float64 `db:"money" json:"money"`   // 变更金额（元；落库前已按分规范化）
-	Before     float64 `db:"before" json:"before"` // 变更前余额（元）
-	After      float64 `db:"after" json:"after"`   // 变更后余额（元）
-	Memo       string  `db:"memo" json:"memo"`          // 备注
-	CreateTime int64   `db:"create_time" json:"create_time"`
-	DeleteTime *int64  `db:"delete_time" json:"delete_time,omitempty"` // 软删除时间；财务日志禁止物理删除
+	ID         uint64  `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	UserID     uint64  `gorm:"column:user_id;not null;default:0;index:idx_uml_user_id;index:idx_uml_user_create_time,priority:1" json:"user_id"`
+	Money      float64 `gorm:"column:money;type:decimal(10,2);not null;default:0" json:"money"`
+	Before     float64 `gorm:"column:before;type:decimal(10,2);not null;default:0" json:"before"`
+	After      float64 `gorm:"column:after;type:decimal(10,2);not null;default:0" json:"after"`
+	Memo       string  `gorm:"column:memo;size:255;not null;default:''" json:"memo"`
+	CreateTime int64   `gorm:"column:create_time;not null;default:0;index:idx_uml_create_time;index:idx_uml_user_create_time,priority:2" json:"create_time"`
+	DeleteTime *int64  `gorm:"column:delete_time" json:"delete_time,omitempty"`
 }
 
-// InitUserMoneyLogsTable 初始化余额变动日志表
-func InitUserMoneyLogsTable() {
-	if db.CheckTableExists("user_money_logs") {
-		db.EnsureIndex("user_money_logs", "idx_user_create_time", "ALTER TABLE user_money_logs ADD INDEX idx_user_create_time (user_id, create_time)")
-		if !db.CheckColumnExists("user_money_logs", "delete_time") {
-			if _, err := db.Exec("ALTER TABLE user_money_logs ADD COLUMN delete_time BIGINT NULL DEFAULT NULL COMMENT '软删除时间'"); err != nil {
-				log.Printf("[Init] add user_money_logs.delete_time failed: %v", err)
-			}
-		}
-		return
-	}
-
-	schema := `CREATE TABLE IF NOT EXISTS user_money_logs (
-		id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-		user_id BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '用户ID',
-		money DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '变更金额',
-		` + "`before`" + ` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '变更前余额',
-		` + "`after`" + ` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '变更后余额',
-		memo VARCHAR(255) NOT NULL DEFAULT '' COMMENT '备注',
-		create_time BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间',
-		delete_time BIGINT NULL DEFAULT NULL COMMENT '软删除时间',
-		INDEX idx_user_id (user_id),
-		INDEX idx_create_time (create_time),
-		INDEX idx_user_create_time (user_id, create_time)
-	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
-
-	_, err := db.Exec(schema)
-	if err != nil {
-		log.Printf("[Init] Failed to create user_money_logs table: %v", err)
-	} else {
-		log.Println("[Init] Created user_money_logs table")
-	}
+func (UserMoneyLog) TableName() string {
+	return "user_money_logs"
 }
 
 // CreateUserMoneyLog 创建余额变动记录
 func CreateUserMoneyLog(userID uint64, money, before, after float64, memo string) (*UserMoneyLog, error) {
 	now := time.Now().Unix()
-	result, err := db.Exec(
-		"INSERT INTO user_money_logs (user_id, money, `before`, `after`, memo, create_time) VALUES (?, ?, ?, ?, ?, ?)",
-		userID, money, before, after, memo, now,
-	)
-	if err != nil {
-		return nil, err
-	}
-	id, _ := result.LastInsertId()
-	return &UserMoneyLog{
-		ID:         uint64(id),
+	entry := &UserMoneyLog{
 		UserID:     userID,
 		Money:      money,
 		Before:     before,
 		After:      after,
 		Memo:       memo,
 		CreateTime: now,
-	}, nil
+	}
+	if err := db.DB.Create(entry).Error; err != nil {
+		return nil, err
+	}
+	return entry, nil
 }
 
 // GetUserMoneyLogByID 获取指定ID的余额变动记录
 func GetUserMoneyLogByID(id uint64) (*UserMoneyLog, error) {
 	var logEntry UserMoneyLog
-	err := db.DB.Get(&logEntry, "SELECT id, user_id, money, `before`, `after`, memo, create_time FROM user_money_logs WHERE id = ?", id)
+	err := db.DB.Where("id = ? AND delete_time IS NULL", id).First(&logEntry).Error
 	if err != nil {
-		return nil, err
+		return nil, db.MapGormNotFound(err)
 	}
 	return &logEntry, nil
 }
@@ -90,35 +56,30 @@ func GetUserMoneyLogByID(id uint64) (*UserMoneyLog, error) {
 // GetUserMoneyLogList 获取余额变动列表（分页+搜索）
 // 如果 onlyUserID > 0，则只返回该用户的记录（普通用户模式）
 func GetUserMoneyLogList(onlyUserID uint64, page, pageSize int, keyword string) ([]UserMoneyLog, int64, error) {
-	var logs []UserMoneyLog
-	var total int64
-
-	where := "WHERE delete_time IS NULL"
-	args := []interface{}{}
-
+	q := db.DB.Model(&UserMoneyLog{}).Where("delete_time IS NULL")
 	if onlyUserID > 0 {
-		where += " AND user_id = ?"
-		args = append(args, onlyUserID)
+		q = q.Where("user_id = ?", onlyUserID)
 	}
 	if keyword != "" {
-		where += " AND (memo LIKE ? OR CAST(money AS CHAR) LIKE ?)"
 		kw := "%" + keyword + "%"
-		args = append(args, kw, kw)
+		q = q.Where("(memo LIKE ? OR "+db.CastToText("money")+" LIKE ?)", kw, kw)
 	}
 
-	// 总数
-	countArgs := make([]interface{}, len(args))
-	copy(countArgs, args)
-	err := db.DB.Get(&total, "SELECT COUNT(*) FROM user_money_logs "+where, countArgs...)
-	if err != nil {
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// 分页
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
 	offset := (page - 1) * pageSize
-	query := "SELECT id, user_id, money, `before`, `after`, memo, create_time, delete_time FROM user_money_logs " + where + " ORDER BY create_time DESC LIMIT ? OFFSET ?"
-	args = append(args, pageSize, offset)
-	err = db.DB.Select(&logs, query, args...)
+
+	var logs []UserMoneyLog
+	err := q.Order("create_time DESC").Limit(pageSize).Offset(offset).Find(&logs).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -127,10 +88,19 @@ func GetUserMoneyLogList(onlyUserID uint64, page, pageSize int, keyword string) 
 }
 
 // DeleteUserMoneyLog 软删除余额变动记录（财务审计：禁止物理删除）
+// 记录不存在或已删除时返回 sql.ErrNoRows。
 func DeleteUserMoneyLog(id uint64) error {
 	now := time.Now().Unix()
-	_, err := db.Exec("UPDATE user_money_logs SET delete_time = ? WHERE id = ? AND delete_time IS NULL", now, id)
-	return err
+	res := db.DB.Model(&UserMoneyLog{}).
+		Where("id = ? AND delete_time IS NULL", id).
+		Update("delete_time", now)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 // UpdateUserMoney 直接更新用户余额字段（写入前按分规范化）
@@ -140,25 +110,31 @@ func UpdateUserMoney(userID uint64, newMoney float64) error {
 		return err
 	}
 	now := time.Now().Unix()
-	_, err = db.Exec("UPDATE users SET money = ?, update_time = ? WHERE id = ?", normalized, now, userID)
-	return err
+	return db.DB.Model(&User{}).
+		Where("id = ? AND delete_time IS NULL", userID).
+		Updates(map[string]interface{}{
+			"money":       normalized,
+			"update_time": now,
+		}).Error
 }
 
 // UpdateUserMoneyTx 在事务中更新用户余额字段（写入前按分规范化）
-func UpdateUserMoneyTx(tx *sql.Tx, userID uint64, newMoney float64) error {
+func UpdateUserMoneyTx(tx *gorm.DB, userID uint64, newMoney float64) error {
 	normalized, err := normalizeMoneyYuan(newMoney)
 	if err != nil {
 		return err
 	}
 	now := time.Now().Unix()
-	_, err = tx.Exec("UPDATE users SET money = ?, update_time = ? WHERE id = ?", normalized, now, userID)
-	return err
+	return tx.Model(&User{}).
+		Where("id = ? AND delete_time IS NULL", userID).
+		Updates(map[string]interface{}{
+			"money":       normalized,
+			"update_time": now,
+		}).Error
 }
 
 // normalizeMoneyYuan 余额落库前统一规范到分精度（避免 float 脏值写入 DECIMAL）
 func normalizeMoneyYuan(yuan float64) (float64, error) {
-	// 延迟引入 utils 会循环依赖风险：models 不应依赖 utils。
-	// 这里本地做与 utils.YuanToFen 一致的四舍五入到分。
 	if math.IsNaN(yuan) || math.IsInf(yuan, 0) {
 		return 0, fmt.Errorf("金额非法")
 	}
@@ -167,32 +143,31 @@ func normalizeMoneyYuan(yuan float64) (float64, error) {
 }
 
 // CreateUserMoneyLogTx 在事务中创建余额变动记录
-func CreateUserMoneyLogTx(tx *sql.Tx, userID uint64, money, before, after float64, memo string) (*UserMoneyLog, error) {
+func CreateUserMoneyLogTx(tx *gorm.DB, userID uint64, money, before, after float64, memo string) (*UserMoneyLog, error) {
 	now := time.Now().Unix()
-	result, err := tx.Exec(
-		"INSERT INTO user_money_logs (user_id, money, `before`, `after`, memo, create_time) VALUES (?, ?, ?, ?, ?, ?)",
-		userID, money, before, after, memo, now,
-	)
-	if err != nil {
-		return nil, err
-	}
-	id, _ := result.LastInsertId()
-	return &UserMoneyLog{
-		ID:         uint64(id),
+	entry := &UserMoneyLog{
 		UserID:     userID,
 		Money:      money,
 		Before:     before,
 		After:      after,
 		Memo:       memo,
 		CreateTime: now,
-	}, nil
+	}
+	if err := tx.Create(entry).Error; err != nil {
+		return nil, err
+	}
+	return entry, nil
 }
 
 // GetUserMoneyForUpdate 在事务中锁定并读取用户余额（SELECT ... FOR UPDATE）
-func GetUserMoneyForUpdate(tx *sql.Tx, userID uint64) (float64, error) {
-	var money float64
-	// db.Q：SQLite 下自动剥掉 FOR UPDATE
-	err := tx.QueryRow(db.Q("SELECT money FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE"), userID).Scan(&money)
-	return money, err
+func GetUserMoneyForUpdate(tx *gorm.DB, userID uint64) (float64, error) {
+	var user User
+	err := db.ForUpdate(tx).
+		Select("money").
+		Where("id = ? AND delete_time IS NULL", userID).
+		First(&user).Error
+	if err != nil {
+		return 0, db.MapGormNotFound(err)
+	}
+	return user.Money, nil
 }
-

@@ -96,13 +96,13 @@ func TestConsumeVerificationCode_BurnAfterMaxFailures(t *testing.T) {
 	}
 
 	var attempts, isDeleted, isUsed int
-	if err := db.DB.Get(&attempts, `SELECT attempts FROM verification_codes WHERE contact = ? AND code = ?`, contact, realCode); err != nil {
+	if err := db.DB.Raw(`SELECT attempts FROM verification_codes WHERE contact = ? AND code = ?`, contact, realCode).Scan(&attempts).Error; err != nil {
 		t.Fatalf("读 attempts 失败: %v", err)
 	}
-	if err := db.DB.Get(&isDeleted, `SELECT is_deleted FROM verification_codes WHERE contact = ? AND code = ?`, contact, realCode); err != nil {
+	if err := db.DB.Raw(`SELECT is_deleted FROM verification_codes WHERE contact = ? AND code = ?`, contact, realCode).Scan(&isDeleted).Error; err != nil {
 		t.Fatalf("读 is_deleted 失败: %v", err)
 	}
-	if err := db.DB.Get(&isUsed, `SELECT is_used FROM verification_codes WHERE contact = ? AND code = ?`, contact, realCode); err != nil {
+	if err := db.DB.Raw(`SELECT is_used FROM verification_codes WHERE contact = ? AND code = ?`, contact, realCode).Scan(&isUsed).Error; err != nil {
 		t.Fatalf("读 is_used 失败: %v", err)
 	}
 	if attempts != testMaxVerificationAttempts {
@@ -210,10 +210,10 @@ func TestRepairVerificationCodes_AddsAttemptsColumn(t *testing.T) {
 	cleanup := testutil.SetupSQLite(t)
 	defer cleanup()
 
-	if _, err := db.Exec(`DROP TABLE IF EXISTS verification_codes`); err != nil {
+	if err := db.DB.Exec(`DROP TABLE IF EXISTS verification_codes`).Error; err != nil {
 		t.Fatalf("删表失败: %v", err)
 	}
-	_, err := db.Exec(`
+	if err := db.DB.Exec(`
 CREATE TABLE verification_codes (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	contact TEXT NOT NULL,
@@ -224,30 +224,29 @@ CREATE TABLE verification_codes (
 	is_deleted INTEGER NOT NULL DEFAULT 0,
 	created_at TEXT,
 	updated_at TEXT
-)`)
-	if err != nil {
+)`).Error; err != nil {
 		t.Fatalf("建缺 attempts 的旧表失败: %v", err)
 	}
 	// expires_at 必须是可扫进 time.Time 的完整时间串（纯日期会导致 SELECT * 扫字段失败）
 	expiresAt := time.Now().Add(time.Hour).Format("2006-01-02 15:04:05")
-	if _, err := db.Exec(
+	if err := db.DB.Exec(
 		`INSERT INTO verification_codes (contact, code, code_type, expires_at) VALUES (?,?,?,?)`,
 		"legacy@example.test", "123456", "register", expiresAt,
-	); err != nil {
+	).Error; err != nil {
 		t.Fatalf("插入旧数据失败: %v", err)
 	}
 	if db.CheckColumnExists("verification_codes", "attempts") {
 		t.Fatal("旧表不应已有 attempts")
 	}
 
-	models.InitVerificationCodeTable()
+	models.RepairVerificationCodeTable()
 
 	if !db.CheckColumnExists("verification_codes", "attempts") {
 		t.Fatal("补列后仍缺 attempts")
 	}
 
 	var attempts int
-	if err := db.DB.Get(&attempts, `SELECT attempts FROM verification_codes WHERE contact = ?`, "legacy@example.test"); err != nil {
+	if err := db.DB.Raw(`SELECT attempts FROM verification_codes WHERE contact = ?`, "legacy@example.test").Scan(&attempts).Error; err != nil {
 		t.Fatalf("读 attempts 失败: %v", err)
 	}
 	if attempts != 0 {
@@ -260,7 +259,7 @@ CREATE TABLE verification_codes (
 	if err != nil || used {
 		t.Fatalf("旧行错误码消费异常: used=%v err=%v", used, err)
 	}
-	if err := db.DB.Get(&attempts, `SELECT attempts FROM verification_codes WHERE contact = ?`, "legacy@example.test"); err != nil {
+	if err := db.DB.Raw(`SELECT attempts FROM verification_codes WHERE contact = ?`, "legacy@example.test").Scan(&attempts).Error; err != nil {
 		t.Fatalf("读旧行 attempts 失败: %v", err)
 	}
 	if attempts != 1 {
@@ -276,7 +275,7 @@ CREATE TABLE verification_codes (
 	if err != nil || used {
 		t.Fatalf("补列后错误码消费异常: used=%v err=%v", used, err)
 	}
-	if err := db.DB.Get(&attempts, `SELECT attempts FROM verification_codes WHERE contact = ? AND code = ?`, contact, "654321"); err != nil {
+	if err := db.DB.Raw(`SELECT attempts FROM verification_codes WHERE contact = ? AND code = ?`, contact, "654321").Scan(&attempts).Error; err != nil {
 		t.Fatalf("读新码 attempts 失败: %v", err)
 	}
 	if attempts != 1 {

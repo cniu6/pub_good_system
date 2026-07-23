@@ -52,20 +52,20 @@ func writeExportAudit(c *gin.Context, action, detail string) {
 // ExportUsers POST /export/users — 导出用户 CSV（流式响应）
 func (ctrl *ExportController) ExportUsers(c *gin.Context) {
 	type row struct {
-		ID       uint64  `db:"id"`
-		Username string  `db:"username"`
-		Nickname string  `db:"nickname"`
-		Email    string  `db:"email"`
-		Mobile   string  `db:"mobile"`
-		Role     string  `db:"role"`
-		Status   uint8   `db:"status"`
-		Money    float64 `db:"money"`
-		Score    int64   `db:"score"`
+		ID       uint64  `gorm:"column:id"`
+		Username string  `gorm:"column:username"`
+		Nickname string  `gorm:"column:nickname"`
+		Email    string  `gorm:"column:email"`
+		Mobile   string  `gorm:"column:mobile"`
+		Role     string  `gorm:"column:role"`
+		Status   uint8   `gorm:"column:status"`
+		Money    float64 `gorm:"column:money"`
+		Score    int64   `gorm:"column:score"`
 	}
 	var rows []row
-	err := db.DB.Select(&rows, `
+	err := db.DB.Raw(`
 		SELECT id, username, nickname, email, mobile, role, status, money, score
-		FROM users WHERE delete_time IS NULL ORDER BY id ASC LIMIT 10000`)
+		FROM users WHERE delete_time IS NULL ORDER BY id ASC LIMIT 10000`).Scan(&rows).Error
 	if err != nil {
 		log.Printf("[ADMIN][EXPORT] query users failed: %v", err)
 		utils.Fail(c, 500, "导出失败")

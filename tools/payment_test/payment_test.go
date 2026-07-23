@@ -2,10 +2,11 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
-	"fst/backend/app/models"
 	"fst/backend/app/services"
+	"fst/backend/internal/migrate"
 	"fst/backend/pkg/config"
 	"fst/backend/pkg/db"
 	"fst/backend/routes"
@@ -14,24 +15,69 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jmoiron/sqlx"
+	_ "github.com/glebarez/sqlite"
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 var testRouter *gin.Engine
 var testToken string // 测试用 JWT token
 
+// databaseAvailable 用 database/sql 探测数据库是否可用（不依赖 sqlx）。
 func databaseAvailable() bool {
-	probeDB, err := sqlx.Connect(config.GlobalConfig.DBDriver, config.GlobalConfig.DBDSN)
+	driverName, dsn, ok := probeDriverAndDSN()
+	if !ok {
+		return false
+	}
+	probeDB, err := sql.Open(driverName, dsn)
 	if err != nil {
 		return false
 	}
 	probeDB.SetConnMaxLifetime(5 * time.Second)
 	defer probeDB.Close()
 	return probeDB.Ping() == nil
+}
+
+// probeDriverAndDSN 根据 GlobalConfig 返回 sql.Open 所需的驱动名与 DSN。
+func probeDriverAndDSN() (driverName, dsn string, ok bool) {
+	if config.GlobalConfig == nil {
+		return "", "", false
+	}
+	raw := strings.ToLower(strings.TrimSpace(config.GlobalConfig.DBDriver))
+	dsn = strings.TrimSpace(config.GlobalConfig.DBDSN)
+	if dsn == "" {
+		return "", "", false
+	}
+	switch raw {
+	case "", "mysql":
+		return "mysql", dsn, true
+	case "sqlite", "sqlite3":
+		return "sqlite", probeSQLiteDSN(dsn), true
+	case "postgres", "postgresql", "pg":
+		return "pgx", dsn, true
+	default:
+		return "", "", false
+	}
+}
+
+// probeSQLiteDSN 提取 glebarez/sqlite 可用的文件路径 DSN。
+func probeSQLiteDSN(dsn string) string {
+	s := strings.TrimSpace(dsn)
+	if strings.HasPrefix(s, "file:") {
+		s = strings.TrimPrefix(s, "file:")
+		s = strings.TrimPrefix(s, "//")
+		if i := strings.Index(s, "?"); i >= 0 {
+			s = s[:i]
+		}
+	} else if i := strings.Index(s, "?"); i >= 0 {
+		s = s[:i]
+	}
+	return strings.TrimSpace(s)
 }
 
 // TestMain 集成测试入口：初始化数据库和路由
@@ -43,13 +89,9 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 
-	// 初始化数据库
+	// 初始化数据库与迁移
 	db.InitDB()
-
-	// 初始化必要的表
-	models.InitSystemSettingsTable()
-	models.InitUserMoneyLogsTable()
-	models.InitPaymentOrdersTable()
+	migrate.RunAutoMigrate()
 
 	// 初始化服务
 	services.InitSettingsService()

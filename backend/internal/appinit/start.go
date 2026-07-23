@@ -5,7 +5,7 @@
 //	根 main.go / main_embedded.go
 //	  → backend/cmd/server.Start（薄壳：前端托管 + Listen）
 //	  → appinit.Bootstrap / SetupHTTP（本包）
-//	  → internal/migrate.RunAutoMigrate（全部建表/Init*）
+//	  → internal/migrate.RunAutoMigrate（GORM AutoMigrate + 补丁/种子）
 //
 // 业务 API 仍在 backend/app 与 backend/routes，本包只负责「加载顺序」。
 // pkg = 可复用零件（config/db连接/middleware）；internal = 开机组装。
@@ -48,7 +48,7 @@ func Bootstrap() {
 	db.InitDB()
 	log.Println("[AppInit] 数据库连接完成")
 
-	// ---------- 3. 数据库自迁移（核心表 SQL + 业务表 Init*，统一入口） ----------
+	// ---------- 3. 数据库自迁移（GORM AutoMigrate + 补丁/种子） ----------
 	migrate.RunAutoMigrate()
 
 	// ---------- 4. 业务服务（非定时任务） ----------

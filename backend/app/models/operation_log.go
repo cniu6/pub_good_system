@@ -1,155 +1,56 @@
 package models
 
 import (
+	"database/sql"
+	"errors"
 	"fst/backend/pkg/db"
 	"fst/backend/pkg/panicsafe"
 	"log"
 	"sync/atomic"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // OperationLog 操作日志模型
-// request_body / response_body 列为 MEDIUMTEXT（约 16MB），写入前由中间件截断到 64KB。
 type OperationLog struct {
-	ID           uint64  `db:"id" json:"id"`
-	UserID       uint64  `db:"user_id" json:"user_id"`
-	Username     string  `db:"username" json:"username"`
-	Module       string  `db:"module" json:"module"`
-	Action       string  `db:"action" json:"action"`
-	Method       string  `db:"method" json:"method"`
-	Path         string  `db:"path" json:"path"`
-	IP           string  `db:"ip" json:"ip"`
-	UserAgent    string  `db:"user_agent" json:"user_agent"`
-	HandlerName  string  `db:"handler_name" json:"handler_name"` // Gin handler / controller 方法名
-	RequestBody  *string `db:"request_body" json:"request_body,omitempty"`
-	ResponseBody *string `db:"response_body" json:"response_body,omitempty"`
-	StatusCode   int     `db:"status_code" json:"status_code"`
-	Duration     int     `db:"duration" json:"duration"` // 耗时(ms)
-	CreateTime   *int64  `db:"create_time" json:"create_time"`
+	ID           uint64  `gorm:"column:id;primaryKey;autoIncrement;index:idx_op_create_time_id,priority:2" json:"id"`
+	UserID       uint64  `gorm:"column:user_id;not null;default:0;index:idx_op_user_create_time,priority:1" json:"user_id"`
+	Username     string  `gorm:"column:username;size:100;not null;default:''" json:"username"`
+	Module       string  `gorm:"column:module;size:100;not null;default:'';index:idx_op_module_create_time,priority:1" json:"module"`
+	Action       string  `gorm:"column:action;size:100;not null;default:'';index:idx_op_action_create_time,priority:1" json:"action"`
+	Method       string  `gorm:"column:method;size:20;not null;default:'';index:idx_op_method_create_time,priority:1" json:"method"`
+	Path         string  `gorm:"column:path;size:255;not null;default:''" json:"path"`
+	IP           string  `gorm:"column:ip;size:45;not null;default:'';index:idx_op_ip_create_time,priority:1" json:"ip"`
+	UserAgent    string  `gorm:"column:user_agent;type:text" json:"user_agent"`
+	HandlerName  string  `gorm:"column:handler_name;size:255;not null;default:'';index:idx_op_handler_create_time,priority:1" json:"handler_name"`
+	RequestBody  *string `gorm:"column:request_body;type:mediumtext" json:"request_body,omitempty"`
+	ResponseBody *string `gorm:"column:response_body;type:mediumtext" json:"response_body,omitempty"`
+	StatusCode   int     `gorm:"column:status_code;not null;default:0" json:"status_code"`
+	Duration     int     `gorm:"column:duration;not null;default:0" json:"duration"`
+	CreateTime   *int64  `gorm:"column:create_time;not null;default:0;index:idx_op_create_time_id,priority:1;index:idx_op_user_create_time,priority:2;index:idx_op_module_create_time,priority:2;index:idx_op_action_create_time,priority:2;index:idx_op_method_create_time,priority:2;index:idx_op_ip_create_time,priority:2;index:idx_op_handler_create_time,priority:2" json:"create_time"`
 }
 
-func (o *OperationLog) TableName() string {
+func (OperationLog) TableName() string {
 	return "operation_logs"
 }
 
 var operationLogCleanupNextAt atomic.Int64
 
-func InitOperationLogsTable() {
-	if !db.CheckTableExists("operation_logs") {
-		schema := `CREATE TABLE IF NOT EXISTS operation_logs (
-			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-			user_id BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '用户ID',
-			username VARCHAR(100) NOT NULL DEFAULT '' COMMENT '用户名',
-			module VARCHAR(100) NOT NULL DEFAULT '' COMMENT '模块',
-			action VARCHAR(100) NOT NULL DEFAULT '' COMMENT '操作',
-			method VARCHAR(20) NOT NULL DEFAULT '' COMMENT '请求方法',
-			path VARCHAR(255) NOT NULL DEFAULT '' COMMENT '请求路径',
-			ip VARCHAR(45) NOT NULL DEFAULT '' COMMENT 'IP地址',
-			user_agent TEXT COMMENT '浏览器UA',
-			handler_name VARCHAR(255) NOT NULL DEFAULT '' COMMENT '处理函数/Handler名',
-			request_body MEDIUMTEXT COMMENT '请求体(写入前截断)',
-			response_body MEDIUMTEXT COMMENT '响应体(写入前截断)',
-			status_code INT NOT NULL DEFAULT 0 COMMENT '状态码',
-			duration INT NOT NULL DEFAULT 0 COMMENT '耗时(ms)',
-			create_time BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间',
-			INDEX idx_create_time_id (create_time, id),
-			INDEX idx_user_create_time (user_id, create_time),
-			INDEX idx_module_create_time (module, create_time),
-			INDEX idx_action_create_time (action, create_time),
-			INDEX idx_method_create_time (method, create_time),
-			INDEX idx_ip_create_time (ip, create_time),
-			INDEX idx_handler_create_time (handler_name, create_time)
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
-
-		_, err := db.Exec(schema)
-		if err != nil {
-			log.Printf("[Init] Failed to create operation_logs table: %v", err)
-		} else {
-			log.Println("[Init] Created operation_logs table")
-		}
-	} else {
-		columnRepairs := []struct {
-			column   string
-			alterSQL string
-		}{
-			{"user_id", "ALTER TABLE operation_logs ADD COLUMN user_id BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '用户ID' AFTER id"},
-			{"username", "ALTER TABLE operation_logs ADD COLUMN username VARCHAR(100) NOT NULL DEFAULT '' COMMENT '用户名' AFTER user_id"},
-			{"module", "ALTER TABLE operation_logs ADD COLUMN module VARCHAR(100) NOT NULL DEFAULT '' COMMENT '模块' AFTER username"},
-			{"action", "ALTER TABLE operation_logs ADD COLUMN action VARCHAR(100) NOT NULL DEFAULT '' COMMENT '操作' AFTER module"},
-			{"method", "ALTER TABLE operation_logs ADD COLUMN method VARCHAR(20) NOT NULL DEFAULT '' COMMENT '请求方法' AFTER action"},
-			{"path", "ALTER TABLE operation_logs ADD COLUMN path VARCHAR(255) NOT NULL DEFAULT '' COMMENT '请求路径' AFTER method"},
-			{"ip", "ALTER TABLE operation_logs ADD COLUMN ip VARCHAR(45) NOT NULL DEFAULT '' COMMENT 'IP地址' AFTER path"},
-			{"user_agent", "ALTER TABLE operation_logs ADD COLUMN user_agent TEXT COMMENT '浏览器UA' AFTER ip"},
-			{"handler_name", "ALTER TABLE operation_logs ADD COLUMN handler_name VARCHAR(255) NOT NULL DEFAULT '' COMMENT '处理函数/Handler名' AFTER user_agent"},
-			{"request_body", "ALTER TABLE operation_logs ADD COLUMN request_body MEDIUMTEXT COMMENT '请求体(写入前截断)' AFTER handler_name"},
-			{"response_body", "ALTER TABLE operation_logs ADD COLUMN response_body MEDIUMTEXT COMMENT '响应体(写入前截断)' AFTER request_body"},
-			{"status_code", "ALTER TABLE operation_logs ADD COLUMN status_code INT NOT NULL DEFAULT 0 COMMENT '状态码' AFTER response_body"},
-			{"duration", "ALTER TABLE operation_logs ADD COLUMN duration INT NOT NULL DEFAULT 0 COMMENT '耗时(ms)' AFTER status_code"},
-			{"create_time", "ALTER TABLE operation_logs ADD COLUMN create_time BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间' AFTER duration"},
-		}
-
-		for _, repair := range columnRepairs {
-			if !db.CheckColumnExists("operation_logs", repair.column) {
-				if _, err := db.Exec(repair.alterSQL); err != nil {
-					log.Printf("[Init] Failed to add operation_logs.%s: %v", repair.column, err)
-				} else {
-					log.Printf("[Init] Added operation_logs.%s", repair.column)
-				}
-			}
-		}
-
-		if db.CheckColumnExists("operation_logs", "created_at") && db.CheckColumnExists("operation_logs", "create_time") {
-			_, _ = db.Exec("UPDATE operation_logs SET create_time = UNIX_TIMESTAMP(created_at) WHERE create_time = 0 AND created_at IS NOT NULL")
-		}
-
-		indexRepairs := map[string]string{
-			"idx_create_time_id":      "ALTER TABLE operation_logs ADD INDEX idx_create_time_id (create_time, id)",
-			"idx_user_create_time":    "ALTER TABLE operation_logs ADD INDEX idx_user_create_time (user_id, create_time)",
-			"idx_module_create_time":  "ALTER TABLE operation_logs ADD INDEX idx_module_create_time (module, create_time)",
-			"idx_action_create_time":  "ALTER TABLE operation_logs ADD INDEX idx_action_create_time (action, create_time)",
-			"idx_method_create_time":  "ALTER TABLE operation_logs ADD INDEX idx_method_create_time (method, create_time)",
-			"idx_ip_create_time":      "ALTER TABLE operation_logs ADD INDEX idx_ip_create_time (ip, create_time)",
-			"idx_handler_create_time": "ALTER TABLE operation_logs ADD INDEX idx_handler_create_time (handler_name, create_time)",
-		}
-
-		for indexName, alterSQL := range indexRepairs {
-			db.EnsureIndex("operation_logs", indexName, alterSQL)
-		}
-	}
-
-	InitOperationLogAggregateTables()
-}
-
-// ========== CRUD 操作 ==========
-
 // CreateOperationLog 创建操作日志
 func CreateOperationLog(item *OperationLog) error {
-	query := `INSERT INTO operation_logs (user_id, username, module, action, method, path, ip,
-			  user_agent, handler_name, request_body, response_body, status_code, duration, create_time)
-			  VALUES (:user_id, :username, :module, :action, :method, :path, :ip,
-			  :user_agent, :handler_name, :request_body, :response_body, :status_code, :duration, :create_time)`
-
 	now := time.Now().Unix()
 	item.CreateTime = &now
-
-	result, err := db.DB.NamedExec(query, item)
-	if err != nil {
+	if err := db.DB.Create(item).Error; err != nil {
 		return err
 	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		return err
-	}
-	item.ID = uint64(id)
 
-	// 异步更新聚合统计 + 触发保留清理（节流）；明细清理不会回减累计统计
 	panicsafe.Go("OperationLog.aggregate", func() {
 		if aggErr := RecordOperationLogAggregate(item); aggErr != nil {
 			log.Printf("[OperationLog] 汇总更新失败: %v", aggErr)
 		}
 		scheduleOperationLogRetentionCleanup()
 	})
-
 	return nil
 }
 
@@ -160,12 +61,15 @@ func scheduleOperationLogRetentionCleanup() {
 
 // GetOperationLogByID 根据ID获取日志
 func GetOperationLogByID(id uint64) (*OperationLog, error) {
-	var log OperationLog
-	err := db.DB.Get(&log, "SELECT * FROM operation_logs WHERE id = ?", id)
+	var item OperationLog
+	err := db.DB.Where("id = ?", id).First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, sql.ErrNoRows
+	}
 	if err != nil {
 		return nil, err
 	}
-	return &log, nil
+	return &item, nil
 }
 
 // OperationLogQuery 日志查询参数
@@ -183,146 +87,126 @@ type OperationLogQuery struct {
 	EndTime   int64  `form:"end_time" json:"end_time"`
 }
 
+func buildOperationLogQuery(q *OperationLogQuery) *gorm.DB {
+	query := db.DB.Model(&OperationLog{})
+	if q.UserID > 0 {
+		query = query.Where("user_id = ?", q.UserID)
+	}
+	if q.Username != "" {
+		query = query.Where("username LIKE ?", "%"+q.Username+"%")
+	}
+	if q.Module != "" {
+		query = query.Where("module = ?", q.Module)
+	}
+	if q.Action != "" {
+		query = query.Where("action = ?", q.Action)
+	}
+	if q.Method != "" {
+		query = query.Where("method = ?", q.Method)
+	}
+	if q.Path != "" {
+		query = query.Where("path LIKE ?", "%"+q.Path+"%")
+	}
+	if q.IP != "" {
+		query = query.Where("ip = ?", q.IP)
+	}
+	if q.StartTime > 0 {
+		query = query.Where("create_time >= ?", q.StartTime)
+	}
+	if q.EndTime > 0 {
+		query = query.Where("create_time <= ?", q.EndTime)
+	}
+	return query
+}
+
 // GetOperationLogList 获取日志列表
 func GetOperationLogList(query *OperationLogQuery) ([]OperationLog, int64, error) {
 	if query == nil {
 		query = &OperationLogQuery{}
 	}
-
-	var logs []OperationLog
-	var total int64
-
-	where := "WHERE 1=1"
-	args := []interface{}{}
-
-	if query.UserID > 0 {
-		where += " AND user_id = ?"
-		args = append(args, query.UserID)
-	}
-	if query.Username != "" {
-		where += " AND username LIKE ?"
-		args = append(args, "%"+query.Username+"%")
-	}
-	if query.Module != "" {
-		where += " AND module = ?"
-		args = append(args, query.Module)
-	}
-	if query.Action != "" {
-		where += " AND action = ?"
-		args = append(args, query.Action)
-	}
-	if query.Method != "" {
-		where += " AND method = ?"
-		args = append(args, query.Method)
-	}
-	if query.Path != "" {
-		where += " AND path LIKE ?"
-		args = append(args, "%"+query.Path+"%")
-	}
-	if query.IP != "" {
-		where += " AND ip = ?"
-		args = append(args, query.IP)
-	}
-	if query.StartTime > 0 {
-		where += " AND create_time >= ?"
-		args = append(args, query.StartTime)
-	}
-	if query.EndTime > 0 {
-		where += " AND create_time <= ?"
-		args = append(args, query.EndTime)
-	}
-
-	// 查询总数
-	count_query := "SELECT COUNT(*) FROM operation_logs " + where
-	err := db.DB.Get(&total, count_query, args...)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	// 分页查询
 	if query.Page <= 0 {
 		query.Page = 1
 	}
 	if query.PageSize <= 0 {
 		query.PageSize = 20
 	}
-	offset := (query.Page - 1) * query.PageSize
 
-	list_query := "SELECT * FROM operation_logs " + where + " ORDER BY create_time DESC, id DESC LIMIT ? OFFSET ?"
-	args = append(args, query.PageSize, offset)
-
-	err = db.DB.Select(&logs, list_query, args...)
-	if err != nil {
+	q := buildOperationLogQuery(query)
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	return logs, total, nil
+	var logs []OperationLog
+	err := q.Order("create_time DESC, id DESC").
+		Limit(query.PageSize).
+		Offset((query.Page - 1) * query.PageSize).
+		Find(&logs).Error
+	return logs, total, err
 }
 
 // DeleteOperationLogsBefore 删除指定时间之前的日志
-func DeleteOperationLogsBefore(before_time int64) (int64, error) {
-	result, err := db.Exec("DELETE FROM operation_logs WHERE create_time < ?", before_time)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+func DeleteOperationLogsBefore(beforeTime int64) (int64, error) {
+	result := db.DB.Where("create_time < ?", beforeTime).Delete(&OperationLog{})
+	return result.RowsAffected, result.Error
 }
 
-// CleanExcessOperationLogs 清理超出上限的旧日志，只保留最新的 maxCount 条
+// CleanExcessOperationLogs 清理超出上限的旧日志
 func CleanExcessOperationLogs(maxCount int) (int64, error) {
 	return cleanExcessRowsGeneric("operation_logs", "create_time", maxCount)
 }
 
-// CleanExcessOperationLogsPerUser 按用户清理超出上限的操作日志（每个用户最多保留 maxPerUser 条）
+// CleanExcessOperationLogsPerUser 按用户清理超出上限的操作日志
 func CleanExcessOperationLogsPerUser(maxPerUser int) (int64, error) {
 	return cleanExcessRowsPerGroupGeneric[uint64]("operation_logs", "user_id", "create_time", maxPerUser, "")
 }
 
-// GetOperationLogStats 获取操作日志统计
+// LogStats 操作日志统计
 type LogStats struct {
-	TotalCount  int64        `db:"total_count" json:"total_count"`
-	TodayCount  int64        `db:"today_count" json:"today_count"`
+	TotalCount  int64        `json:"total_count"`
+	TodayCount  int64        `json:"today_count"`
 	ModuleStats []ModuleStat `json:"module_stats"`
 	MethodStats []MethodStat `json:"method_stats"`
 }
 
 type ModuleStat struct {
-	Module string `db:"module" json:"module"`
-	Count  int64  `db:"count" json:"count"`
+	Module string `gorm:"column:module" json:"module"`
+	Count  int64  `gorm:"column:count" json:"count"`
 }
 
 type MethodStat struct {
-	Method string `db:"method" json:"method"`
-	Count  int64  `db:"count" json:"count"`
+	Method string `gorm:"column:method" json:"method"`
+	Count  int64  `gorm:"column:count" json:"count"`
 }
 
 // GetOperationLogStats 获取日志统计信息
 func GetOperationLogStats() (*LogStats, error) {
 	stats := &LogStats{}
 
-	// 总数
-	err := db.DB.Get(&stats.TotalCount, "SELECT COUNT(*) FROM operation_logs")
-	if err != nil {
+	if err := db.DB.Model(&OperationLog{}).Count(&stats.TotalCount).Error; err != nil {
 		return nil, err
 	}
 
-	// 今日数量
 	now := time.Now()
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Unix()
-	err = db.DB.Get(&stats.TodayCount, "SELECT COUNT(*) FROM operation_logs WHERE create_time >= ?", todayStart)
-	if err != nil {
+	if err := db.DB.Model(&OperationLog{}).Where("create_time >= ?", todayStart).Count(&stats.TodayCount).Error; err != nil {
 		return nil, err
 	}
 
-	// 按模块统计
-	err = db.DB.Select(&stats.ModuleStats, "SELECT module, COUNT(*) as count FROM operation_logs GROUP BY module ORDER BY count DESC LIMIT 10")
-	if err != nil {
+	if err := db.DB.Model(&OperationLog{}).
+		Select("module, COUNT(*) as count").
+		Group("module").
+		Order("count DESC").
+		Limit(10).
+		Scan(&stats.ModuleStats).Error; err != nil {
 		return nil, err
 	}
 
-	// 按方法统计
-	err = db.DB.Select(&stats.MethodStats, "SELECT method, COUNT(*) as count FROM operation_logs GROUP BY method ORDER BY count DESC")
-	if err != nil {
+	if err := db.DB.Model(&OperationLog{}).
+		Select("method, COUNT(*) as count").
+		Group("method").
+		Order("count DESC").
+		Scan(&stats.MethodStats).Error; err != nil {
 		return nil, err
 	}
 

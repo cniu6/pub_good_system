@@ -2,10 +2,13 @@ package task
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
 	"fst/backend/pkg/db"
+
+	"gorm.io/gorm"
 )
 
 // GetDefinition 按 job_code 取一条定义；不存在返回 (nil, nil)
@@ -14,8 +17,8 @@ func GetDefinition(jobCode string) (*JobDefinition, error) {
 		return nil, fmt.Errorf("db not ready")
 	}
 	var def JobDefinition
-	err := db.DB.Get(&def, `SELECT * FROM auto_job_definitions WHERE job_code = ?`, jobCode)
-	if err == sql.ErrNoRows {
+	err := db.DB.Where("job_code = ?", jobCode).First(&def).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
 	if err != nil {
@@ -50,7 +53,7 @@ func ListDefinitions(keyword, category string, enabled *bool) ([]JobDefinition, 
 	}
 	q += ` ORDER BY category ASC, job_code ASC`
 	var list []JobDefinition
-	err := db.DB.Select(&list, q, args...)
+	err := db.DB.Raw(q, args...).Scan(&list).Error
 	return list, err
 }
 
@@ -59,31 +62,20 @@ func CountDefinitions() (total, enabled int64, err error) {
 	if db.DB == nil {
 		return 0, 0, fmt.Errorf("db not ready")
 	}
-	if err = db.DB.Get(&total, `SELECT COUNT(*) FROM auto_job_definitions`); err != nil {
+	if err = db.DB.Raw(`SELECT COUNT(*) FROM auto_job_definitions`).Scan(&total).Error; err != nil {
 		return
 	}
-	err = db.DB.Get(&enabled, `SELECT COUNT(*) FROM auto_job_definitions WHERE enabled = 1`)
+	err = db.DB.Raw(`SELECT COUNT(*) FROM auto_job_definitions WHERE enabled = 1`).Scan(&enabled).Error
 	return
 }
 
 // InsertDefinition 插入定义。MaxConcurrency 强制写 1（当前仅支持单实例互斥）
 func InsertDefinition(def *JobDefinition) error {
 	def.MaxConcurrency = 1
-	_, err := db.Exec(`
-		INSERT INTO auto_job_definitions (
-			job_code, name, description, category, handler_key, cron_expr, interval_seconds, timezone,
-			enabled, timeout_sec, max_concurrency, params_json,
-			last_status, last_started_at, last_finished_at, last_error,
-			lifetime_run_count, lifetime_success_count, lifetime_fail_count,
-			create_time, update_time
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		def.JobCode, def.Name, def.Description, def.Category, def.HandlerKey, def.CronExpr, def.IntervalSeconds, def.Timezone,
-		def.Enabled, def.TimeoutSec, def.MaxConcurrency, def.ParamsJSON,
-		def.LastStatus, def.LastStartedAt, def.LastFinishedAt, def.LastError,
-		dec(def.LifetimeRunCount), dec(def.LifetimeSuccessCount), dec(def.LifetimeFailCount),
-		def.CreateTime, def.UpdateTime,
-	)
-	return err
+	def.LifetimeRunCount = dec(def.LifetimeRunCount)
+	def.LifetimeSuccessCount = dec(def.LifetimeSuccessCount)
+	def.LifetimeFailCount = dec(def.LifetimeFailCount)
+	return db.DB.Create(def).Error
 }
 
 func dec(s string) string {
@@ -96,15 +88,19 @@ func dec(s string) string {
 // UpdateDefinitionMeta 覆盖元数据（导入 update 模式用）。MaxConcurrency 强制为 1
 func UpdateDefinitionMeta(def *JobDefinition) error {
 	def.MaxConcurrency = 1
-	_, err := db.Exec(`
-		UPDATE auto_job_definitions SET
-			name=?, description=?, category=?, handler_key=?, cron_expr=?, interval_seconds=?, timezone=?,
-			timeout_sec=?, max_concurrency=?, params_json=?, update_time=?
-		WHERE job_code=?`,
-		def.Name, def.Description, def.Category, def.HandlerKey, def.CronExpr, def.IntervalSeconds, def.Timezone,
-		def.TimeoutSec, def.MaxConcurrency, def.ParamsJSON, def.UpdateTime, def.JobCode,
-	)
-	return err
+	return db.DB.Model(&JobDefinition{}).Where("job_code = ?", def.JobCode).Updates(map[string]interface{}{
+		"name":              def.Name,
+		"description":       def.Description,
+		"category":          def.Category,
+		"handler_key":       def.HandlerKey,
+		"cron_expr":         def.CronExpr,
+		"interval_seconds":  def.IntervalSeconds,
+		"timezone":          def.Timezone,
+		"timeout_sec":       def.TimeoutSec,
+		"max_concurrency":   def.MaxConcurrency,
+		"params_json":       def.ParamsJSON,
+		"update_time":       def.UpdateTime,
+	}).Error
 }
 
 // UpdateDefinitionFields 管理端局部更新任务字段
@@ -145,14 +141,17 @@ func UpdateDefinitionFields(jobCode string, req UpdateJobRequest) error {
 		def.ParamsJSON = *req.ParamsJSON
 	}
 	def.UpdateTime = nowUnix()
-	_, err = db.Exec(`
-		UPDATE auto_job_definitions SET
-			name=?, description=?, cron_expr=?, interval_seconds=?, timezone=?,
-			enabled=?, timeout_sec=?, params_json=?, update_time=?
-		WHERE job_code=?`,
-		def.Name, def.Description, def.CronExpr, def.IntervalSeconds, def.Timezone,
-		def.Enabled, def.TimeoutSec, def.ParamsJSON, def.UpdateTime, jobCode,
-	)
+	err = db.DB.Model(&JobDefinition{}).Where("job_code = ?", jobCode).Updates(map[string]interface{}{
+		"name":             def.Name,
+		"description":      def.Description,
+		"cron_expr":        def.CronExpr,
+		"interval_seconds": def.IntervalSeconds,
+		"timezone":         def.Timezone,
+		"enabled":          def.Enabled,
+		"timeout_sec":      def.TimeoutSec,
+		"params_json":      def.ParamsJSON,
+		"update_time":      def.UpdateTime,
+	}).Error
 	if err != nil {
 		return err
 	}
@@ -166,11 +165,14 @@ func SetEnabled(jobCode string, enabled bool) error {
 	if enabled {
 		v = 1
 	}
-	res, err := db.Exec(`UPDATE auto_job_definitions SET enabled=?, update_time=? WHERE job_code=?`, v, nowUnix(), jobCode)
-	if err != nil {
-		return err
+	r := db.DB.Model(&JobDefinition{}).Where("job_code = ?", jobCode).Updates(map[string]interface{}{
+		"enabled":     v,
+		"update_time": nowUnix(),
+	})
+	if r.Error != nil {
+		return r.Error
 	}
-	n, _ := res.RowsAffected()
+	n := r.RowsAffected
 	if n == 0 {
 		return fmt.Errorf("任务不存在")
 	}
@@ -180,16 +182,18 @@ func SetEnabled(jobCode string, enabled bool) error {
 
 // MarkDefinitionRunning 把定义标为 running（CAS：已是 running 则失败）
 func MarkDefinitionRunning(jobCode string, startedAt int64) (bool, error) {
-	res, err := db.Exec(`
-		UPDATE auto_job_definitions
-		SET last_status=?, last_started_at=?, last_error='', update_time=?
-		WHERE job_code=? AND (last_status IS NULL OR last_status = '' OR last_status <> ?)`,
-		StatusRunning, startedAt, startedAt, jobCode, StatusRunning,
-	)
-	if err != nil {
-		return false, err
+	r := db.DB.Model(&JobDefinition{}).
+		Where("job_code = ? AND (last_status IS NULL OR last_status = '' OR last_status <> ?)", jobCode, StatusRunning).
+		Updates(map[string]interface{}{
+			"last_status":     StatusRunning,
+			"last_started_at": startedAt,
+			"last_error":      "",
+			"update_time":     startedAt,
+		})
+	if r.Error != nil {
+		return false, r.Error
 	}
-	n, _ := res.RowsAffected()
+	n := r.RowsAffected
 	if n > 0 {
 		cacheMu.Lock()
 		if d, ok := cacheDefs[jobCode]; ok {
@@ -213,16 +217,16 @@ func bumpDefinitionAfterRun(jobCode, status string, startedAt, finished int64, e
 	case StatusFailed, StatusTimeout:
 		failInc = 1
 	}
-	_, err := db.Exec(`
-		UPDATE auto_job_definitions SET
-			last_status=?, last_started_at=?, last_finished_at=?, last_error=?,
-			lifetime_run_count = lifetime_run_count + 1,
-			lifetime_success_count = lifetime_success_count + ?,
-			lifetime_fail_count = lifetime_fail_count + ?,
-			update_time=?
-		WHERE job_code=?`,
-		status, startedAt, finished, errorText, successInc, failInc, finished, jobCode,
-	)
+	err := db.DB.Model(&JobDefinition{}).Where("job_code = ?", jobCode).Updates(map[string]interface{}{
+		"last_status":            status,
+		"last_started_at":        startedAt,
+		"last_finished_at":       finished,
+		"last_error":             errorText,
+		"lifetime_run_count":     gorm.Expr("lifetime_run_count + 1"),
+		"lifetime_success_count": gorm.Expr("lifetime_success_count + ?", successInc),
+		"lifetime_fail_count":    gorm.Expr("lifetime_fail_count + ?", failInc),
+		"update_time":            finished,
+	}).Error
 	if err == nil {
 		cacheMu.Lock()
 		if d, ok := cacheDefs[jobCode]; ok {
@@ -241,24 +245,24 @@ func bumpDefinitionAfterRun(jobCode, status string, startedAt, finished int64, e
 // CountRunning 当前运行中任务数（看定义表 last_status；runs 跑完才落库）
 func CountRunning() (int64, error) {
 	var n int64
-	err := db.DB.Get(&n, `SELECT COUNT(*) FROM auto_job_definitions WHERE last_status=?`, StatusRunning)
+	err := db.DB.Raw(`SELECT COUNT(*) FROM auto_job_definitions WHERE last_status=?`, StatusRunning).Scan(&n).Error
 	return n, err
 }
 
 // ListRunningDefinitions 当前运行中的任务（定义表视角）
 func ListRunningDefinitions() ([]JobDefinition, error) {
 	var list []JobDefinition
-	err := db.DB.Select(&list, `
+	err := db.DB.Raw(`
 		SELECT * FROM auto_job_definitions
 		WHERE last_status=?
-		ORDER BY last_started_at DESC, job_code ASC`, StatusRunning)
+		ORDER BY last_started_at DESC, job_code ASC`, StatusRunning).Scan(&list).Error
 	return list, err
 }
 
 // SumLifetimeRuns 所有任务终身执行次数合计
 func SumLifetimeRuns() (string, error) {
 	var s sql.NullString
-	err := db.DB.Get(&s, `SELECT COALESCE(CAST(SUM(lifetime_run_count) AS CHAR), '0') FROM auto_job_definitions`)
+	err := db.DB.Raw(`SELECT COALESCE(`+db.CastToText("SUM(lifetime_run_count)")+`, '0') FROM auto_job_definitions`).Scan(&s).Error
 	if err != nil {
 		return "0", err
 	}

@@ -28,11 +28,10 @@ func NewTodoController() *TodoController {
 func (ctrl *TodoController) List(c *gin.Context) {
 	items := make([]TodoItem, 0, 8)
 
-	// 待审实名
 	var pendingRealname int64
-	if err := db.DB.Get(&pendingRealname, `
-		SELECT COUNT(1) FROM user_realname_verifications
-		WHERE status = 0 AND delete_time IS NULL`); err != nil {
+	if err := db.DB.Model(&models.RealnameVerification{}).
+		Where("status = 0 AND delete_time IS NULL").
+		Count(&pendingRealname).Error; err != nil {
 		log.Printf("[ADMIN][TODO] count pending realname: %v", err)
 	} else if pendingRealname > 0 {
 		items = append(items, TodoItem{
@@ -43,10 +42,10 @@ func (ctrl *TodoController) List(c *gin.Context) {
 		})
 	}
 
-	// 开放支付异常
 	var openExceptions int64
-	if err := db.DB.Get(&openExceptions, `
-		SELECT COUNT(1) FROM payment_exceptions WHERE status = ?`, models.PaymentExceptionStatusOpen); err != nil {
+	if err := db.DB.Model(&models.PaymentException{}).
+		Where("status = ?", models.PaymentExceptionStatusOpen).
+		Count(&openExceptions).Error; err != nil {
 		log.Printf("[ADMIN][TODO] count open payment exceptions: %v", err)
 	} else if openExceptions > 0 {
 		items = append(items, TodoItem{
@@ -57,11 +56,11 @@ func (ctrl *TodoController) List(c *gin.Context) {
 		})
 	}
 
-	// 失败的自动任务定义（最近状态 failed）
 	var failedJobs int64
 	if db.CheckTableExists("auto_job_definitions") {
-		if err := db.DB.Get(&failedJobs, `
-			SELECT COUNT(1) FROM auto_job_definitions WHERE last_status = 'failed'`); err != nil {
+		if err := db.DB.Table("auto_job_definitions").
+			Where("last_status = 'failed'").
+			Count(&failedJobs).Error; err != nil {
 			log.Printf("[ADMIN][TODO] count failed auto jobs: %v", err)
 		} else if failedJobs > 0 {
 			items = append(items, TodoItem{
@@ -73,11 +72,11 @@ func (ctrl *TodoController) List(c *gin.Context) {
 		}
 	}
 
-	// 待审批（双人复核开启时）
 	var pendingApprovals int64
 	if db.CheckTableExists("approval_requests") {
-		if err := db.DB.Get(&pendingApprovals, `
-			SELECT COUNT(1) FROM approval_requests WHERE status = ?`, models.ApprovalStatusPending); err != nil {
+		if err := db.DB.Model(&models.ApprovalRequest{}).
+			Where("status = ?", models.ApprovalStatusPending).
+			Count(&pendingApprovals).Error; err != nil {
 			log.Printf("[ADMIN][TODO] count pending approvals: %v", err)
 		} else if pendingApprovals > 0 {
 			items = append(items, TodoItem{
@@ -89,11 +88,11 @@ func (ctrl *TodoController) List(c *gin.Context) {
 		}
 	}
 
-	// 待审提现
 	var pendingWithdraw int64
 	if db.CheckTableExists("withdraw_requests") {
-		if err := db.DB.Get(&pendingWithdraw, `
-			SELECT COUNT(1) FROM withdraw_requests WHERE status = 0`); err != nil {
+		if err := db.DB.Model(&models.WithdrawRequest{}).
+			Where("status = 0 AND delete_time IS NULL").
+			Count(&pendingWithdraw).Error; err != nil {
 			log.Printf("[ADMIN][TODO] count pending withdraw: %v", err)
 		} else if pendingWithdraw > 0 {
 			items = append(items, TodoItem{

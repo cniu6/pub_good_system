@@ -13,9 +13,6 @@ import (
 	"fst/backend/app/plugins/pay_balance/epay"
 	"fst/backend/pkg/config"
 	"fst/backend/pkg/db"
-
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
 )
 
 func maskMiddle(value string) string {
@@ -45,12 +42,8 @@ func main() {
 	}
 
 	config.InitConfig()
-	conn, err := sqlx.Connect(config.GlobalConfig.DBDriver, config.GlobalConfig.DBDSN)
-	if err != nil {
-		log.Fatalf("数据库连接失败: %v", err)
-	}
-	defer conn.Close()
-	db.DB = conn
+	db.InitDB()
+	defer func() { _ = db.Close() }()
 
 	order, err := models.GetPaymentOrderByID(orderID)
 	if err != nil {

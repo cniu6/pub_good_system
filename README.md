@@ -6,7 +6,7 @@ FST (Full Stack Template) 是一个基于 Go (Gin) 和 Vue 3 (Naive UI) 构建�
 
 | 层 | 技术 |
 |---|------|
-| 后端 | Go 1.24+ · Gin · MySQL (sqlx) · JWT · Swagger |
+| 后端 | Go 1.24+ · Gin · GORM（MySQL / SQLite / Postgres）· JWT · Swagger |
 | 前端 | Vue 3 · TypeScript · Vite · Naive UI · UnoCSS · Pinia · Alova |
 | 构建 | Windows / Linux · amd64 / arm64 |
 
@@ -20,7 +20,7 @@ fst/
 │   ├── internal/
 │   │   ├── appinit/             # 启动编排
 │   │   ├── migrate/             # 数据库自迁移
-│   │   └── task/                # 自动任务管理器（SQL + 内存调度）
+│   │   └── task/                # 自动任务管理器（GORM + 内存调度）
 │   ├── app/                     # 业务 MVC + plugins
 │   ├── pkg/                     # config / db / middleware / presence
 │   ├── routes/                  # public / user / admin / ws
@@ -216,7 +216,7 @@ controllers/
 - 统一根目录 `.env` 加载（exe 同级 / 上级 / cwd 向上），废弃 `backend/.env`
 - Presence 在线用户、会话强退、国际手机号/geo、邮件代理与 SMTP 增强
 - 管理端设置/日志/模板与 i18n、Iconify 离线、Token 自动刷新默认开启
-- SQLite 方言与日志聚合等稳定性修复；文档与目录留档同步
+- SQLite / GORM 适配与日志聚合等稳定性修复；文档与目录留档同步
 
 ### 2026-07-16
 

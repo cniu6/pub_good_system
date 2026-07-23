@@ -1,3 +1,8 @@
+# 单包前端：必须声明 packages，否则 pnpm install 报
+# 「packages field missing or empty」（CI / pnpm 9+ 均会校验）
+packages:
+  - '.'
+
 ignoredBuiltDependencies:
   - '@parcel/watcher'
   - esbuild

@@ -8,8 +8,6 @@ import (
 )
 
 func TestGetWithdrawRequestStatsRegression(t *testing.T) {
-	models.InitWithdrawRequestsTable()
-
 	stats, err := models.GetWithdrawRequestStats(&models.WithdrawListQuery{})
 	if err != nil {
 		t.Fatalf("获取提现统计失败: %v", err)
@@ -23,8 +21,6 @@ func TestAdminGetWithdrawStats(t *testing.T) {
 	if testToken == "" {
 		t.Skip("无测试 token，跳过")
 	}
-
-	models.InitWithdrawRequestsTable()
 
 	w := apiRequest("GET", "/api/v1/admin/withdraw/stats", nil, testToken)
 	code, msg, data := parseResponse(w)

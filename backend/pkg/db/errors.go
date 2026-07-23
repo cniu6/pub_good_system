@@ -8,7 +8,7 @@ import (
 )
 
 // IsDuplicateKeyError 判断是否为唯一键冲突。
-// 覆盖 MySQL 1062、SQLite UNIQUE、Postgres 23505（含 pg-shim 转换后的错误文案）。
+// 覆盖 MySQL 1062、SQLite UNIQUE、Postgres 23505。
 func IsDuplicateKeyError(err error) bool {
 	if err == nil {
 		return false

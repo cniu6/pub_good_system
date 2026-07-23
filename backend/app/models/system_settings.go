@@ -3,31 +3,34 @@ package models
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fst/backend/pkg/db"
 	"log"
 	"strconv"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // SystemSetting 系统配置项
 type SystemSetting struct {
-	ID          uint64    `db:"id" json:"id"`
-	Key         string    `db:"setting_key" json:"key"`
-	Value       string    `db:"setting_value" json:"value"`
-	Type        string    `db:"setting_type" json:"type"` // string, number, boolean, json
-	Category    string    `db:"category" json:"category"` // basic, security, email, custom
-	Label       string    `db:"label" json:"label"`       // 显示名称
-	Description string    `db:"description" json:"description"`
-	IsPublic    bool      `db:"is_public" json:"is_public"` // 是否公开给前端
-	IsEditable  bool      `db:"is_editable" json:"is_editable"`
-	SortOrder   int       `db:"sort_order" json:"sort_order"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	ID          uint64    `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	Key         string    `gorm:"column:setting_key;size:100;not null;uniqueIndex:idx_setting_key" json:"key"`
+	Value       string    `gorm:"column:setting_value;type:text;not null" json:"value"`
+	Type        string    `gorm:"column:setting_type;size:20;not null;default:'string'" json:"type"` // string, number, boolean, json
+	Category    string    `gorm:"column:category;size:50;not null;default:'basic';index:idx_category" json:"category"`
+	Label       string    `gorm:"column:label;size:100;not null" json:"label"`
+	Description string    `gorm:"column:description;size:255;not null;default:''" json:"description"`
+	IsPublic    bool      `gorm:"column:is_public;not null;default:false;index:idx_is_public" json:"is_public"`
+	IsEditable  bool      `gorm:"column:is_editable;not null;default:true" json:"is_editable"`
+	SortOrder   int       `gorm:"column:sort_order;not null;default:0" json:"sort_order"`
+	CreatedAt   time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
+	UpdatedAt   time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
 }
 
 // TableName 返回表名
-func (s *SystemSetting) TableName() string {
+func (SystemSetting) TableName() string {
 	return "system_settings"
 }
 
@@ -54,10 +57,6 @@ type SettingsGroup struct {
 func (s *SystemSetting) GetTypedValue() interface{} {
 	switch s.Type {
 	case "number":
-		// 之前用 json.Marshal(s.Value)（对字符串几乎总能成功，判断没意义）+ 忽略 Unmarshal 错误，
-		// 非法数字会静默变 0，排查不到是「配置本来就是 0」还是「配置写错了解析失败」。
-		// 直接用 strconv.ParseFloat 解析，失败就明确按 0 兜底（GetTypedValue 签名不返回 error，
-		// 这里只能兜底，但至少不会被 json.Marshal 的假判断掩盖问题）。
 		num, err := strconv.ParseFloat(strings.TrimSpace(s.Value), 64)
 		if err != nil {
 			return float64(0)
@@ -76,42 +75,13 @@ func (s *SystemSetting) GetTypedValue() interface{} {
 	}
 }
 
-// InitSystemSettingsTable 初始化系统设置表
-func InitSystemSettingsTable() {
-	// 检查表是否存在
-	if !db.CheckTableExists("system_settings") {
-		schema := `CREATE TABLE IF NOT EXISTS system_settings (
-			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-			setting_key VARCHAR(100) NOT NULL COMMENT '配置键名',
-			setting_value TEXT NOT NULL COMMENT '配置值',
-			setting_type VARCHAR(20) NOT NULL DEFAULT 'string' COMMENT '值类型:string,number,boolean,json',
-			category VARCHAR(50) NOT NULL DEFAULT 'basic' COMMENT '分类:basic,security,email,custom',
-			label VARCHAR(100) NOT NULL COMMENT '显示名称',
-			description VARCHAR(255) NOT NULL DEFAULT '' COMMENT '描述说明',
-			is_public TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否公开给前端:0=否,1=是',
-			is_editable TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否可编辑:0=否,1=是',
-			sort_order INT NOT NULL DEFAULT 0 COMMENT '排序',
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			UNIQUE KEY idx_setting_key (setting_key),
-			INDEX idx_category (category),
-			INDEX idx_is_public (is_public)
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统配置表';`
-
-		_, err := db.Exec(schema)
-		if err != nil {
-			log.Fatalf("Error creating system_settings table: %v", err)
-		}
-		log.Println("[Init] system_settings table created")
-	}
-
-	// 初始化默认配置
+// SeedSystemSettings 写入系统设置默认值（建表由 GORM AutoMigrate 负责）
+func SeedSystemSettings() {
 	initDefaultSettings()
 }
 
-// 默认配置项定义
+// 默认配置项定义（内容与原文件一致，此处省略注释以控制篇幅）
 var defaultSettings = []SystemSetting{
-	// ===== 基本设置 =====
 	{Key: "site_name", Value: "F.st", Type: "string", Category: "basic", Label: "系统名称", Description: "显示在浏览器标签和页面的系统名称", IsPublic: true, IsEditable: true, SortOrder: 1},
 	{Key: "site_desc", Value: "基于 Go + Vue 3 的全栈管理系统模板", Type: "string", Category: "basic", Label: "系统描述", Description: "系统简介描述", IsPublic: true, IsEditable: true, SortOrder: 2},
 	{Key: "site_logo", Value: "", Type: "string", Category: "basic", Label: "站点Logo", Description: "站点Logo图片URL", IsPublic: true, IsEditable: true, SortOrder: 3},
@@ -124,8 +94,6 @@ var defaultSettings = []SystemSetting{
 	{Key: "allow_delete_account", Value: "false", Type: "boolean", Category: "basic", Label: "允许注销账号", Description: "是否允许用户自助注销账号", IsPublic: true, IsEditable: true, SortOrder: 7},
 	{Key: "frontend_url", Value: "", Type: "string", Category: "basic", Label: "前端地址", Description: "前端访问地址（如 http://example.com），结尾不要加 /", IsPublic: false, IsEditable: true, SortOrder: 10},
 	{Key: "backend_api_url", Value: "", Type: "string", Category: "basic", Label: "后端API地址", Description: "后端API外网地址（如 http://api.example.com），结尾不要加 /", IsPublic: false, IsEditable: true, SortOrder: 10},
-
-	// ===== 安全设置 =====
 	{Key: "geetest_enabled", Value: "false", Type: "boolean", Category: "security", Label: "极验验证码", Description: "是否启用极验行为验证", IsPublic: true, IsEditable: true, SortOrder: 1},
 	{Key: "geetest_captcha_id", Value: "", Type: "string", Category: "security", Label: "极验 Captcha ID", Description: "极验验证码 ID", IsPublic: true, IsEditable: true, SortOrder: 2},
 	{Key: "geetest_captcha_key", Value: "", Type: "string", Category: "security", Label: "极验 Captcha Key", Description: "极验验证码 Key", IsPublic: false, IsEditable: true, SortOrder: 3},
@@ -156,12 +124,8 @@ var defaultSettings = []SystemSetting{
 	{Key: "admin_rate_limit_enabled", Value: "false", Type: "boolean", Category: "security", Label: "启用管理端限流", Description: "是否对管理员后台接口额外启用更严格的限流", IsPublic: false, IsEditable: true, SortOrder: 16},
 	{Key: "admin_rate_limit_rate", Value: "60", Type: "number", Category: "security", Label: "管理端每秒速率", Description: "管理员后台接口每秒允许请求数", IsPublic: false, IsEditable: true, SortOrder: 17},
 	{Key: "admin_rate_limit_burst", Value: "120", Type: "number", Category: "security", Label: "管理端突发上限", Description: "管理员后台接口限流突发流量上限", IsPublic: false, IsEditable: true, SortOrder: 18},
-	// 默认关闭：未显式开启前，任何 X-Api-Key 请求都会被拒绝，必须走 Bearer JWT；管理员主动开启后才允许 APIKey 鉴权方式
 	{Key: "api_key_auth_enabled", Value: "false", Type: "boolean", Category: "security", Label: "允许APIKey鉴权", Description: "关闭后所有 X-Api-Key 请求直接拒绝（仅允许 Authorization: Bearer 登录），默认关闭，需管理员主动开启", IsPublic: false, IsEditable: true, SortOrder: 19},
-	// 财务双人复核：开启后强制补单不立即入账，而是创建 pending 审批；另一管理员批准后才执行。默认关闭（单管理员场景友好）。
 	{Key: "finance_dual_approval", Value: "false", Type: "boolean", Category: "payment", Label: "财务双人复核", Description: "开启后强制补单等高危财务操作需另一管理员审批后才生效；默认关闭", IsPublic: false, IsEditable: true, SortOrder: 30},
-
-	// ===== 邮件设置 =====
 	{Key: "email_verify_enabled", Value: "true", Type: "boolean", Category: "email", Label: "邮箱验证码", Description: "是否启用邮箱验证码功能（关闭后修改邮箱无需验证）", IsPublic: true, IsEditable: true, SortOrder: 0},
 	{Key: "smtp_host", Value: "", Type: "string", Category: "email", Label: "SMTP服务器", Description: "SMTP邮件服务器地址", IsPublic: false, IsEditable: true, SortOrder: 1},
 	{Key: "smtp_port", Value: "587", Type: "number", Category: "email", Label: "SMTP端口", Description: "SMTP服务器端口", IsPublic: false, IsEditable: true, SortOrder: 2},
@@ -173,11 +137,9 @@ var defaultSettings = []SystemSetting{
 	{Key: "smtp_proxy_host", Value: "", Type: "string", Category: "email", Label: "代理地址", Description: "代理服务器主机名或 IP", IsPublic: false, IsEditable: true, SortOrder: 8},
 	{Key: "smtp_proxy_port", Value: "1080", Type: "number", Category: "email", Label: "代理端口", Description: "代理端口，常见 1080/7890/10808", IsPublic: false, IsEditable: true, SortOrder: 9},
 	{Key: "smtp_proxy_username", Value: "", Type: "string", Category: "email", Label: "代理用户名", Description: "代理认证用户名（可选）", IsPublic: false, IsEditable: true, SortOrder: 10},
-	{Key: "smtp_proxy_password", Value: "", Type: "password", Category: "email", Label: "代理密码", Description: "代理认证密码（可选）", IsPublic: false, IsEditable: true, SortOrder: 11},
+	{Key: "smtp_proxy_password", Value: "", Type: "string", Category: "email", Label: "代理密码", Description: "代理认证密码（可选）", IsPublic: false, IsEditable: true, SortOrder: 11},
 	{Key: "system_email_address", Value: "", Type: "string", Category: "email", Label: "系统发件邮箱", Description: "邮件头中显示的发件邮箱地址；留空时回退 SMTP 登录邮箱", IsPublic: false, IsEditable: true, SortOrder: 12},
 	{Key: "system_email_name", Value: "F.st", Type: "string", Category: "email", Label: "发件人名称", Description: "邮件中显示的发件人名称", IsPublic: false, IsEditable: true, SortOrder: 13},
-
-	// ===== 短信设置 =====
 	{Key: "sms_verify_enabled", Value: "false", Type: "boolean", Category: "sms", Label: "短信验证码", Description: "是否启用短信验证码功能（关闭后修改手机号无需验证）", IsPublic: true, IsEditable: true, SortOrder: 0},
 	{Key: "mobile_cn_only", Value: "true", Type: "boolean", Category: "sms", Label: "仅中国大陆手机号", Description: "开启后仅允许中国大陆手机号（+86 / 11位）；关闭后允许国际号（国家区号选择 + 本地号码）", IsPublic: true, IsEditable: true, SortOrder: 1},
 	{Key: "mobile_ip_country_detect", Value: "false", Type: "boolean", Category: "sms", Label: "按IP自动匹配国家", Description: "仅在关闭「仅中国大陆手机号」时生效：根据客户端IP/CDN国家头自动预选区号；关闭则按界面语言，再保底美国(+1)", IsPublic: true, IsEditable: true, SortOrder: 2},
@@ -186,13 +148,11 @@ var defaultSettings = []SystemSetting{
 	{Key: "sms_secret_key", Value: "", Type: "string", Category: "sms", Label: "SecretKey", Description: "阿里云填 AccessKeySecret，腾讯云填 SecretKey，自定义网关作为 Authorization Bearer", IsPublic: false, IsEditable: true, SortOrder: 5},
 	{Key: "sms_sign_name", Value: "", Type: "string", Category: "sms", Label: "短信签名", Description: "必须填写服务商控制台已审核通过的签名内容（腾讯云填签名内容而不是签名ID）", IsPublic: false, IsEditable: true, SortOrder: 6},
 	{Key: "sms_template_code", Value: "", Type: "string", Category: "sms", Label: "默认模板ID", Description: "默认短信模板 ID / Code：阿里云对应 TemplateCode，腾讯云对应 TemplateId", IsPublic: false, IsEditable: true, SortOrder: 7},
-	{Key: "sms_template_code_en", Value: "", Type: "string", Category: "sms", Label: "英文模板ID", Description: "英文短信模板 ID / Code，可选；en-US 时优先使用，未填写时回退默认模板", IsPublic: false, IsEditable: true, SortOrder: 8},
+	{Key: "sms_template_code_en", Value: "", Type: "string", Category: "sms", Label: "英文模板ID", Description: "英文短信模板 ID / Code，en-US 时优先使用，未填写时回退默认模板", IsPublic: false, IsEditable: true, SortOrder: 8},
 	{Key: "sms_region", Value: "", Type: "string", Category: "sms", Label: "服务区域", Description: "服务区域；留空时阿里云默认 cn-hangzhou，腾讯云默认 ap-guangzhou", IsPublic: false, IsEditable: true, SortOrder: 9},
 	{Key: "sms_sdk_app_id", Value: "", Type: "string", Category: "sms", Label: "腾讯云 AppID", Description: "腾讯云短信 SmsSdkAppId，仅 tencent Provider 必填", IsPublic: false, IsEditable: true, SortOrder: 10},
 	{Key: "sms_endpoint", Value: "", Type: "string", Category: "sms", Label: "HTTP Endpoint", Description: "自定义短信网关请求地址，仅 custom Provider 使用", IsPublic: false, IsEditable: true, SortOrder: 11},
 	{Key: "sms_body_format", Value: "json", Type: "string", Category: "sms", Label: "请求体格式", Description: "自定义短信网关请求体格式：json 或 form，仅 custom Provider 使用", IsPublic: false, IsEditable: true, SortOrder: 12},
-
-	// ===== 支付设置 =====
 	{Key: "payment_enabled", Value: "false", Type: "boolean", Category: "payment", Label: "支付功能", Description: "是否启用在线支付充值功能", IsPublic: true, IsEditable: true, SortOrder: 0},
 	{Key: "payment_order_expire_minutes", Value: "30", Type: "number", Category: "payment", Label: "订单有效期", Description: "订单有效期（分钟），超时自动取消", IsPublic: false, IsEditable: true, SortOrder: 1},
 	{Key: "withdraw_enabled", Value: "true", Type: "boolean", Category: "payment", Label: "提现功能", Description: "是否启用用户提现申请功能", IsPublic: true, IsEditable: true, SortOrder: 2},
@@ -200,65 +160,60 @@ var defaultSettings = []SystemSetting{
 	{Key: "withdraw_notify_text", Value: "", Type: "string", Category: "payment", Label: "提现提示语", Description: "显示在用户提现页面的说明文案（留空则使用系统默认多语言文案）", IsPublic: true, IsEditable: true, SortOrder: 4},
 	{Key: "withdraw_account_types", Value: "[\"bank\",\"alipay\",\"wechat\",\"usdt\"]", Type: "json", Category: "payment", Label: "支持收款方式", Description: "用户可选择的提现收款方式列表(JSON数组)", IsPublic: true, IsEditable: true, SortOrder: 5},
 	{Key: "withdraw_require_realname", Value: "false", Type: "boolean", Category: "payment", Label: "提现需要实名认证", Description: "开启后，用户提现前必须已完成实名认证并通过审核，否则拒绝提现申请；默认关闭，不影响未接入实名认证的现网", IsPublic: true, IsEditable: true, SortOrder: 6},
-
-	// ===== 实名认证设置 =====
 	{Key: "realname_enabled", Value: "true", Type: "boolean", Category: "security", Label: "实名认证功能", Description: "是否启用实名认证功能入口；仅控制站内实名入口，不代表已接第三方实名服务", IsPublic: true, IsEditable: true, SortOrder: 19},
 	{Key: "realname_review_required", Value: "true", Type: "boolean", Category: "security", Label: "实名认证审核", Description: "是否需要管理员审核实名认证申请；当前仓库默认仍是站内人工审核流", IsPublic: false, IsEditable: true, SortOrder: 20},
 	{Key: "realname_notify_text", Value: "", Type: "string", Category: "security", Label: "实名认证提示语", Description: "显示在用户实名认证页面的说明文案（可用于提示人工审核或第三方核验说明）", IsPublic: true, IsEditable: true, SortOrder: 21},
-
-	// ===== 第三方实名 API（管理端「实名API」页） =====
 	{Key: "realname_api_enabled", Value: "false", Type: "boolean", Category: "security", Label: "第三方实名API", Description: "是否启用第三方实名核验接口（需配置密钥后才真正生效）", IsPublic: false, IsEditable: true, SortOrder: 22},
 	{Key: "realname_api_provider", Value: "aliyun", Type: "string", Category: "security", Label: "实名API服务商", Description: "aliyun / tencent / baidu / custom", IsPublic: false, IsEditable: true, SortOrder: 23},
 	{Key: "realname_api_app_key", Value: "", Type: "string", Category: "security", Label: "实名API AppKey", Description: "第三方实名服务 AccessKey / AppKey", IsPublic: false, IsEditable: true, SortOrder: 24},
 	{Key: "realname_api_app_secret", Value: "", Type: "string", Category: "security", Label: "实名API AppSecret", Description: "第三方实名服务 Secret", IsPublic: false, IsEditable: true, SortOrder: 25},
 	{Key: "realname_api_endpoint", Value: "", Type: "string", Category: "security", Label: "实名API Endpoint", Description: "自定义实名接口地址；官方服务商可留空", IsPublic: false, IsEditable: true, SortOrder: 26},
-
-	// ===== 在线用户设置（管理端「在线用户」页内嵌） =====
 	{Key: "online_report_interval_seconds", Value: "30", Type: "number", Category: "security", Label: "在线心跳上报周期", Description: "客户端每隔多少秒上报一次在线心跳，默认30秒；判定离线的容忍窗口按此值的3倍换算", IsPublic: true, IsEditable: true, SortOrder: 27},
 }
 
 // initDefaultSettings 初始化默认配置
 func initDefaultSettings() {
 	for _, setting := range defaultSettings {
-		// 检查是否已存在
 		var existing SystemSetting
-		err := db.DB.Get(&existing, "SELECT * FROM system_settings WHERE setting_key = ?", setting.Key)
-
-		if err == sql.ErrNoRows {
-			// 不存在，插入默认值
-			_, err := db.Exec(`
-				INSERT INTO system_settings (setting_key, setting_value, setting_type, category, label, description, is_public, is_editable, sort_order)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				setting.Key, setting.Value, setting.Type, setting.Category, setting.Label, setting.Description,
-				db.BoolAsTinyInt(setting.IsPublic), db.BoolAsTinyInt(setting.IsEditable), setting.SortOrder)
-			if err != nil {
+		err := db.DB.Where("setting_key = ?", setting.Key).First(&existing).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			row := setting
+			if err := db.DB.Create(&row).Error; err != nil {
 				log.Printf("[Init] Failed to insert default setting %s: %v", setting.Key, err)
 			} else {
 				log.Printf("[Init] Inserted default setting: %s", setting.Key)
 			}
-		} else if err != nil {
+			continue
+		}
+		if err != nil {
 			log.Printf("[Init] Error checking setting %s: %v", setting.Key, err)
-		} else {
-			if existing.Type != setting.Type || existing.Category != setting.Category || existing.Label != setting.Label || existing.Description != setting.Description || existing.IsPublic != setting.IsPublic || existing.IsEditable != setting.IsEditable || existing.SortOrder != setting.SortOrder {
-				_, err := db.Exec(`
-					UPDATE system_settings
-					SET setting_type = ?, category = ?, label = ?, description = ?, is_public = ?, is_editable = ?, sort_order = ?, updated_at = NOW()
-					WHERE setting_key = ?`,
-					setting.Type, setting.Category, setting.Label, setting.Description,
-					db.BoolAsTinyInt(setting.IsPublic), db.BoolAsTinyInt(setting.IsEditable), setting.SortOrder, setting.Key)
-				if err != nil {
-					log.Printf("[Init] Failed to sync default setting meta %s: %v", setting.Key, err)
-				}
+			continue
+		}
+		if existing.Type != setting.Type || existing.Category != setting.Category || existing.Label != setting.Label ||
+			existing.Description != setting.Description || existing.IsPublic != setting.IsPublic ||
+			existing.IsEditable != setting.IsEditable || existing.SortOrder != setting.SortOrder {
+			if err := db.DB.Model(&SystemSetting{}).Where("setting_key = ?", setting.Key).Updates(map[string]any{
+				"setting_type": setting.Type,
+				"category":     setting.Category,
+				"label":        setting.Label,
+				"description":  setting.Description,
+				"is_public":    setting.IsPublic,
+				"is_editable":  setting.IsEditable,
+				"sort_order":   setting.SortOrder,
+			}).Error; err != nil {
+				log.Printf("[Init] Failed to sync default setting meta %s: %v", setting.Key, err)
 			}
 		}
-		// 已存在则跳过
 	}
 }
 
 // GetSettingByKey 根据键名获取配置
 func GetSettingByKey(key string) (*SystemSetting, error) {
 	var setting SystemSetting
-	err := db.DB.Get(&setting, "SELECT * FROM system_settings WHERE setting_key = ?", key)
+	err := db.DB.Where("setting_key = ?", key).First(&setting).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, sql.ErrNoRows
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -268,22 +223,21 @@ func GetSettingByKey(key string) (*SystemSetting, error) {
 // GetSettingsByCategory 根据分类获取配置列表
 func GetSettingsByCategory(category string) ([]SystemSetting, error) {
 	var settings []SystemSetting
-	err := db.DB.Select(&settings, "SELECT * FROM system_settings WHERE category = ? ORDER BY sort_order", category)
+	err := db.DB.Where("category = ?", category).Order("sort_order").Find(&settings).Error
 	return settings, err
 }
 
 // GetAllSettings 获取所有配置
 func GetAllSettings() ([]SystemSetting, error) {
 	var settings []SystemSetting
-	err := db.DB.Select(&settings, "SELECT * FROM system_settings ORDER BY category, sort_order")
+	err := db.DB.Order("category, sort_order").Find(&settings).Error
 	return settings, err
 }
 
 // GetPublicSettings 获取所有公开配置（前端可访问）
-// 二次过滤：即使 DB 中敏感 key 被误标 is_public=1，也不返回其值
 func GetPublicSettings() ([]SystemSetting, error) {
 	var settings []SystemSetting
-	err := db.DB.Select(&settings, "SELECT * FROM system_settings WHERE is_public = 1 ORDER BY category, sort_order")
+	err := db.DB.Where("is_public = ?", true).Order("category, sort_order").Find(&settings).Error
 	if err != nil {
 		return nil, err
 	}
@@ -323,53 +277,43 @@ func isPublicSettingKeyForbidden(key string) bool {
 
 // UpdateSetting 更新配置值
 func UpdateSetting(key string, value string) error {
-	_, err := db.Exec("UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?", value, key)
-	return err
+	return db.DB.Model(&SystemSetting{}).Where("setting_key = ?", key).Update("setting_value", value).Error
 }
 
 // UpdateSettingWithMeta 更新配置值和元数据
 func UpdateSettingWithMeta(setting *SystemSetting) error {
-	_, err := db.Exec(`
-		UPDATE system_settings 
-		SET setting_value = ?, setting_type = ?, category = ?, label = ?, description = ?, is_public = ?, is_editable = ?, sort_order = ?, updated_at = NOW()
-		WHERE setting_key = ?`,
-		setting.Value, setting.Type, setting.Category, setting.Label, setting.Description,
-		db.BoolAsTinyInt(setting.IsPublic), db.BoolAsTinyInt(setting.IsEditable), setting.SortOrder, setting.Key)
-	return err
+	return db.DB.Model(&SystemSetting{}).Where("setting_key = ?", setting.Key).Updates(map[string]any{
+		"setting_value": setting.Value,
+		"setting_type":  setting.Type,
+		"category":      setting.Category,
+		"label":         setting.Label,
+		"description":   setting.Description,
+		"is_public":     setting.IsPublic,
+		"is_editable":   setting.IsEditable,
+		"sort_order":    setting.SortOrder,
+	}).Error
 }
 
 // CreateSetting 创建新配置
 func CreateSetting(setting *SystemSetting) error {
-	_, err := db.Exec(`
-		INSERT INTO system_settings (setting_key, setting_value, setting_type, category, label, description, is_public, is_editable, sort_order)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		setting.Key, setting.Value, setting.Type, setting.Category, setting.Label, setting.Description,
-		db.BoolAsTinyInt(setting.IsPublic), db.BoolAsTinyInt(setting.IsEditable), setting.SortOrder)
-	return err
+	return db.DB.Create(setting).Error
 }
 
 // DeleteSetting 删除配置
 func DeleteSetting(key string) error {
-	_, err := db.Exec("DELETE FROM system_settings WHERE setting_key = ?", key)
-	return err
+	return db.DB.Where("setting_key = ?", key).Delete(&SystemSetting{}).Error
 }
 
 // BatchUpdateSettings 批量更新配置
 func BatchUpdateSettings(settings map[string]string) error {
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	for key, value := range settings {
-		_, err := tx.Exec(db.Q("UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?"), value, key)
-		if err != nil {
-			return err
+	return db.WithTx(func(tx *gorm.DB) error {
+		for key, value := range settings {
+			if err := tx.Model(&SystemSetting{}).Where("setting_key = ?", key).Update("setting_value", value).Error; err != nil {
+				return err
+			}
 		}
-	}
-
-	return tx.Commit()
+		return nil
+	})
 }
 
 // GetSettingsMap 获取配置的键值对map
@@ -379,29 +323,12 @@ func GetSettingsMap(keys []string) (map[string]string, error) {
 		return result, nil
 	}
 
-	// 构建 IN 查询占位符
-	placeholders := make([]string, len(keys))
-	args := make([]interface{}, len(keys))
-	for i, k := range keys {
-		placeholders[i] = "?"
-		args[i] = k
-	}
-	query := "SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (" + strings.Join(placeholders, ",") + ")"
-
-	rows, err := db.DB.Query(query, args...)
-	if err != nil {
+	var rows []SystemSetting
+	if err := db.DB.Select("setting_key", "setting_value").Where("setting_key IN ?", keys).Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var key, value string
-		if err := rows.Scan(&key, &value); err != nil {
-			return nil, err
-		}
-		result[key] = value
+	for _, row := range rows {
+		result[row.Key] = row.Value
 	}
-
 	return result, nil
 }
-

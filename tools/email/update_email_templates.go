@@ -3,12 +3,12 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
 )
 
@@ -29,11 +29,14 @@ func main() {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 		dbUser, dbPassword, dbHost, dbPort, dbName)
 
-	db, err := sqlx.Connect("mysql", dsn)
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatalf("数据库连接失败: %v", err)
 	}
 	defer db.Close()
+	if err := db.Ping(); err != nil {
+		log.Fatalf("数据库 Ping 失败: %v", err)
+	}
 
 	fmt.Println("========================================")
 	fmt.Println("开始强制更新邮件模板为新 HTML 格式...")

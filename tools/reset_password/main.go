@@ -43,7 +43,6 @@ func run(args []string) error {
 
 	config.InitConfig()
 	db.InitDB()
-	models.InitUserSessionsTable()
 	if !db.CheckTableExists("user_sessions") {
 		return errors.New("user_sessions 表不存在，无法安全修改密码，请先完成后端初始化")
 	}

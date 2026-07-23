@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"fst/backend/pkg/db"
+
+	"gorm.io/gorm"
 )
 
 // stuckLimitSec 卡住判定秒数：取全局阈值与任务自身 timeout 的较大值，且至少 60s
@@ -39,18 +41,20 @@ func MarkStuckRuns(globalStuckSec int) (int64, error) {
 			continue
 		}
 		errMsg := fmt.Sprintf("definition stuck after %ds", limit)
-		res, err := db.Exec(`
-			UPDATE auto_job_definitions SET
-				last_status=?, last_finished_at=?, last_error=?,
-				lifetime_fail_count = lifetime_fail_count + 1, update_time=?
-			WHERE job_code=? AND last_status=?`,
-			StatusTimeout, now, errMsg, now, d.JobCode, StatusRunning,
-		)
-		if err != nil {
-			return aff, err
+		r := db.DB.Model(&JobDefinition{}).
+			Where("job_code = ? AND last_status = ?", d.JobCode, StatusRunning).
+			Updates(map[string]interface{}{
+				"last_status":         StatusTimeout,
+				"last_finished_at":    now,
+				"last_error":          errMsg,
+				"lifetime_fail_count": gorm.Expr("lifetime_fail_count + 1"),
+				"update_time":         now,
+			})
+		if r.Error != nil {
+			return aff, r.Error
 		}
-		if n, _ := res.RowsAffected(); n > 0 {
-			aff += n
+		if r.RowsAffected > 0 {
+			aff += r.RowsAffected
 			cacheMu.Lock()
 			if cached, ok := cacheDefs[d.JobCode]; ok {
 				cached.LastStatus = StatusTimeout

@@ -45,8 +45,7 @@ func (p *Plugin) Init() error {
 	p.templateMgr = smstemplates.NewManager()
 	// 先装载内置默认，再尝试用数据库覆盖（库为空则保留默认）
 	p.templateMgr.InitDefaultTemplates()
-	models.InitSMSTemplatesTable()
-	models.InitSMSTemplates()
+	models.SeedSMSTemplates()
 	p.templateMgr.LoadFromDB()
 
 	cfg := config.GlobalConfig
@@ -117,9 +116,7 @@ func getTemplateManager() *smstemplates.Manager {
 }
 
 func (p *Plugin) Migrate() error {
-	models.InitSMSTable()
-	models.InitSMSTemplatesTable()
-	models.InitSMSTemplates()
+	models.SeedSMSTemplates()
 	log.Println("[SMSPlugin] 数据库迁移完成")
 	return nil
 }

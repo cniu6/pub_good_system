@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"fst/backend/app/models"
@@ -12,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // CreatePaymentOrderRequest 创建支付订单请求
@@ -197,42 +198,36 @@ const maxPendingOrdersPerUser = 10
 // createPaymentOrderWithPendingLimitTx 在同一事务内锁定用户行、统计待支付订单数并创建订单，
 // 避免「先查数量、再建单」两步之间的并发窗口导致限流被绕过（同一用户并发点击多次）。
 func createPaymentOrderWithPendingLimitTx(userID uint64, order *models.PaymentOrder) error {
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return fmt.Errorf("开启事务失败: %w", err)
-	}
-	defer tx.Rollback()
-
-	// 锁定用户行，串行化同一用户的并发建单请求
-	var lockedID uint64
-	if err := tx.QueryRow(db.Q("SELECT id FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE"), userID).Scan(&lockedID); err != nil {
-		if err == sql.ErrNoRows {
-			return NewClientError("用户不存在")
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		// 锁定用户行，串行化同一用户的并发建单请求
+		var user models.User
+		if err := db.ForUpdate(tx).
+			Select("id").
+			Where("id = ? AND delete_time IS NULL", userID).
+			First(&user).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return NewClientError("用户不存在")
+			}
+			return err
 		}
-		return err
-	}
 
-	// 允许同金额多笔待支付并存（网络重试等）；是否提示用户去付旧单由前端二次确认。
-	pendingCount, err := models.CountPendingOrdersByUserIDTx(tx, userID)
-	if err != nil {
-		return errors.New("检查待支付订单失败，请稍后重试")
-	}
-	if pendingCount >= maxPendingOrdersPerUser {
-		return NewClientError("您有过多未支付订单，请先支付或等待过期后重试")
-	}
+		pendingCount, err := models.CountPendingOrdersByUserIDTx(tx, userID)
+		if err != nil {
+			return errors.New("检查待支付订单失败，请稍后重试")
+		}
+		if pendingCount >= maxPendingOrdersPerUser {
+			return NewClientError("您有过多未支付订单，请先支付或等待过期后重试")
+		}
 
-	if err := models.CreatePaymentOrderTx(tx, order); err != nil {
-		log.Printf("[Payment] 创建订单失败: %v", err)
-		return errors.New("创建订单失败，请稍后重试")
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("提交事务失败: %w", err)
-	}
-	return nil
+		if err := models.CreatePaymentOrderTx(tx, order); err != nil {
+			log.Printf("[Payment] 创建订单失败: %v", err)
+			return errors.New("创建订单失败，请稍后重试")
+		}
+		return nil
+	})
 }
 
-func settleThirdPartyPaidOrderTx(tx *sql.Tx, orderNo, tradeNo, paymentType, moneyStr, source string) (*models.PaymentOrder, *utils.BalanceResult, bool, error) {
+func settleThirdPartyPaidOrderTx(tx *gorm.DB, orderNo, tradeNo, paymentType, moneyStr, source string) (*models.PaymentOrder, *utils.BalanceResult, bool, error) {
 	order, err := models.GetPaymentOrderForUpdate(tx, orderNo)
 	if err != nil {
 		log.Printf("[Payment] 订单不存在: source=%s, order_no=%s, err=%v", source, orderNo, err)
@@ -483,14 +478,16 @@ func HandlePaymentNotify(params map[string]string) (bool, error) {
 	}
 
 	// 6. 在事务中处理到账（保证原子性+幂等性）
-	tx, err := db.DB.Begin()
+	var order *models.PaymentOrder
+	var balanceResult *utils.BalanceResult
+	var changed bool
+	err = db.DB.Transaction(func(tx *gorm.DB) error {
+		var innerErr error
+		order, balanceResult, changed, innerErr = settleThirdPartyPaidOrderTx(tx, outTradeNo, tradeNo, callbackType, moneyStr, "notify")
+		return innerErr
+	})
 	if err != nil {
-		return false, fmt.Errorf("开启事务失败: %w", err)
-	}
-	defer tx.Rollback()
-
-	order, balanceResult, changed, err := settleThirdPartyPaidOrderTx(tx, outTradeNo, tradeNo, callbackType, moneyStr, "notify")
-	if err != nil {
+		// 失败也记通知次数（事务外，避免回滚吞掉计数）
 		if countErr := models.IncrementNotifyCount(outTradeNo); countErr != nil {
 			log.Printf("[Payment] 更新回调通知次数失败: order_no=%s, err=%v", outTradeNo, countErr)
 		}
@@ -501,13 +498,7 @@ func HandlePaymentNotify(params map[string]string) (bool, error) {
 		if _, ok := err.(*PaymentNotifyError); ok {
 			return false, err
 		}
-		// 未知错误：可重试
 		return false, err
-	}
-
-	// 7. 提交事务
-	if err := tx.Commit(); err != nil {
-		return false, fmt.Errorf("提交事务失败: %w", err)
 	}
 
 	if changed {
@@ -681,23 +672,23 @@ func reconcilePaymentOrder(order *models.PaymentOrder) (bool, error) {
 		return false, nil
 	}
 
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return false, fmt.Errorf("开启事务失败: %w", err)
-	}
-	defer tx.Rollback()
-
-	lockedOrder, balanceResult, changed, err := settleThirdPartyPaidOrderTx(tx, order.OrderNo, queryTradeNo, strings.TrimSpace(queryResult.Type), queryResult.Money, "reconcile")
+	var changed bool
+	err = db.DB.Transaction(func(tx *gorm.DB) error {
+		var lockedOrder *models.PaymentOrder
+		var balanceResult *utils.BalanceResult
+		var innerErr error
+		lockedOrder, balanceResult, changed, innerErr = settleThirdPartyPaidOrderTx(tx, order.OrderNo, queryTradeNo, strings.TrimSpace(queryResult.Type), queryResult.Money, "reconcile")
+		if innerErr != nil {
+			return innerErr
+		}
+		if changed {
+			log.Printf("[Payment] 主动查单补账成功: order_no=%s, user_id=%d, amount=%.2f, fee=%.2f, pay_amount=%.2f, before=%.2f, after=%.2f",
+				lockedOrder.OrderNo, lockedOrder.UserID, lockedOrder.Amount, lockedOrder.Fee, lockedOrder.PayAmount, balanceResult.BeforeMoney, balanceResult.AfterMoney)
+		}
+		return nil
+	})
 	if err != nil {
 		return false, err
-	}
-	if err := tx.Commit(); err != nil {
-		return false, fmt.Errorf("提交事务失败: %w", err)
-	}
-
-	if changed {
-		log.Printf("[Payment] 主动查单补账成功: order_no=%s, user_id=%d, amount=%.2f, fee=%.2f, pay_amount=%.2f, before=%.2f, after=%.2f",
-			lockedOrder.OrderNo, lockedOrder.UserID, lockedOrder.Amount, lockedOrder.Fee, lockedOrder.PayAmount, balanceResult.BeforeMoney, balanceResult.AfterMoney)
 	}
 
 	return changed, nil
@@ -791,97 +782,72 @@ func AdminCompleteOrder(orderID uint64, memo string, force bool, adminUserID uin
 
 // adminCompleteOrderExec 实际入账逻辑（原 AdminCompleteOrder 事务体）
 func adminCompleteOrderExec(order *models.PaymentOrder, memo string, force bool) error {
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return fmt.Errorf("开启事务失败: %w", err)
-	}
-	defer tx.Rollback()
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		lockedOrder, err := models.GetPaymentOrderForUpdate(tx, order.OrderNo)
+		if err != nil {
+			return fmt.Errorf("锁定订单失败: %w", err)
+		}
+		if lockedOrder.Status == models.PaymentStatusPaid {
+			return NewClientError("订单已支付，无需重复操作")
+		}
+		if lockedOrder.Status != models.PaymentStatusPending &&
+			!(force && (lockedOrder.Status == models.PaymentStatusCanceled || lockedOrder.Status == models.PaymentStatusFailed)) {
+			return NewClientError("订单状态已变更或不允许补单")
+		}
 
-	// 锁定订单
-	lockedOrder, err := models.GetPaymentOrderForUpdate(tx, order.OrderNo)
-	if err != nil {
-		return fmt.Errorf("锁定订单失败: %w", err)
-	}
-	if lockedOrder.Status == models.PaymentStatusPaid {
-		return NewClientError("订单已支付，无需重复操作")
-	}
-	if lockedOrder.Status != models.PaymentStatusPending &&
-		!(force && (lockedOrder.Status == models.PaymentStatusCanceled || lockedOrder.Status == models.PaymentStatusFailed)) {
-		return NewClientError("订单状态已变更或不允许补单")
-	}
+		prevStatus := lockedOrder.Status
+		memoZh := fmt.Sprintf("管理员手动补单-订单号%s", order.OrderNo)
+		memoEn := fmt.Sprintf("Admin Manual - Order#%s", order.OrderNo)
+		if memo != "" {
+			memoZh += " (" + memo + ")"
+			memoEn += " (" + memo + ")"
+		}
+		if _, err = utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
+			UserID: order.UserID,
+			Amount: order.Amount,
+			MemoI18n: map[string]string{
+				"zhCN": memoZh,
+				"enUS": memoEn,
+			},
+			OrderNo:     order.OrderNo,
+			TradeNo:     "MANUAL",
+			OrderStatus: models.PaymentStatusPaid,
+		}, utils.OpFull); err != nil {
+			return fmt.Errorf("补单失败: %w", err)
+		}
 
-	prevStatus := lockedOrder.Status
-	// 通过统一余额工具完成：修改余额 + 更新订单状态 + 添加余额变动记录
-	memoZh := fmt.Sprintf("管理员手动补单-订单号%s", order.OrderNo)
-	memoEn := fmt.Sprintf("Admin Manual - Order#%s", order.OrderNo)
-	if memo != "" {
-		memoZh += " (" + memo + ")"
-		memoEn += " (" + memo + ")"
-	}
-	_, err = utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
-		UserID: order.UserID,
-		Amount: order.Amount,
-		MemoI18n: map[string]string{
-			"zhCN": memoZh,
-			"enUS": memoEn,
-		},
-		OrderNo:     order.OrderNo,
-		TradeNo:     "MANUAL",
-		OrderStatus: models.PaymentStatusPaid,
-	}, utils.OpFull)
-	if err != nil {
-		return fmt.Errorf("补单失败: %w", err)
-	}
+		_ = models.CreatePaymentExceptionTx(tx, &models.PaymentException{
+			OrderNo:       order.OrderNo,
+			UserID:        order.UserID,
+			GatewayID:     order.GatewayID,
+			ExceptionType: models.PaymentExceptionManualResolve,
+			Status:        models.PaymentExceptionStatusResolved,
+			Source:        "admin",
+			Message:       fmt.Sprintf("管理员手动补单(prev=%d, force=%v)", prevStatus, force),
+			Detail:        fmt.Sprintf(`{"memo":%q,"force":%v,"prev_status":%d}`, truncateForException(memo, 200), force, prevStatus),
+			OrderStatus:   prevStatus,
+			TradeNo:       "MANUAL",
+			ResolveRemark: memo,
+		})
 
-	_ = models.CreatePaymentExceptionTx(tx, &models.PaymentException{
-		OrderNo:       order.OrderNo,
-		UserID:        order.UserID,
-		GatewayID:     order.GatewayID,
-		ExceptionType: models.PaymentExceptionManualResolve,
-		Status:        models.PaymentExceptionStatusResolved,
-		Source:        "admin",
-		Message:       fmt.Sprintf("管理员手动补单(prev=%d, force=%v)", prevStatus, force),
-		Detail:        fmt.Sprintf(`{"memo":%q,"force":%v,"prev_status":%d}`, truncateForException(memo, 200), force, prevStatus),
-		OrderStatus:   prevStatus,
-		TradeNo:       "MANUAL",
-		ResolveRemark: memo,
+		log.Printf("[Payment] 管理员手动补单成功: order_no=%s, user_id=%d, amount=%.2f, force=%v",
+			order.OrderNo, order.UserID, order.Amount, force)
+		return nil
 	})
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("提交事务失败: %w", err)
-	}
-
-	log.Printf("[Payment] 管理员手动补单成功: order_no=%s, user_id=%d, amount=%.2f, force=%v",
-		order.OrderNo, order.UserID, order.Amount, force)
-	return nil
 }
 
 // AdminCancelOrder 管理员取消订单
 func AdminCancelOrder(orderID uint64) error {
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return fmt.Errorf("开启事务失败: %w", err)
-	}
-	defer tx.Rollback()
-
-	order, err := models.GetPaymentOrderByIDForUpdate(tx, orderID)
-	if err != nil {
-		return NewClientError("订单不存在")
-	}
-
-	if order.Status != models.PaymentStatusPending {
-		return NewClientError("只能取消待支付的订单")
-	}
-
-	if err := models.UpdatePaymentOrderStatusTx(tx, order.OrderNo, models.PaymentStatusCanceled, ""); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("提交事务失败: %w", err)
-	}
-
-	return nil
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		order, err := models.GetPaymentOrderByIDForUpdate(tx, orderID)
+		if err != nil {
+			return NewClientError("订单不存在")
+		}
+		if order.Status != models.PaymentStatusPending {
+			return NewClientError("只能取消待支付的订单")
+		}
+		return models.UpdatePaymentOrderStatusTx(tx, order.OrderNo, models.PaymentStatusCanceled, "")
+	})
 }
 
 // CancelExpiredOrders 取消过期未支付订单（定时任务调用）

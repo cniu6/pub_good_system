@@ -7,6 +7,8 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/internal/testutil"
 	"fst/backend/pkg/db"
+
+	"gorm.io/gorm"
 )
 
 func TestModels_UserSettingsSessionsLogsSQLite(t *testing.T) {
@@ -125,17 +127,11 @@ func TestModels_UserSettingsSessionsLogsSQLite(t *testing.T) {
 	})
 
 	t.Run("幂等键", func(t *testing.T) {
-		tx, err := db.DB.Begin()
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer tx.Rollback()
 		exp := time.Now().Add(time.Hour).Unix()
-		if err := models.CreateIdempotencyKeyTx(tx, "k1", u.ID, "scope", "h", exp); err != nil {
+		if err := db.DB.Transaction(func(tx *gorm.DB) error {
+			return models.CreateIdempotencyKeyTx(tx, "k1", u.ID, "scope", "h", exp)
+		}); err != nil {
 			t.Fatalf("CreateIdempotencyKeyTx: %v", err)
-		}
-		if err := tx.Commit(); err != nil {
-			t.Fatal(err)
 		}
 	})
 }

@@ -25,7 +25,7 @@
 | [提现流程与余额管理](./提现流程与余额管理.md) | 提现状态机 | ⭐⭐⭐⭐ |
 | [短信插件系统](./短信插件系统.md) | 短信多厂商 | ⭐⭐⭐ |
 | [实名认证接入说明](./实名认证接入说明.md) | 实名审核 | ⭐⭐⭐ |
-| [架构方案](./架构方案.md) / [架构概览](./架构概览.md) | 架构设计 | ⭐⭐⭐⭐ |
+| [架构概览](./架构概览.md) | 架构设计 | ⭐⭐⭐⭐ |
 | [在线会话与Presence](./在线会话与Presence.md) | WS 在线心跳、管理端在线用户、force-logout | ⭐⭐⭐⭐ |
 | [备份与恢复](./备份与恢复.md) | mysqldump/SQLite/pg_dump 脚本与保留策略 | ⭐⭐⭐ |
 
@@ -119,7 +119,7 @@ err := models.CreateEmailLog(to, subject, content, tplName, status, errorMsg)
 ```
 
 **关键要点**:
-- 使用 `sqlx` 库进行数据库操作
+- 使用 **GORM**（`db.DB`）进行数据库操作；换库只改 `DB_DRIVER` + DSN
 - 用户查询会自动排除 `delete_time IS NOT NULL` 的记录
 - 验证码表使用软删除（is_deleted）
 - 邮件模板支持多语言，自动回退到中文
@@ -189,7 +189,7 @@ utils.Fail(c, 400, "错误信息")
 ### 6. 配置读取（后端）
 
 ```go
-import "fst/backend/internal/config"
+import "fst/backend/pkg/config"
 
 // 全局配置访问
 cfg := config.GlobalConfig
@@ -308,10 +308,10 @@ fetchRegister(data) // 使用封装好的API
 | 邮件模板 | `backend/app/models/email.go` |
 | 认证控制器 | `backend/app/controllers/auth_controller.go` |
 | 系统控制器 | `backend/app/controllers/system_controller.go` |
-| 认证中间件 | `backend/internal/middleware/auth.go` |
-| CORS中间件 | `backend/internal/middleware/cors.go` |
-| 配置管理 | `backend/internal/config/config.go` |
-| 数据库初始化 | `backend/pkg/db/mysql.go` |
+| 认证中间件 | `backend/pkg/middleware/auth.go` |
+| CORS中间件 | `backend/pkg/middleware/cors.go` |
+| 配置管理 | `backend/pkg/config/config.go` |
+| 数据库初始化 | `backend/pkg/db/db.go` |
 | 路由定义 | `backend/routes/routes.go` |
 | 插件接口 | `backend/app/plugins/interface.go` |
 | 前端请求封装 | `frontend/src/service/request.ts` |
@@ -322,7 +322,7 @@ fetchRegister(data) // 使用封装好的API
 ## 🔗 外部资源
 
 - [Gin 框架文档](https://gin-gonic.com/docs/)
-- [sqlx 文档](https://jmoiron.github.io/sqlx/)
+- [GORM 文档](https://gorm.io/docs/)
 - [Alova 文档](https://alova.js.org/)
 - [Naive UI 文档](https://www.naiveui.com/)
 

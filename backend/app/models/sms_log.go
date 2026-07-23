@@ -1,103 +1,53 @@
 package models
 
 import (
+	"database/sql"
+	"errors"
 	"fst/backend/pkg/db"
 	"fst/backend/pkg/panicsafe"
 	"log"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // SMSLog 短信日志
 type SMSLog struct {
-	ID           uint64    `db:"id" json:"id"`
-	UserID       uint64    `db:"user_id" json:"user_id"` // 关联用户（匿名发送为 0）
-	Phone        string    `db:"phone" json:"phone"`
-	Provider     string    `db:"provider" json:"provider"` // aliyun, tencent, custom
-	TemplateCode string    `db:"template_code" json:"template_code"`
-	TemplateName string    `db:"template_name" json:"template_name"`
-	Lang         string    `db:"lang" json:"lang"`             // zh-CN, en-US, etc.
-	Content      string    `db:"content" json:"content"`       // 实际发送的短信内容（脱敏）
-	Status       uint8     `db:"status" json:"status"`         // 1=成功, 0=失败
-	ErrorMsg     string    `db:"error_msg" json:"error_msg"`   // 错误信息
-	RequestID    string    `db:"request_id" json:"request_id"` // 服务商返回的请求ID
-	Response     string    `db:"response" json:"response"`     // 完整响应（JSON）
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	ID           uint64    `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	UserID       uint64    `gorm:"column:user_id;not null;default:0;index:idx_sms_user_id" json:"user_id"`
+	Phone        string    `gorm:"column:phone;size:32;not null;index:idx_sms_phone" json:"phone"`
+	Provider     string    `gorm:"column:provider;size:32;not null;index:idx_sms_provider" json:"provider"`
+	TemplateCode string    `gorm:"column:template_code;size:64;not null;default:''" json:"template_code"`
+	TemplateName string    `gorm:"column:template_name;size:64;not null;default:'';index:idx_sms_template_name" json:"template_name"`
+	Lang         string    `gorm:"column:lang;size:16;not null;default:'zh-CN'" json:"lang"`
+	Content      string    `gorm:"column:content;size:512;not null;default:''" json:"content"`
+	Status       uint8     `gorm:"column:status;not null;default:0;index:idx_sms_status" json:"status"`
+	ErrorMsg     string    `gorm:"column:error_msg;size:512;not null;default:''" json:"error_msg"`
+	RequestID    string    `gorm:"column:request_id;size:128;not null;default:''" json:"request_id"`
+	Response     string    `gorm:"column:response;type:text" json:"response"`
+	CreatedAt    time.Time `gorm:"column:created_at;autoCreateTime;index:idx_sms_created_at" json:"created_at"`
 }
+
+// TableName 表名
+func (SMSLog) TableName() string { return "sms_logs" }
 
 var smsLogCleanupNextAt atomic.Int64
 
-// InitSMSTable 初始化短信日志表
-func InitSMSTable() {
-	if !db.CheckTableExists("sms_logs") {
-		schema := `CREATE TABLE IF NOT EXISTS sms_logs (
-			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-			user_id BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '关联用户ID（匿名发送为0）',
-			phone VARCHAR(32) NOT NULL COMMENT '手机号（脱敏）',
-			provider VARCHAR(32) NOT NULL COMMENT '服务商: aliyun, tencent, custom',
-			template_code VARCHAR(64) NOT NULL DEFAULT '' COMMENT '模板ID',
-			template_name VARCHAR(64) NOT NULL DEFAULT '' COMMENT '模板名称',
-			lang VARCHAR(16) NOT NULL DEFAULT 'zh-CN' COMMENT '语言',
-			content VARCHAR(512) NOT NULL DEFAULT '' COMMENT '发送内容（脱敏）',
-			status TINYINT(1) NOT NULL DEFAULT 0 COMMENT '状态: 1=成功, 0=失败',
-			error_msg VARCHAR(512) NOT NULL DEFAULT '' COMMENT '错误信息',
-			request_id VARCHAR(128) NOT NULL DEFAULT '' COMMENT '服务商请求ID',
-			response TEXT COMMENT '完整响应',
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-			INDEX idx_phone (phone),
-			INDEX idx_user_id (user_id),
-			INDEX idx_provider (provider),
-			INDEX idx_template_name (template_name),
-			INDEX idx_status (status),
-			INDEX idx_created_at (created_at)
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
-		_, err := db.Exec(schema)
-		if err != nil {
-			log.Printf("[Init] Failed to create sms_logs table: %v", err)
-		} else {
-			log.Println("[Init] Created sms_logs table")
-		}
-	} else {
-		// 兼容旧表：补齐 user_id 字段
-		if !db.CheckColumnExists("sms_logs", "user_id") {
-			if _, err := db.Exec("ALTER TABLE sms_logs ADD COLUMN user_id BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '关联用户ID（匿名发送为0）' AFTER id"); err != nil {
-				log.Printf("[Init] Failed to add sms_logs.user_id: %v", err)
-			} else {
-				log.Println("[Init] Added sms_logs.user_id")
-			}
-		}
-		db.EnsureIndex("sms_logs", "idx_user_id", "ALTER TABLE sms_logs ADD INDEX idx_user_id (user_id)")
-	}
-
-	InitSMSLogAggregateTables()
-}
-
 // CreateSMSLog 记录短信发送日志
 func CreateSMSLog(logEntry *SMSLog) error {
-	query := `INSERT INTO sms_logs (user_id, phone, provider, template_code, template_name, lang, content, status, error_msg, request_id, response)
-			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	result, err := db.Exec(query,
-		logEntry.UserID, logEntry.Phone, logEntry.Provider, logEntry.TemplateCode, logEntry.TemplateName,
-		logEntry.Lang, logEntry.Content, logEntry.Status, logEntry.ErrorMsg,
-		logEntry.RequestID, logEntry.Response,
-	)
-	if err != nil {
+	logEntry.CreatedAt = time.Now()
+	if err := db.DB.Create(logEntry).Error; err != nil {
 		return err
 	}
-	if id, idErr := result.LastInsertId(); idErr == nil {
-		logEntry.ID = uint64(id)
-	}
-	logEntry.CreatedAt = time.Now()
 
-	// 异步更新聚合统计 + 触发保留清理（节流）
 	panicsafe.Go("SMSLog.aggregate", func() {
 		if aggErr := RecordSMSLogAggregate(logEntry); aggErr != nil {
 			log.Printf("[SMSLog] 汇总更新失败: %v", aggErr)
 		}
 		scheduleSMSLogRetentionCleanup()
 	})
-
 	return nil
 }
 
@@ -115,81 +65,71 @@ type SMSLogQuery struct {
 	Provider     string `form:"provider" json:"provider"`
 	TemplateName string `form:"template_name" json:"template_name"`
 	Lang         string `form:"lang" json:"lang"`
-	Status       int    `form:"status" json:"status"` // -1=全部, 0=失败, 1=成功
+	Status       int    `form:"status" json:"status"`
 	StartTime    string `form:"start_time" json:"start_time"`
 	EndTime      string `form:"end_time" json:"end_time"`
 }
 
-// GetSMSLogList 分页查询短信日志
-func GetSMSLogList(q *SMSLogQuery) ([]SMSLog, int64, error) {
-	var logs []SMSLog
-	var total int64
-
-	where := "WHERE 1=1"
-	args := []interface{}{}
-
+func buildSMSLogQuery(q *SMSLogQuery) *gorm.DB {
+	query := db.DB.Model(&SMSLog{})
 	if q.UserID > 0 {
-		where += " AND user_id = ?"
-		args = append(args, q.UserID)
+		query = query.Where("user_id = ?", q.UserID)
 	}
 	if q.Phone != "" {
-		where += " AND phone LIKE ?"
-		args = append(args, "%"+q.Phone+"%")
+		query = query.Where("phone LIKE ?", "%"+q.Phone+"%")
 	}
 	if q.Provider != "" {
-		where += " AND provider = ?"
-		args = append(args, q.Provider)
+		query = query.Where("provider = ?", q.Provider)
 	}
 	if q.TemplateName != "" {
-		where += " AND template_name = ?"
-		args = append(args, q.TemplateName)
+		query = query.Where("template_name = ?", q.TemplateName)
 	}
 	if q.Lang != "" {
-		where += " AND lang = ?"
-		args = append(args, q.Lang)
+		query = query.Where("lang = ?", q.Lang)
 	}
 	if q.Status >= 0 {
-		where += " AND status = ?"
-		args = append(args, q.Status)
+		query = query.Where("status = ?", q.Status)
 	}
 	if q.StartTime != "" {
-		where += " AND created_at >= ?"
-		args = append(args, q.StartTime)
+		query = query.Where("created_at >= ?", q.StartTime)
 	}
 	if q.EndTime != "" {
-		where += " AND created_at <= ?"
-		args = append(args, q.EndTime)
+		query = query.Where("created_at <= ?", q.EndTime)
 	}
+	return query
+}
 
-	err := db.DB.Get(&total, "SELECT COUNT(*) FROM sms_logs "+where, args...)
-	if err != nil {
-		return nil, 0, err
-	}
-
+// GetSMSLogList 分页查询短信日志
+func GetSMSLogList(q *SMSLogQuery) ([]SMSLog, int64, error) {
 	if q.Page <= 0 {
 		q.Page = 1
 	}
 	if q.PageSize <= 0 {
 		q.PageSize = 20
 	}
-	offset := (q.Page - 1) * q.PageSize
 
-	listSQL := "SELECT id, user_id, phone, provider, template_code, template_name, lang, content, status, error_msg, request_id, created_at FROM sms_logs " +
-		where + " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?"
-	args = append(args, q.PageSize, offset)
-
-	err = db.DB.Select(&logs, listSQL, args...)
-	if err != nil {
+	base := buildSMSLogQuery(q)
+	var total int64
+	if err := base.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	return logs, total, nil
+	var logs []SMSLog
+	err := base.Select("id, user_id, phone, provider, template_code, template_name, lang, content, status, error_msg, request_id, created_at").
+		Order("created_at DESC, id DESC").
+		Limit(q.PageSize).
+		Offset((q.Page - 1) * q.PageSize).
+		Find(&logs).Error
+	return logs, total, err
 }
 
 // GetSMSLogByID 根据ID获取短信日志详情
 func GetSMSLogByID(id uint64) (*SMSLog, error) {
 	var logEntry SMSLog
-	err := db.DB.Get(&logEntry, "SELECT * FROM sms_logs WHERE id = ?", id)
+	err := db.DB.Where("id = ?", id).First(&logEntry).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, sql.ErrNoRows
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -198,19 +138,16 @@ func GetSMSLogByID(id uint64) (*SMSLog, error) {
 
 // DeleteSMSLogsBefore 删除指定时间之前的短信日志
 func DeleteSMSLogsBefore(before string) (int64, error) {
-	result, err := db.Exec("DELETE FROM sms_logs WHERE created_at < ?", before)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+	result := db.DB.Where("created_at < ?", before).Delete(&SMSLog{})
+	return result.RowsAffected, result.Error
 }
 
-// CleanExcessSMSLogs 清理超出全局上限的旧短信日志（只保留最新 maxCount 条）
+// CleanExcessSMSLogs 清理超出全局上限的旧短信日志
 func CleanExcessSMSLogs(maxCount int) (int64, error) {
 	return cleanExcessRowsGeneric("sms_logs", "created_at", maxCount)
 }
 
-// CleanExcessSMSLogsPerRecipient 按手机号清理超出上限的短信日志（每个手机号最多保留 maxPerRecipient 条）
+// CleanExcessSMSLogsPerRecipient 按手机号清理超出上限的短信日志
 func CleanExcessSMSLogsPerRecipient(maxPerRecipient int) (int64, error) {
 	return cleanExcessRowsPerGroupGeneric[string]("sms_logs", "phone", "created_at", maxPerRecipient, "phone != ''")
 }
@@ -227,11 +164,12 @@ func GetSMSLogStats() (total int64, success int64, fail int64, err error) {
 // GetSMSTemplateNames 获取短信日志中所有模板名（去重）
 func GetSMSTemplateNames() ([]string, error) {
 	var names []string
-	err := db.DB.Select(&names, "SELECT DISTINCT template_name FROM sms_logs WHERE template_name != '' ORDER BY template_name")
-	if err != nil {
-		return nil, err
-	}
-	return names, nil
+	err := db.DB.Model(&SMSLog{}).
+		Distinct("template_name").
+		Where("template_name != ''").
+		Order("template_name").
+		Pluck("template_name", &names).Error
+	return names, err
 }
 
 // MaskPhone 脱敏手机号（兼容国内 11 位与国际 E.164）
@@ -240,7 +178,6 @@ func MaskPhone(phone string) string {
 	if len(phone) < 7 {
 		return phone
 	}
-	// 保留前 3 后 4，中间打码；国际号过长时前缀多留一点国家码可读性
 	prefix := 3
 	if strings.HasPrefix(phone, "+") && len(phone) >= 12 {
 		prefix = 4

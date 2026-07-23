@@ -2,88 +2,62 @@ package models
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"fst/backend/pkg/db"
 	"log"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // Role RBAC 角色（单组织 MVP：admin / operator / viewer）
 type Role struct {
-	ID          uint64 `db:"id" json:"id"`
-	Code        string `db:"code" json:"code"`
-	Name        string `db:"name" json:"name"`
-	Description string `db:"description" json:"description"`
-	CreateTime  int64  `db:"create_time" json:"create_time"`
+	ID          uint64 `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	Code        string `gorm:"column:code;size:50;not null;uniqueIndex:uk_roles_code" json:"code"`
+	Name        string `gorm:"column:name;size:100;not null;default:''" json:"name"`
+	Description string `gorm:"column:description;size:255;not null;default:''" json:"description"`
+	CreateTime  int64  `gorm:"column:create_time;not null;default:0" json:"create_time"`
 }
+
+// TableName 表名
+func (Role) TableName() string { return "roles" }
 
 // Permission RBAC 权限点
 type Permission struct {
-	ID          uint64 `db:"id" json:"id"`
-	Code        string `db:"code" json:"code"`
-	Name        string `db:"name" json:"name"`
-	Description string `db:"description" json:"description"`
-	CreateTime  int64  `db:"create_time" json:"create_time"`
+	ID          uint64 `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	Code        string `gorm:"column:code;size:80;not null;uniqueIndex:uk_permissions_code" json:"code"`
+	Name        string `gorm:"column:name;size:100;not null;default:''" json:"name"`
+	Description string `gorm:"column:description;size:255;not null;default:''" json:"description"`
+	CreateTime  int64  `gorm:"column:create_time;not null;default:0" json:"create_time"`
 }
+
+// TableName 表名
+func (Permission) TableName() string { return "permissions" }
 
 // RolePermission 角色-权限关联
 type RolePermission struct {
-	RoleID       uint64 `db:"role_id" json:"role_id"`
-	PermissionID uint64 `db:"permission_id" json:"permission_id"`
+	RoleID       uint64 `gorm:"column:role_id;primaryKey" json:"role_id"`
+	PermissionID uint64 `gorm:"column:permission_id;primaryKey;index:idx_rp_permission" json:"permission_id"`
 }
+
+// TableName 表名
+func (RolePermission) TableName() string { return "role_permissions" }
 
 // UserRole 用户-角色关联
 type UserRole struct {
-	UserID     uint64 `db:"user_id" json:"user_id"`
-	RoleID     uint64 `db:"role_id" json:"role_id"`
-	CreateTime int64  `db:"create_time" json:"create_time"`
+	UserID     uint64 `gorm:"column:user_id;primaryKey" json:"user_id"`
+	RoleID     uint64 `gorm:"column:role_id;primaryKey;index:idx_ur_role" json:"role_id"`
+	CreateTime int64  `gorm:"column:create_time;not null;default:0" json:"create_time"`
 }
 
-// InitRBACTables 创建 RBAC 表并播种默认角色/权限
-func InitRBACTables() {
-	schemas := []string{
-		`CREATE TABLE IF NOT EXISTS roles (
-			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-			code VARCHAR(50) NOT NULL COMMENT '角色编码',
-			name VARCHAR(100) NOT NULL DEFAULT '' COMMENT '显示名',
-			description VARCHAR(255) NOT NULL DEFAULT '' COMMENT '说明',
-			create_time BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间',
-			UNIQUE KEY uk_roles_code (code)
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RBAC角色'`,
-		`CREATE TABLE IF NOT EXISTS permissions (
-			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-			code VARCHAR(80) NOT NULL COMMENT '权限编码如 user:read',
-			name VARCHAR(100) NOT NULL DEFAULT '' COMMENT '显示名',
-			description VARCHAR(255) NOT NULL DEFAULT '' COMMENT '说明',
-			create_time BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间',
-			UNIQUE KEY uk_permissions_code (code)
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RBAC权限点'`,
-		`CREATE TABLE IF NOT EXISTS role_permissions (
-			role_id BIGINT UNSIGNED NOT NULL,
-			permission_id BIGINT UNSIGNED NOT NULL,
-			PRIMARY KEY (role_id, permission_id),
-			INDEX idx_rp_permission (permission_id)
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色权限关联'`,
-		`CREATE TABLE IF NOT EXISTS user_roles (
-			user_id BIGINT UNSIGNED NOT NULL,
-			role_id BIGINT UNSIGNED NOT NULL,
-			create_time BIGINT NOT NULL DEFAULT 0,
-			PRIMARY KEY (user_id, role_id),
-			INDEX idx_ur_role (role_id)
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户角色关联'`,
-	}
-	for _, schema := range schemas {
-		if _, err := db.Exec(schema); err != nil {
-			log.Printf("[Init] RBAC 建表失败: %v", err)
-		}
-	}
-	seedRBACDefaults()
-}
+// TableName 表名
+func (UserRole) TableName() string { return "user_roles" }
 
-func seedRBACDefaults() {
+// SeedRBACDefaults 播种默认角色/权限（建表由 GORM AutoMigrate 负责）
+func SeedRBACDefaults() {
 	now := time.Now().Unix()
 
-	// 权限点种子
 	perms := []struct{ Code, Name, Desc string }{
 		{"user:read", "用户只读", "查看用户列表/详情"},
 		{"user:write", "用户写入", "创建/编辑/禁用用户"},
@@ -94,41 +68,38 @@ func seedRBACDefaults() {
 		{"settings:read", "设置只读", "查看系统配置"},
 	}
 	for _, p := range perms {
-		var id uint64
-		err := db.DB.Get(&id, "SELECT id FROM permissions WHERE code = ?", p.Code)
-		if err == sql.ErrNoRows {
-			_, err = db.Exec(
-				`INSERT INTO permissions (code, name, description, create_time) VALUES (?, ?, ?, ?)`,
-				p.Code, p.Name, p.Desc, now,
-			)
-			if err != nil {
+		var existing Permission
+		err := db.DB.Where("code = ?", p.Code).First(&existing).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if err := db.DB.Create(&Permission{
+				Code: p.Code, Name: p.Name, Description: p.Desc, CreateTime: now,
+			}).Error; err != nil {
 				log.Printf("[Init] 播种权限 %s 失败: %v", p.Code, err)
 			}
+		} else if err != nil {
+			log.Printf("[Init] 查询权限 %s 失败: %v", p.Code, err)
 		}
 	}
 
-	// 角色种子
 	roles := []struct{ Code, Name, Desc string }{
 		{"admin", "管理员", "拥有全部权限"},
 		{"operator", "运营", "只读 + 有限写入（用户/支付）"},
 		{"viewer", "只读访客", "仅只读权限"},
 	}
 	for _, r := range roles {
-		var id uint64
-		err := db.DB.Get(&id, "SELECT id FROM roles WHERE code = ?", r.Code)
-		if err == sql.ErrNoRows {
-			res, err := db.Exec(
-				`INSERT INTO roles (code, name, description, create_time) VALUES (?, ?, ?, ?)`,
-				r.Code, r.Name, r.Desc, now,
-			)
-			if err != nil {
+		var role Role
+		err := db.DB.Where("code = ?", r.Code).First(&role).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			role = Role{Code: r.Code, Name: r.Name, Description: r.Desc, CreateTime: now}
+			if err := db.DB.Create(&role).Error; err != nil {
 				log.Printf("[Init] 播种角色 %s 失败: %v", r.Code, err)
 				continue
 			}
-			lid, _ := res.LastInsertId()
-			id = uint64(lid)
+		} else if err != nil {
+			log.Printf("[Init] 查询角色 %s 失败: %v", r.Code, err)
+			continue
 		}
-		_ = syncRolePermissions(id, r.Code)
+		_ = syncRolePermissions(role.ID, r.Code)
 	}
 }
 
@@ -146,19 +117,18 @@ func syncRolePermissions(roleID uint64, roleCode string) error {
 		return nil
 	}
 	for _, code := range codes {
-		var permID uint64
-		if err := db.DB.Get(&permID, "SELECT id FROM permissions WHERE code = ?", code); err != nil {
+		var perm Permission
+		if err := db.DB.Where("code = ?", code).First(&perm).Error; err != nil {
 			continue
 		}
-		var exists int
-		_ = db.DB.Get(&exists, "SELECT COUNT(1) FROM role_permissions WHERE role_id = ? AND permission_id = ?", roleID, permID)
-		if exists > 0 {
+		var count int64
+		db.DB.Model(&RolePermission{}).
+			Where("role_id = ? AND permission_id = ?", roleID, perm.ID).
+			Count(&count)
+		if count > 0 {
 			continue
 		}
-		_, _ = db.Exec(
-			`INSERT INTO role_permissions (role_id, permission_id) VALUES (?, ?)`,
-			roleID, permID,
-		)
+		_ = db.DB.Create(&RolePermission{RoleID: roleID, PermissionID: perm.ID}).Error
 	}
 	return nil
 }
@@ -166,21 +136,24 @@ func syncRolePermissions(roleID uint64, roleCode string) error {
 // ListRoles 列出全部角色
 func ListRoles() ([]Role, error) {
 	var list []Role
-	err := db.DB.Select(&list, "SELECT id, code, name, description, create_time FROM roles ORDER BY id ASC")
+	err := db.DB.Order("id ASC").Find(&list).Error
 	return list, err
 }
 
 // ListPermissions 列出全部权限点
 func ListPermissions() ([]Permission, error) {
 	var list []Permission
-	err := db.DB.Select(&list, "SELECT id, code, name, description, create_time FROM permissions ORDER BY id ASC")
+	err := db.DB.Order("id ASC").Find(&list).Error
 	return list, err
 }
 
 // GetRoleByCode 按编码取角色
 func GetRoleByCode(code string) (*Role, error) {
 	var role Role
-	err := db.DB.Get(&role, "SELECT id, code, name, description, create_time FROM roles WHERE code = ?", code)
+	err := db.DB.Where("code = ?", code).First(&role).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, sql.ErrNoRows
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +163,10 @@ func GetRoleByCode(code string) (*Role, error) {
 // GetRoleByID 按 ID 取角色
 func GetRoleByID(id uint64) (*Role, error) {
 	var role Role
-	err := db.DB.Get(&role, "SELECT id, code, name, description, create_time FROM roles WHERE id = ?", id)
+	err := db.DB.Where("id = ?", id).First(&role).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, sql.ErrNoRows
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -200,44 +176,34 @@ func GetRoleByID(id uint64) (*Role, error) {
 // AssignUserRole 为用户分配 RBAC 角色（替换该用户全部角色，MVP 单角色）
 func AssignUserRole(userID, roleID uint64) error {
 	now := time.Now().Unix()
-	tx, err := db.DB.Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if _, err := tx.Exec("DELETE FROM user_roles WHERE user_id = ?", userID); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(
-		`INSERT INTO user_roles (user_id, role_id, create_time) VALUES (?, ?, ?)`,
-		userID, roleID, now,
-	); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return db.WithTx(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", userID).Delete(&UserRole{}).Error; err != nil {
+			return err
+		}
+		return tx.Create(&UserRole{UserID: userID, RoleID: roleID, CreateTime: now}).Error
+	})
 }
 
 // ListUserRoles 列出用户已分配的 RBAC 角色
 func ListUserRoles(userID uint64) ([]Role, error) {
 	var list []Role
-	err := db.DB.Select(&list, `
-		SELECT r.id, r.code, r.name, r.description, r.create_time
-		FROM roles r
-		INNER JOIN user_roles ur ON ur.role_id = r.id
-		WHERE ur.user_id = ?
-		ORDER BY r.id ASC`, userID)
+	err := db.DB.Table("roles r").
+		Select("r.id, r.code, r.name, r.description, r.create_time").
+		Joins("INNER JOIN user_roles ur ON ur.role_id = r.id").
+		Where("ur.user_id = ?", userID).
+		Order("r.id ASC").
+		Scan(&list).Error
 	return list, err
 }
 
 // UserHasPermissionCode 判断用户是否拥有某权限码（不含 users.role=admin 旁路，旁路在中间件）
 func UserHasPermissionCode(userID uint64, permCode string) (bool, error) {
-	var count int
-	err := db.DB.Get(&count, `
-		SELECT COUNT(1) FROM user_roles ur
-		INNER JOIN role_permissions rp ON rp.role_id = ur.role_id
-		INNER JOIN permissions p ON p.id = rp.permission_id
-		WHERE ur.user_id = ? AND p.code = ?`, userID, permCode)
+	var count int64
+	err := db.DB.Table("user_roles ur").
+		Joins("INNER JOIN role_permissions rp ON rp.role_id = ur.role_id").
+		Joins("INNER JOIN permissions p ON p.id = rp.permission_id").
+		Where("ur.user_id = ? AND p.code = ?", userID, permCode).
+		Count(&count).Error
 	if err != nil {
 		return false, err
 	}
@@ -247,25 +213,23 @@ func UserHasPermissionCode(userID uint64, permCode string) (bool, error) {
 // CountUserRoles 统计用户角色数（测试/诊断用）
 func CountUserRoles(userID uint64) (int64, error) {
 	var n int64
-	err := db.DB.Get(&n, "SELECT COUNT(1) FROM user_roles WHERE user_id = ?", userID)
+	err := db.DB.Model(&UserRole{}).Where("user_id = ?", userID).Count(&n).Error
 	return n, err
 }
 
 // EnsurePermissionExists 确保权限点存在（测试辅助）
 func EnsurePermissionExists(code, name string) error {
-	var id uint64
-	err := db.DB.Get(&id, "SELECT id FROM permissions WHERE code = ?", code)
+	var existing Permission
+	err := db.DB.Where("code = ?", code).First(&existing).Error
 	if err == nil {
 		return nil
 	}
-	if err != sql.ErrNoRows {
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
-	_, err = db.Exec(
-		`INSERT INTO permissions (code, name, description, create_time) VALUES (?, ?, ?, ?)`,
-		code, name, "", time.Now().Unix(),
-	)
-	return err
+	return db.DB.Create(&Permission{
+		Code: code, Name: name, Description: "", CreateTime: time.Now().Unix(),
+	}).Error
 }
 
 // FormatRBACError 统一错误文案

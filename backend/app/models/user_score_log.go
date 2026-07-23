@@ -3,119 +3,80 @@ package models
 import (
 	"database/sql"
 	"fst/backend/pkg/db"
-	"log"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // UserScoreLog 会员积分变动表
 type UserScoreLog struct {
-	ID         uint64 `db:"id" json:"id"`
-	UserID     uint64 `db:"user_id" json:"user_id"`
-	Score      int64  `db:"score" json:"score"`        // 变更积分（正=增加，负=扣减）
-	Before     int64  `db:"before" json:"before"`       // 变更前积分
-	After      int64  `db:"after" json:"after"`         // 变更后积分
-	Memo       string `db:"memo" json:"memo"`           // 备注
-	CreateTime int64  `db:"create_time" json:"create_time"`
-	DeleteTime *int64 `db:"delete_time" json:"delete_time,omitempty"`
+	ID         uint64 `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	UserID     uint64 `gorm:"column:user_id;not null;default:0;index:idx_usl_user_id;index:idx_usl_user_create_time,priority:1" json:"user_id"`
+	Score      int64  `gorm:"column:score;not null;default:0" json:"score"`
+	Before     int64  `gorm:"column:before;not null;default:0" json:"before"`
+	After      int64  `gorm:"column:after;not null;default:0" json:"after"`
+	Memo       string `gorm:"column:memo;size:255;not null;default:''" json:"memo"`
+	CreateTime int64  `gorm:"column:create_time;not null;default:0;index:idx_usl_create_time;index:idx_usl_user_create_time,priority:2" json:"create_time"`
+	DeleteTime *int64 `gorm:"column:delete_time" json:"delete_time,omitempty"`
 }
 
-// InitUserScoreLogsTable 初始化积分变动日志表
-func InitUserScoreLogsTable() {
-	if db.CheckTableExists("user_score_logs") {
-		db.EnsureIndex("user_score_logs", "idx_user_create_time", "ALTER TABLE user_score_logs ADD INDEX idx_user_create_time (user_id, create_time)")
-		if !db.CheckColumnExists("user_score_logs", "delete_time") {
-			if _, err := db.Exec("ALTER TABLE user_score_logs ADD COLUMN delete_time BIGINT NULL DEFAULT NULL COMMENT '软删除时间'"); err != nil {
-				log.Printf("[Init] add user_score_logs.delete_time failed: %v", err)
-			}
-		}
-		return
-	}
-
-	schema := `CREATE TABLE IF NOT EXISTS user_score_logs (
-		id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-		user_id BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '用户ID',
-		score BIGINT NOT NULL DEFAULT 0 COMMENT '变更积分',
-		` + "`before`" + ` BIGINT NOT NULL DEFAULT 0 COMMENT '变更前积分',
-		` + "`after`" + ` BIGINT NOT NULL DEFAULT 0 COMMENT '变更后积分',
-		memo VARCHAR(255) NOT NULL DEFAULT '' COMMENT '备注',
-		create_time BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间',
-		delete_time BIGINT NULL DEFAULT NULL COMMENT '软删除时间',
-		INDEX idx_user_id (user_id),
-		INDEX idx_create_time (create_time),
-		INDEX idx_user_create_time (user_id, create_time)
-	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
-
-	_, err := db.Exec(schema)
-	if err != nil {
-		log.Printf("[Init] Failed to create user_score_logs table: %v", err)
-	} else {
-		log.Println("[Init] Created user_score_logs table")
-	}
+func (UserScoreLog) TableName() string {
+	return "user_score_logs"
 }
 
 // CreateUserScoreLog 创建积分变动记录
 func CreateUserScoreLog(userID uint64, score, before, after int64, memo string) (*UserScoreLog, error) {
 	now := time.Now().Unix()
-	result, err := db.Exec(
-		"INSERT INTO user_score_logs (user_id, score, `before`, `after`, memo, create_time) VALUES (?, ?, ?, ?, ?, ?)",
-		userID, score, before, after, memo, now,
-	)
-	if err != nil {
-		return nil, err
-	}
-	id, _ := result.LastInsertId()
-	return &UserScoreLog{
-		ID:         uint64(id),
+	entry := &UserScoreLog{
 		UserID:     userID,
 		Score:      score,
 		Before:     before,
 		After:      after,
 		Memo:       memo,
 		CreateTime: now,
-	}, nil
+	}
+	if err := db.DB.Create(entry).Error; err != nil {
+		return nil, err
+	}
+	return entry, nil
 }
 
 // GetUserScoreLogByID 获取指定ID的积分变动记录
 func GetUserScoreLogByID(id uint64) (*UserScoreLog, error) {
 	var logEntry UserScoreLog
-	err := db.DB.Get(&logEntry, "SELECT id, user_id, score, `before`, `after`, memo, create_time FROM user_score_logs WHERE id = ?", id)
+	err := db.DB.Where("id = ? AND delete_time IS NULL", id).First(&logEntry).Error
 	if err != nil {
-		return nil, err
+		return nil, db.MapGormNotFound(err)
 	}
 	return &logEntry, nil
 }
 
 // GetUserScoreLogList 获取积分变动列表（分页+搜索）
 func GetUserScoreLogList(onlyUserID uint64, page, pageSize int, keyword string) ([]UserScoreLog, int64, error) {
-	var logs []UserScoreLog
-	var total int64
-
-	where := "WHERE delete_time IS NULL"
-	args := []interface{}{}
-
+	q := db.DB.Model(&UserScoreLog{}).Where("delete_time IS NULL")
 	if onlyUserID > 0 {
-		where += " AND user_id = ?"
-		args = append(args, onlyUserID)
+		q = q.Where("user_id = ?", onlyUserID)
 	}
 	if keyword != "" {
-		where += " AND (memo LIKE ? OR CAST(score AS CHAR) LIKE ?)"
 		kw := "%" + keyword + "%"
-		args = append(args, kw, kw)
+		q = q.Where("(memo LIKE ? OR "+db.CastToText("score")+" LIKE ?)", kw, kw)
 	}
 
-	// 总数
-	countArgs := make([]interface{}, len(args))
-	copy(countArgs, args)
-	err := db.DB.Get(&total, "SELECT COUNT(*) FROM user_score_logs "+where, countArgs...)
-	if err != nil {
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// 分页
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
 	offset := (page - 1) * pageSize
-	query := "SELECT id, user_id, score, `before`, `after`, memo, create_time, delete_time FROM user_score_logs " + where + " ORDER BY create_time DESC LIMIT ? OFFSET ?"
-	args = append(args, pageSize, offset)
-	err = db.DB.Select(&logs, query, args...)
+
+	var logs []UserScoreLog
+	err := q.Order("create_time DESC").Limit(pageSize).Offset(offset).Find(&logs).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -124,53 +85,69 @@ func GetUserScoreLogList(onlyUserID uint64, page, pageSize int, keyword string) 
 }
 
 // DeleteUserScoreLog 软删除积分变动记录（财务审计：禁止物理删除）
+// 记录不存在或已删除时返回 sql.ErrNoRows。
 func DeleteUserScoreLog(id uint64) error {
 	now := time.Now().Unix()
-	_, err := db.Exec("UPDATE user_score_logs SET delete_time = ? WHERE id = ? AND delete_time IS NULL", now, id)
-	return err
+	res := db.DB.Model(&UserScoreLog{}).
+		Where("id = ? AND delete_time IS NULL", id).
+		Update("delete_time", now)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 // UpdateUserScore 直接更新用户积分字段
 func UpdateUserScore(userID uint64, newScore int64) error {
 	now := time.Now().Unix()
-	_, err := db.Exec("UPDATE users SET score = ?, update_time = ? WHERE id = ?", newScore, now, userID)
-	return err
+	return db.DB.Model(&User{}).
+		Where("id = ? AND delete_time IS NULL", userID).
+		Updates(map[string]interface{}{
+			"score":       newScore,
+			"update_time": now,
+		}).Error
 }
 
 // UpdateUserScoreTx 在事务中更新用户积分字段
-func UpdateUserScoreTx(tx *sql.Tx, userID uint64, newScore int64) error {
+func UpdateUserScoreTx(tx *gorm.DB, userID uint64, newScore int64) error {
 	now := time.Now().Unix()
-	_, err := tx.Exec("UPDATE users SET score = ?, update_time = ? WHERE id = ?", newScore, now, userID)
-	return err
+	return tx.Model(&User{}).
+		Where("id = ? AND delete_time IS NULL", userID).
+		Updates(map[string]interface{}{
+			"score":       newScore,
+			"update_time": now,
+		}).Error
 }
 
 // CreateUserScoreLogTx 在事务中创建积分变动记录
-func CreateUserScoreLogTx(tx *sql.Tx, userID uint64, score, before, after int64, memo string) (*UserScoreLog, error) {
+func CreateUserScoreLogTx(tx *gorm.DB, userID uint64, score, before, after int64, memo string) (*UserScoreLog, error) {
 	now := time.Now().Unix()
-	result, err := tx.Exec(
-		"INSERT INTO user_score_logs (user_id, score, `before`, `after`, memo, create_time) VALUES (?, ?, ?, ?, ?, ?)",
-		userID, score, before, after, memo, now,
-	)
-	if err != nil {
-		return nil, err
-	}
-	id, _ := result.LastInsertId()
-	return &UserScoreLog{
-		ID:         uint64(id),
+	entry := &UserScoreLog{
 		UserID:     userID,
 		Score:      score,
 		Before:     before,
 		After:      after,
 		Memo:       memo,
 		CreateTime: now,
-	}, nil
+	}
+	if err := tx.Create(entry).Error; err != nil {
+		return nil, err
+	}
+	return entry, nil
 }
 
 // GetUserScoreForUpdate 在事务中锁定并读取用户积分（SELECT ... FOR UPDATE）
-func GetUserScoreForUpdate(tx *sql.Tx, userID uint64) (int64, error) {
-	var score int64
-	// db.Q：SQLite 下自动剥掉 FOR UPDATE
-	err := tx.QueryRow(db.Q("SELECT score FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE"), userID).Scan(&score)
-	return score, err
+func GetUserScoreForUpdate(tx *gorm.DB, userID uint64) (int64, error) {
+	var user User
+	err := db.ForUpdate(tx).
+		Select("score").
+		Where("id = ? AND delete_time IS NULL", userID).
+		First(&user).Error
+	if err != nil {
+		return 0, db.MapGormNotFound(err)
+	}
+	return user.Score, nil
 }
-

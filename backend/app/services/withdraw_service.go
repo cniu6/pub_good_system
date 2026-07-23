@@ -9,6 +9,8 @@ import (
 	"fst/backend/utils"
 	"strings"
 	"unicode/utf8"
+
+	"gorm.io/gorm"
 )
 
 type WithdrawService struct{}
@@ -128,79 +130,72 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 		}
 	}
 
-	tx, err := db.DB.Begin()
+	var item *models.WithdrawRequest
+	err = db.DB.Transaction(func(tx *gorm.DB) error {
+		var user models.User
+		if err := db.ForUpdate(tx).
+			Select("status", "money").
+			Where("id = ? AND delete_time IS NULL", userID).
+			First(&user).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return NewClientError("用户不存在")
+			}
+			return err
+		}
+		if user.Status != 1 {
+			return NewClientError("当前用户状态不可提现")
+		}
+		userFen, fenErr := utils.YuanToFen(user.Money)
+		if fenErr != nil {
+			return NewClientError("账户余额异常")
+		}
+		reqFen, fenErr := utils.YuanToFen(req.Amount)
+		if fenErr != nil || reqFen <= 0 {
+			return NewClientError("提现金额必须大于0")
+		}
+		req.Amount = utils.FenToYuan(reqFen)
+		if userFen < reqFen {
+			return NewClientError("账户余额不足")
+		}
+
+		var pendingCount int64
+		if err := db.ForUpdate(tx).Model(&models.WithdrawRequest{}).
+			Where("user_id = ? AND status IN (?, ?) AND delete_time IS NULL", userID, models.WithdrawStatusPending, models.WithdrawStatusApproved).
+			Count(&pendingCount).Error; err != nil {
+			return err
+		}
+		if pendingCount > 0 {
+			return NewClientError("您有待处理的提现申请，请勿重复提交")
+		}
+
+		if _, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
+			UserID: userID,
+			Amount: -req.Amount,
+			MemoI18n: map[string]string{
+				"zhCN": "提交提现申请，系统预扣余额",
+				"enUS": "Balance reserved for withdrawal request",
+			},
+		}, utils.OpChangeAndLog); err != nil {
+			if errors.Is(err, utils.ErrInsufficientBalance) {
+				return NewClientError("账户余额不足")
+			}
+			return err
+		}
+
+		item = &models.WithdrawRequest{
+			UserID:          userID,
+			Amount:          req.Amount,
+			AccountType:     accountType,
+			AccountName:     accountName,
+			AccountNo:       accountNo,
+			RealName:        realName,
+			Remark:          remark,
+			Status:          models.WithdrawStatusPending,
+			BalanceDeducted: true,
+		}
+		return models.CreateWithdrawRequestTx(tx, item)
+	})
 	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	var user struct {
-		Status uint8   `db:"status"`
-		Money  float64 `db:"money"`
-	}
-	if err := tx.QueryRow(db.Q("SELECT status, money FROM users WHERE id = ? AND delete_time IS NULL FOR UPDATE"), userID).Scan(&user.Status, &user.Money); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, NewClientError("用户不存在")
-		}
-		return nil, err
-	}
-	if user.Status != 1 {
-		return nil, NewClientError("当前用户状态不可提现")
-	}
-	// 余额与提现金额均按「分」比较，避免 float 误判不足/充足
-	userFen, fenErr := utils.YuanToFen(user.Money)
-	if fenErr != nil {
-		return nil, NewClientError("账户余额异常")
-	}
-	reqFen, fenErr := utils.YuanToFen(req.Amount)
-	if fenErr != nil || reqFen <= 0 {
-		return nil, NewClientError("提现金额必须大于0")
-	}
-	// 写回规范化后的元，后续扣款/落库一致
-	req.Amount = utils.FenToYuan(reqFen)
-	if userFen < reqFen {
-		return nil, NewClientError("账户余额不足")
-	}
-
-	var pendingCount int
-	if err := tx.QueryRow(db.Q("SELECT COUNT(*) FROM withdraw_requests WHERE user_id = ? AND status IN (?, ?) AND delete_time IS NULL FOR UPDATE"), userID, models.WithdrawStatusPending, models.WithdrawStatusApproved).Scan(&pendingCount); err != nil {
-		return nil, err
-	}
-	if pendingCount > 0 {
-		return nil, NewClientError("您有待处理的提现申请，请勿重复提交")
-	}
-
-	if _, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
-		UserID: userID,
-		Amount: -req.Amount,
-		MemoI18n: map[string]string{
-			"zhCN": "提交提现申请，系统预扣余额",
-			"enUS": "Balance reserved for withdrawal request",
-		},
-	}, utils.OpChangeAndLog); err != nil {
-		if errors.Is(err, utils.ErrInsufficientBalance) {
-			return nil, NewClientError("账户余额不足")
-		}
-		return nil, err
-	}
-
-	item := &models.WithdrawRequest{
-		UserID:          userID,
-		Amount:          req.Amount,
-		AccountType:     accountType,
-		AccountName:     accountName,
-		AccountNo:       accountNo,
-		RealName:        realName,
-		Remark:          remark,
-		Status:          models.WithdrawStatusPending,
-		BalanceDeducted: true,
-	}
-	// 复用 model 层统一的创建逻辑，避免与 CreateWithdrawRequest 重复维护同一份 INSERT SQL
-	if err := models.CreateWithdrawRequestTx(tx, item); err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return models.GetWithdrawRequestByID(item.ID)
@@ -227,45 +222,37 @@ func (s *WithdrawService) Review(adminID uint64, req *ReviewWithdrawRequest) err
 		return err
 	}
 
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	item, err := models.GetWithdrawRequestByIDForUpdate(tx, req.ID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return NewClientError("提现申请不存在")
-		}
-		return err
-	}
-	if item.Status != models.WithdrawStatusPending {
-		return NewClientError("该提现申请已处理，无法重复审核")
-	}
-	if item.UserID == adminID {
-		return NewClientError("不能审核自己的提现申请")
-	}
-
-	refunded := shouldRefundReservedBalance(req.Status, item.BalanceDeducted)
-	if refunded {
-		if _, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
-			UserID: item.UserID,
-			Amount: item.Amount,
-			MemoI18n: map[string]string{
-				"zhCN": fmt.Sprintf("提现申请已拒绝，退回预扣余额-申请#%d", item.ID),
-				"enUS": fmt.Sprintf("Withdrawal rejected, reserved balance released - Request#%d", item.ID),
-			},
-		}, utils.OpChangeAndLog); err != nil {
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		item, err := models.GetWithdrawRequestByIDForUpdate(tx, req.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return NewClientError("提现申请不存在")
+			}
 			return err
 		}
-	}
+		if item.Status != models.WithdrawStatusPending {
+			return NewClientError("该提现申请已处理，无法重复审核")
+		}
+		if item.UserID == adminID {
+			return NewClientError("不能审核自己的提现申请")
+		}
 
-	// 退回预扣余额后同步清零 balance_deducted，避免字段语义与实际余额状态不一致
-	if err := models.UpdateWithdrawReviewTx(tx, req.ID, req.Status, reviewRemark, adminID, refunded); err != nil {
-		return err
-	}
-	return tx.Commit()
+		refunded := shouldRefundReservedBalance(req.Status, item.BalanceDeducted)
+		if refunded {
+			if _, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
+				UserID: item.UserID,
+				Amount: item.Amount,
+				MemoI18n: map[string]string{
+					"zhCN": fmt.Sprintf("提现申请已拒绝，退回预扣余额-申请#%d", item.ID),
+					"enUS": fmt.Sprintf("Withdrawal rejected, reserved balance released - Request#%d", item.ID),
+				},
+			}, utils.OpChangeAndLog); err != nil {
+				return err
+			}
+		}
+
+		return models.UpdateWithdrawReviewTx(tx, req.ID, req.Status, reviewRemark, adminID, refunded)
+	})
 }
 
 func (s *WithdrawService) MarkPaid(adminID uint64, req *PayWithdrawRequest) error {
@@ -273,44 +260,37 @@ func (s *WithdrawService) MarkPaid(adminID uint64, req *PayWithdrawRequest) erro
 	if err != nil {
 		return err
 	}
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	item, err := models.GetWithdrawRequestByIDForUpdate(tx, req.ID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return NewClientError("提现申请不存在")
-		}
-		return err
-	}
-	if item.Status != models.WithdrawStatusApproved {
-		return NewClientError("仅已审核通过的提现申请可标记为已打款")
-	}
-	if item.UserID == adminID {
-		return NewClientError("不能给自己的提现申请执行打款")
-	}
-
-	if shouldDeductBalanceOnWithdrawPay(item.BalanceDeducted) {
-		if _, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
-			UserID: item.UserID,
-			Amount: -item.Amount,
-			MemoI18n: map[string]string{
-				"zhCN": fmt.Sprintf("人工提现打款-申请#%d", item.ID),
-				"enUS": fmt.Sprintf("Manual withdrawal payout - Request#%d", item.ID),
-			},
-		}, utils.OpChangeAndLog); err != nil {
-			if errors.Is(err, utils.ErrInsufficientBalance) {
-				return NewClientError("用户当前余额不足，无法执行提现打款")
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		item, err := models.GetWithdrawRequestByIDForUpdate(tx, req.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return NewClientError("提现申请不存在")
 			}
 			return err
 		}
-	}
+		if item.Status != models.WithdrawStatusApproved {
+			return NewClientError("仅已审核通过的提现申请可标记为已打款")
+		}
+		if item.UserID == adminID {
+			return NewClientError("不能给自己的提现申请执行打款")
+		}
 
-	if err := models.MarkWithdrawPaidTx(tx, item.ID, transferRemark, adminID); err != nil {
-		return err
-	}
-	return tx.Commit()
+		if shouldDeductBalanceOnWithdrawPay(item.BalanceDeducted) {
+			if _, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
+				UserID: item.UserID,
+				Amount: -item.Amount,
+				MemoI18n: map[string]string{
+					"zhCN": fmt.Sprintf("人工提现打款-申请#%d", item.ID),
+					"enUS": fmt.Sprintf("Manual withdrawal payout - Request#%d", item.ID),
+				},
+			}, utils.OpChangeAndLog); err != nil {
+				if errors.Is(err, utils.ErrInsufficientBalance) {
+					return NewClientError("用户当前余额不足，无法执行提现打款")
+				}
+				return err
+			}
+		}
+
+		return models.MarkWithdrawPaidTx(tx, item.ID, transferRemark, adminID)
+	})
 }

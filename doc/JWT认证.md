@@ -69,7 +69,7 @@ JWT_EXPIRE_HOURS=24                                    # Token有效期（小时
 
 ### 配置代码
 
-**文件**: `backend/internal/config/config.go`
+**文件**: `backend/pkg/config/config.go`
 
 ```go
 type Config struct {
@@ -401,35 +401,18 @@ Content-Type: application/json
 
 ### 认证中间件
 
-**文件**: `backend/internal/middleware/auth.go`
+**文件**: `backend/pkg/middleware/auth.go`
 
 ```go
 func AuthMiddleware() gin.HandlerFunc {
     return func(c *gin.Context) {
         authHeader := c.GetHeader("Authorization")
         if authHeader == "" {
-            c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+            utils.Fail(c, 401, "Authorization header is required")
             c.Abort()
             return
         }
-        
-        parts := strings.SplitN(authHeader, " ", 2)
-        if !(len(parts) == 2 && parts[0] == "Bearer") {
-            c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header format must be Bearer {token}"})
-            c.Abort()
-            return
-        }
-        
-        claims, err := utils.ParseToken(parts[1])
-        if err != nil {
-            c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
-            c.Abort()
-            return
-        }
-        
-        // 将用户信息存入上下文
-        c.Set("userID", claims.UserID)
-        c.Set("role", claims.Role)
+        // 实际实现：解析 Bearer、写上下文；失败一律 utils.Fail（禁止 gin.H{"error"}）
         c.Next()
     }
 }
@@ -442,7 +425,7 @@ func AdminOnly() gin.HandlerFunc {
     return func(c *gin.Context) {
         role, exists := c.Get("role")
         if !exists || role != "admin" {
-            c.JSON(http.StatusForbidden, gin.H{"error": "Admin access only"})
+            utils.Fail(c, 403, "Admin access only")
             c.Abort()
             return
         }
@@ -822,4 +805,4 @@ if err != nil {
 
 > 📝 **最后更新**: 2026-02-04
 > 
-> 如有疑问，请参考 `backend/utils/jwt.go` 和 `backend/internal/middleware/auth.go` 源代码。
+> 如有疑问，请参考 `backend/utils/jwt.go` 和 `backend/pkg/middleware/auth.go` 源代码。

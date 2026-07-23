@@ -1,59 +1,52 @@
 package models
 
 import (
+	"database/sql"
 	"errors"
 	"fst/backend/pkg/db"
 	"fst/backend/pkg/panicsafe"
 	"log"
 	"sync/atomic"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // EmailLog 邮件日志
 type EmailLog struct {
-	ID           uint64    `db:"id" json:"id"`
-	UserID       uint64    `db:"user_id" json:"user_id"` // 关联用户（匿名发送为 0）
-	ToEmail      string    `db:"to_email" json:"to_email"`
-	Subject      string    `db:"subject" json:"subject"`
-	Content      string    `db:"content" json:"content"`
-	TemplateName string    `db:"template_name" json:"template_name"`
-	Status       uint8     `db:"status" json:"status"`
-	ErrorMsg     string    `db:"error_msg" json:"error_msg"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	ID           uint64    `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	UserID       uint64    `gorm:"column:user_id;not null;default:0;index:idx_email_logs_user_id" json:"user_id"`
+	ToEmail      string    `gorm:"column:to_email;size:150;not null;index:idx_email_logs_to" json:"to_email"`
+	Subject      string    `gorm:"column:subject;size:255;not null" json:"subject"`
+	Content      string    `gorm:"column:content;type:text;not null" json:"content"`
+	TemplateName string    `gorm:"column:template_name;size:100;not null;default:'';index:idx_email_logs_template_name" json:"template_name"`
+	Status       uint8     `gorm:"column:status;not null;default:0;index:idx_email_logs_status_created,priority:1" json:"status"`
+	ErrorMsg     string    `gorm:"column:error_msg;type:text" json:"error_msg"`
+	CreatedAt    time.Time `gorm:"column:created_at;autoCreateTime;index:idx_email_logs_created_at;index:idx_email_logs_status_created,priority:2" json:"created_at"`
 }
+
+// TableName 表名
+func (EmailLog) TableName() string { return "email_logs" }
 
 // EmailTemplate 邮件模板
 type EmailTemplate struct {
-	ID          uint64 `db:"id" json:"id"`
-	Name        string `db:"name" json:"name"`
-	Lang        string `db:"lang" json:"lang"`
-	Title       string `db:"title" json:"title"`
-	Subject     string `db:"subject" json:"subject"`
-	Content     string `db:"content" json:"content"`
-	Description string `db:"description" json:"description"`
-	Variables   string `db:"variables" json:"variables"`
-	Status      uint8  `db:"status" json:"status"` // 1=启用, 0=禁用
-	CreatedAt   string `db:"created_at" json:"created_at"`
-	UpdatedAt   string `db:"updated_at" json:"updated_at"`
+	ID          uint64 `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	Name        string `gorm:"column:name;size:100;not null;uniqueIndex:idx_tpl_name_lang,priority:1" json:"name"`
+	Lang        string `gorm:"column:lang;size:20;not null;default:'zh-CN';uniqueIndex:idx_tpl_name_lang,priority:2" json:"lang"`
+	Title       string `gorm:"column:title;size:100;not null" json:"title"`
+	Subject     string `gorm:"column:subject;size:255;not null" json:"subject"`
+	Content     string `gorm:"column:content;type:text;not null" json:"content"`
+	Description string `gorm:"column:description;size:255;not null;default:''" json:"description"`
+	Variables   string `gorm:"column:variables;size:500;not null;default:''" json:"variables"`
+	Status      uint8  `gorm:"column:status;not null;default:1" json:"status"`
+	CreatedAt   string `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt   string `gorm:"column:updated_at" json:"updated_at"`
 }
+
+// TableName 表名
+func (EmailTemplate) TableName() string { return "email_templates" }
 
 var emailLogCleanupNextAt atomic.Int64
-
-// EnsureEmailLogsUserIDColumn 兼容旧表补齐 user_id
-func EnsureEmailLogsUserIDColumn() {
-	if !db.CheckTableExists("email_logs") {
-		return
-	}
-	if !db.CheckColumnExists("email_logs", "user_id") {
-		if _, err := db.Exec("ALTER TABLE email_logs ADD COLUMN user_id BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '关联用户ID（匿名发送为0）' AFTER id"); err != nil {
-			log.Printf("[Init] Failed to add email_logs.user_id: %v", err)
-		} else {
-			log.Println("[Init] Added email_logs.user_id")
-		}
-	}
-	db.EnsureIndex("email_logs", "idx_email_logs_user_id", "ALTER TABLE email_logs ADD INDEX idx_email_logs_user_id (user_id)")
-	InitEmailLogAggregateTables()
-}
 
 // CreateEmailLog 记录邮件发送日志（userID 可选，匿名发送传 0）
 func CreateEmailLog(to, subject, content, tplName string, status int, errorMsg string) error {
@@ -62,12 +55,6 @@ func CreateEmailLog(to, subject, content, tplName string, status int, errorMsg s
 
 // CreateEmailLogWithUser 记录带用户关联的邮件日志
 func CreateEmailLogWithUser(userID uint64, to, subject, content, tplName string, status int, errorMsg string) error {
-	query := `INSERT INTO email_logs (user_id, to_email, subject, content, template_name, status, error_msg) VALUES (?, ?, ?, ?, ?, ?, ?)`
-	result, err := db.Exec(query, userID, to, subject, content, tplName, status, errorMsg)
-	if err != nil {
-		return err
-	}
-
 	entry := &EmailLog{
 		UserID:       userID,
 		ToEmail:      to,
@@ -78,8 +65,8 @@ func CreateEmailLogWithUser(userID uint64, to, subject, content, tplName string,
 		ErrorMsg:     errorMsg,
 		CreatedAt:    time.Now(),
 	}
-	if id, idErr := result.LastInsertId(); idErr == nil {
-		entry.ID = uint64(id)
+	if err := db.DB.Create(entry).Error; err != nil {
+		return err
 	}
 
 	panicsafe.Go("EmailLog.aggregate", func() {
@@ -109,68 +96,60 @@ type EmailLogQuery struct {
 	EndTime      string `form:"end_time" json:"end_time"`
 }
 
-// GetEmailLogList 分页查询邮件日志
-func GetEmailLogList(q *EmailLogQuery) ([]EmailLog, int64, error) {
-	var logs []EmailLog
-	var total int64
-
-	where := "WHERE 1=1"
-	args := []interface{}{}
-
+func buildEmailLogQuery(q *EmailLogQuery) *gorm.DB {
+	query := db.DB.Model(&EmailLog{})
 	if q.UserID > 0 {
-		where += " AND user_id = ?"
-		args = append(args, q.UserID)
+		query = query.Where("user_id = ?", q.UserID)
 	}
 	if q.ToEmail != "" {
-		where += " AND to_email LIKE ?"
-		args = append(args, "%"+q.ToEmail+"%")
+		query = query.Where("to_email LIKE ?", "%"+q.ToEmail+"%")
 	}
 	if q.TemplateName != "" {
-		where += " AND template_name = ?"
-		args = append(args, q.TemplateName)
+		query = query.Where("template_name = ?", q.TemplateName)
 	}
 	if q.Status >= 0 {
-		where += " AND status = ?"
-		args = append(args, q.Status)
+		query = query.Where("status = ?", q.Status)
 	}
 	if q.StartTime != "" {
-		where += " AND created_at >= ?"
-		args = append(args, q.StartTime)
+		query = query.Where("created_at >= ?", q.StartTime)
 	}
 	if q.EndTime != "" {
-		where += " AND created_at <= ?"
-		args = append(args, q.EndTime)
+		query = query.Where("created_at <= ?", q.EndTime)
 	}
+	return query
+}
 
-	err := db.DB.Get(&total, "SELECT COUNT(*) FROM email_logs "+where, args...)
-	if err != nil {
-		return nil, 0, err
-	}
-
+// GetEmailLogList 分页查询邮件日志
+func GetEmailLogList(q *EmailLogQuery) ([]EmailLog, int64, error) {
 	if q.Page <= 0 {
 		q.Page = 1
 	}
 	if q.PageSize <= 0 {
 		q.PageSize = 20
 	}
-	offset := (q.Page - 1) * q.PageSize
 
-	list_sql := "SELECT id, user_id, to_email, subject, template_name, status, error_msg, created_at FROM email_logs " +
-		where + " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?"
-	args = append(args, q.PageSize, offset)
-
-	err = db.DB.Select(&logs, list_sql, args...)
-	if err != nil {
+	base := buildEmailLogQuery(q)
+	var total int64
+	if err := base.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	return logs, total, nil
+	var logs []EmailLog
+	err := base.Select("id, user_id, to_email, subject, template_name, status, error_msg, created_at").
+		Order("created_at DESC, id DESC").
+		Limit(q.PageSize).
+		Offset((q.Page - 1) * q.PageSize).
+		Find(&logs).Error
+	return logs, total, err
 }
 
 // GetEmailLogByID 根据 ID 获取邮件日志详情（含 content）
 func GetEmailLogByID(id uint64) (*EmailLog, error) {
 	var logEntry EmailLog
-	err := db.DB.Get(&logEntry, "SELECT * FROM email_logs WHERE id = ?", id)
+	err := db.DB.Where("id = ?", id).First(&logEntry).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, sql.ErrNoRows
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -179,11 +158,8 @@ func GetEmailLogByID(id uint64) (*EmailLog, error) {
 
 // DeleteEmailLogsBefore 删除指定时间之前的邮件日志
 func DeleteEmailLogsBefore(before string) (int64, error) {
-	result, err := db.Exec("DELETE FROM email_logs WHERE created_at < ?", before)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+	result := db.DB.Where("created_at < ?", before).Delete(&EmailLog{})
+	return result.RowsAffected, result.Error
 }
 
 // CleanExcessEmailLogs 清理超出全局上限的旧邮件日志（只保留最新 maxCount 条）
@@ -208,32 +184,33 @@ func GetEmailLogStats() (total int64, success int64, fail int64, err error) {
 // GetEmailTemplateNames 获取所有模板名（去重），用于前端筛选
 func GetEmailTemplateNames() ([]string, error) {
 	var names []string
-	err := db.DB.Select(&names, "SELECT DISTINCT template_name FROM email_logs WHERE template_name != '' ORDER BY template_name")
-	if err != nil {
-		return nil, err
-	}
-	return names, nil
+	err := db.DB.Model(&EmailLog{}).
+		Distinct("template_name").
+		Where("template_name != ''").
+		Order("template_name").
+		Pluck("template_name", &names).Error
+	return names, err
 }
 
 // CreateEmailTemplate 创建邮件模板
 func CreateEmailTemplate(tpl *EmailTemplate) error {
-	query := `INSERT INTO email_templates (name, lang, title, subject, content, description, variables, status) 
-	          VALUES (:name, :lang, :title, :subject, :content, :description, :variables, :status)`
-	_, err := db.DB.NamedExec(query, tpl)
-	return err
+	return db.DB.Create(tpl).Error
 }
 
 // CheckTemplateExists 检查模板是否存在
 func CheckTemplateExists(name, lang string) bool {
-	var count int
-	err := db.DB.Get(&count, "SELECT COUNT(*) FROM email_templates WHERE name = ? AND lang = ?", name, lang)
+	var count int64
+	err := db.DB.Model(&EmailTemplate{}).Where("name = ? AND lang = ?", name, lang).Count(&count).Error
 	return err == nil && count > 0
 }
 
 // GetEmailTemplate 获取指定模板
 func GetEmailTemplate(name, lang string) (*EmailTemplate, error) {
 	var tpl EmailTemplate
-	err := db.DB.Get(&tpl, "SELECT * FROM email_templates WHERE name = ? AND lang = ? AND status = 1", name, lang)
+	err := db.DB.Where("name = ? AND lang = ? AND status = 1", name, lang).First(&tpl).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, sql.ErrNoRows
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -242,9 +219,7 @@ func GetEmailTemplate(name, lang string) (*EmailTemplate, error) {
 
 // UpdateEmailTemplateContent 更新模板内容
 func UpdateEmailTemplateContent(name, lang, content string) error {
-	query := `UPDATE email_templates SET content = ? WHERE name = ? AND lang = ?`
-	_, err := db.Exec(query, content, name, lang)
-	return err
+	return db.DB.Model(&EmailTemplate{}).Where("name = ? AND lang = ?", name, lang).Update("content", content).Error
 }
 
 // defaultEmailTemplateSeed 默认邮件模板种子（Init / Reset 共用同一份内容，不再各写各的）
@@ -337,12 +312,10 @@ func GetDefaultEmailTemplateByNameLang(name, lang string) (seed defaultEmailTemp
 	return defaultEmailTemplateSeed{}, false
 }
 
-// InitEmailTemplates 种子写入默认邮件模板（已存在则跳过，不覆盖管理员在后台改过的内容）。
+// SeedEmailTemplates 种子写入默认邮件模板（已存在则跳过，不覆盖管理员在后台改过的内容）。
 // 之前的实现对已存在的模板会无条件 UpdateEmailTemplateContent 覆盖回默认文案，导致管理员每次重启服务
-// 后台改的邮件模板内容都会被冲掉，是真实 bug，这里改成和 InitSMSTemplates 一致的「仅缺失时插入」。
-func InitEmailTemplates() {
-	EnsureEmailLogsUserIDColumn()
-
+// 后台改的邮件模板内容都会被冲掉，是真实 bug，这里改成和 SeedSMSTemplates 一致的「仅缺失时插入」。
+func SeedEmailTemplates() {
 	for _, s := range GetDefaultEmailTemplateSeeds() {
 		if CheckTemplateExists(s.Name, s.Lang) {
 			continue
@@ -365,14 +338,17 @@ func InitEmailTemplates() {
 // ListAllEmailTemplates 列出全部邮件模板
 func ListAllEmailTemplates() ([]EmailTemplate, error) {
 	var list []EmailTemplate
-	err := db.DB.Select(&list, "SELECT * FROM email_templates ORDER BY name, lang")
+	err := db.DB.Order("name, lang").Find(&list).Error
 	return list, err
 }
 
 // GetEmailTemplateByID 按 ID 获取
 func GetEmailTemplateByID(id uint64) (*EmailTemplate, error) {
 	var tpl EmailTemplate
-	err := db.DB.Get(&tpl, "SELECT * FROM email_templates WHERE id = ?", id)
+	err := db.DB.Where("id = ?", id).First(&tpl).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, sql.ErrNoRows
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -381,14 +357,12 @@ func GetEmailTemplateByID(id uint64) (*EmailTemplate, error) {
 
 // UpdateEmailTemplate 更新邮件模板可编辑字段
 func UpdateEmailTemplate(id uint64, subject, content, description string, status uint8) error {
-	_, err := db.Exec(
-		`UPDATE email_templates SET subject = ?, content = ?, description = ?, status = ? WHERE id = ?`,
-		subject, content, description, status, id,
-	)
-	return err
+	return db.DB.Model(&EmailTemplate{}).Where("id = ?", id).Updates(map[string]any{
+		"subject": subject, "content": content, "description": description, "status": status,
+	}).Error
 }
 
-// ResetEmailTemplateToDefault 将指定模板重置为系统默认内容（与 InitEmailTemplates 共用同一份种子数据）
+// ResetEmailTemplateToDefault 将指定模板重置为系统默认内容（与 SeedEmailTemplates 共用同一份种子数据）
 func ResetEmailTemplateToDefault(id uint64) error {
 	tpl, err := GetEmailTemplateByID(id)
 	if err != nil {
@@ -398,11 +372,10 @@ func ResetEmailTemplateToDefault(id uint64) error {
 	if !ok {
 		return ErrEmailTemplateNoDefault
 	}
-	_, err = db.Exec(
-		`UPDATE email_templates SET subject = ?, content = ?, description = ?, variables = ?, status = 1 WHERE id = ?`,
-		seed.Subject, seed.Content, seed.Description, seed.Variables, id,
-	)
-	return err
+	return db.DB.Model(&EmailTemplate{}).Where("id = ?", id).Updates(map[string]any{
+		"subject": seed.Subject, "content": seed.Content, "description": seed.Description,
+		"variables": seed.Variables, "status": 1,
+	}).Error
 }
 
 // ErrEmailTemplateNoDefault 无对应默认模板

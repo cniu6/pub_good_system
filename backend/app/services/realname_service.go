@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"gorm.io/gorm"
 )
 
 // RealnameService 实名认证服务
@@ -108,47 +110,40 @@ func (s *RealnameService) Submit(userID uint64, req *RealnameSubmitRequest) erro
 		verification.ReviewedBy = &reviewedBy
 	}
 
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	existing, err := models.GetRealnameVerificationByUserIDForUpdate(tx, userID)
-	if err != nil && err != sql.ErrNoRows {
-		return err
-	}
-
-	// 在同一事务里锁定并判断最新申请，避免并发下重复提交。
-	if existing != nil && existing.Status == RealnameStatusPending {
-		return NewClientError("您有待审核的实名认证申请，请等待审核完成")
-	}
-	if existing != nil && existing.Status == RealnameStatusApproved {
-		return NewClientError("您已通过实名认证，无需再次提交")
-	}
-	if existing != nil && existing.Status == RealnameStatusRejected {
-		if err := models.SoftDeleteRealnameVerificationTx(tx, existing.ID); err != nil {
-			return errors.New("处理旧记录失败，请重试")
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		existing, err := models.GetRealnameVerificationByUserIDForUpdate(tx, userID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
 		}
-	}
 
-	// 证件号跨用户查重：避免同一证件号被多个账号占用实名认证
-	dupCount, err := models.CountOtherUsersByCertificateNoTx(tx, verification.CertificateNo, userID)
-	if err != nil {
-		return errors.New("查重失败，请重试")
-	}
-	if dupCount > 0 {
-		return NewClientError("该证件号已被其他账号实名认证，请核对后重试")
-	}
+		if existing != nil && existing.Status == RealnameStatusPending {
+			return NewClientError("您有待审核的实名认证申请，请等待审核完成")
+		}
+		if existing != nil && existing.Status == RealnameStatusApproved {
+			return NewClientError("您已通过实名认证，无需再次提交")
+		}
+		if existing != nil && existing.Status == RealnameStatusRejected {
+			if err := models.SoftDeleteRealnameVerificationTx(tx, existing.ID); err != nil {
+				return errors.New("处理旧记录失败，请重试")
+			}
+		}
 
-	if err := models.CreateRealnameVerificationTx(tx, verification); err != nil {
-		if db.IsDuplicateKeyError(err) {
+		dupCount, err := models.CountOtherUsersByCertificateNoTx(tx, verification.CertificateNo, userID)
+		if err != nil {
+			return errors.New("查重失败，请重试")
+		}
+		if dupCount > 0 {
 			return NewClientError("该证件号已被其他账号实名认证，请核对后重试")
 		}
-		return err
-	}
 
-	return tx.Commit()
+		if err := models.CreateRealnameVerificationTx(tx, verification); err != nil {
+			if db.IsDuplicateKeyError(err) {
+				return NewClientError("该证件号已被其他账号实名认证，请核对后重试")
+			}
+			return err
+		}
+		return nil
+	})
 }
 
 // GetUserVerification 获取用户的实名认证状态
@@ -184,39 +179,26 @@ func (s *RealnameService) Review(adminID uint64, req *RealnameReviewRequest) err
 		return NewClientError("请填写拒绝原因")
 	}
 
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	verification, err := models.GetRealnameVerificationByIDForUpdate(tx, req.ID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return NewClientError("实名认证记录不存在")
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		verification, err := models.GetRealnameVerificationByIDForUpdate(tx, req.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return NewClientError("实名认证记录不存在")
+			}
+			return err
 		}
-		return err
-	}
-
-	// 防止管理员审核自己的申请
-	if adminID == verification.UserID {
-		return NewClientError("不能审核自己的实名认证申请")
-	}
-
-	if verification.Status != RealnameStatusPending {
-		return NewClientError("该申请已处理，无法重复审核")
-	}
-
-	rejectReason := ""
-	if req.Status == RealnameStatusRejected {
-		rejectReason = strings.TrimSpace(req.RejectReason)
-	}
-
-	if err := models.UpdateRealnameVerificationStatusTx(tx, req.ID, req.Status, rejectReason, adminID); err != nil {
-		return err
-	}
-
-	return tx.Commit()
+		if adminID == verification.UserID {
+			return NewClientError("不能审核自己的实名认证申请")
+		}
+		if verification.Status != RealnameStatusPending {
+			return NewClientError("该申请已处理，无法重复审核")
+		}
+		rejectReason := ""
+		if req.Status == RealnameStatusRejected {
+			rejectReason = strings.TrimSpace(req.RejectReason)
+		}
+		return models.UpdateRealnameVerificationStatusTx(tx, req.ID, req.Status, rejectReason, adminID)
+	})
 }
 
 // validateCertificateImageURL 校验证件照 URL 协议，只允许 http(s)，

@@ -1,18 +1,18 @@
 module fst
 
-go 1.24.5
+go 1.25
 
 require (
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.1.16
 	github.com/alibabacloud-go/dysmsapi-20170525/v5 v5.5.1
 	github.com/alibabacloud-go/tea v1.4.0
 	github.com/gin-gonic/gin v1.11.0
+	github.com/glebarez/sqlite v1.11.0
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/pprof v0.0.0-20260202012954-cb029daf43ef
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.7.6
-	github.com/jmoiron/sqlx v1.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/pquerna/otp v1.5.0
 	github.com/shirou/gopsutil/v4 v4.25.1
@@ -23,7 +23,9 @@ require (
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/sms v1.3.57
 	golang.org/x/crypto v0.40.0
 	golang.org/x/net v0.42.0
-	modernc.org/sqlite v1.34.5
+	gorm.io/driver/mysql v1.5.7
+	gorm.io/driver/postgres v1.5.11
+	gorm.io/gorm v1.30.0
 )
 
 require (
@@ -44,6 +46,7 @@ require (
 	github.com/ebitengine/purego v0.8.2 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
+	github.com/glebarez/go-sqlite v1.21.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.19.6 // indirect
@@ -58,6 +61,8 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
@@ -73,6 +78,7 @@ require (
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.54.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
@@ -89,7 +95,9 @@ require (
 	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	modernc.org/fileutil v1.3.0 // indirect
 	modernc.org/libc v1.55.3 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
 	modernc.org/memory v1.8.0 // indirect
+	modernc.org/sqlite v1.34.5 // indirect
 )

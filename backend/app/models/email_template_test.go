@@ -7,10 +7,10 @@ import (
 	"fst/backend/internal/testutil"
 )
 
-// TestInitEmailTemplates_DoesNotOverwriteAdminEdit 回归真实 bug：旧实现里 InitEmailTemplates
+// TestSeedEmailTemplates_DoesNotOverwriteAdminEdit 回归真实 bug：旧实现里 SeedEmailTemplates
 // 对已存在的模板会无条件把 content 覆盖回硬编码默认值，导致管理员在后台改过的邮件模板在服务
 // 重启（每次 RunAutoMigrate 都会调一遍）后被冲掉。修复后应该是「仅缺失时插入，已存在则不动」。
-func TestInitEmailTemplates_DoesNotOverwriteAdminEdit(t *testing.T) {
+func TestSeedEmailTemplates_DoesNotOverwriteAdminEdit(t *testing.T) {
 	cleanup := testutil.SetupSQLite(t) // SetupSQLite 内部会跑一次迁移，已经种过默认模板
 	defer cleanup()
 
@@ -26,7 +26,7 @@ func TestInitEmailTemplates_DoesNotOverwriteAdminEdit(t *testing.T) {
 	}
 
 	// 再跑一次种子逻辑（等价于服务重启触发的 RunAutoMigrate）
-	models.InitEmailTemplates()
+	models.SeedEmailTemplates()
 
 	after, err := models.GetEmailTemplateByID(tpl.ID)
 	if err != nil {
@@ -38,7 +38,7 @@ func TestInitEmailTemplates_DoesNotOverwriteAdminEdit(t *testing.T) {
 }
 
 // TestResetEmailTemplateToDefault_RestoresSeedContent 验证 Reset 恢复的内容与 Init 种子完全一致
-// （回归：旧实现里 Controller.Reset 内嵌的默认文案和 models.InitEmailTemplates 的种子不是同一份，
+// （回归：旧实现里 Controller.Reset 内嵌的默认文案和 models.SeedEmailTemplates 的种子不是同一份，
 // 两处「默认模板」对不上）。
 func TestResetEmailTemplateToDefault_RestoresSeedContent(t *testing.T) {
 	cleanup := testutil.SetupSQLite(t)

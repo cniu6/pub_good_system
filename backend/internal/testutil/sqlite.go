@@ -38,10 +38,7 @@ func SetupSQLite(t *testing.T) func() {
 	migrate.RunAutoMigrate()
 
 	return func() {
-		if db.DB != nil {
-			_ = db.DB.Close()
-			db.DB = nil
-		}
+		_ = db.Close()
 	}
 }
 
@@ -71,7 +68,7 @@ func CreateTestUser(t *testing.T, username string) *models.User {
 func CreateTestAdmin(t *testing.T, username string) *models.User {
 	t.Helper()
 	u := CreateTestUser(t, username)
-	if _, err := db.Exec(`UPDATE users SET role = ? WHERE id = ?`, "admin", u.ID); err != nil {
+	if err := db.DB.Model(&models.User{}).Where("id = ?", u.ID).Update("role", "admin").Error; err != nil {
 		t.Fatalf("提升管理员失败: %v", err)
 	}
 	u.Role = "admin"

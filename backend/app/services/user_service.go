@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jmoiron/sqlx"
+	"gorm.io/gorm"
 )
 
 // UserService 用户服务
@@ -32,17 +32,17 @@ type UserListQuery struct {
 
 type AdminUserListItem struct {
 	models.User
-	AdminRemark      string  `db:"-" json:"admin_remark"`
-	RealnameStatus   *uint8  `db:"realname_status" json:"realname_status"`
-	TotalPaidAmount  float64 `db:"total_paid_amount" json:"total_paid_amount"`
-	BalancePaidRatio float64 `db:"balance_paid_ratio" json:"balance_paid_ratio"`
+	AdminRemark      string  `gorm:"-" json:"admin_remark"`
+	RealnameStatus   *uint8  `gorm:"column:realname_status" json:"realname_status"`
+	TotalPaidAmount  float64 `gorm:"column:total_paid_amount" json:"total_paid_amount"`
+	BalancePaidRatio float64 `gorm:"column:balance_paid_ratio" json:"balance_paid_ratio"`
 	// ApikeyMasked 管理端列表/详情展示用：仅末4位，数据库存的哈希/明文都不下发
-	ApikeyMasked string `db:"-" json:"apikey"`
+	ApikeyMasked string `gorm:"-" json:"apikey"`
 	// LastSeenAt 最近一次会话心跳时间（跨全部设备取最大值），来自 user_sessions；无会话记录时为 0。
 	// 仅供列表展示「上次在线」参考，不代表当前是否在线。
-	LastSeenAt int64 `db:"-" json:"last_seen_at"`
+	LastSeenAt int64 `gorm:"-" json:"last_seen_at"`
 	// IsOnline 当前是否在线（依据 LastSeenAt 与在线心跳容忍窗口判定，与专门的在线用户页口径一致）。
-	IsOnline bool `db:"-" json:"is_online"`
+	IsOnline bool `gorm:"-" json:"is_online"`
 }
 
 // UserListResult 用户列表返回结果
@@ -114,18 +114,17 @@ func (s *UserService) GetList(query *UserListQuery) (*UserListResult, error) {
 
 	// 查询总数
 	count_query := "SELECT COUNT(*)" + fromClause + where
-	err := db.DB.Get(&total, count_query, baseArgs...)
+	err := db.DB.Raw(count_query, baseArgs...).Scan(&total).Error
 	if err != nil {
 		return nil, err
 	}
 
 	// 分页查询
 	offset := (query.Page - 1) * query.PageSize
-	// 关联每个用户最后一条未删除实名记录的状态，方便管理员列表直接展示认证结果。
 	list_query := "SELECT " + models.BuildUserSelectColumns("users") + ", rv.status AS realname_status, COALESCE(p.total_paid_amount, 0) AS total_paid_amount, CASE WHEN COALESCE(p.total_paid_amount, 0) > 0 THEN COALESCE(users.money, 0) / p.total_paid_amount ELSE 0 END AS balance_paid_ratio" + fromClause + where + " ORDER BY users.id DESC LIMIT ? OFFSET ?"
 	listArgs := append(baseArgs, query.PageSize, offset)
 
-	err = db.DB.Select(&users, list_query, listArgs...)
+	err = db.DB.Raw(list_query, listArgs...).Scan(&users).Error
 	if err != nil {
 		return nil, err
 	}
@@ -190,8 +189,8 @@ func (s *UserService) GetAdminDetail(id uint64) (*AdminUserListItem, error) {
 	) p ON p.user_id = users.id
 	WHERE users.id = ? AND users.delete_time IS NULL`, models.BuildUserSelectColumns("users"), models.RealPaidOrderFilterSQL)
 
-	if err := db.DB.Get(&user, query, models.PaymentStatusPaid, id); err != nil {
-		return nil, err
+	if err := db.DB.Raw(query, models.PaymentStatusPaid, id).Scan(&user).Error; err != nil {
+		return nil, db.MapGormNotFound(err)
 	}
 	user.AdminRemark = user.User.AdminRemark
 	user.ApikeyMasked = user.User.MaskedApikey()
@@ -432,12 +431,24 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 	now := time.Now().Unix()
 	user.UpdateTime = &now
 
-	query := `UPDATE users SET nickname = :nickname, email = :email, mobile = :mobile,
-			  avatar = :avatar, gender = :gender, birthday = :birthday, motto = :motto, admin_remark = :admin_remark,
-			  back_ground = :back_ground, language = :language, country = :country,
-			  level = :level, role = :role, status = :status, group_id = :group_id, update_time = :update_time
-			  WHERE id = :id`
-	if _, err = db.DB.NamedExec(query, user); err != nil {
+	if err := db.DB.Model(&models.User{}).Where("id = ?", user.ID).Updates(map[string]interface{}{
+		"nickname":     user.Nickname,
+		"email":        user.Email,
+		"mobile":       user.Mobile,
+		"avatar":       user.Avatar,
+		"gender":       user.Gender,
+		"birthday":     user.Birthday,
+		"motto":        user.Motto,
+		"admin_remark": user.AdminRemark,
+		"back_ground":  user.BackGround,
+		"language":     user.Language,
+		"country":      user.Country,
+		"level":        user.Level,
+		"role":         user.Role,
+		"status":       user.Status,
+		"group_id":     user.GroupId,
+		"update_time":  user.UpdateTime,
+	}).Error; err != nil {
 		return err
 	}
 
@@ -459,7 +470,10 @@ func (s *UserService) UpdateStatus(user_id uint64, status uint8) error {
 	}
 
 	now := time.Now().Unix()
-	if _, err := db.Exec("UPDATE users SET status = ?, update_time = ? WHERE id = ?", status, now, user_id); err != nil {
+	if err := db.DB.Model(&models.User{}).Where("id = ? AND delete_time IS NULL", user_id).Updates(map[string]interface{}{
+		"status":      status,
+		"update_time": now,
+	}).Error; err != nil {
 		return err
 	}
 	if status == 0 {
@@ -497,7 +511,11 @@ func (s *UserService) Delete(user_id uint64) error {
 	}
 
 	now := time.Now().Unix()
-	if _, err := db.Exec("UPDATE users SET delete_time = ?, status = 0, update_time = ? WHERE id = ?", now, now, user_id); err != nil {
+	if err := db.DB.Model(&models.User{}).Where("id = ?", user_id).Updates(map[string]interface{}{
+		"delete_time": now,
+		"status":      0,
+		"update_time": now,
+	}).Error; err != nil {
 		return err
 	}
 	revokeAllGuardSessions(user_id)
@@ -506,14 +524,14 @@ func (s *UserService) Delete(user_id uint64) error {
 
 // countActiveAdmins 统计启用中且未删除的管理员数量
 func countActiveAdmins() (int, error) {
-	var count int
-	err := db.DB.Get(&count, `
+	var count int64
+	err := db.DB.Raw(`
 		SELECT COUNT(*) FROM users
 		WHERE LOWER(role) = 'admin'
 		  AND status = 1
 		  AND delete_time IS NULL
-	`)
-	return count, err
+	`).Scan(&count).Error
+	return int(count), err
 }
 
 // ensureAdminPrivilegeSafe 防止误删/禁用/降级「最后一个启用中的管理员」导致系统锁死
@@ -560,24 +578,15 @@ func (s *UserService) BatchDelete(user_ids []uint64) error {
 	return nil
 }
 
-// BatchUpdateStatus 批量更新用户状态；禁用时同步撤销相关会话
+// BatchUpdateStatus 批量更新用户状态；禁用时同步撤销相关会话。
+// 与 BatchDelete 一样逐条复用 UpdateStatus，保证：
+// 1) 跳过已软删用户（GetUserByID 会判不存在）
+// 2) 禁用时走「最后一个启用管理员」保护
+// 3) 会话撤销与单条 UpdateStatus 一致
 func (s *UserService) BatchUpdateStatus(user_ids []uint64, status uint8) error {
-	if len(user_ids) == 0 {
-		return nil
-	}
-
-	now := time.Now().Unix()
-	query := "UPDATE users SET status = ?, update_time = ? WHERE id IN (?)"
-	query, args, err := sqlx.In(query, status, now, user_ids)
-	if err != nil {
-		return err
-	}
-	if _, err = db.Exec(query, args...); err != nil {
-		return err
-	}
-	if status == 0 {
-		for _, uid := range user_ids {
-			revokeAllGuardSessions(uid)
+	for _, uid := range user_ids {
+		if err := s.UpdateStatus(uid, status); err != nil {
+			return fmt.Errorf("更新用户 %d 状态失败: %w", uid, err)
 		}
 	}
 	return nil
@@ -597,16 +606,21 @@ func revokeAllGuardSessions(user_id uint64) {
 // UpdateLoginInfo 更新登录信息
 func (s *UserService) UpdateLoginInfo(user_id uint64, ip string) error {
 	now := time.Now().Unix()
-	_, err := db.Exec("UPDATE users SET last_login_time = ?, last_login_ip = ?, login_failure = 0, update_time = ? WHERE id = ?",
-		now, ip, now, user_id)
-	return err
+	return db.DB.Model(&models.User{}).Where("id = ? AND delete_time IS NULL", user_id).Updates(map[string]interface{}{
+		"last_login_time": now,
+		"last_login_ip":   ip,
+		"login_failure":   0,
+		"update_time":     now,
+	}).Error
 }
 
 // IncrementLoginFailure 增加登录失败次数
 func (s *UserService) IncrementLoginFailure(user_id uint64) error {
 	now := time.Now().Unix()
-	_, err := db.Exec("UPDATE users SET login_failure = login_failure + 1, update_time = ? WHERE id = ?", now, user_id)
-	return err
+	return db.DB.Model(&models.User{}).Where("id = ? AND delete_time IS NULL", user_id).Updates(map[string]interface{}{
+		"login_failure": gorm.Expr("login_failure + 1"),
+		"update_time":   now,
+	}).Error
 }
 
 // IncrementLoginFailureWithLock 原子地增加登录失败次数，并在达到阈值时锁定账户。
@@ -618,46 +632,43 @@ func (s *UserService) IncrementLoginFailureWithLock(user_id uint64, max_failures
 	}
 	now := time.Now().Unix()
 
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	var currentFailure int
-	if err := tx.QueryRow(db.Q("SELECT login_failure FROM users WHERE id = ? FOR UPDATE"), user_id).Scan(&currentFailure); err != nil {
-		return err
-	}
-
-	nextFailure := currentFailure + 1
-	if _, err := tx.Exec("UPDATE users SET login_failure = ?, update_time = ? WHERE id = ?", nextFailure, now, user_id); err != nil {
-		return err
-	}
-
-	if nextFailure >= max_failures && lock_duration_minutes > 0 {
-		lockUntil := now + int64(lock_duration_minutes*60)
-		if _, err := tx.Exec("UPDATE users SET lock_until = ? WHERE id = ?", lockUntil, user_id); err != nil {
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		var user models.User
+		if err := db.ForUpdate(tx).
+			Select("login_failure").
+			Where("id = ? AND delete_time IS NULL", user_id).
+			First(&user).Error; err != nil {
 			return err
 		}
-	}
-
-	return tx.Commit()
+		nextFailure := int(user.LoginFailure) + 1
+		updates := map[string]interface{}{
+			"login_failure": nextFailure,
+			"update_time":   now,
+		}
+		if nextFailure >= max_failures && lock_duration_minutes > 0 {
+			lockUntil := now + int64(lock_duration_minutes*60)
+			updates["lock_until"] = lockUntil
+		}
+		return tx.Model(&models.User{}).Where("id = ? AND delete_time IS NULL", user_id).Updates(updates).Error
+	})
 }
 
 // ClearLockUntil 清除账户锁定
 func (s *UserService) ClearLockUntil(user_id uint64) error {
-	_, err := db.Exec("UPDATE users SET lock_until = NULL, login_failure = 0 WHERE id = ?", user_id)
-	return err
+	return db.DB.Model(&models.User{}).Where("id = ? AND delete_time IS NULL", user_id).Updates(map[string]interface{}{
+		"lock_until":    nil,
+		"login_failure": 0,
+	}).Error
 }
 
 // UserSimpleInfo 用户简要信息（用于批量查询返回）
 type UserSimpleInfo struct {
-	ID       uint64 `db:"id" json:"id"`
-	Username string `db:"username" json:"username"`
-	Nickname string `db:"nickname" json:"nickname"`
-	Email    string `db:"email" json:"email"`
-	Role     string `db:"role" json:"role"`
-	Status   uint8  `db:"status" json:"status"`
+	ID       uint64 `gorm:"column:id" json:"id"`
+	Username string `gorm:"column:username" json:"username"`
+	Nickname string `gorm:"column:nickname" json:"nickname"`
+	Email    string `gorm:"column:email" json:"email"`
+	Role     string `gorm:"column:role" json:"role"`
+	Status   uint8  `gorm:"column:status" json:"status"`
 }
 
 // BatchGetUserSimpleInfo 批量获取用户简要信息
@@ -667,14 +678,8 @@ func (s *UserService) BatchGetUserSimpleInfo(userIDs []uint64) (map[uint64]UserS
 		return make(map[uint64]UserSimpleInfo), nil
 	}
 
-	query := "SELECT id, username, nickname, email, role, status FROM users WHERE id IN (?) AND delete_time IS NULL"
-	query, args, err := sqlx.In(query, userIDs)
-	if err != nil {
-		return nil, err
-	}
-
 	var users []UserSimpleInfo
-	err = db.DB.Select(&users, query, args...)
+	err := db.DB.Raw("SELECT id, username, nickname, email, role, status FROM users WHERE id IN ? AND delete_time IS NULL", userIDs).Scan(&users).Error
 	if err != nil {
 		return nil, err
 	}

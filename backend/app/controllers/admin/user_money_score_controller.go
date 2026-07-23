@@ -2,6 +2,8 @@ package admin
 
 import (
 	"crypto/rand"
+	"database/sql"
+	"errors"
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
@@ -216,6 +218,10 @@ func (ctrl *UserMoneyScoreController) MoneyLogDelete(c *gin.Context) {
 	}
 
 	if err := models.DeleteUserMoneyLog(id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			utils.Fail(c, 404, "记录不存在")
+			return
+		}
 		log.Printf("[ADMIN][MONEY] delete money log failed id=%d: %v", id, err)
 		utils.Fail(c, 500, "删除余额日志失败")
 		return
@@ -356,6 +362,10 @@ func (ctrl *UserMoneyScoreController) ScoreLogDelete(c *gin.Context) {
 	}
 
 	if err := models.DeleteUserScoreLog(id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			utils.Fail(c, 404, "记录不存在")
+			return
+		}
 		log.Printf("[ADMIN][SCORE] delete score log failed id=%d: %v", id, err)
 		utils.Fail(c, 500, "删除积分日志失败")
 		return

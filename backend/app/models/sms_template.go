@@ -1,24 +1,30 @@
 package models
 
 import (
+	"database/sql"
 	"errors"
 	"fst/backend/pkg/db"
 	"log"
+
+	"gorm.io/gorm"
 )
 
 // SMSTemplate 短信模板（本地记录/预览；云服务商侧需另行对齐）
 type SMSTemplate struct {
-	ID          uint64 `db:"id" json:"id"`
-	Name        string `db:"name" json:"name"`               // 模板标识，如 register_code
-	Lang        string `db:"lang" json:"lang"`               // zh-CN / en-US
-	SignName    string `db:"sign_name" json:"sign_name"`     // 短信签名
-	Content     string `db:"content" json:"content"`         // 纯文本内容，支持 {code}/{expire}/{app_name}
-	Description string `db:"description" json:"description"` // 描述
-	Variables   string `db:"variables" json:"variables"`     // 可用变量说明
-	Status      uint8  `db:"status" json:"status"`           // 1=启用, 0=禁用
-	CreatedAt   string `db:"created_at" json:"created_at"`
-	UpdatedAt   string `db:"updated_at" json:"updated_at"`
+	ID          uint64 `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	Name        string `gorm:"column:name;size:100;not null;uniqueIndex:idx_sms_tpl_name_lang,priority:1" json:"name"`
+	Lang        string `gorm:"column:lang;size:20;not null;default:'zh-CN';uniqueIndex:idx_sms_tpl_name_lang,priority:2" json:"lang"`
+	SignName    string `gorm:"column:sign_name;size:64;not null;default:''" json:"sign_name"`
+	Content     string `gorm:"column:content;type:text;not null" json:"content"`
+	Description string `gorm:"column:description;size:255;not null;default:''" json:"description"`
+	Variables   string `gorm:"column:variables;size:500;not null;default:''" json:"variables"`
+	Status      uint8  `gorm:"column:status;not null;default:1" json:"status"`
+	CreatedAt   string `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt   string `gorm:"column:updated_at" json:"updated_at"`
 }
+
+// TableName 表名
+func (SMSTemplate) TableName() string { return "sms_templates" }
 
 // defaultSMSTemplateSeed 默认短信模板种子（与 plugins/sms/templates 内置一致）
 type defaultSMSTemplateSeed struct {
@@ -30,7 +36,7 @@ type defaultSMSTemplateSeed struct {
 	Variables   string
 }
 
-// GetDefaultSMSTemplateSeeds 返回全部默认短信模板定义（Init / Reset 共用）
+// GetDefaultSMSTemplateSeeds 返回全部默认短信模板定义（Seed / Reset 共用）
 func GetDefaultSMSTemplateSeeds() []defaultSMSTemplateSeed {
 	return []defaultSMSTemplateSeed{
 		{
@@ -94,73 +100,20 @@ func GetDefaultSMSTemplateByNameLang(name, lang string) (signName, content, desc
 	return "", "", "", "", false
 }
 
-// InitSMSTemplatesTable 创建短信模板表；表已存在时补齐历史缺列（如 sign_name）。
-func InitSMSTemplatesTable() {
-	if !db.CheckTableExists("sms_templates") {
-		schema := `CREATE TABLE IF NOT EXISTS sms_templates (
-			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-			name VARCHAR(100) NOT NULL COMMENT '模板标识',
-			lang VARCHAR(20) NOT NULL DEFAULT 'zh-CN' COMMENT '语言',
-			sign_name VARCHAR(64) NOT NULL DEFAULT '' COMMENT '短信签名',
-			content TEXT NOT NULL COMMENT '短信内容(纯文本)',
-			description VARCHAR(255) NOT NULL DEFAULT '' COMMENT '描述',
-			variables VARCHAR(500) NOT NULL DEFAULT '' COMMENT '可用变量说明',
-			status TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '状态:1=启用,0=禁用',
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			UNIQUE KEY idx_sms_tpl_name_lang (name, lang)
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
-		if _, err := db.Exec(schema); err != nil {
-			log.Printf("[Init] Failed to create sms_templates table: %v", err)
-		} else {
-			log.Println("[Init] Created sms_templates table")
-		}
-	}
-
-	// 旧库可能在引入签名字段前已建表：表存在就直接 return 会导致 CRUD 报 Unknown column
-	// 按切片顺序补列，避免 map 乱序导致 AFTER 依赖列尚未存在
-	columnRepairs := []struct {
-		Column   string
-		AlterSQL string
-	}{
-		{"sign_name", "ALTER TABLE sms_templates ADD COLUMN sign_name VARCHAR(64) NOT NULL DEFAULT '' COMMENT '短信签名' AFTER lang"},
-		{"description", "ALTER TABLE sms_templates ADD COLUMN description VARCHAR(255) NOT NULL DEFAULT '' COMMENT '描述' AFTER content"},
-		{"variables", "ALTER TABLE sms_templates ADD COLUMN variables VARCHAR(500) NOT NULL DEFAULT '' COMMENT '可用变量说明' AFTER description"},
-		{"status", "ALTER TABLE sms_templates ADD COLUMN status TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '状态:1=启用,0=禁用' AFTER variables"},
-	}
-	for _, r := range columnRepairs {
-		if db.CheckColumnExists("sms_templates", r.Column) {
-			continue
-		}
-		if _, err := db.Exec(r.AlterSQL); err != nil {
-			log.Printf("[Init] Failed to add sms_templates.%s: %v", r.Column, err)
-		} else {
-			log.Printf("[Init] Added sms_templates.%s", r.Column)
-		}
-	}
-
-	db.EnsureIndex("sms_templates", "idx_sms_tpl_name_lang",
-		"ALTER TABLE sms_templates ADD UNIQUE INDEX idx_sms_tpl_name_lang (name, lang)")
-}
-
 // CheckSMSTemplateExists 检查模板是否已存在
 func CheckSMSTemplateExists(name, lang string) bool {
-	var count int
-	err := db.DB.Get(&count, "SELECT COUNT(*) FROM sms_templates WHERE name = ? AND lang = ?", name, lang)
+	var count int64
+	err := db.DB.Model(&SMSTemplate{}).Where("name = ? AND lang = ?", name, lang).Count(&count).Error
 	return err == nil && count > 0
 }
 
 // CreateSMSTemplate 创建短信模板
 func CreateSMSTemplate(tpl *SMSTemplate) error {
-	query := `INSERT INTO sms_templates (name, lang, sign_name, content, description, variables, status)
-	          VALUES (:name, :lang, :sign_name, :content, :description, :variables, :status)`
-	_, err := db.DB.NamedExec(query, tpl)
-	return err
+	return db.DB.Create(tpl).Error
 }
 
-// InitSMSTemplates 种子写入默认短信模板（已存在则跳过，不覆盖管理员修改）
-func InitSMSTemplates() {
-	InitSMSTemplatesTable()
+// SeedSMSTemplates 种子写入默认短信模板（已存在则跳过，不覆盖管理员修改）
+func SeedSMSTemplates() {
 	for _, s := range GetDefaultSMSTemplateSeeds() {
 		if CheckSMSTemplateExists(s.Name, s.Lang) {
 			continue
@@ -182,21 +135,24 @@ func InitSMSTemplates() {
 // ListAllSMSTemplates 列出全部短信模板
 func ListAllSMSTemplates() ([]SMSTemplate, error) {
 	var list []SMSTemplate
-	err := db.DB.Select(&list, "SELECT * FROM sms_templates ORDER BY name, lang")
+	err := db.DB.Order("name, lang").Find(&list).Error
 	return list, err
 }
 
 // ListEnabledSMSTemplates 列出已启用的短信模板（供内存 Manager 加载）
 func ListEnabledSMSTemplates() ([]SMSTemplate, error) {
 	var list []SMSTemplate
-	err := db.DB.Select(&list, "SELECT * FROM sms_templates WHERE status = 1 ORDER BY name, lang")
+	err := db.DB.Where("status = 1").Order("name, lang").Find(&list).Error
 	return list, err
 }
 
 // GetSMSTemplateByID 按 ID 获取
 func GetSMSTemplateByID(id uint64) (*SMSTemplate, error) {
 	var tpl SMSTemplate
-	err := db.DB.Get(&tpl, "SELECT * FROM sms_templates WHERE id = ?", id)
+	err := db.DB.Where("id = ?", id).First(&tpl).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, sql.ErrNoRows
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +162,10 @@ func GetSMSTemplateByID(id uint64) (*SMSTemplate, error) {
 // GetSMSTemplateByNameLang 按 name+lang 获取（仅启用）
 func GetSMSTemplateByNameLang(name, lang string) (*SMSTemplate, error) {
 	var tpl SMSTemplate
-	err := db.DB.Get(&tpl, "SELECT * FROM sms_templates WHERE name = ? AND lang = ? AND status = 1", name, lang)
+	err := db.DB.Where("name = ? AND lang = ? AND status = 1", name, lang).First(&tpl).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, sql.ErrNoRows
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -215,11 +174,9 @@ func GetSMSTemplateByNameLang(name, lang string) (*SMSTemplate, error) {
 
 // UpdateSMSTemplate 更新短信模板可编辑字段
 func UpdateSMSTemplate(id uint64, signName, content, description string, status uint8) error {
-	_, err := db.Exec(
-		`UPDATE sms_templates SET sign_name = ?, content = ?, description = ?, status = ? WHERE id = ?`,
-		signName, content, description, status, id,
-	)
-	return err
+	return db.DB.Model(&SMSTemplate{}).Where("id = ?", id).Updates(map[string]any{
+		"sign_name": signName, "content": content, "description": description, "status": status,
+	}).Error
 }
 
 // ResetSMSTemplateToDefault 将指定模板重置为系统默认内容
@@ -232,11 +189,10 @@ func ResetSMSTemplateToDefault(id uint64) error {
 	if !ok {
 		return ErrSMSTemplateNoDefault
 	}
-	_, err = db.Exec(
-		`UPDATE sms_templates SET sign_name = ?, content = ?, description = ?, variables = ?, status = 1 WHERE id = ?`,
-		signName, content, description, variables, id,
-	)
-	return err
+	return db.DB.Model(&SMSTemplate{}).Where("id = ?", id).Updates(map[string]any{
+		"sign_name": signName, "content": content, "description": description,
+		"variables": variables, "status": 1,
+	}).Error
 }
 
 // ErrSMSTemplateNoDefault 无对应默认模板

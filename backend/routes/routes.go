@@ -144,8 +144,8 @@ func SetupRoutes(router *gin.Engine) {
 // handleReady 就绪探针：DB Ping 成功才算 ready。
 func handleReady(c *gin.Context) {
 	requestID := middleware.GetRequestID(c)
-	database := db.GetDB()
-	if database == nil {
+	database, err := db.SQLDB()
+	if err != nil || database == nil {
 		utils.Fail(c, 503, "database not initialized")
 		return
 	}
@@ -178,7 +178,7 @@ func handleMetrics(c *gin.Context) {
 	openConns := 0
 	inUse := 0
 	idle := 0
-	if database := db.GetDB(); database != nil {
+	if database, err := db.SQLDB(); err == nil && database != nil {
 		st := database.Stats()
 		openConns = st.OpenConnections
 		inUse = st.InUse
@@ -209,7 +209,7 @@ func countOpenPaymentExceptions() int64 {
 		return 0
 	}
 	var n int64
-	err := db.DB.Get(&n, "SELECT COUNT(*) FROM payment_exceptions WHERE status = ?", models.PaymentExceptionStatusOpen)
+	err := db.DB.Raw("SELECT COUNT(*) FROM payment_exceptions WHERE status = ?", models.PaymentExceptionStatusOpen).Scan(&n).Error
 	if err != nil {
 		return 0
 	}

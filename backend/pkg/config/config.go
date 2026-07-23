@@ -631,7 +631,7 @@ func buildPostgresDSN() string {
 		"@" + host + ":" + port + "/" + name + "?sslmode=" + url.QueryEscape(sslMode)
 }
 
-// buildSQLiteDSN 组装 SQLite DSN（modernc.org/sqlite）。
+// buildSQLiteDSN 组装 SQLite DSN（供 glebarez/sqlite / GORM 使用）。
 // 优先级：DB_PATH > 看起来像路径的 DB_NAME > 默认 data/fst.db
 // Windows 下会转成绝对路径 + file: URI，避免相对路径/反斜杠踩坑。
 func buildSQLiteDSN() string {
@@ -653,7 +653,7 @@ func buildSQLiteDSN() string {
 	if err != nil {
 		abs = path
 	}
-	// modernc：file:路径?_pragma=...；路径统一用斜杠
+	// file:路径?_pragma=...；路径统一用斜杠
 	absSlash := filepath.ToSlash(abs)
 	return "file:" + absSlash + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_txlock=immediate"
 }

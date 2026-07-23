@@ -2,12 +2,15 @@ package task
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"sync"
 
 	"fst/backend/pkg/db"
+
+	"gorm.io/gorm"
 )
 
 // InsertRun 写入一条执行记录（与 id 重编号互斥，避免换表瞬间写丢）
@@ -15,26 +18,17 @@ func InsertRun(run *JobRun) (uint64, error) {
 	renumberMu.Lock()
 	defer renumberMu.Unlock()
 
-	res, err := db.Exec(`
-		INSERT INTO auto_job_runs (
-			run_uid, job_code, category, trigger_type, status, started_at, finished_at, duration_ms,
-			message, detail_json, error_text, keep_forever, operator
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		run.RunUID, run.JobCode, run.Category, run.TriggerType, run.Status, run.StartedAt, run.FinishedAt, run.DurationMs,
-		run.Message, run.DetailJSON, run.ErrorText, run.KeepForever, run.Operator,
-	)
-	if err != nil {
+	if err := db.DB.Create(run).Error; err != nil {
 		return 0, err
 	}
-	id, _ := res.LastInsertId()
-	return uint64(id), nil
+	return run.ID, nil
 }
 
 // GetRun 按数字 id 取执行记录
 func GetRun(id uint64) (*JobRun, error) {
 	var run JobRun
-	err := db.DB.Get(&run, `SELECT * FROM auto_job_runs WHERE id=?`, id)
-	if err == sql.ErrNoRows {
+	err := db.DB.Where("id = ?", id).First(&run).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
 	if err != nil {
@@ -82,28 +76,28 @@ func ListRuns(page, pageSize int, keyword, status, category, jobCode string, sta
 		args = append(args, endAt)
 	}
 	var total int64
-	if err := db.DB.Get(&total, `SELECT COUNT(*) FROM auto_job_runs `+where, args...); err != nil {
+	if err := db.DB.Raw(`SELECT COUNT(*) FROM auto_job_runs `+where, args...).Scan(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	offset := (page - 1) * pageSize
 	q := `SELECT * FROM auto_job_runs ` + where + ` ORDER BY started_at DESC, id DESC LIMIT ? OFFSET ?`
 	args2 := append(append([]interface{}{}, args...), pageSize, offset)
 	var list []JobRun
-	err := db.DB.Select(&list, q, args2...)
+	err := db.DB.Raw(q, args2...).Scan(&list).Error
 	return list, total, err
 }
 
 // CountRuns 执行记录总行数
 func CountRuns() (int64, error) {
 	var n int64
-	err := db.DB.Get(&n, `SELECT COUNT(*) FROM auto_job_runs`)
+	err := db.DB.Raw(`SELECT COUNT(*) FROM auto_job_runs`).Scan(&n).Error
 	return n, err
 }
 
 // CountRunsByStatusToday 今日某状态记录数（started_at >= dayStart）
 func CountRunsByStatusToday(status string, dayStart int64) (int64, error) {
 	var n int64
-	err := db.DB.Get(&n, `SELECT COUNT(*) FROM auto_job_runs WHERE status=? AND started_at>=?`, status, dayStart)
+	err := db.DB.Raw(`SELECT COUNT(*) FROM auto_job_runs WHERE status=? AND started_at>=?`, status, dayStart).Scan(&n).Error
 	return n, err
 }
 
@@ -154,7 +148,7 @@ func deleteOldestRuns(limit int64, statuses []string) (int64, error) {
 		args = append(args, s)
 	}
 	args = append(args, limit)
-	res, err := db.Exec(`
+	r := db.DB.Exec(`
 		DELETE FROM auto_job_runs
 		WHERE id IN (
 			SELECT id FROM (
@@ -164,11 +158,10 @@ func deleteOldestRuns(limit int64, statuses []string) (int64, error) {
 				LIMIT ?
 			) t
 		)`, args...)
-	if err != nil {
-		return 0, err
+	if r.Error != nil {
+		return 0, r.Error
 	}
-	aff, _ := res.RowsAffected()
-	return aff, nil
+	return r.RowsAffected, nil
 }
 
 // runIDNearLimit 自增接近 Go int64 / BIGINT 可用上限前的安全水位（留 100 万余量）
@@ -211,13 +204,13 @@ func MaybeRenumberRunIDsIfNearLimit() (did bool, newCount int64, err error) {
 	const tmp = "auto_job_runs__renum"
 	const old = "auto_job_runs__old"
 
-	_, _ = db.Exec(`DROP TABLE IF EXISTS ` + tmp)
-	_, _ = db.Exec(`DROP TABLE IF EXISTS ` + old)
+	_ = db.DB.Exec(`DROP TABLE IF EXISTS ` + tmp).Error
+	_ = db.DB.Exec(`DROP TABLE IF EXISTS ` + old).Error
 
-	if _, err := db.Exec(`CREATE TABLE ` + tmp + ` LIKE auto_job_runs`); err != nil {
+	if err := db.DB.Exec(`CREATE TABLE ` + tmp + ` LIKE auto_job_runs`).Error; err != nil {
 		return false, 0, fmt.Errorf("创建重编号临时表失败: %w", err)
 	}
-	res, err := db.Exec(`
+	res := db.DB.Exec(`
 		INSERT INTO ` + tmp + ` (
 			run_uid, job_code, category, trigger_type, status, started_at, finished_at, duration_ms,
 			message, detail_json, error_text, keep_forever, operator
@@ -227,17 +220,17 @@ func MaybeRenumberRunIDsIfNearLimit() (did bool, newCount int64, err error) {
 			message, detail_json, error_text, keep_forever, operator
 		FROM auto_job_runs
 		ORDER BY started_at ASC, id ASC`)
-	if err != nil {
-		_, _ = db.Exec(`DROP TABLE IF EXISTS ` + tmp)
-		return false, 0, fmt.Errorf("重编号拷贝失败: %w", err)
+	if res.Error != nil {
+		_ = db.DB.Exec(`DROP TABLE IF EXISTS ` + tmp).Error
+		return false, 0, fmt.Errorf("重编号拷贝失败: %w", res.Error)
 	}
-	copied, _ := res.RowsAffected()
+	copied := res.RowsAffected
 
-	if _, err := db.Exec(`RENAME TABLE auto_job_runs TO ` + old + `, ` + tmp + ` TO auto_job_runs`); err != nil {
-		_, _ = db.Exec(`DROP TABLE IF EXISTS ` + tmp)
+	if err := db.DB.Exec(`RENAME TABLE auto_job_runs TO ` + old + `, ` + tmp + ` TO auto_job_runs`).Error; err != nil {
+		_ = db.DB.Exec(`DROP TABLE IF EXISTS ` + tmp).Error
 		return false, 0, fmt.Errorf("重编号换表失败: %w", err)
 	}
-	_, _ = db.Exec(`DROP TABLE IF EXISTS ` + old)
+	_ = db.DB.Exec(`DROP TABLE IF EXISTS ` + old).Error
 
 	log.Printf("[AutoJob] 执行记录 id 已重编号：保留 %d 条，新自增从 %d 起（原水位 ai=%d max_id=%d）",
 		copied, copied+1, ai, maxID)
@@ -249,9 +242,9 @@ func runsIDWatermark() (autoInc, maxID uint64, err error) {
 		return 0, 0, fmt.Errorf("db not ready")
 	}
 	var ai sql.NullInt64
-	err = db.DB.Get(&ai, `
+	err = db.DB.Raw(`
 		SELECT AUTO_INCREMENT FROM information_schema.TABLES
-		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'auto_job_runs'`)
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'auto_job_runs'`).Scan(&ai).Error
 	if err != nil {
 		return 0, 0, err
 	}
@@ -259,7 +252,7 @@ func runsIDWatermark() (autoInc, maxID uint64, err error) {
 		autoInc = uint64(ai.Int64)
 	}
 	var mx sql.NullInt64
-	_ = db.DB.Get(&mx, `SELECT MAX(id) FROM auto_job_runs`)
+	_ = db.DB.Raw(`SELECT MAX(id) FROM auto_job_runs`).Scan(&mx).Error
 	if mx.Valid && mx.Int64 > 0 {
 		maxID = uint64(mx.Int64)
 	}
@@ -288,12 +281,11 @@ func CleanRuns(req CleanRunsRequest) (int64, error) {
 		where += ` AND job_code=?`
 		args = append(args, req.JobCode)
 	}
-	res, err := db.Exec(`DELETE FROM auto_job_runs `+where, args...)
-	if err != nil {
-		return 0, err
+	r := db.DB.Exec(`DELETE FROM auto_job_runs `+where, args...)
+	if r.Error != nil {
+		return 0, r.Error
 	}
-	aff, _ := res.RowsAffected()
-	return aff, nil
+	return r.RowsAffected, nil
 }
 
 // MarkKeepForever 批量标记/取消永久保留
@@ -312,33 +304,31 @@ func MarkKeepForever(ids []uint64, keep bool) (int64, error) {
 		ph[i] = "?"
 		args = append(args, id)
 	}
-	res, err := db.Exec(`UPDATE auto_job_runs SET keep_forever=? WHERE id IN (`+strings.Join(ph, ",")+`)`, args...)
-	if err != nil {
-		return 0, err
+	r := db.DB.Exec(`UPDATE auto_job_runs SET keep_forever=? WHERE id IN (`+strings.Join(ph, ",")+`)`, args...)
+	if r.Error != nil {
+		return 0, r.Error
 	}
-	aff, _ := res.RowsAffected()
-	return aff, nil
+	return r.RowsAffected, nil
 }
 
 // RepairBadRunUIDs 修复长度不是 36 的旧 run_uid（曾用 jobCode+nano 超长被截断）
 func RepairBadRunUIDs() (int64, error) {
 	var ids []uint64
-	// db.Q：SQLite 下 CHAR_LENGTH → LENGTH；Select 不会自动适配，必须显式包一层
-	if err := db.DB.Select(&ids, db.Q(`
+	// LENGTH 在 MySQL/SQLite/Postgres 均可用，避免依赖 CHAR_LENGTH + db.Q
+	if err := db.DB.Raw(`
 		SELECT id FROM auto_job_runs
-		WHERE run_uid = '' OR CHAR_LENGTH(run_uid) <> 36
+		WHERE run_uid = '' OR LENGTH(run_uid) <> 36
 		ORDER BY id ASC
-		LIMIT 5000`)); err != nil {
+		LIMIT 5000`).Scan(&ids).Error; err != nil {
 		return 0, err
 	}
 	var aff int64
 	for _, id := range ids {
-		res, err := db.Exec(`UPDATE auto_job_runs SET run_uid=? WHERE id=?`, newRunUID(), id)
-		if err != nil {
-			return aff, err
+		r := db.DB.Model(&JobRun{}).Where("id = ?", id).Update("run_uid", newRunUID())
+		if r.Error != nil {
+			return aff, r.Error
 		}
-		n, _ := res.RowsAffected()
-		aff += n
+		aff += r.RowsAffected
 	}
 	return aff, nil
 }

@@ -1,8 +1,6 @@
 package utils
 
 import (
-	"time"
-
 	"github.com/pquerna/otp/totp"
 )
 
@@ -12,9 +10,4 @@ func ValidateTOTP(secret, code string) bool {
 		return false
 	}
 	return totp.Validate(code, secret)
-}
-
-// GenerateTOTPCode 生成当前时刻 TOTP（仅测试用）
-func GenerateTOTPCode(secret string) (string, error) {
-	return totp.GenerateCode(secret, time.Now())
 }
