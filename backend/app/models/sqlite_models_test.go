@@ -50,6 +50,11 @@ func TestModels_UserSettingsSessionsLogsSQLite(t *testing.T) {
 		if err != nil || !ok {
 			t.Fatalf("IsUserSessionActive: ok=%v err=%v", ok, err)
 		}
+		// 同秒确定性 JWT：新旧 hash 相同导致 UPDATE 空操作，仍应视为轮换成功
+		rotated, err := models.RotateUserSessionTokens(u.ID, "user", "ref1", "tok1", "ref1", "127.0.0.1", "ua", "pc", now.Add(time.Hour).Unix(), now.Add(2*time.Hour).Unix())
+		if err != nil || !rotated {
+			t.Fatalf("同 hash 空操作轮换应成功: rotated=%v err=%v", rotated, err)
+		}
 	})
 
 	t.Run("操作日志与API日志", func(t *testing.T) {

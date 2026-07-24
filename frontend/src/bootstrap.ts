@@ -35,6 +35,24 @@ async function setupApp(app: AppInstance<Element>, mode: AppRouteMode) {
   // admin/login-as 用 sessionStorage 隔离，绝不能跟随这里的跨标签同步。
   if (mode === 'user') {
     const { useAuthStore } = await import('./store/auth')
+
+    // 与 storage 事件共用的同步逻辑：读一次当前 localStorage 快照回填 Pinia。
+    const syncAuthFromLocalStorage = () => {
+      if (authStorage.getActiveScope() !== 'local')
+        return
+      const authStore = useAuthStore()
+      if (authStore.isLoggingOut)
+        return
+      const storedToken = authStorage.get('accessToken')
+      if (!storedToken) {
+        if (authStore.isLogin)
+          authStore.requireReauthentication()
+        return
+      }
+      if (!authStore.isLogin || authStore.needsReauthentication || authStore.token !== storedToken)
+        authStore.hydrateFromStorage()
+    }
+
     let authStorageSyncTimer: number | null = null
     window.addEventListener('storage', (event) => {
       if (event.storageArea !== window.localStorage || authStorage.getActiveScope() !== 'local')
@@ -44,17 +62,17 @@ async function setupApp(app: AppInstance<Element>, mode: AppRouteMode) {
       // 一次登录会连续写入多项 auth 数据，合并到当前事件队列末尾后再读取完整快照。
       authStorageSyncTimer = window.setTimeout(() => {
         authStorageSyncTimer = null
-        const authStore = useAuthStore()
-        const storedToken = authStorage.get('accessToken')
-        if (!storedToken) {
-          if (authStore.isLogin)
-            authStore.requireReauthentication()
-          return
-        }
-        if (!authStore.isLogin || authStore.token !== storedToken)
-          authStore.hydrateFromStorage()
+        syncAuthFromLocalStorage()
       }, 0)
     })
+
+    // storage 事件在部分浏览器/场景下可能错过（例如标签长期处于后台）；
+    // 标签重新可见或从缓存恢复时兜底核对一次，避免仍停留在过期的登录恢复弹窗或已失效的会话。
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible')
+        syncAuthFromLocalStorage()
+    })
+    window.addEventListener('pageshow', syncAuthFromLocalStorage)
   }
 
   // 2. 加载运行时配置（在安装其他模块之前）

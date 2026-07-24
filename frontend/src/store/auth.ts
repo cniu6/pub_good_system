@@ -146,10 +146,23 @@ export const useAuthStore = defineStore('auth-store', {
     /**
      * 被动会话失效：停止所有认证能力并打开全局登录恢复弹窗。
      * 不重置路由、标签和页面组件，避免用户正在编辑的数据丢失。
+     *
+     * @param failedAccessToken 触发这次失效判定的请求当时所带的 access token（401/刷新失败路径传入）。
+     *   多标签共享 localStorage 时，若当前会话已经不是这一枚（说明期间已重新登录，
+     *   或其它标签已写入新会话），说明这是一次迟到的失效判定，绝不能清掉已经生效的新会话，
+     *   只需把内存态同步为 storage 里的最新会话即可。
      */
-    requireReauthentication() {
+    requireReauthentication(failedAccessToken?: string) {
       if (this.needsReauthentication || this.isLoggingOut)
         return
+
+      if (failedAccessToken) {
+        const currentToken = this.token || authStorage.get('accessToken') || ''
+        if (currentToken && currentToken !== failedAccessToken) {
+          this.hydrateFromStorage()
+          return
+        }
+      }
 
       markSessionExpired()
       this.authGeneration += 1

@@ -302,7 +302,22 @@ func RotateUserSessionTokens(userID uint64, authGuard, currentRefreshTokenHash, 
 	if result.Error != nil {
 		return false, result.Error
 	}
-	return result.RowsAffected > 0, nil
+	if result.RowsAffected > 0 {
+		return true, nil
+	}
+	// 同秒内 JWT 仅含秒级 exp、无 jti 时，新旧 token 可能完全一致，MySQL 报 RowsAffected=0。
+	// 若库中活跃会话的 refresh_token_hash 已是目标值（含「本来就相同」的空操作），视为轮换成功。
+	var storedHash string
+	err := db.DB.Model(&UserSession{}).
+		Select("refresh_token_hash").
+		Where("user_id = ? AND auth_guard = ? AND is_active = ? AND refresh_expires_at > ?",
+			userID, authGuard, true, now).
+		Where("refresh_token_hash = ?", newRefreshTokenHash).
+		Limit(1).Scan(&storedHash).Error
+	if err != nil {
+		return false, err
+	}
+	return storedHash == newRefreshTokenHash, nil
 }
 
 // GetUserSessions 获取用户的活跃会话列表

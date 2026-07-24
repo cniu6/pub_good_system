@@ -180,33 +180,42 @@ function openAgreement() {
   }
 }
 
+/**
+ * 注册入口：按钮点击 / 回车共用。
+ * 先校验协议与表单；有极验且未通过时先弹极验，通过后再真正注册。
+ */
 async function handleRegister() {
+  if (isLoading.value)
+    return
   if (!registerAllowed.value) {
     window.$message.warning(t('http.backendMessage.registrationDisabled'))
     return
   }
+  if (!isRead.value) {
+    window.$message.warning(t('login.readAndAgreeTip'))
+    return
+  }
+
+  const hasErrors = await new Promise<boolean>((resolve) => {
+    formRef.value?.validate((errors: any) => {
+      resolve(Boolean(errors))
+    })
+  })
+  if (hasErrors)
+    return
+
   if (isGeetestEnabled.value && !isCaptchaVerified.value) {
     captchaPurpose.value = 'register'
     geetestRef.value?.showCaptcha()
     return
   }
 
-  if (!isRead.value) {
-    window.$message.warning(t('login.readAndAgreeTip'))
-    return
-  }
-
   await doRegister()
 }
 
+/** 极验通过（或未启用）后执行实际注册 */
 async function doRegister() {
-  const hasErrors = await new Promise<boolean>((resolve) => {
-    formRef.value?.validate((errors: any) => {
-      resolve(Boolean(errors))
-    })
-  })
-
-  if (hasErrors)
+  if (isLoading.value)
     return
 
   isLoading.value = true
@@ -265,6 +274,7 @@ watchEffect(() => {
           v-model:value="formValue.username"
           clearable
           :placeholder="$t('login.usernamePlaceholder')"
+          @keyup.enter="handleRegister"
         />
       </n-form-item>
       <n-form-item path="account">
@@ -273,6 +283,7 @@ watchEffect(() => {
           clearable
           :placeholder="$t('login.emailPlaceholder')"
           :input-props="{ autocomplete: 'username' }"
+          @keyup.enter="handleRegister"
         />
       </n-form-item>
       <n-form-item path="code">
@@ -280,6 +291,7 @@ watchEffect(() => {
           <n-input
             v-model:value="formValue.code"
             :placeholder="$t('login.codePlaceholder')"
+            @keyup.enter="handleRegister"
           />
           <n-button
             type="primary"
@@ -300,6 +312,7 @@ watchEffect(() => {
           clearable
           show-password-on="click"
           :input-props="{ autocomplete: 'new-password' }"
+          @keyup.enter="handleRegister"
         >
           <template #password-invisible-icon>
             <icon-park-outline-preview-close-one />
@@ -317,6 +330,7 @@ watchEffect(() => {
           clearable
           show-password-on="click"
           :input-props="{ autocomplete: 'new-password' }"
+          @keyup.enter="handleRegister"
         >
           <template #password-invisible-icon>
             <icon-park-outline-preview-close-one />

@@ -258,12 +258,14 @@ async function extractResponseMessage(response: Response) {
 /**
  * 同一批并发请求只允许第一个确认会话失效的请求打开登录恢复弹窗。
  * 会话暂停会中止其它受保护请求，当前页面与未保存内容保持不变。
+ * @param authStore 当前 Pinia 认证 store 实例
+ * @param failedAccessToken 触发失效判定的请求当时所带的 access token，透传给 store 做多标签守卫。
  */
-function requireReauthentication(authStore: ReturnType<typeof useAuthStore>) {
+function requireReauthentication(authStore: ReturnType<typeof useAuthStore>, failedAccessToken?: string) {
   if (authStore.isLoggingOut || !authStore.isLogin)
     return
 
-  authStore.requireReauthentication()
+  authStore.requireReauthentication(failedAccessToken)
 }
 
 export function localizeBackendMessagePayload<T extends BackendResponsePayload>(data: T, config: Required<Service.BackendConfig>) {
@@ -374,7 +376,7 @@ export async function handleRefreshToken() {
 
   const isAutoRefresh = import.meta.env.VITE_AUTO_REFRESH_TOKEN === 'Y'
   if (!isAutoRefresh) {
-    requireReauthentication(authStore)
+    requireReauthentication(authStore, authStore.token)
     return false
   }
 
@@ -394,7 +396,7 @@ export async function handleRefreshToken() {
     return true
   }
 
-  requireReauthentication(authStore)
+  requireReauthentication(authStore, previousAccessToken)
   return false
 }
 

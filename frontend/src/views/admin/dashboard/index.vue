@@ -155,8 +155,8 @@ const {
       </n-gi>
 
       <n-gi span="12 xl:8">
-        <n-card :title="t('adminDashboard.revenueTrend')" hoverable>
-          <div ref="revenueTrendRef" style="height: 320px;" />
+        <n-card :title="t('adminDashboard.logHistoryTrend')" hoverable>
+          <div ref="logTrendRef" style="height: 320px;" />
         </n-card>
       </n-gi>
 

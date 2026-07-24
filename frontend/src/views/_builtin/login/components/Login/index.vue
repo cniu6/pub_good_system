@@ -33,6 +33,7 @@ const showRegisterEntry = computed(() => settingsStore.allowRegister)
 
 const isCaptchaVerified = ref(false)
 const captchaKey = ref(0)
+const geetestRef = ref<{ showCaptcha: () => void } | null>(null)
 
 function toOtherForm(type: 'login' | 'register' | 'resetPwd') {
   emit('update:modelValue', type)
@@ -62,24 +63,42 @@ const isLoading = ref(false)
 
 const formRef = ref<FormInst | null>(null)
 
+/** 校验表单；有错返回 true */
+async function validateLoginForm() {
+  return await new Promise<boolean>((resolve) => {
+    formRef.value?.validate((errors) => {
+      resolve(Boolean(errors))
+    })
+  })
+}
+
+/**
+ * 登录入口：按钮点击 / 回车共用。
+ * 有极验且未通过时，先弹出极验；通过后再真正登录。
+ */
 async function handleLogin() {
+  if (isLoading.value)
+    return
   if (isUserLoginDisabled.value) {
     window.$message.warning(t('login.userLoginDisabledTip'))
     return
   }
 
-  // 只有当需要显示验证码且未验证时才提示
+  // 先校验表单，避免空字段就弹极验
+  if (await validateLoginForm())
+    return
+
   if (shouldShowCaptcha.value && !isCaptchaVerified.value) {
-    window.$message.warning(t('login.captchaRequired'))
+    geetestRef.value?.showCaptcha()
     return
   }
 
-  const hasErrors = await new Promise<boolean>((resolve) => {
-    formRef.value?.validate((errors) => {
-      resolve(Boolean(errors))
-    })
-  })
-  if (hasErrors)
+  await doLogin()
+}
+
+/** 极验通过（或未启用）后执行实际登录 */
+async function doLogin() {
+  if (isLoading.value)
     return
 
   isLoading.value = true
@@ -110,7 +129,7 @@ async function handleLogin() {
 
 async function onGeetestSuccess() {
   isCaptchaVerified.value = true
-  await handleLogin()
+  await doLogin()
 }
 
 function onGeetestError() {
@@ -178,10 +197,26 @@ function checkUserAccount() {
     <n-form ref="formRef" :rules="rules" :model="formValue" :show-label="false" size="large" :disabled="isUserLoginDisabled">
       <!-- 账号 username / 密码 current-password：配合浏览器密码管理器，不写 localStorage 明文密码 -->
       <n-form-item path="account">
-        <n-input v-model:value="formValue.account" clearable :placeholder="$t('login.accountOrEmailPlaceholder')" name="username" :input-props="{ autocomplete: 'username', name: 'username' }" />
+        <n-input
+          v-model:value="formValue.account"
+          clearable
+          :placeholder="$t('login.accountOrEmailPlaceholder')"
+          name="username"
+          :input-props="{ autocomplete: 'username', name: 'username' }"
+          @keyup.enter="handleLogin"
+        />
       </n-form-item>
       <n-form-item path="pwd">
-        <n-input v-model:value="formValue.pwd" type="password" :placeholder="$t('login.passwordPlaceholder')" clearable show-password-on="click" name="password" :input-props="{ autocomplete: 'current-password', name: 'password' }">
+        <n-input
+          v-model:value="formValue.pwd"
+          type="password"
+          :placeholder="$t('login.passwordPlaceholder')"
+          clearable
+          show-password-on="click"
+          name="password"
+          :input-props="{ autocomplete: 'current-password', name: 'password' }"
+          @keyup.enter="handleLogin"
+        >
           <template #password-invisible-icon>
             <icon-park-outline-preview-close-one />
           </template>
@@ -199,7 +234,15 @@ function checkUserAccount() {
             {{ $t('login.forgotPassword') }}
           </n-button>
         </div>
-        <GeetestCaptcha v-if="shouldShowCaptcha" :key="captchaKey" @success="onGeetestSuccess" @error="onGeetestError" />
+        <!-- bind：不占位按钮，由登录/回车主动 showCaptcha -->
+        <GeetestCaptcha
+          v-if="shouldShowCaptcha"
+          ref="geetestRef"
+          :key="captchaKey"
+          :config="{ product: 'bind' }"
+          @success="onGeetestSuccess"
+          @error="onGeetestError"
+        />
         <n-button block type="primary" size="large" :loading="isLoading" :disabled="isLoading || isUserLoginDisabled" @click="handleLogin">
           {{ $t('login.signIn') }}
         </n-button>

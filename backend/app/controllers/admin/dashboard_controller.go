@@ -79,6 +79,9 @@ type DashboardTrendPoint struct {
 	PaidOrders    int64   `json:"paid_orders"`
 	PaidAmount    float64 `json:"paid_amount"`
 	OperationLogs int64   `json:"operation_logs"`
+	APILogs       int64   `json:"api_logs"`
+	EmailLogs     int64   `json:"email_logs"`
+	SMSLogs       int64   `json:"sms_logs"`
 }
 
 type dashboardRealnameStats struct {
@@ -125,6 +128,27 @@ func loadTrendCountByUnixField(database *gorm.DB, table, field string, startUnix
 		timestamps = append(timestamps, row.Ts)
 	}
 	return aggregateUnixTimestamps(timestamps), nil
+}
+
+// loadTrendCountByTimeField 按天聚合 time.Time 类型时间列（email_logs/sms_logs 的 created_at 非 unix 秒）
+func loadTrendCountByTimeField(database *gorm.DB, table, field string, start time.Time) (map[string]int64, error) {
+	type tRow struct {
+		Ts time.Time `gorm:"column:ts"`
+	}
+	var rows []tRow
+	q := fmt.Sprintf("SELECT %s AS ts FROM %s WHERE %s >= ?", field, table, field)
+	if err := database.Raw(q, start).Scan(&rows).Error; err != nil {
+		log.Printf("[Dashboard] 趋势计数查询失败(%s.%s): %v", table, field, err)
+		return map[string]int64{}, err
+	}
+	result := make(map[string]int64)
+	for _, row := range rows {
+		if row.Ts.IsZero() {
+			continue
+		}
+		result[row.Ts.Format("2006-01-02")]++
+	}
+	return result, nil
 }
 
 type dashboardPaidRow struct {
@@ -177,6 +201,18 @@ func buildDashboardTrends(database *gorm.DB, start time.Time, days int) ([]Dashb
 	if err != nil && firstErr == nil {
 		firstErr = err
 	}
+	apiLogs, err := loadTrendCountByUnixField(database, "api_access_logs", "create_time", startUnix)
+	if err != nil && firstErr == nil {
+		firstErr = err
+	}
+	emailLogs, err := loadTrendCountByTimeField(database, "email_logs", "created_at", start)
+	if err != nil && firstErr == nil {
+		firstErr = err
+	}
+	smsLogs, err := loadTrendCountByTimeField(database, "sms_logs", "created_at", start)
+	if err != nil && firstErr == nil {
+		firstErr = err
+	}
 
 	trends := make([]DashboardTrendPoint, 0, days)
 	for i := 0; i < days; i++ {
@@ -190,6 +226,9 @@ func buildDashboardTrends(database *gorm.DB, start time.Time, days int) ([]Dashb
 			PaidOrders:    paidOrders[dayKey],
 			PaidAmount:    paidAmount[dayKey],
 			OperationLogs: operationLogs[dayKey],
+			APILogs:       apiLogs[dayKey],
+			EmailLogs:     emailLogs[dayKey],
+			SMSLogs:       smsLogs[dayKey],
 		})
 	}
 	return trends, firstErr

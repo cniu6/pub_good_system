@@ -292,7 +292,54 @@ export function useAdminDashboard() {
     { label: t('route.serverManagement'), icon: markRaw(SettingOutlined), type: 'error' as const, path: 'settings/server-management' },
   ])
 
+  // 合并「用户与订单」「收款」两张图：数量类指标走左轴，收款金额走右轴单独刻度
   const businessTrendOptions = computed<ECOption>(() => ({
+    tooltip: { trigger: 'axis' },
+    legend: { top: 0 },
+    grid: { left: 16, right: 16, top: 48, bottom: 16, containLabel: true },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: trends.value.map(item => item.label),
+    },
+    yAxis: [
+      { type: 'value' },
+      { type: 'value', name: t('adminDashboard.paidAmount') },
+    ],
+    series: [
+      {
+        name: t('adminDashboard.newUsers'),
+        type: 'line',
+        smooth: true,
+        yAxisIndex: 0,
+        data: trends.value.map(item => item.new_users),
+      },
+      {
+        name: t('adminDashboard.activeUsers'),
+        type: 'line',
+        smooth: true,
+        yAxisIndex: 0,
+        data: trends.value.map(item => item.active_users),
+      },
+      {
+        name: t('adminDashboard.paidOrders'),
+        type: 'bar',
+        barMaxWidth: 24,
+        yAxisIndex: 0,
+        data: trends.value.map(item => item.paid_orders),
+      },
+      {
+        name: t('adminDashboard.paidAmount'),
+        type: 'line',
+        smooth: true,
+        yAxisIndex: 1,
+        data: trends.value.map(item => item.paid_amount),
+      },
+    ],
+  }))
+
+  // 7天日志历史趋势：API 日志、操作日志、邮件日志、短信日志，同为条数，共用一根轴
+  const logTrendOptions = computed<ECOption>(() => ({
     tooltip: { trigger: 'axis' },
     legend: { top: 0 },
     grid: { left: 16, right: 16, top: 48, bottom: 16, containLabel: true },
@@ -304,52 +351,28 @@ export function useAdminDashboard() {
     yAxis: { type: 'value' },
     series: [
       {
-        name: t('adminDashboard.newUsers'),
+        name: t('adminDashboard.apiLogs'),
         type: 'line',
         smooth: true,
-        data: trends.value.map(item => item.new_users),
-      },
-      {
-        name: t('adminDashboard.activeUsers'),
-        type: 'line',
-        smooth: true,
-        data: trends.value.map(item => item.active_users),
-      },
-      {
-        name: t('adminDashboard.paidOrders'),
-        type: 'bar',
-        barMaxWidth: 24,
-        data: trends.value.map(item => item.paid_orders),
-      },
-    ],
-  }))
-
-  const revenueTrendOptions = computed<ECOption>(() => ({
-    tooltip: { trigger: 'axis' },
-    legend: { top: 0 },
-    grid: { left: 16, right: 16, top: 48, bottom: 16, containLabel: true },
-    xAxis: {
-      type: 'category',
-      data: trends.value.map(item => item.label),
-    },
-    yAxis: [
-      { type: 'value', name: t('adminDashboard.paidAmount') },
-      { type: 'value', name: t('adminDashboard.operationLogs') },
-    ],
-    series: [
-      {
-        name: t('adminDashboard.paidAmount'),
-        type: 'line',
-        smooth: true,
-        yAxisIndex: 0,
-        data: trends.value.map(item => item.paid_amount),
+        data: trends.value.map(item => item.api_logs),
       },
       {
         name: t('adminDashboard.operationLogs'),
-        type: 'bar',
-        barMaxWidth: 24,
-        yAxisIndex: 1,
+        type: 'line',
+        smooth: true,
         data: trends.value.map(item => item.operation_logs),
+      },
+      {
+        name: t('adminDashboard.emailLogs'),
+        type: 'line',
+        smooth: true,
+        data: trends.value.map(item => item.email_logs),
+      },
+      {
+        name: t('adminDashboard.smsLogs'),
+        type: 'line',
+        smooth: true,
+        data: trends.value.map(item => item.sms_logs),
       },
     ],
   }))
@@ -374,7 +397,7 @@ export function useAdminDashboard() {
   }))
 
   useEcharts('businessTrendRef', businessTrendOptions)
-  useEcharts('revenueTrendRef', revenueTrendOptions)
+  useEcharts('logTrendRef', logTrendOptions)
   useEcharts('verifyTrendRef', verifyTrendOptions)
 
   const resourceRows = computed(() => {

@@ -53,6 +53,11 @@ const { onAuthRequired, onResponseRefreshToken } = createServerTokenAuthenticati
       else
         method.meta.isExpired = true
 
+      // 记录触发失效判定时的 access token：多标签共享 localStorage 时，
+      // 即便刷新失败或重试后仍 401，也只清「仍然是这一枚」的会话，
+      // 避免误清期间已重新登录或其它标签已写入的新会话（见 store/auth.ts requireReauthentication）。
+      method.meta.failedAccessToken = authStorage.get('accessToken') || undefined
+
       const refreshed = await handleRefreshToken()
       if (!refreshed)
         method.meta.sessionExpired = true
@@ -118,7 +123,7 @@ export function createAlovaInstance(
           const stillUnauthorized = Boolean(method.meta?.isExpired)
             && Number(localizedApiData[_backendConfig.codeKey]) === 401
           if (stillUnauthorized)
-            useAuthStore().requireReauthentication()
+            useAuthStore().requireReauthentication(method.meta?.failedAccessToken)
 
           // 业务请求失败
           const errorResult = handleBusinessError(
@@ -131,7 +136,7 @@ export function createAlovaInstance(
         // 刷新+重试后仍 HTTP 401：同上，强制恢复弹窗。
         const stillUnauthorized = Boolean(method.meta?.isExpired) && status === 401
         if (stillUnauthorized)
-          useAuthStore().requireReauthentication()
+          useAuthStore().requireReauthentication(method.meta?.failedAccessToken)
         // 接口请求失败
         const errorResult = await handleResponseError(
           response,

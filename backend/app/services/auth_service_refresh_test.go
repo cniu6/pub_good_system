@@ -43,8 +43,16 @@ func TestRefreshTokenNormalRotationSucceeds(t *testing.T) {
 	if svcErr != nil {
 		t.Fatalf("正常刷新应成功，实际报错: %v", svcErr.Message)
 	}
-	if result.RefreshToken == "" || result.RefreshToken == refreshToken {
-		t.Fatalf("刷新后应拿到新的 refresh token")
+	if result.RefreshToken == "" {
+		t.Fatalf("刷新后 refresh token 不能为空")
+	}
+	// 同秒内 JWT 无 jti 时新旧 token 可能完全一致；只要会话仍按返回值可续期即可。
+	active, err := models.IsRefreshSessionActive(u.ID, "user", utils.HashToken(result.RefreshToken))
+	if err != nil {
+		t.Fatalf("IsRefreshSessionActive: %v", err)
+	}
+	if !active {
+		t.Fatalf("刷新后会话应仍活跃")
 	}
 	if result.AuthGuard != "user" {
 		t.Fatalf("刷新响应 authGuard 应为 user，实际=%q", result.AuthGuard)

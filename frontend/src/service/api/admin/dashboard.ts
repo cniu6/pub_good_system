@@ -59,6 +59,9 @@ export interface AdminDashboardTrendPoint {
   paid_orders: number
   paid_amount: number
   operation_logs: number
+  api_logs: number
+  email_logs: number
+  sms_logs: number
 }
 
 export interface AdminDashboardResponse {
