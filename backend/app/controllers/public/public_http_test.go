@@ -11,6 +11,7 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/internal/testutil"
+	"fst/backend/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -98,6 +99,10 @@ func TestPublicAuthAndSettings(t *testing.T) {
 	// 意味着攻击者不用过人机验证就能批量探测账号是否已注册。修复后极验必须先通过。
 	t.Run("注册撞用户名时应先过极验再暴露是否已存在", func(t *testing.T) {
 		services.InitSettingsService()
+		// 种子默认关闭注册；本用例需临时开启才能测到极验顺序
+		if err := models.UpdateSetting("allow_register", "true"); err != nil {
+			t.Fatalf("UpdateSetting allow_register: %v", err)
+		}
 		if err := models.UpdateSetting("geetest_enabled", "true"); err != nil {
 			t.Fatalf("UpdateSetting geetest_enabled: %v", err)
 		}
@@ -111,6 +116,7 @@ func TestPublicAuthAndSettings(t *testing.T) {
 			t.Fatalf("RefreshCache: %v", err)
 		}
 		defer func() {
+			_ = models.UpdateSetting("allow_register", "false")
 			_ = models.UpdateSetting("geetest_enabled", "false")
 			_ = services.GlobalSettingsService.RefreshCache()
 		}()
@@ -161,6 +167,66 @@ func TestPublicAuthAndSettings(t *testing.T) {
 		_ = json.Unmarshal(w.Body.Bytes(), &resp)
 		if resp["code"] == float64(0) {
 			t.Fatalf("未知用户不应登录成功: %s", w.Body.String())
+		}
+	})
+
+	t.Run("管理员专用登录不受用户登录开关影响", func(t *testing.T) {
+		services.InitSettingsService()
+		if err := models.UpdateSetting("allow_user_login", "false"); err != nil {
+			t.Fatalf("UpdateSetting allow_user_login: %v", err)
+		}
+		if err := services.GlobalSettingsService.RefreshCache(); err != nil {
+			t.Fatalf("RefreshCache: %v", err)
+		}
+
+		passwordHash, err := utils.HashPassword("TestPass123!")
+		if err != nil {
+			t.Fatalf("HashPassword: %v", err)
+		}
+		admin := &models.User{
+			Username: "admin_login_http",
+			Nickname: "admin_login_http",
+			Email:    "admin-login-http@example.test",
+			Password: passwordHash,
+			Role:     "admin",
+			Status:   1,
+		}
+		if err := models.CreateUser(admin); err != nil {
+			t.Fatalf("CreateUser: %v", err)
+		}
+
+		userBody, _ := json.Marshal(map[string]string{
+			"username": admin.Username, "password": "TestPass123!", "authGuard": "user",
+		})
+		userWriter := httptest.NewRecorder()
+		userRequest := httptest.NewRequest(http.MethodPost, "/api/v1/public/login", bytes.NewReader(userBody))
+		userRequest.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(userWriter, userRequest)
+		if userWriter.Code != http.StatusForbidden {
+			t.Fatalf("用户 guard 应返回 403，实际 status=%d body=%s", userWriter.Code, userWriter.Body.String())
+		}
+
+		// 即使 body 伪造 authGuard=user，admin 端点也应忽略并签发 admin
+		adminBody, _ := json.Marshal(map[string]string{
+			"username": admin.Username, "password": "TestPass123!", "authGuard": "user",
+		})
+		adminWriter := httptest.NewRecorder()
+		adminRequest := httptest.NewRequest(http.MethodPost, "/api/v1/public/admin/login", bytes.NewReader(adminBody))
+		adminRequest.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(adminWriter, adminRequest)
+		if adminWriter.Code != http.StatusOK {
+			t.Fatalf("管理员专用登录应成功，实际 status=%d body=%s", adminWriter.Code, adminWriter.Body.String())
+		}
+		var response struct {
+			Data struct {
+				AuthGuard string `json:"authGuard"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(adminWriter.Body.Bytes(), &response); err != nil {
+			t.Fatalf("解析管理员登录响应失败: %v", err)
+		}
+		if response.Data.AuthGuard != "admin" {
+			t.Fatalf("管理员专用登录必须签发 admin guard，实际=%q", response.Data.AuthGuard)
 		}
 	})
 }

@@ -106,7 +106,8 @@ func resolveClientType(c *gin.Context, bodyClientType string) string {
 // 控制器方法
 // ========================================
 
-// Login 用户登录
+// Login 用户端登录。
+// auth_guard 由客户端指定，缺省时按 user 处理。
 // @Summary 用户登录
 // @Description 用户登录并获取 Token
 // @Tags Public-认证
@@ -119,6 +120,30 @@ func resolveClientType(c *gin.Context, bodyClientType string) string {
 // @Failure 403 {object} utils.Response
 // @Router /api/v1/public/login [post]
 func (ctrl *AuthController) Login(c *gin.Context) {
+	ctrl.login(c, "")
+}
+
+// AdminLogin 管理端专用登录。
+// 管理员入口固定签发 admin guard，不能由请求体伪装成 user guard，
+// 因此不会受 allow_user_login 开关影响。
+// @Summary 管理员登录
+// @Description 管理端专用登录，服务端强制 authGuard=admin
+// @Tags Public-认证
+// @Accept json
+// @Produce json
+// @Param request body LoginRequest true "登录信息（忽略 authGuard）"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 401 {object} utils.Response
+// @Failure 403 {object} utils.Response
+// @Router /api/v1/public/admin/login [post]
+func (ctrl *AuthController) AdminLogin(c *gin.Context) {
+	ctrl.login(c, utils.AdminAuthGuard)
+}
+
+// login 登录公共逻辑。
+// forcedGuard 非空时忽略请求体 authGuard，由服务端写死（管理端专用）。
+func (ctrl *AuthController) login(c *gin.Context, forcedGuard string) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.Fail(c, 400, err.Error())
@@ -152,10 +177,13 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	// 客户端类型仅写入会话记录（在线用户展示），不参与登录放行判断
 	clientType := resolveClientType(c, req.ClientType)
 
-	// 调用服务层登录
-	authGuard := req.AuthGuard
+	// 调用服务层登录：forcedGuard 优先，防止客户端伪造 guard
+	authGuard := forcedGuard
 	if authGuard == "" {
-		authGuard = utils.UserAuthGuard
+		authGuard = req.AuthGuard
+		if authGuard == "" {
+			authGuard = utils.UserAuthGuard
+		}
 	}
 	result, err := ctrl.auth_svc.Login(username, req.Password, authGuard, clientIP)
 	if err != nil {
@@ -562,6 +590,7 @@ func (ctrl *AuthController) RegisterRoutes(group *gin.RouterGroup) {
 	authGroup.Use(middleware.StrictRateLimitMiddleware())
 	{
 		authGroup.POST("/login", ctrl.Login)
+		authGroup.POST("/admin/login", ctrl.AdminLogin)
 		authGroup.POST("/register", ctrl.Register)
 		authGroup.POST("/send-register-code", ctrl.SendRegisterCode)
 		authGroup.POST("/forgot-password", ctrl.SendResetEmail)

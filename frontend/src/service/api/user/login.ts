@@ -37,6 +37,16 @@ export function fetchLogin(data: Ilogin) {
   return methodInstance
 }
 
+/** 管理端专用登录：后端固定使用 admin guard，不接受前端指定的 guard。 */
+export function fetchAdminLogin(data: Pick<Ilogin, 'userName' | 'password'>) {
+  const methodInstance = request.Post<Service.ResponseResult<Api.Login.Info>>('/api/v1/public/admin/login', data)
+  methodInstance.meta = {
+    authRole: null,
+    allowDuringSessionRecovery: true,
+  }
+  return methodInstance
+}
+
 /** 刷新Token */
 export function fetchUpdateToken(data: { refreshToken: string | null, authGuard?: 'user' | 'admin' }) {
   const method = request.Post<Service.ResponseResult<Api.Login.Info>>('/api/v1/public/refresh-token', data)

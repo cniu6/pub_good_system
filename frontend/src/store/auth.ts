@@ -5,7 +5,7 @@ import { refreshAuthToken } from '@/service/http/token-refresh'
 import { router } from '@/router'
 import { buildAdminEntryUrl, getAdminBasePath } from '@/router/constants'
 import { getRuntimeRouteMode } from '@/router/runtime-mode'
-import { fetchLogin, fetchUserSettings, logoutCurrentSession } from '@/service'
+import { fetchAdminLogin, fetchLogin, fetchUserSettings, logoutCurrentSession } from '@/service'
 import { forceLogoutSession } from '@/service/api/session'
 import { startPresence, stopPresence } from '@/composables/usePresence'
 import { $t, authStorage, langToFrontendFormat } from '@/utils'
@@ -137,8 +137,8 @@ export const useAuthStore = defineStore('auth-store', {
       tabStore.clearAllTabs()
       // 重置当前存储库
       this.$reset()
-      // 立即跳转登录页（管理端/用户端共用 /user/login，管理端 hash 路由下也可正常解析）
-      router.replace({ path: '/user/login' })
+      // 按当前 SPA 模式回对应登录页（管理端专用 /admin/login）
+      router.replace({ path: getRuntimeRouteMode() === 'admin' ? '/admin/login' : '/user/login' })
     },
     clearAuthStorage() {
       authStorage.clearActive()
@@ -216,12 +216,17 @@ export const useAuthStore = defineStore('auth-store', {
       }
     },
 
-    /* 用户登录 */
-    async login(userName: string, password: string, options?: { preserveCurrentPage?: boolean }): Promise<{ status: 'ok' | 'fail' }> {
+    /* 用户/管理员登录：管理员必须使用独立端点，避免误走 user guard。 */
+    async login(
+      userName: string,
+      password: string,
+      options?: { preserveCurrentPage?: boolean, authGuard?: Entity.AuthGuardType },
+    ): Promise<{ status: 'ok' | 'fail' }> {
       try {
-        const mode = getRuntimeRouteMode()
-        const authGuard = mode === 'admin' ? 'admin' : 'user'
-        const result = await fetchLogin({ userName, password, authGuard })
+        const authGuard = options?.authGuard ?? (getRuntimeRouteMode() === 'admin' ? 'admin' : 'user')
+        const result = authGuard === 'admin'
+          ? await fetchAdminLogin({ userName, password })
+          : await fetchLogin({ userName, password, authGuard: 'user' })
         const { isSuccess, data } = result
         const loginData = data as LoginInfoPayload | undefined
         if (!isSuccess || !loginData) {

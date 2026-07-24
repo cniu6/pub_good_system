@@ -25,7 +25,8 @@ async function loadAdminRoutesDynamic() {
   }
 }
 
-const ADMIN_PUBLIC_PATHS = new Set(['/login', '/user/login', '/403', '/404', '/500', '/loading'])
+const ADMIN_LOGIN_PATH = '/admin/login'
+const ADMIN_PUBLIC_PATHS = new Set([ADMIN_LOGIN_PATH, '/403', '/404', '/500', '/loading'])
 
 function isAdminRoutePath(path: string, mode: AppRouteMode, adminPath: string) {
   if (mode === 'admin')
@@ -42,6 +43,13 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
     const adminPath = getAdminBasePath()
     const isAdminRoute = isAdminRoutePath(to.path, mode, adminPath)
     const authStore = useAuthStore()
+
+    // /admin/login 是管理端 hash 内部路由，只能从独立管理入口加载。
+    // 用户端 history 路由访问它时，保持在普通用户登录页，不能借此切换认证上下文。
+    if (mode === 'user' && to.path === ADMIN_LOGIN_PATH) {
+      next({ path: '/user/login', replace: true })
+      return
+    }
 
     if (to.meta.href) {
       window.open(to.meta.href)
@@ -88,8 +96,8 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
         next({ path: '/403', replace: true })
       }
       else {
-        // 管理端未登录：回用户登录页，并带上回跳（含管理入口完整路径）
-        next({ path: '/user/login', query: { redirect: to.fullPath } })
+        // 管理端未登录：进入专用管理员登录页，提交固定使用 admin guard。
+        next({ path: ADMIN_LOGIN_PATH, query: { redirect: to.fullPath } })
       }
       return
     }
@@ -107,7 +115,7 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
     }
 
     // 仅已登录（或明确放行的公开页）才初始化动态路由，避免未登录刷用户路由
-    if (!routeStore.isInitAuthRoute && to.name !== 'login' && to.name !== 'register') {
+    if (!routeStore.isInitAuthRoute && to.name !== 'login' && to.name !== 'register' && to.name !== 'admin-login') {
       if (!isLogin && mode === 'user') {
         next()
         return
@@ -124,7 +132,8 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
       }
       catch {
         const redirect = to.fullPath !== '/' ? to.fullPath : undefined
-        next({ path: '/user/login', query: redirect ? { redirect } : undefined })
+        const loginPath = mode === 'admin' ? ADMIN_LOGIN_PATH : '/user/login'
+        next({ path: loginPath, query: redirect ? { redirect } : undefined })
         return
       }
     }
@@ -176,7 +185,7 @@ export function setupRouterGuard(router: Router, mode: AppRouteMode = 'user') {
       return
     }
 
-    if ((to.name === 'login' || to.name === 'register') && isLogin) {
+    if ((to.name === 'login' || to.name === 'register' || to.name === 'admin-login') && isLogin) {
       if (hasAdminRole) {
         if (mode === 'user') {
           window.location.replace(buildAdminEntryUrl(adminPath))

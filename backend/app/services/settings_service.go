@@ -732,9 +732,9 @@ func GetGlobalAPIKeyAuthEnabled() bool {
 
 func GetGlobalAllowRegister() bool {
 	if GlobalSettingsService != nil {
-		return GlobalSettingsService.getRuntimeBool("allow_register", true)
+		return GlobalSettingsService.getRuntimeBool("allow_register", false)
 	}
-	return getDirectSettingBool("allow_register", true)
+	return getDirectSettingBool("allow_register", false)
 }
 
 func GetGlobalAllowDeleteAccount() bool {
@@ -744,12 +744,12 @@ func GetGlobalAllowDeleteAccount() bool {
 	return getDirectSettingBool("allow_delete_account", false)
 }
 
-// GetGlobalAllowUserLogin 是否允许普通用户密码登录拿 JWT（默认 true）。关闭不影响管理员登录与 API Key。
+// GetGlobalAllowUserLogin 是否允许普通用户密码登录拿 JWT（默认 false）。关闭不影响管理员登录与 API Key。
 func GetGlobalAllowUserLogin() bool {
 	if GlobalSettingsService != nil {
-		return GlobalSettingsService.getRuntimeBool("allow_user_login", true)
+		return GlobalSettingsService.getRuntimeBool("allow_user_login", false)
 	}
-	return getDirectSettingBool("allow_user_login", true)
+	return getDirectSettingBool("allow_user_login", false)
 }
 
 func GetGlobalPaymentEnabled() bool {
@@ -908,8 +908,8 @@ func (s *SettingsService) GetPublicAppConfig() *PublicAppConfig {
 		SiteLogo:                    s.GetWithDefault("site_logo", ""),
 		Copyright:                   s.GetWithDefault("copyright", "(c) 2024 F.st"),
 		ICP:                         s.GetWithDefault("icp", ""),
-		AllowRegister:               s.GetBoolWithDefault("allow_register", true),
-		AllowUserLogin:              s.GetBoolWithDefault("allow_user_login", true),
+		AllowRegister:               s.GetBoolWithDefault("allow_register", false),
+		AllowUserLogin:              s.GetBoolWithDefault("allow_user_login", false),
 		AnnouncementEnabled:         s.GetBoolWithDefault("announcement_enabled", true),
 		AllowDeleteAccount:          s.GetBool("allow_delete_account"),
 		DefaultLang:                 s.GetWithDefault("default_lang", "zhCN"),

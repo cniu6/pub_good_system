@@ -51,11 +51,11 @@ export const useSettingsStore = defineStore('settings-store', () => {
   // 系统版本
   const version = computed(() => config.value?.version ?? '1.0.0')
 
-  // 是否允许注册
-  const allowRegister = computed(() => config.value?.allow_register ?? true)
+  // 是否允许注册（默认 false，与后端种子一致）
+  const allowRegister = computed(() => config.value?.allow_register ?? false)
 
-  // 是否允许普通用户密码登录（默认 true；管理员与 API Key 不受影响）
-  const allowUserLogin = computed(() => config.value?.allow_user_login ?? true)
+  // 是否允许普通用户密码登录（默认 false；管理员与 API Key 不受影响）
+  const allowUserLogin = computed(() => config.value?.allow_user_login ?? false)
 
   // 站内公告总开关（关闭后用户端不展示铃铛/工作台公告区）
   const announcementEnabled = computed(() => config.value?.announcement_enabled ?? true)

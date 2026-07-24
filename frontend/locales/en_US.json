@@ -166,6 +166,7 @@
     "sessionExpiredDescription": "Please sign in again to continue your current work",
     "sessionExpiredNotice": "This page will remain open. You can continue after signing in.",
     "signInTitle": "Login",
+    "adminSignInTitle": "Administrator Login",
     "accountRuleTip": "Please enter account",
     "passwordRuleTip": "Please enter password",
     "or": "Or",

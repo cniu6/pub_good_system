@@ -4,12 +4,14 @@ import { useAuthStore, useSettingsStore } from '@/store'
 import { authStorage, local } from '@/utils'
 import GeetestCaptcha from '@/components/common/GeetestCaptcha.vue'
 import { geetestManager } from '@/utils/geetest'
-import { getRuntimeRouteMode } from '@/router/runtime-mode'
 
 const props = withDefaults(defineProps<{
   preserveCurrentPage?: boolean
+  /** 管理员登录使用独立 API，不能受用户登录开关影响。 */
+  authGuard?: Entity.AuthGuardType
 }>(), {
   preserveCurrentPage: false,
+  authGuard: 'user',
 })
 
 const emit = defineEmits<{
@@ -27,9 +29,10 @@ const hasCaptchaId = computed(() => Boolean(settingsStore.geetestCaptchaId))
 // 综合判断：后端启用 且 有配置 captchaId
 const shouldShowCaptcha = computed(() => isGeetestEnabled.value && hasCaptchaId.value)
 
-// 关闭「允许用户登录」后禁用用户端登录表单（管理端不受影响）；注册入口单独看 allowRegister
-const isUserLoginDisabled = computed(() => getRuntimeRouteMode() !== 'admin' && !settingsStore.allowUserLogin)
-const showRegisterEntry = computed(() => settingsStore.allowRegister)
+const isAdminLogin = computed(() => props.authGuard === 'admin')
+// 关闭「允许用户登录」只影响 user guard；管理员入口由独立端点强制使用 admin guard。
+const isUserLoginDisabled = computed(() => !isAdminLogin.value && !settingsStore.allowUserLogin)
+const showRegisterEntry = computed(() => !isAdminLogin.value && settingsStore.allowRegister)
 
 const isCaptchaVerified = ref(false)
 const captchaKey = ref(0)
@@ -112,6 +115,7 @@ async function doLogin() {
   const hadToken = Boolean(authStorage.get('accessToken'))
   const result = await authStore.login(account, pwd, {
     preserveCurrentPage: props.preserveCurrentPage,
+    authGuard: props.authGuard,
   })
 
   const hasTokenNow = Boolean(authStorage.get('accessToken'))
@@ -190,7 +194,7 @@ function checkUserAccount() {
 <template>
   <div>
     <n-h2 depth="3" class="text-center">
-      {{ $t('login.signInTitle') }}
+      {{ isAdminLogin ? $t('login.adminSignInTitle') : $t('login.signInTitle') }}
     </n-h2>
     <n-alert v-if="isUserLoginDisabled" type="warning" :show-icon="true" class="mb-16" :title="$t('login.userLoginDisabledTip')" />
 
@@ -230,7 +234,7 @@ function checkUserAccount() {
           <n-checkbox v-model:checked="isRemember">
             {{ $t('login.rememberMe') }}
           </n-checkbox>
-          <n-button type="primary" text :disabled="isUserLoginDisabled" @click="toOtherForm('resetPwd')">
+          <n-button v-if="!isAdminLogin" type="primary" text :disabled="isUserLoginDisabled" @click="toOtherForm('resetPwd')">
             {{ $t('login.forgotPassword') }}
           </n-button>
         </div>

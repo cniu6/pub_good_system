@@ -106,7 +106,7 @@ export function useSettingsActions() {
               basicForm.register_default_level = Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1
             }
             if (item.key === 'allow_user_login')
-              basicForm.allow_user_login = parseBooleanSetting(item.value, true)
+              basicForm.allow_user_login = parseBooleanSetting(item.value, false)
             if (item.key === 'announcement_enabled')
               basicForm.announcement_enabled = parseBooleanSetting(item.value)
             if (item.key === 'allow_delete_account')

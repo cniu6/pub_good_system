@@ -160,6 +160,7 @@
     "sessionExpiredDescription": "请重新登录以继续当前操作",
     "sessionExpiredNotice": "当前页面会保留，登录成功后可继续操作。",
     "signInTitle": "登录",
+    "adminSignInTitle": "管理员登录",
     "accountPlaceholder": "输入账号",
     "passwordPlaceholder": "输入密码",
     "accountRuleTip": "请输入账户",

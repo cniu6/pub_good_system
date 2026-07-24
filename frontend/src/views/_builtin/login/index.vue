@@ -3,6 +3,11 @@ import { Login, Register, ResetPwd, ResetPwdConfirm } from './components'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 
+const props = withDefaults(defineProps<{
+  authGuard?: Entity.AuthGuardType
+}>(), {
+  authGuard: 'user',
+})
 const route = useRoute()
 const { t } = useI18n()
 type IformType = 'login' | 'register' | 'resetPwd' | 'resetPwdConfirm'
@@ -42,6 +47,7 @@ onMounted(() => {
           <component
             :is="formComponets[formType]"
             v-model="formType"
+            :auth-guard="props.authGuard"
             class="w-85%"
           />
         </transition>

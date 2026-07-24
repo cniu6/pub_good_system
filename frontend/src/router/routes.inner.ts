@@ -27,6 +27,18 @@ export const routes: RouteRecordRaw[] = [
       title: 'login.signInTitle',
       withoutTab: true,
     },
+    props: { authGuard: 'user' },
+  },
+  {
+    // 仅由 /{VITE_ADMIN_BASE_PATH}/#/admin/login 使用；用户端守卫会拒绝该内部路由。
+    path: '/admin/login',
+    name: 'admin-login',
+    component: () => import('@/views/_builtin/login/index.vue'),
+    meta: {
+      title: 'login.adminSignInTitle',
+      withoutTab: true,
+    },
+    props: { authGuard: 'admin' },
   },
   {
     path: '/user/register',

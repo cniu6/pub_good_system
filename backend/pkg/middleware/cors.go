@@ -16,6 +16,7 @@ const defaultAllowHeaders = "Origin, Content-Type, Content-Length, Authorization
 // 当 AUTH_CORS_ENABLED=true 时走独立白名单，避免第三方页面在 CORS=* 下跨域偷 token。
 var authSensitiveAPIPaths = map[string]struct{}{
 	"/api/v1/public/login":              {},
+	"/api/v1/public/admin/login":        {},
 	"/api/v1/public/register":           {},
 	"/api/v1/public/send-register-code": {},
 	"/api/v1/public/forgot-password":    {},
@@ -32,7 +33,7 @@ func IsAuthSensitiveAPIPath(path string) bool {
 // isAuthPagePath 登录/注册前端页面路径（用于防 iframe 嵌套）。
 func isAuthPagePath(path string) bool {
 	switch path {
-	case "/user/login", "/user/register", "/login", "/register":
+	case "/user/login", "/admin/login", "/user/register", "/login", "/register":
 		return true
 	default:
 		return false
