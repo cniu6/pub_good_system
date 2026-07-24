@@ -19,7 +19,7 @@ import {
   NTag,
 } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useTableColumnVisibility } from '@/hooks'
+import { useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import {
   adminEmailTemplateApi,
 
@@ -105,6 +105,8 @@ const testTo = ref('')
 const testSubject = ref('')
 const testTemplateId = ref<number | null>(null)
 const testSending = ref(false)
+const saving = ref(false)
+const resetting = ref(false)
 
 const langMap = computed<Record<string, string>>(() => ({
   'zh-CN': t('adminUsersDetail.chinese'),
@@ -248,23 +250,21 @@ async function handleSendTest() {
     window.$message?.warning(text.value.inputEmail)
     return
   }
-  testSending.value = true
-  try {
-    const result = await adminEmailTemplateApi.sendTest({
-      to: testTo.value.trim(),
-      subject: testSubject.value.trim() || undefined,
-      template_id: testTemplateId.value || undefined,
-    })
-    if (result.data)
-      window.$message?.success(text.value.sendSuccess)
-  }
-  catch (error: any) {
-    reportEmailTemplateError('[emailTemplates] send test failed', error)
-    window.$message?.error(text.value.sendFailed)
-  }
-  finally {
-    testSending.value = false
-  }
+  await withSubmitLock(testSending, async () => {
+    try {
+      const result = await adminEmailTemplateApi.sendTest({
+        to: testTo.value.trim(),
+        subject: testSubject.value.trim() || undefined,
+        template_id: testTemplateId.value || undefined,
+      })
+      if (result.data)
+        window.$message?.success(text.value.sendSuccess)
+    }
+    catch (error: any) {
+      reportEmailTemplateError('[emailTemplates] send test failed', error)
+      window.$message?.error(text.value.sendFailed)
+    }
+  })
 }
 
 // ---- Edit ----
@@ -333,23 +333,25 @@ async function handleSave() {
     window.$message?.warning(text.value.contentRequired)
     return
   }
-  try {
-    const result = await fetchUpdateEmailTemplate(currentTemplate.value.id, {
-      subject: formValue.value.subject,
-      content: formValue.value.content,
-      description: formValue.value.description,
-      status: formValue.value.status,
-    })
-    if (result.data) {
-      window.$message?.success(text.value.saveSuccess)
-      showModal.value = false
-      await loadData()
+  await withSubmitLock(saving, async () => {
+    try {
+      const result = await fetchUpdateEmailTemplate(currentTemplate.value!.id, {
+        subject: formValue.value.subject,
+        content: formValue.value.content,
+        description: formValue.value.description,
+        status: formValue.value.status,
+      })
+      if (result.data) {
+        window.$message?.success(text.value.saveSuccess)
+        showModal.value = false
+        await loadData()
+      }
     }
-  }
-  catch (error) {
-    reportEmailTemplateError('[emailTemplates] save failed', error)
-    window.$message?.error(text.value.saveFailed)
-  }
+    catch (error) {
+      reportEmailTemplateError('[emailTemplates] save failed', error)
+      window.$message?.error(text.value.saveFailed)
+    }
+  })
 }
 
 // ---- Reset (double confirm) ----
@@ -364,28 +366,30 @@ function handleResetCancel() {
 async function handleResetFinalConfirm() {
   if (!currentTemplate.value)
     return
-  try {
-    const result = await fetchResetEmailTemplate(currentTemplate.value.id)
-    if (result.data) {
-      window.$message?.success(text.value.resetSuccess)
-      resetStep.value = 0
-      await loadData()
-      const updated = templates.value.find(t => t.id === currentTemplate.value!.id)
-      if (updated) {
-        currentTemplate.value = updated
-        formValue.value = {
-          subject: updated.subject,
-          content: updated.content,
-          description: updated.description || '',
-          status: updated.status,
+  await withSubmitLock(resetting, async () => {
+    try {
+      const result = await fetchResetEmailTemplate(currentTemplate.value!.id)
+      if (result.data) {
+        window.$message?.success(text.value.resetSuccess)
+        resetStep.value = 0
+        await loadData()
+        const updated = templates.value.find(t => t.id === currentTemplate.value!.id)
+        if (updated) {
+          currentTemplate.value = updated
+          formValue.value = {
+            subject: updated.subject,
+            content: updated.content,
+            description: updated.description || '',
+            status: updated.status,
+          }
         }
       }
     }
-  }
-  catch (error) {
-    reportEmailTemplateError('[emailTemplates] reset failed', error)
-    window.$message?.error(text.value.resetFailed)
-  }
+    catch (error) {
+      reportEmailTemplateError('[emailTemplates] reset failed', error)
+      window.$message?.error(text.value.resetFailed)
+    }
+  })
 }
 
 function toggleFullscreen() {
@@ -523,7 +527,7 @@ onMounted(async () => {
             <template v-else-if="resetStep === 2">
               <NSpace align="center" :size="8">
                 <span class="reset-danger-text">{{ text.resetConfirmSecond }}</span>
-                <NButton size="small" type="error" @click="handleResetFinalConfirm">
+                <NButton size="small" type="error" :loading="resetting" @click="handleResetFinalConfirm">
                   {{ text.finalConfirmBtn }}
                 </NButton>
                 <NButton size="small" @click="handleResetCancel">
@@ -608,7 +612,7 @@ onMounted(async () => {
           <NButton @click="showModal = false">
             {{ text.cancel }}
           </NButton>
-          <NButton type="primary" @click="handleSave">
+          <NButton type="primary" :loading="saving" @click="handleSave">
             {{ text.save }}
           </NButton>
         </NSpace>

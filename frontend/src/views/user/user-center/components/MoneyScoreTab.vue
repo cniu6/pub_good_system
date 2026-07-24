@@ -6,7 +6,7 @@ import type { DataTableColumns } from 'naive-ui'
 import { createWithdrawRequest, fetchMyMoneyLogs, fetchMyScoreLogs, fetchMyWithdrawDetail, fetchMyWithdrawRecords } from '@/service/api/user/user-center'
 import { useSettingsStore } from '@/store'
 import { parseMemo } from '@/utils/memo'
-import { useRequestGuard } from '@/hooks'
+import { useRequestGuard, withSubmitLock } from '@/hooks'
 
 const message = useMessage()
 const settingsStore = useSettingsStore()
@@ -384,6 +384,8 @@ async function openWithdrawDetail(id: number) {
 }
 
 async function handleWithdrawSubmit() {
+  if (withdrawSubmitting.value)
+    return
   if (!withdrawEnabled.value) {
     message.error(t('moneyScore.withdrawDisabled'))
     showWithdrawModal.value = false
@@ -421,39 +423,38 @@ async function handleWithdrawSubmit() {
     message.error(t('moneyScore.remarkTooLong'))
     return
   }
-  withdrawSubmitting.value = true
-  try {
-    const res = await createWithdrawRequest({
-      amount: withdrawForm.amount,
-      account_type: withdrawForm.account_type,
-      account_name: withdrawForm.account_name.trim(),
-      account_no: withdrawForm.account_no.trim(),
-      real_name: withdrawForm.real_name.trim(),
-      remark: withdrawForm.remark.trim(),
-    })
-    if (res.isSuccess) {
-      message.success(res.message || t('moneyScore.withdrawSubmitted'))
-      showWithdrawModal.value = false
-      withdrawForm.amount = 0
-      withdrawForm.account_type = accountTypeOptions.value[0]?.value || 'bank'
-      withdrawForm.account_name = ''
-      withdrawForm.account_no = ''
-      withdrawForm.real_name = ''
-      withdrawForm.remark = ''
-      withdrawPagination.page = 1
-      fetchWithdrawLogs()
-      fetchMoneyLogs()
-    }
-    else {
+  // 校验后固化入参，避免闭包内 reactive 字段被 TS 判成 number | null
+  const payload = {
+    amount: Number(withdrawForm.amount),
+    account_type: withdrawForm.account_type,
+    account_name: withdrawForm.account_name.trim(),
+    account_no: withdrawForm.account_no.trim(),
+    real_name: withdrawForm.real_name.trim(),
+    remark: withdrawForm.remark.trim(),
+  }
+  await withSubmitLock(withdrawSubmitting, async () => {
+    try {
+      const res = await createWithdrawRequest(payload)
+      if (res.isSuccess) {
+        message.success(res.message || t('moneyScore.withdrawSubmitted'))
+        showWithdrawModal.value = false
+        withdrawForm.amount = 0
+        withdrawForm.account_type = accountTypeOptions.value[0]?.value || 'bank'
+        withdrawForm.account_name = ''
+        withdrawForm.account_no = ''
+        withdrawForm.real_name = ''
+        withdrawForm.remark = ''
+        withdrawPagination.page = 1
+        fetchWithdrawLogs()
+        fetchMoneyLogs()
+        return
+      }
       message.error(res.message || t('moneyScore.withdrawSubmitFailed'))
     }
-  }
-  catch {
-    message.error(t('moneyScore.withdrawSubmitFailed'))
-  }
-  finally {
-    withdrawSubmitting.value = false
-  }
+    catch {
+      message.error(t('moneyScore.withdrawSubmitFailed'))
+    }
+  })
 }
 
 watch(activeTab, (val) => {

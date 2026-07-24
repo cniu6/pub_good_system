@@ -5,6 +5,7 @@
 import { onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMessage } from 'naive-ui'
+import { withSubmitLock } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 import type { GoroutineStatsResponse, RuntimeGoroutineInfo } from '@/service/api/admin/debug'
 import type { ServerMonitoringStatusResponse } from '@/service/api/admin/settings'
@@ -350,28 +351,26 @@ export function useServerManagement() {
   }
 
   async function saveRateLimitConfig() {
-    savingRateLimit.value = true
-    try {
-      const payload: Record<string, string> = {
-        api_rate_limit_enabled: String(rateLimitForm.api_rate_limit_enabled),
-        api_rate_limit_rate: String(Math.max(1, Math.floor(rateLimitForm.api_rate_limit_rate || 120))),
-        api_rate_limit_burst: String(Math.max(1, Math.floor(rateLimitForm.api_rate_limit_burst || 240))),
-        admin_rate_limit_enabled: String(rateLimitForm.admin_rate_limit_enabled),
-        admin_rate_limit_rate: String(Math.max(1, Math.floor(rateLimitForm.admin_rate_limit_rate || 60))),
-        admin_rate_limit_burst: String(Math.max(1, Math.floor(rateLimitForm.admin_rate_limit_burst || 120))),
+    await withSubmitLock(savingRateLimit, async () => {
+      try {
+        const payload: Record<string, string> = {
+          api_rate_limit_enabled: String(rateLimitForm.api_rate_limit_enabled),
+          api_rate_limit_rate: String(Math.max(1, Math.floor(rateLimitForm.api_rate_limit_rate || 120))),
+          api_rate_limit_burst: String(Math.max(1, Math.floor(rateLimitForm.api_rate_limit_burst || 240))),
+          admin_rate_limit_enabled: String(rateLimitForm.admin_rate_limit_enabled),
+          admin_rate_limit_rate: String(Math.max(1, Math.floor(rateLimitForm.admin_rate_limit_rate || 60))),
+          admin_rate_limit_burst: String(Math.max(1, Math.floor(rateLimitForm.admin_rate_limit_burst || 120))),
+        }
+        const res = await adminApi.settings.batchUpdate(payload)
+        if (!res.isSuccess)
+          throw new Error(res.message || t('adminServer.saveRateLimitFailed'))
+        message.success(t('adminServer.saveRateLimitSuccess'))
+        await loadOperations()
       }
-      const res = await adminApi.settings.batchUpdate(payload)
-      if (!res.isSuccess)
-        throw new Error(res.message || t('adminServer.saveRateLimitFailed'))
-      message.success(t('adminServer.saveRateLimitSuccess'))
-      await loadOperations()
-    }
-    catch (error: any) {
-      message.error(error?.message || t('adminServer.saveRateLimitFailed'))
-    }
-    finally {
-      savingRateLimit.value = false
-    }
+      catch (error: any) {
+        message.error(error?.message || t('adminServer.saveRateLimitFailed'))
+      }
+    })
   }
 
   async function loadGoroutineStats() {
@@ -392,24 +391,24 @@ export function useServerManagement() {
   }
 
   async function handleForceGC() {
-    forcingGC.value = true
-    try {
-      const res = await adminApi.debug.forceGC()
-      message.success(res.data?.message || t('adminSettings.gcCompleted', { before: res.data?.goroutines_before || 0, after: res.data?.goroutines_after || 0 }))
-      if (runtimeStacksLoaded.value)
-        await Promise.all([loadMonitoring(), loadRuntimeStacks()])
-      else
-        await Promise.all([loadMonitoring(), loadGoroutineStats()])
-    }
-    catch (error: any) {
-      message.error(`${t('adminSettings.operationFailed')}${error?.message || ''}`)
-    }
-    finally {
-      forcingGC.value = false
-    }
+    await withSubmitLock(forcingGC, async () => {
+      try {
+        const res = await adminApi.debug.forceGC()
+        message.success(res.data?.message || t('adminSettings.gcCompleted', { before: res.data?.goroutines_before || 0, after: res.data?.goroutines_after || 0 }))
+        if (runtimeStacksLoaded.value)
+          await Promise.all([loadMonitoring(), loadRuntimeStacks()])
+        else
+          await Promise.all([loadMonitoring(), loadGoroutineStats()])
+      }
+      catch (error: any) {
+        message.error(`${t('adminSettings.operationFailed')}${error?.message || ''}`)
+      }
+    })
   }
 
   async function captureProfile(type: 'cpu' | 'heap' | 'goroutine' | 'allocs' | 'block' | 'mutex' | 'threadcreate') {
+    if (debugLoading[type])
+      return
     debugLoading[type] = true
     ;(debugResults as any)[`${type}Text`] = ''
     try {

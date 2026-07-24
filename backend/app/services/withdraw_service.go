@@ -7,6 +7,7 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/pkg/db"
 	"fst/backend/utils"
+	"log"
 	"strings"
 	"unicode/utf8"
 
@@ -196,8 +197,13 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 		return models.CreateWithdrawRequestTx(tx, item)
 	})
 	if err != nil {
+		// 客户端校验错误由控制器直接回传；非预期 DB/事务错误在此落审计，避免静默
+		if !IsClientError(err) {
+			log.Printf("[Withdraw] 创建提现申请失败 user_id=%d amount=%.2f: %v", userID, req.Amount, err)
+		}
 		return nil, err
 	}
+	log.Printf("[Withdraw] 创建提现申请成功 user_id=%d request_id=%d amount=%.2f", userID, item.ID, req.Amount)
 	return models.GetWithdrawRequestByID(item.ID)
 }
 
@@ -222,7 +228,7 @@ func (s *WithdrawService) Review(adminID uint64, req *ReviewWithdrawRequest) err
 		return err
 	}
 
-	return db.DB.Transaction(func(tx *gorm.DB) error {
+	err = db.DB.Transaction(func(tx *gorm.DB) error {
 		item, err := models.GetWithdrawRequestByIDForUpdate(tx, req.ID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -253,6 +259,14 @@ func (s *WithdrawService) Review(adminID uint64, req *ReviewWithdrawRequest) err
 
 		return models.UpdateWithdrawReviewTx(tx, req.ID, req.Status, reviewRemark, adminID, refunded)
 	})
+	if err != nil {
+		if !IsClientError(err) {
+			log.Printf("[Withdraw] 审核失败 admin_id=%d request_id=%d status=%d: %v", adminID, req.ID, req.Status, err)
+		}
+		return err
+	}
+	log.Printf("[Withdraw] 审核完成 admin_id=%d request_id=%d status=%d", adminID, req.ID, req.Status)
+	return nil
 }
 
 func (s *WithdrawService) MarkPaid(adminID uint64, req *PayWithdrawRequest) error {
@@ -260,7 +274,7 @@ func (s *WithdrawService) MarkPaid(adminID uint64, req *PayWithdrawRequest) erro
 	if err != nil {
 		return err
 	}
-	return db.DB.Transaction(func(tx *gorm.DB) error {
+	err = db.DB.Transaction(func(tx *gorm.DB) error {
 		item, err := models.GetWithdrawRequestByIDForUpdate(tx, req.ID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -293,4 +307,12 @@ func (s *WithdrawService) MarkPaid(adminID uint64, req *PayWithdrawRequest) erro
 
 		return models.MarkWithdrawPaidTx(tx, item.ID, transferRemark, adminID)
 	})
+	if err != nil {
+		if !IsClientError(err) {
+			log.Printf("[Withdraw] 标记打款失败 admin_id=%d request_id=%d: %v", adminID, req.ID, err)
+		}
+		return err
+	}
+	log.Printf("[Withdraw] 标记打款成功 admin_id=%d request_id=%d", adminID, req.ID)
+	return nil
 }

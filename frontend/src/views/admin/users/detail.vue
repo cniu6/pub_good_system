@@ -19,7 +19,7 @@ import { adminOnlineApi } from '@/service/api/admin/online'
 import type { OnlineSession } from '@/service/api/admin/online'
 import { adminApi } from '@/service/api/admin'
 import type { WithdrawRecord } from '@/service/api/admin/finance'
-import { useRequestGuard } from '@/hooks'
+import { useRequestGuard, withSubmitLock } from '@/hooks'
 import WithdrawDetailModal from './components/WithdrawDetailModal.vue'
 import {
   formatCurrency,
@@ -48,6 +48,8 @@ const scoreFetchGuard = useRequestGuard()
 const withdrawFetchGuard = useRequestGuard()
 const sessionFetchGuard = useRequestGuard()
 const userFetchGuard = useRequestGuard()
+/** 危险写操作（踢下线/删用户/改状态等）防连点 */
+const actionLock = ref(false)
 
 /**
  * API Key：列表/详情只显示掩码；重置成功后的明文只在本地短暂展示一次。
@@ -553,40 +555,44 @@ async function fetchSessionData() {
 }
 
 function handleKickSession(session: OnlineSession) {
+  if (actionLock.value)
+    return
   dialog.warning({
     title: t('adminUsersDetail.kickSessionTitle'),
     content: t('adminUsersDetail.kickSessionContent'),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    onPositiveClick: () => withSubmitLock(actionLock, async () => {
       const response = await adminOnlineApi.kick(session.id)
       if (response.isSuccess) {
         message.success(t('adminUsersDetail.kickSuccess'))
         fetchSessionData()
+        return
       }
-      else {
-        message.error(response.message || t('adminUsersDetail.kickFailed'))
-      }
-    },
+      message.error(response.message || t('adminUsersDetail.kickFailed'))
+      return false
+    }),
   })
 }
 
 function handleRevokeAllSessions() {
+  if (actionLock.value)
+    return
   dialog.warning({
     title: t('adminUsersDetail.revokeAllSessionsTitle'),
     content: t('adminUsersDetail.revokeAllSessionsContent'),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    onPositiveClick: () => withSubmitLock(actionLock, async () => {
       const response = await adminOnlineApi.revokeAllUserSessions(userId.value)
       if (response.isSuccess) {
         message.success(t('adminUsersDetail.revokeAllSessionsSuccess'))
         fetchSessionData()
+        return
       }
-      else {
-        message.error(response.message || t('adminUsersDetail.revokeAllSessionsFailed'))
-      }
-    },
+      message.error(response.message || t('adminUsersDetail.revokeAllSessionsFailed'))
+      return false
+    }),
   })
 }
 
@@ -679,7 +685,7 @@ function handleEdit() {
 
 // 切换用户状态
 function handleToggleStatus() {
-  if (!user.value)
+  if (!user.value || actionLock.value)
     return
 
   const newStatus = user.value.status === 1 ? 0 : 1
@@ -690,22 +696,22 @@ function handleToggleStatus() {
     content: t('adminUsersDetail.confirmActionContent', { action, username: user.value.username }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    onPositiveClick: () => withSubmitLock(actionLock, async () => {
       const res = await updateUserStatus(user.value!.id, { status: newStatus })
       if (res.isSuccess) {
         message.success(t('adminUsersDetail.actionSuccess', { action }))
         fetchUserData()
+        return
       }
-      else {
-        message.error(res.message || t('adminUsersDetail.actionFailed', { action }))
-      }
-    },
+      message.error(res.message || t('adminUsersDetail.actionFailed', { action }))
+      return false
+    }),
   })
 }
 
 // 重置API密钥
 function handleResetApikey() {
-  if (!user.value)
+  if (!user.value || actionLock.value)
     return
 
   dialog.warning({
@@ -713,7 +719,7 @@ function handleResetApikey() {
     content: t('adminUsersDetail.confirmResetContent'),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    onPositiveClick: () => withSubmitLock(actionLock, async () => {
       const res = await resetUserApikey(user.value!.id)
       if (res.isSuccess) {
         message.success(t('adminUsersDetail.apiKeyResetSuccess'))
@@ -724,11 +730,11 @@ function handleResetApikey() {
         const newPlainKey = res.data?.apikey
         if (user.value && newPlainKey)
           user.value.apikey = newPlainKey
+        return
       }
-      else {
-        message.error(res.message || t('adminUsersDetail.apiKeyResetFailed'))
-      }
-    },
+      message.error(res.message || t('adminUsersDetail.apiKeyResetFailed'))
+      return false
+    }),
   })
 }
 
@@ -744,36 +750,37 @@ function handleResetPassword() {
 async function confirmResetPassword() {
   if (!user.value || !newPassword.value) {
     message.error(t('adminUsersDetail.enterNewPassword'))
-    return
+    return false
   }
   if (newPassword.value.length < 8) {
     message.error(t('adminUsersDetail.passwordMinLength'))
-    return
+    return false
   }
 
-  resettingPassword.value = true
-  try {
-    const response = await resetUserPassword({
-      user_id: user.value.id,
-      password: newPassword.value,
-    })
+  const ok = await withSubmitLock(resettingPassword, async () => {
+    try {
+      const response = await resetUserPassword({
+        user_id: user.value!.id,
+        password: newPassword.value,
+      })
 
-    if (response.isSuccess) {
-      message.success(t('adminUsersDetail.passwordResetSuccess', { username: user.value.username }))
-      showResetPasswordModal.value = false
-    }
-    else {
+      if (response.isSuccess) {
+        message.success(t('adminUsersDetail.passwordResetSuccess', { username: user.value!.username }))
+        showResetPasswordModal.value = false
+        return true
+      }
       message.error(response.message || t('adminUsersDetail.passwordResetFailed'))
+      return false
     }
-  }
-  catch (error) {
-    if (import.meta.env.DEV)
-      console.error('[adminUsersDetail] password reset failed', error)
-    message.error(t('adminUsersDetail.passwordResetFailed'))
-  }
-  finally {
-    resettingPassword.value = false
-  }
+    catch (error) {
+      if (import.meta.env.DEV)
+        console.error('[adminUsersDetail] password reset failed', error)
+      message.error(t('adminUsersDetail.passwordResetFailed'))
+      return false
+    }
+  })
+  // 进行中忽略 / 失败时保持弹窗
+  return ok === true
 }
 
 function cancelResetPassword() {
@@ -784,7 +791,7 @@ function cancelResetPassword() {
 // 登录为此用户
 // 删除用户
 function handleDelete() {
-  if (!user.value)
+  if (!user.value || actionLock.value)
     return
 
   dialog.warning({
@@ -792,21 +799,22 @@ function handleDelete() {
     content: t('adminUsersDetail.confirmDeleteContent', { username: user.value.username }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    onPositiveClick: () => withSubmitLock(actionLock, async () => {
       try {
         const response = await deleteUser(user.value!.id)
         if (response.isSuccess) {
           message.success(t('adminUsersDetail.deleteSuccess'))
           goUserList()
+          return
         }
-        else {
-          message.error(response.message || t('adminUsersDetail.deleteFailed'))
-        }
+        message.error(response.message || t('adminUsersDetail.deleteFailed'))
+        return false
       }
       catch {
         message.error(t('adminUsersDetail.deleteFailed'))
+        return false
       }
-    },
+    }),
   })
 }
 

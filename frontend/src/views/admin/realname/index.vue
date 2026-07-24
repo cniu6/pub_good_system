@@ -5,7 +5,7 @@ import { NButton, NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
+import { useRequestGuard, useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import { maskCertificateNo } from '@/utils/mask'
 import {
 
@@ -305,6 +305,8 @@ async function handleReview() {
   const actionLabel = reviewStatus.value === 1
     ? t('realname.approved')
     : t('realname.rejected')
+  if (submitting.value)
+    return
   dialog.warning({
     title: t('adminRealname.confirmReviewTitle'),
     content: t('adminRealname.confirmReviewContent', {
@@ -314,8 +316,7 @@ async function handleReview() {
     }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
-      submitting.value = true
+    onPositiveClick: () => withSubmitLock(submitting, async () => {
       try {
         const res = await adminApi.realname.review({
           id: row.id,
@@ -324,7 +325,7 @@ async function handleReview() {
         })
         if (!res.isSuccess) {
           message.error(res.message || t('adminRealname.reviewFailed'))
-          return
+          return false
         }
         message.success(t('adminRealname.reviewSuccess'))
         showReviewModal.value = false
@@ -332,11 +333,9 @@ async function handleReview() {
       }
       catch (e: any) {
         message.error(e?.message || t('adminRealname.reviewFailed'))
+        return false
       }
-      finally {
-        submitting.value = false
-      }
-    },
+    }),
   })
 }
 

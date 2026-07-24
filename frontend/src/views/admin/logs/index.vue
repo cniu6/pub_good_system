@@ -22,7 +22,7 @@ import {
 import type { DataTableColumns } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
+import { useEcharts, useRequestGuard, useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 import { adminLogApi } from '@/service/api/admin/log'
@@ -344,35 +344,33 @@ async function loadRuntimeConfig() {
 }
 
 async function handleSaveRuntimeConfig() {
-  runtimeSaving.value = true
-  try {
-    runtimeForm.operation_log_query_days = normalizeLogQueryDays(runtimeForm.operation_log_query_days)
-    runtimeForm.operation_log_max_count = normalizeLogMaxCount(runtimeForm.operation_log_max_count)
-    runtimeForm.operation_log_per_user_max_count = normalizeLogPerUserMaxCount(runtimeForm.operation_log_per_user_max_count)
+  await withSubmitLock(runtimeSaving, async () => {
+    try {
+      runtimeForm.operation_log_query_days = normalizeLogQueryDays(runtimeForm.operation_log_query_days)
+      runtimeForm.operation_log_max_count = normalizeLogMaxCount(runtimeForm.operation_log_max_count)
+      runtimeForm.operation_log_per_user_max_count = normalizeLogPerUserMaxCount(runtimeForm.operation_log_per_user_max_count)
 
-    const res = await adminApi.settings.batchUpdate({
-      operation_log_query_days: String(runtimeForm.operation_log_query_days),
-      operation_log_max_count: String(runtimeForm.operation_log_max_count),
-      operation_log_per_user_limit_enabled: String(runtimeForm.operation_log_per_user_limit_enabled),
-      operation_log_per_user_max_count: String(runtimeForm.operation_log_per_user_max_count),
-      user_operation_log_visible: String(runtimeForm.user_operation_log_visible),
-      user_operation_log_show_body: String(runtimeForm.user_operation_log_show_body),
-    })
-    if (!res.isSuccess)
-      throw new Error(res.message || t('adminServer.saveRuntimeFailed'))
+      const res = await adminApi.settings.batchUpdate({
+        operation_log_query_days: String(runtimeForm.operation_log_query_days),
+        operation_log_max_count: String(runtimeForm.operation_log_max_count),
+        operation_log_per_user_limit_enabled: String(runtimeForm.operation_log_per_user_limit_enabled),
+        operation_log_per_user_max_count: String(runtimeForm.operation_log_per_user_max_count),
+        user_operation_log_visible: String(runtimeForm.user_operation_log_visible),
+        user_operation_log_show_body: String(runtimeForm.user_operation_log_show_body),
+      })
+      if (!res.isSuccess)
+        throw new Error(res.message || t('adminServer.saveRuntimeFailed'))
 
-    query.page = 1
-    pagination.page = 1
-    applyDateRange(runtimeForm.operation_log_query_days)
-    await Promise.all([fetchLogs(), fetchStats()])
-    message.success(res.message || t('adminServer.saveRuntimeSuccess'))
-  }
-  catch (error: any) {
-    message.error(error?.message || t('adminServer.saveRuntimeFailed'))
-  }
-  finally {
-    runtimeSaving.value = false
-  }
+      query.page = 1
+      pagination.page = 1
+      applyDateRange(runtimeForm.operation_log_query_days)
+      await Promise.all([fetchLogs(), fetchStats()])
+      message.success(res.message || t('adminServer.saveRuntimeSuccess'))
+    }
+    catch (error: any) {
+      message.error(error?.message || t('adminServer.saveRuntimeFailed'))
+    }
+  })
 }
 
 function handlePageChange(page: number) {

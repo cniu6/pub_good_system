@@ -159,9 +159,9 @@ func (ctrl *AuthController) Login(c *gin.Context) {
 	}
 	result, err := ctrl.auth_svc.Login(username, req.Password, authGuard, clientIP)
 	if err != nil {
-		if isNonProductionMode() {
-			log.Printf("[AUTH] login failed: code=%d, message=%s", err.Code, err.Message)
-		}
+		// 失败细节已在 AuthService 打审计日志；此处补一层 request_id 便于串联访问日志
+		log.Printf("[AUTH] login failed: username=%s code=%d message=%s ip=%s request_id=%s",
+			username, err.Code, err.Message, clientIP, middleware.GetRequestID(c))
 		utils.Fail(c, err.Code, err.Message)
 		return
 	}
@@ -544,6 +544,9 @@ func (ctrl *AuthController) UpdateToken(c *gin.Context) {
 	}
 	result, err := ctrl.auth_svc.RefreshToken(req.RefreshToken, authGuard, clientIP, userAgent, device)
 	if err != nil {
+		// AuthService 已记录业务原因；控制器再挂 request_id，方便与网关/前端排查对齐
+		log.Printf("[AUTH] refresh-token failed: guard=%s code=%d message=%s ip=%s request_id=%s",
+			authGuard, err.Code, err.Message, clientIP, middleware.GetRequestID(c))
 		utils.Fail(c, err.Code, err.Message)
 		return
 	}

@@ -28,7 +28,7 @@ import {
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
+import { useEcharts, useRequestGuard, useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 import { adminEmailLogApi } from '@/service/api/admin/email-log'
@@ -286,28 +286,26 @@ async function loadRuntimeConfig() {
 }
 
 async function handleSaveRuntimeConfig() {
-  runtimeSaving.value = true
-  try {
-    runtimeForm.email_log_max_count = normalizeLogMaxCount(runtimeForm.email_log_max_count)
-    runtimeForm.email_log_per_user_max_count = normalizeLogPerUserMaxCount(runtimeForm.email_log_per_user_max_count)
+  await withSubmitLock(runtimeSaving, async () => {
+    try {
+      runtimeForm.email_log_max_count = normalizeLogMaxCount(runtimeForm.email_log_max_count)
+      runtimeForm.email_log_per_user_max_count = normalizeLogPerUserMaxCount(runtimeForm.email_log_per_user_max_count)
 
-    const res = await adminApi.settings.batchUpdate({
-      email_log_max_count: String(runtimeForm.email_log_max_count),
-      email_log_per_user_limit_enabled: String(runtimeForm.email_log_per_user_limit_enabled),
-      email_log_per_user_max_count: String(runtimeForm.email_log_per_user_max_count),
-    })
-    if (!res.isSuccess)
-      throw new Error(res.message || t('adminServer.saveRuntimeFailed'))
+      const res = await adminApi.settings.batchUpdate({
+        email_log_max_count: String(runtimeForm.email_log_max_count),
+        email_log_per_user_limit_enabled: String(runtimeForm.email_log_per_user_limit_enabled),
+        email_log_per_user_max_count: String(runtimeForm.email_log_per_user_max_count),
+      })
+      if (!res.isSuccess)
+        throw new Error(res.message || t('adminServer.saveRuntimeFailed'))
 
-    await Promise.all([fetchList(), fetchStats()])
-    message.success(res.message || t('adminServer.saveRuntimeSuccess'))
-  }
-  catch (error: any) {
-    message.error(error?.message || t('adminServer.saveRuntimeFailed'))
-  }
-  finally {
-    runtimeSaving.value = false
-  }
+      await Promise.all([fetchList(), fetchStats()])
+      message.success(res.message || t('adminServer.saveRuntimeSuccess'))
+    }
+    catch (error: any) {
+      message.error(error?.message || t('adminServer.saveRuntimeFailed'))
+    }
+  })
 }
 
 async function handleDetail(id: number) {
@@ -356,21 +354,19 @@ async function handleClean() {
     message.warning(t('adminEmailLogs.selectCleanDate'))
     return
   }
-  cleaning.value = true
-  try {
-    const res = await adminEmailLogApi.clean(cleanBefore.value)
-    message.success(t('adminEmailLogs.cleanSuccess', { count: res.data?.affected || 0 }))
-    showClean.value = false
-    cleanBefore.value = ''
-    fetchList()
-    fetchStats()
-  }
-  catch {
-    message.error(t('adminEmailLogs.cleanFailed'))
-  }
-  finally {
-    cleaning.value = false
-  }
+  await withSubmitLock(cleaning, async () => {
+    try {
+      const res = await adminEmailLogApi.clean(cleanBefore.value)
+      message.success(t('adminEmailLogs.cleanSuccess', { count: res.data?.affected || 0 }))
+      showClean.value = false
+      cleanBefore.value = ''
+      fetchList()
+      fetchStats()
+    }
+    catch {
+      message.error(t('adminEmailLogs.cleanFailed'))
+    }
+  })
 }
 
 onMounted(() => {

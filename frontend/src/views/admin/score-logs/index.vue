@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { NButton, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useTableColumnVisibility } from '@/hooks'
+import { useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import { adminScoreLogApi, adminUserApi } from '@/service/api/admin/user'
 import { parseMemo } from '@/utils/memo'
 import I18nMemoEditor from '@/components/common/I18nMemoEditor.vue'
@@ -129,6 +129,8 @@ function handleAdd() {
 }
 
 async function handleSubmit() {
+  if (submitting.value)
+    return
   if (!addForm.user_id) {
     message.error(t('adminMoneyLogs.enterUserId'))
     return
@@ -148,8 +150,7 @@ async function handleSubmit() {
     }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
-      submitting.value = true
+    onPositiveClick: () => withSubmitLock(submitting, async () => {
       try {
         const memoStr = Object.keys(memo).length > 0 ? JSON.stringify(memo) : ''
         const res = await adminUserApi.changeScore(userId, {
@@ -160,18 +161,16 @@ async function handleSubmit() {
           message.success(res.message || t('adminUsers.scoreChangedSuccess'))
           showModal.value = false
           fetchData()
+          return
         }
-        else {
-          message.error(res.message || t('adminUsers.scoreChangedFailed'))
-        }
+        message.error(res.message || t('adminUsers.scoreChangedFailed'))
+        return false
       }
       catch (e: unknown) {
         message.error((e instanceof Error ? e.message : null) || t('adminUsers.operationFailed'))
+        return false
       }
-      finally {
-        submitting.value = false
-      }
-    },
+    }),
   })
 }
 

@@ -104,12 +104,17 @@ func RequireIdempotency(scope string, ttl time.Duration) gin.HandlerFunc {
 			return nil
 		})
 		if txErr == errAbortIdempotency {
+			// 409 冲突属预期（重复提交/处理中），记 warn 便于排查前端重试是否过密
+			log.Printf("[Idempotency] 冲突拒绝 key=%s user=%d scope=%s path=%s",
+				idemKey, userID, scope, c.Request.URL.Path)
 			return
 		}
 		if txErr != nil {
 			if db.IsDuplicateKeyError(txErr) {
+				log.Printf("[Idempotency] 唯一键冲突 key=%s user=%d scope=%s", idemKey, userID, scope)
 				utils.Fail(c, 409, "请勿重复提交")
 			} else {
+				log.Printf("[Idempotency] 校验事务失败 key=%s user=%d scope=%s: %v", idemKey, userID, scope, txErr)
 				utils.Fail(c, 500, "幂等校验失败")
 			}
 			c.Abort()

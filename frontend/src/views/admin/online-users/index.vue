@@ -6,7 +6,7 @@ import { adminOnlineApi } from '@/service/api/admin/online'
 import type { OnlineSession, OnlineSessionListParams, OnlineUserRow } from '@/service/api/admin/online'
 import { fetchSetting, updateSetting } from '@/service/api/admin/settings'
 import { useAuthStore, useSettingsStore } from '@/store'
-import { useRequestGuard } from '@/hooks'
+import { useRequestGuard, withSubmitLock } from '@/hooks'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -16,6 +16,8 @@ const settingsStore = useSettingsStore()
 const presenceEnabled = computed(() => settingsStore.presenceEnabled)
 const sessionsFetchGuard = useRequestGuard()
 const loading = ref(false)
+/** 踢下线写操作防连点 */
+const kicking = ref(false)
 const stats = ref({ online_users: 0, online_sessions: 0 })
 const userRows = ref<OnlineUserRow[]>([])
 // client_type 默认值为空字符串，语义上代表「全部」
@@ -265,6 +267,8 @@ async function refreshAll() {
 }
 
 function handleKick(session: OnlineSession, userRow?: OnlineUserRow) {
+  if (kicking.value)
+    return
   const label = session.device || `#${session.id}`
   const userHint = userRow ? formatUserLabel(userRow) : ''
   dialog.warning({
@@ -274,20 +278,21 @@ function handleKick(session: OnlineSession, userRow?: OnlineUserRow) {
       : t('adminOnlineUsers.kickContent', { device: label }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    onPositiveClick: () => withSubmitLock(kicking, async () => {
       try {
         const res = await adminOnlineApi.kick(session.id)
         if (!res.isSuccess) {
           message.error(res.message || t('adminOnlineUsers.kickFailed'))
-          return
+          return false
         }
         message.success(t('adminOnlineUsers.kickSuccess'))
         await Promise.all([fetchSessions(), fetchStats()])
       }
       catch {
         message.error(t('adminOnlineUsers.kickFailed'))
+        return false
       }
-    },
+    }),
   })
 }
 

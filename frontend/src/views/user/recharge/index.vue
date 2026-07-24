@@ -35,7 +35,7 @@ import {
 import type { PayGateway, PaymentOrder } from '@/service/api/user/payment'
 import { fetchUserProfile } from '@/service/api/user/login'
 import { useAuthStore } from '@/store'
-import { useRequestGuard } from '@/hooks'
+import { useRequestGuard, withSubmitLock } from '@/hooks'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -395,6 +395,8 @@ function findSameAmountPendingOrder(amountYuan: number, pendingOrders: PaymentOr
 }
 
 async function createRechargeOrder() {
+  if (creating.value)
+    return
   if (!selectedGateway.value) {
     message.warning(t('recharge.selectGateway'))
     return
@@ -414,13 +416,25 @@ async function createRechargeOrder() {
     return
   }
 
-  // 有同金额待支付单则二次确认：去支付旧单 / 继续创建新单
+  // 在任何 await 前加锁，避免连点并发建单
+  creating.value = true
+  let existingPending: PaymentOrder | null = null
   try {
-    const pendingRes = await fetchPaymentOrders({ page: 1, page_size: 50, status: 0 })
-    const existing = pendingRes.isSuccess
-      ? findSameAmountPendingOrder(finalAmount.value, pendingRes.data?.list || [])
-      : null
-    if (existing) {
+    // 有同金额待支付单则二次确认：去支付旧单 / 继续创建新单
+    try {
+      const pendingRes = await fetchPaymentOrders({ page: 1, page_size: 50, status: 0 })
+      existingPending = pendingRes.isSuccess
+        ? findSameAmountPendingOrder(finalAmount.value, pendingRes.data?.list || [])
+        : null
+    }
+    catch {
+      // 检测失败不阻断建单
+    }
+
+    if (existingPending) {
+      // 弹窗前释放锁，否则「继续创建」会被挡住
+      creating.value = false
+      const existing = existingPending
       dialog.warning({
         title: t('recharge.sameAmountPendingTitle'),
         content: t('recharge.sameAmountPendingContent', {
@@ -439,67 +453,8 @@ async function createRechargeOrder() {
       })
       return
     }
-  }
-  catch {
-    // 检测失败不阻断建单
-  }
 
-  await doCreateRechargeOrder()
-}
-
-async function doCreateRechargeOrder() {
-  const gw = selectedGateway.value
-  if (!gw)
-    return
-
-  creating.value = true
-  try {
-    const res = await createPaymentOrder({
-      gateway_id: gw.id,
-      amount: finalAmount.value,
-    })
-    if (!res.isSuccess || !res.data) {
-      message.error((res as { message?: string }).message || t('recharge.createOrderFailed'))
-      return
-    }
-
-    showPaymentModal.value = false
-    message.success(t('recharge.orderCreated'))
-    await fetchOrders()
-
-    // 优先详情接口拿完整订单，列表未命中时用建单响应兜底
-    const createdOrder = orderData.value.find(o => o.order_no === res.data!.order_no)
-    if (createdOrder) {
-      const detailRes = await fetchPaymentOrderDetail(createdOrder.id)
-      selectedOrder.value = detailRes.isSuccess && detailRes.data
-        ? detailRes.data
-        : { ...createdOrder, pay_url: res.data.pay_url || createdOrder.pay_url }
-    }
-    else {
-      selectedOrder.value = {
-        id: 0,
-        user_id: authStore.userInfo?.id || 0,
-        gateway_id: gw.id,
-        trade_no: '',
-        payment_channel: gw.type,
-        payment_type: res.data.payment_type || gw.pay_type,
-        amount: res.data.amount,
-        fee: res.data.fee,
-        pay_amount: res.data.pay_amount,
-        subject: '',
-        status: 0,
-        notify_count: 0,
-        pay_url: res.data.pay_url,
-        paid_at: null,
-        expire_at: res.data.expire_at,
-        client_ip: '',
-        create_time: Math.floor(Date.now() / 1000),
-        update_time: Math.floor(Date.now() / 1000),
-        order_no: res.data.order_no,
-      }
-    }
-
-    showOrderDetail.value = true
+    await createRechargeOrderCore(gw)
   }
   catch {
     message.error(t('recharge.createOrderRetry'))
@@ -507,6 +462,70 @@ async function doCreateRechargeOrder() {
   finally {
     creating.value = false
   }
+}
+
+async function doCreateRechargeOrder() {
+  const gw = selectedGateway.value
+  if (!gw)
+    return
+  await withSubmitLock(creating, async () => {
+    try {
+      await createRechargeOrderCore(gw)
+    }
+    catch {
+      message.error(t('recharge.createOrderRetry'))
+    }
+  })
+}
+
+/** 实际建单逻辑（调用方负责 creating 锁） */
+async function createRechargeOrderCore(gw: PayGateway) {
+  const res = await createPaymentOrder({
+    gateway_id: gw.id,
+    amount: finalAmount.value,
+  })
+  if (!res.isSuccess || !res.data) {
+    message.error((res as { message?: string }).message || t('recharge.createOrderFailed'))
+    return
+  }
+
+  showPaymentModal.value = false
+  message.success(t('recharge.orderCreated'))
+  await fetchOrders()
+
+  // 优先详情接口拿完整订单，列表未命中时用建单响应兜底
+  const createdOrder = orderData.value.find(o => o.order_no === res.data!.order_no)
+  if (createdOrder) {
+    const detailRes = await fetchPaymentOrderDetail(createdOrder.id)
+    selectedOrder.value = detailRes.isSuccess && detailRes.data
+      ? detailRes.data
+      : { ...createdOrder, pay_url: res.data.pay_url || createdOrder.pay_url }
+  }
+  else {
+    selectedOrder.value = {
+      id: 0,
+      user_id: authStore.userInfo?.id || 0,
+      gateway_id: gw.id,
+      trade_no: '',
+      payment_channel: gw.type,
+      payment_type: res.data.payment_type || gw.pay_type,
+      amount: res.data.amount,
+      fee: res.data.fee,
+      pay_amount: res.data.pay_amount,
+      subject: '',
+      status: 0,
+      notify_count: 0,
+      pay_url: res.data.pay_url,
+      paid_at: null,
+      expire_at: res.data.expire_at,
+      client_ip: '',
+      create_time: Math.floor(Date.now() / 1000),
+      update_time: Math.floor(Date.now() / 1000),
+      order_no: res.data.order_no,
+    }
+  }
+
+  showOrderDetail.value = true
 }
 
 // ========== 支付处理 ==========

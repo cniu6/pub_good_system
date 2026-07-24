@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { NButton, NImage, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns, FormRules } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
+import { useRequestGuard, useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import {
   createPayGateway,
   deletePayGateway,
@@ -240,6 +240,8 @@ function handleEdit(row: PayGateway) {
 }
 
 async function handleSubmit() {
+  if (submitting.value)
+    return
   try {
     await formRef.value?.validate()
   }
@@ -247,41 +249,41 @@ async function handleSubmit() {
     return
   }
 
-  submitting.value = true
-  try {
-    if (editingId.value) {
-      const res = await updatePayGateway(editingId.value, form)
-      if (res.isSuccess) {
-        message.success(t('adminUsers.updateSuccess'))
-        showModal.value = false
-        loadList()
+  await withSubmitLock(submitting, async () => {
+    try {
+      if (editingId.value) {
+        const res = await updatePayGateway(editingId.value, form)
+        if (res.isSuccess) {
+          message.success(t('adminUsers.updateSuccess'))
+          showModal.value = false
+          loadList()
+        }
+        // 业务失败：全局拦截器已展示 API message，避免双 toast
       }
-      // 业务失败：全局拦截器已展示 API message，避免双 toast
-    }
-    else {
-      const res = await createPayGateway(form)
-      if (res.isSuccess) {
-        message.success(t('adminUsers.createSuccess'))
-        showModal.value = false
-        loadList()
+      else {
+        const res = await createPayGateway(form)
+        if (res.isSuccess) {
+          message.success(t('adminUsers.createSuccess'))
+          showModal.value = false
+          loadList()
+        }
       }
     }
-  }
-  catch {
-    // 网络异常：alova onError 已提示
-  }
-  finally {
-    submitting.value = false
-  }
+    catch {
+      // 网络异常：alova onError 已提示
+    }
+  })
 }
 
 function handleDelete(row: PayGateway) {
+  if (submitting.value)
+    return
   dialog.warning({
     title: t('adminPayGateways.confirmDeleteTitle'),
     content: t('adminPayGateways.confirmDeleteContent', { name: row.name }),
     positiveText: t('adminPayGateways.delete'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    onPositiveClick: () => withSubmitLock(submitting, async () => {
       try {
         const res = await deletePayGateway(row.id)
         if (res.isSuccess) {
@@ -293,7 +295,7 @@ function handleDelete(row: PayGateway) {
       catch {
         // 网络异常：alova onError 已提示
       }
-    },
+    }),
   })
 }
 

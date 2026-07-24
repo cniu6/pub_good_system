@@ -5,6 +5,7 @@
 import type { DataTableColumns } from 'naive-ui'
 import type { UserLevelCap } from '@/service/api/admin/user-level'
 import { NSwitch } from 'naive-ui'
+import { withSubmitLock } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 
 const { t } = useI18n()
@@ -12,6 +13,8 @@ const message = useMessage()
 
 const levels = ref<UserLevelCap[]>([])
 const loading = ref(false)
+/** 等级开关写操作串行锁，避免连翻并发改权限 */
+const savingLevel = ref(false)
 
 async function loadLevels() {
   loading.value = true
@@ -31,25 +34,35 @@ async function loadLevels() {
 }
 
 async function saveLevel(row: UserLevelCap) {
-  const res = await adminApi.userLevel.update({
-    level: row.level,
-    name: row.name,
-    allow_api_key: row.allow_api_key,
-    allow_recharge: row.allow_recharge,
-    allow_withdraw: row.allow_withdraw,
-    menu_flags: row.menu_flags || '{}',
-  })
-  if (res.isSuccess) {
-    message.success(t('adminUserLevels.saveSuccess'))
-    if (res.data?.item) {
-      const idx = levels.value.findIndex(l => l.level === row.level)
-      if (idx >= 0)
-        levels.value[idx] = res.data.item
+  await withSubmitLock(savingLevel, async () => {
+    const res = await adminApi.userLevel.update({
+      level: row.level,
+      name: row.name,
+      allow_api_key: row.allow_api_key,
+      allow_recharge: row.allow_recharge,
+      allow_withdraw: row.allow_withdraw,
+      menu_flags: row.menu_flags || '{}',
+    })
+    if (res.isSuccess) {
+      message.success(t('adminUserLevels.saveSuccess'))
+      if (res.data?.item) {
+        const idx = levels.value.findIndex(l => l.level === row.level)
+        if (idx >= 0)
+          levels.value[idx] = res.data.item
+      }
     }
-  }
-  else {
-    message.error(res.message || t('adminUserLevels.actionFailed'))
-  }
+    else {
+      message.error(res.message || t('adminUserLevels.actionFailed'))
+      await loadLevels()
+    }
+  })
+}
+
+function onLevelSwitch(row: UserLevelCap, key: 'allow_api_key' | 'allow_recharge' | 'allow_withdraw', v: boolean) {
+  if (savingLevel.value)
+    return
+  row[key] = v
+  void saveLevel(row)
 }
 
 const columns = computed<DataTableColumns<UserLevelCap>>(() => [
@@ -61,10 +74,8 @@ const columns = computed<DataTableColumns<UserLevelCap>>(() => [
     width: 120,
     render: row => h(NSwitch, {
       value: row.allow_api_key,
-      onUpdateValue: (v: boolean) => {
-        row.allow_api_key = v
-        void saveLevel(row)
-      },
+      disabled: savingLevel.value,
+      onUpdateValue: (v: boolean) => onLevelSwitch(row, 'allow_api_key', v),
     }),
   },
   {
@@ -73,10 +84,8 @@ const columns = computed<DataTableColumns<UserLevelCap>>(() => [
     width: 120,
     render: row => h(NSwitch, {
       value: row.allow_recharge,
-      onUpdateValue: (v: boolean) => {
-        row.allow_recharge = v
-        void saveLevel(row)
-      },
+      disabled: savingLevel.value,
+      onUpdateValue: (v: boolean) => onLevelSwitch(row, 'allow_recharge', v),
     }),
   },
   {
@@ -85,10 +94,8 @@ const columns = computed<DataTableColumns<UserLevelCap>>(() => [
     width: 120,
     render: row => h(NSwitch, {
       value: row.allow_withdraw,
-      onUpdateValue: (v: boolean) => {
-        row.allow_withdraw = v
-        void saveLevel(row)
-      },
+      disabled: savingLevel.value,
+      onUpdateValue: (v: boolean) => onLevelSwitch(row, 'allow_withdraw', v),
     }),
   },
 ])

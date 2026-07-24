@@ -12,6 +12,7 @@ import {
   submitRealname,
 } from '@/service/api/user/realname'
 import type { CertificateType, RealnameStatusResponse } from '@/service/api/user/realname'
+import { withSubmitLock } from '@/hooks'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -138,6 +139,8 @@ async function loadRealnameStatus() {
 
 // 提交认证
 async function handleSubmit() {
+  if (submitting.value)
+    return
   try {
     await formRef.value?.validate()
   }
@@ -145,39 +148,37 @@ async function handleSubmit() {
     return
   }
 
-  submitting.value = true
-  try {
-    const res = await submitRealname({
-      real_name: form.value.real_name.trim(),
-      certificate_type: form.value.certificate_type!,
-      certificate_no: form.value.certificate_no.trim(),
-      certificate_front: form.value.certificate_front.trim(),
-      certificate_back: form.value.certificate_back.trim(),
-    })
-    if (!res.isSuccess) {
-      message.error(res.message || t('realname.submitFailed'))
-      return
+  await withSubmitLock(submitting, async () => {
+    try {
+      const res = await submitRealname({
+        real_name: form.value.real_name.trim(),
+        certificate_type: form.value.certificate_type!,
+        certificate_no: form.value.certificate_no.trim(),
+        certificate_front: form.value.certificate_front.trim(),
+        certificate_back: form.value.certificate_back.trim(),
+      })
+      if (!res.isSuccess) {
+        message.error(res.message || t('realname.submitFailed'))
+        return
+      }
+      message.success(t('realname.submitSuccess'))
+      showSubmitModal.value = false
+      loadRealnameStatus()
+      // 重置表单
+      form.value = {
+        real_name: '',
+        certificate_type: null,
+        certificate_no: '',
+        certificate_front: '',
+        certificate_back: '',
+      }
     }
-    message.success(t('realname.submitSuccess'))
-    showSubmitModal.value = false
-    loadRealnameStatus()
-    // 重置表单
-    form.value = {
-      real_name: '',
-      certificate_type: null,
-      certificate_no: '',
-      certificate_front: '',
-      certificate_back: '',
+    catch (e: unknown) {
+      if (import.meta.env.DEV)
+        console.error('[realnameTab] submit failed', e)
+      message.error(t('realname.submitFailed'))
     }
-  }
-  catch (e: unknown) {
-    if (import.meta.env.DEV)
-      console.error('[realnameTab] submit failed', e)
-    message.error(t('realname.submitFailed'))
-  }
-  finally {
-    submitting.value = false
-  }
+  })
 }
 
 onMounted(() => {

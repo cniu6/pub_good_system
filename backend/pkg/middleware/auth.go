@@ -57,14 +57,34 @@ func AuthMiddlewareForGuard(acceptGuards ...string) gin.HandlerFunc {
 			return
 		}
 
+		logAuthFailure(c, "missing_credentials", 0, "")
 		utils.Fail(c, 401, "Authorization header or X-Api-Key is required")
 		c.Abort()
 	}
 }
 
+// logAuthFailure 鉴权失败统一审计（不含 token/apikey 明文），附带 request_id 便于与访问日志关联。
+func logAuthFailure(c *gin.Context, reason string, userID uint64, detail string) {
+	rid := GetRequestID(c)
+	path := ""
+	method := ""
+	if c.Request != nil {
+		path = c.Request.URL.Path
+		method = c.Request.Method
+	}
+	if detail != "" {
+		log.Printf("[AuthMiddleware] 鉴权失败 reason=%s user_id=%d method=%s path=%s ip=%s request_id=%s detail=%s",
+			reason, userID, method, path, c.ClientIP(), rid, detail)
+		return
+	}
+	log.Printf("[AuthMiddleware] 鉴权失败 reason=%s user_id=%d method=%s path=%s ip=%s request_id=%s",
+		reason, userID, method, path, c.ClientIP(), rid)
+}
+
 func authenticateWithJWT(c *gin.Context, authHeader string, acceptGuards []string) {
 	parts := strings.SplitN(authHeader, " ", 2)
 	if !(len(parts) == 2 && parts[0] == "Bearer") {
+		logAuthFailure(c, "invalid_bearer_format", 0, "")
 		utils.Fail(c, 401, "Authorization header format must be Bearer {token}")
 		c.Abort()
 		return
@@ -79,6 +99,7 @@ func authenticateWithJWT(c *gin.Context, authHeader string, acceptGuards []strin
 		}
 	}
 	if parseErr != nil {
+		logAuthFailure(c, "invalid_or_expired_jwt", 0, "")
 		utils.Fail(c, 401, "Invalid or expired token")
 		c.Abort()
 		return
@@ -89,7 +110,14 @@ func authenticateWithJWT(c *gin.Context, authHeader string, acceptGuards []strin
 		actualGuard = utils.UserAuthGuard
 	}
 	active, err := models.IsUserSessionActive(claims.UserID, actualGuard, utils.HashToken(parts[1]))
-	if err != nil || !active {
+	if err != nil {
+		logAuthFailure(c, "session_check_error", claims.UserID, err.Error())
+		utils.Fail(c, 401, "Session expired or revoked")
+		c.Abort()
+		return
+	}
+	if !active {
+		logAuthFailure(c, "session_expired_or_revoked", claims.UserID, "guard="+actualGuard)
 		utils.Fail(c, 401, "Session expired or revoked")
 		c.Abort()
 		return
@@ -97,6 +125,7 @@ func authenticateWithJWT(c *gin.Context, authHeader string, acceptGuards []strin
 
 	user, err := models.GetUserByID(claims.UserID)
 	if err != nil || user == nil {
+		logAuthFailure(c, "user_not_found", claims.UserID, "")
 		utils.Fail(c, 401, "User not found")
 		c.Abort()
 		return
@@ -112,6 +141,7 @@ func authenticateWithAPIKey(c *gin.Context, apiKey string, acceptGuards []string
 	// 该开关读的是内存缓存（services.GlobalSettingsService），不会每次请求都查库；
 	// 管理员在后台保存后会立即刷新缓存，单机部署下无需重启即可生效。
 	if !services.GetGlobalAPIKeyAuthEnabled() {
+		logAuthFailure(c, "api_key_auth_disabled", 0, "")
 		utils.Fail(c, 403, "API Key authentication is disabled")
 		c.Abort()
 		return
@@ -119,6 +149,7 @@ func authenticateWithAPIKey(c *gin.Context, apiKey string, acceptGuards []string
 
 	// 防御：即便误挂到认证公开路由，也拒绝
 	if IsAuthSensitiveAPIPath(c.Request.URL.Path) {
+		logAuthFailure(c, "api_key_on_auth_path", 0, "")
 		utils.Fail(c, 403, "API Key cannot be used on authentication endpoints")
 		c.Abort()
 		return
@@ -131,9 +162,18 @@ func authenticateWithAPIKey(c *gin.Context, apiKey string, acceptGuards []string
 		c.Abort()
 		return
 	}
+	// 高敏感只读面（DB 控制台 / 终端 / debug）也禁止 API Key，避免 Key 泄露后拖库/摸运维面
+	if isAdminSensitiveReadPath(c.Request.URL.Path) {
+		log.Printf("[SECURITY] API Key blocked on sensitive admin path | ip=%s method=%s path=%s",
+			c.ClientIP(), c.Request.Method, c.Request.URL.Path)
+		utils.Fail(c, 403, "API Key cannot be used on this admin endpoint")
+		c.Abort()
+		return
+	}
 
 	user, err := models.GetUserByApiKey(apiKey)
 	if err != nil || user == nil {
+		logAuthFailure(c, "invalid_api_key", 0, "")
 		utils.Fail(c, 401, "Invalid API Key")
 		c.Abort()
 		return
@@ -156,6 +196,7 @@ func authenticateWithAPIKey(c *gin.Context, apiKey string, acceptGuards []string
 
 	// 过期检查
 	if user.ApikeyExpiresAt != nil && *user.ApikeyExpiresAt > 0 && *user.ApikeyExpiresAt < time.Now().Unix() {
+		logAuthFailure(c, "api_key_expired", user.ID, "")
 		utils.Fail(c, 401, "API Key expired")
 		c.Abort()
 		return
@@ -196,6 +237,27 @@ func isAdminMutatingRequest(c *gin.Context) bool {
 	path := strings.ToLower(c.Request.URL.Path)
 	// 匹配 /api/v1/{admin_api_path}/...
 	return strings.Contains(path, "/api/v1/") && (strings.Contains(path, "/admin/") || isConfiguredAdminAPIPath(path))
+}
+
+// isAdminSensitiveReadPath 管理端高敏感路径（即便 GET 也不允许 API Key）。
+// 按路径段匹配：/db、/terminal、/debug（兼容自定义 ADMIN_API_PATH）。
+func isAdminSensitiveReadPath(path string) bool {
+	path = strings.ToLower(strings.TrimSpace(path))
+	if path == "" || !strings.Contains(path, "/api/v1/") {
+		return false
+	}
+	for _, seg := range []string{"/db/", "/terminal/", "/debug/"} {
+		if strings.Contains(path, seg) {
+			return true
+		}
+	}
+	// 无尾斜杠的资源根：.../db、.../terminal、.../debug
+	for _, suf := range []string{"/db", "/terminal", "/debug"} {
+		if strings.HasSuffix(path, suf) {
+			return true
+		}
+	}
+	return false
 }
 
 func isConfiguredAdminAPIPath(path string) bool {

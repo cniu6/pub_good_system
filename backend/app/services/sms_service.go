@@ -181,6 +181,7 @@ func (p *consoleProvider) Name() string { return "console" }
 func (p *consoleProvider) IsConfigured() bool { return true }
 
 func (p *consoleProvider) Send(phone, content string) error {
+	// console 通道仅开发调试用：故意明文打印手机号/正文（含验证码），方便本地联调
 	log.Printf("[SMS-Console] To: %s, Content: %s", phone, content)
 	return nil
 }

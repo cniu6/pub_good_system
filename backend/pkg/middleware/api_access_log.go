@@ -73,7 +73,8 @@ func shouldReadRequestBody(c *gin.Context) bool {
 	return true
 }
 
-func sanitizeQueryString(raw string) string {
+// formatQueryString 将 query 转为 JSON（便于操作日志嵌套），明文保留，仅截断长度。
+func formatQueryString(raw string) string {
 	if strings.TrimSpace(raw) == "" {
 		return ""
 	}
@@ -83,11 +84,6 @@ func sanitizeQueryString(raw string) string {
 	}
 	payload := make(map[string]any, len(values))
 	for key, items := range values {
-		// 查询参数均为客户端提交内容，命中敏感字段（如验证码、token）整体脱敏
-		if isSensitiveBodyField(key, true) {
-			payload[key] = sensitiveValueMask
-			continue
-		}
 		if len(items) == 1 {
 			payload[key] = items[0]
 			continue
@@ -122,7 +118,7 @@ func sanitizePathParams(params gin.Params) *string {
 	return &value
 }
 
-// captureRequestHeaders 原样保存 API 请求头；单个值与总内容仍会截断，避免日志无限膨胀。
+// captureRequestHeaders 原样保存 API 请求头（不做字段脱敏）；单个值与总内容仍会截断，避免日志无限膨胀。
 func captureRequestHeaders(headers map[string][]string) *string {
 	if len(headers) == 0 {
 		return nil
@@ -270,16 +266,14 @@ func newAPIAccessRequestID() string {
 	return string(hexbuf)
 }
 
-func sanitizeResponseBodyByType(raw, contentType, transport string, statusCode int, maskSensitive bool) string {
+// truncateResponseBodyByType 按内容类型决定是否落库响应体；文本类明文截断，二进制省略。
+func truncateResponseBodyByType(raw, contentType, transport string, statusCode int) string {
 	trimmedType := normalizeContentType(contentType)
 	if transport == "websocket" && statusCode == 101 {
 		return "[websocket upgrade handshake established; frame messages are not captured in HTTP access logs]"
 	}
 	if trimmedType == "" || strings.Contains(trimmedType, "json") || strings.Contains(trimmedType, "text") || strings.Contains(trimmedType, "xml") || strings.Contains(trimmedType, "javascript") || strings.Contains(trimmedType, "x-www-form-urlencoded") || trimmedType == "text/event-stream" || transport == "sse" || transport == "stream" {
-		if !maskSensitive {
-			return truncateForLog(raw, maxLogStoredBodyBytes)
-		}
-		return sanitizeLogBody(raw, maxLogStoredBodyBytes, false)
+		return truncateForLog(raw, maxLogStoredBodyBytes)
 	}
 	if raw == "" {
 		return ""
@@ -323,6 +317,9 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 				requestBody = string(bodyBytes)
 				requestSize = int64(len(bodyBytes))
 				c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+			} else {
+				// 读 body 失败不能阻断业务；记一条告警便于排查「访问日志缺 body」
+				gin.DefaultErrorWriter.Write([]byte("[APIAccessLog] 读取请求体失败: " + err.Error() + "\n"))
 			}
 		}
 		if requestBody == "" {
@@ -342,7 +339,8 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 		requestContentType := truncateForLog(normalizeContentType(c.GetHeader("Content-Type")), 255)
 		responseContentType := truncateForLog(normalizeContentType(blw.Header().Get("Content-Type")), 255)
 		transport := resolveAPITransport(c, requestBody, responseContentType)
-		responseBody := sanitizeResponseBodyByType(blw.body.String(), responseContentType, transport, c.Writer.Status(), false)
+		// 按产品要求：访问日志明文落库敏感字段，仅做长度截断
+		responseBody := truncateResponseBodyByType(blw.body.String(), responseContentType, transport, c.Writer.Status())
 		requestBody = truncateForLog(requestBody, maxLogStoredBodyBytes)
 		requestHeaders := captureRequestHeaders(c.Request.Header)
 		pathParams := sanitizePathParams(c.Params)

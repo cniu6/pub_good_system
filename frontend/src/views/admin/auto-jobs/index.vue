@@ -28,7 +28,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
-import { useRequestGuard } from '@/hooks'
+import { useRequestGuard, withSubmitLock } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 import type {
   AutoJobDefinition,
@@ -46,6 +46,8 @@ const { t } = useI18n()
 const loading = ref(false)
 const savingConfig = ref(false)
 const importing = ref(false)
+/** 启用开关 / 立即执行 / 清理 / 标记保留 等行操作锁 */
+const actionLock = ref(false)
 const activeTab = ref<'jobs' | 'runs' | 'running'>('jobs')
 
 const overview = ref<AutoJobOverview | null>(null)
@@ -255,51 +257,49 @@ async function loadRunning() {
 }
 
 async function handleSaveConfig() {
-  savingConfig.value = true
-  try {
-    const payload = { ...config }
-    const res = await adminApi.autoJob.saveConfig(payload)
-    if (res.data)
-      Object.assign(config, res.data)
-    message.success(t('adminAutoJobs.saveSuccess'))
-    await loadOverview()
-  }
-  catch {
-    message.error(t('adminAutoJobs.saveFailed'))
-  }
-  finally {
-    savingConfig.value = false
-  }
+  await withSubmitLock(savingConfig, async () => {
+    try {
+      const payload = { ...config }
+      const res = await adminApi.autoJob.saveConfig(payload)
+      if (res.data)
+        Object.assign(config, res.data)
+      message.success(t('adminAutoJobs.saveSuccess'))
+      await loadOverview()
+    }
+    catch {
+      message.error(t('adminAutoJobs.saveFailed'))
+    }
+  })
 }
 
 async function handleImportPresets() {
-  importing.value = true
-  try {
-    await adminApi.autoJob.importPresets('skip')
-    message.success(t('adminAutoJobs.importSuccess'))
-    await Promise.all([loadOverview(), loadJobs()])
-  }
-  catch {
-    message.error(t('adminAutoJobs.importFailed'))
-  }
-  finally {
-    importing.value = false
-  }
+  await withSubmitLock(importing, async () => {
+    try {
+      await adminApi.autoJob.importPresets('skip')
+      message.success(t('adminAutoJobs.importSuccess'))
+      await Promise.all([loadOverview(), loadJobs()])
+    }
+    catch {
+      message.error(t('adminAutoJobs.importFailed'))
+    }
+  })
 }
 
 async function handleToggleEnabled(row: AutoJobDefinition, enabled: boolean) {
-  try {
-    if (enabled)
-      await adminApi.autoJob.enableJob(row.job_code)
-    else
-      await adminApi.autoJob.disableJob(row.job_code)
-    row.enabled = enabled ? 1 : 0
-    await loadOverview()
-  }
-  catch {
-    message.error(t('adminAutoJobs.toggleFailed'))
-    await loadJobs()
-  }
+  await withSubmitLock(actionLock, async () => {
+    try {
+      if (enabled)
+        await adminApi.autoJob.enableJob(row.job_code)
+      else
+        await adminApi.autoJob.disableJob(row.job_code)
+      row.enabled = enabled ? 1 : 0
+      await loadOverview()
+    }
+    catch {
+      message.error(t('adminAutoJobs.toggleFailed'))
+      await loadJobs()
+    }
+  })
 }
 
 async function handleRunNow(row: AutoJobDefinition) {
@@ -311,7 +311,7 @@ async function handleRunNow(row: AutoJobDefinition) {
     }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    onPositiveClick: () => withSubmitLock(actionLock, async () => {
       runningTaskCode.value = row.job_code
       try {
         await adminApi.autoJob.runJob(row.job_code)
@@ -328,7 +328,7 @@ async function handleRunNow(row: AutoJobDefinition) {
       finally {
         runningTaskCode.value = ''
       }
-    },
+    }),
   })
 }
 
@@ -346,31 +346,30 @@ function openEdit(row: AutoJobDefinition) {
 }
 
 async function handleSaveEdit() {
-  if (!editForm.job_code)
+  const jobCode = editForm.job_code
+  if (!jobCode)
     return
-  editSaving.value = true
-  try {
-    const payload: AutoJobUpdateRequest = {
-      name: editForm.name,
-      description: editForm.description,
-      cron_expr: editForm.cron_expr,
-      interval_seconds: editForm.interval_seconds,
-      timezone: editForm.timezone,
-      enabled: editForm.enabled,
-      timeout_sec: editForm.timeout_sec,
-      params_json: editForm.params_json,
+  await withSubmitLock(editSaving, async () => {
+    try {
+      const payload: AutoJobUpdateRequest = {
+        name: editForm.name,
+        description: editForm.description,
+        cron_expr: editForm.cron_expr,
+        interval_seconds: editForm.interval_seconds,
+        timezone: editForm.timezone,
+        enabled: editForm.enabled,
+        timeout_sec: editForm.timeout_sec,
+        params_json: editForm.params_json,
+      }
+      await adminApi.autoJob.updateJob(jobCode, payload)
+      message.success(t('adminAutoJobs.saveSuccess'))
+      showEdit.value = false
+      await loadJobs()
     }
-    await adminApi.autoJob.updateJob(editForm.job_code, payload)
-    message.success(t('adminAutoJobs.saveSuccess'))
-    showEdit.value = false
-    await loadJobs()
-  }
-  catch {
-    message.error(t('adminAutoJobs.saveFailed'))
-  }
-  finally {
-    editSaving.value = false
-  }
+    catch {
+      message.error(t('adminAutoJobs.saveFailed'))
+    }
+  })
 }
 
 async function openRunDetail(row: AutoJobRun) {
@@ -391,7 +390,7 @@ async function handleCleanSuccessRuns() {
     content: t('adminAutoJobs.confirmCleanContent'),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    onPositiveClick: () => withSubmitLock(actionLock, async () => {
       try {
         const res = await adminApi.autoJob.cleanRuns({ scope: 'success', include_errors: false })
         message.success(t('adminAutoJobs.cleanSuccess', { n: res.data?.affected || 0 }))
@@ -400,19 +399,21 @@ async function handleCleanSuccessRuns() {
       catch {
         message.error(t('adminAutoJobs.cleanFailed'))
       }
-    },
+    }),
   })
 }
 
 async function handleMarkKeep(row: AutoJobRun) {
-  try {
-    const res = await adminApi.autoJob.markKeep([row.id], true)
-    message.success(t('adminAutoJobs.markKeepSuccess', { n: res.data?.affected || 0 }))
-    await loadRuns()
-  }
-  catch {
-    message.error(t('adminAutoJobs.saveFailed'))
-  }
+  await withSubmitLock(actionLock, async () => {
+    try {
+      const res = await adminApi.autoJob.markKeep([row.id], true)
+      message.success(t('adminAutoJobs.markKeepSuccess', { n: res.data?.affected || 0 }))
+      await loadRuns()
+    }
+    catch {
+      message.error(t('adminAutoJobs.saveFailed'))
+    }
+  })
 }
 
 function onTabChange(name: string) {

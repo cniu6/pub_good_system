@@ -11,6 +11,7 @@ import {
 } from '@/service/api/admin/user'
 import type { AdminUser } from '@/service/api/admin/user'
 import { useSettingsStore } from '@/store'
+import { withSubmitLock } from '@/hooks'
 import { normalizeAndValidateMobile } from '@/utils/phone'
 
 function reportAdminUsersError(message: string, error?: unknown) {
@@ -187,17 +188,23 @@ export function useUserForm(options?: {
   }
 
   async function handleSubmit() {
+    if (submitting.value)
+      return
     try {
       await formRef.value?.validate()
+    }
+    catch (error) {
+      reportAdminUsersError('[adminUsers] form validation failed', error)
+      return
+    }
 
-      const resolvedMobile = resolveMobileOrWarn(userForm.mobile)
-      if (resolvedMobile === null)
-        return
-      // 回写规范化结果，便于后续对比与展示
-      userForm.mobile = resolvedMobile
+    const resolvedMobile = resolveMobileOrWarn(userForm.mobile)
+    if (resolvedMobile === null)
+      return
+    // 回写规范化结果，便于后续对比与展示
+    userForm.mobile = resolvedMobile
 
-      submitting.value = true
-
+    await withSubmitLock(submitting, async () => {
       if (isEdit.value) {
         const originalUser = selectedUser.value
         const changedData: Record<string, any> = {}
@@ -238,7 +245,6 @@ export function useUserForm(options?: {
 
         if (Object.keys(changedData).length === 0) {
           message.warning(t('adminUsers.noChangesDetected'))
-          submitting.value = false
           return
         }
 
@@ -251,38 +257,32 @@ export function useUserForm(options?: {
         else {
           message.error(response.message || t('adminUsers.updateFailed'))
         }
+        return
+      }
+
+      const userPayload = {
+        username: userForm.username,
+        password: userForm.password,
+        email: userForm.email,
+        nickname: userForm.nickname,
+        mobile: userForm.mobile,
+        language: userForm.language,
+        country: userForm.country,
+        admin_remark: userForm.admin_remark,
+        level: userForm.level,
+        role: userForm.role,
+        status: userForm.status,
+      }
+      const response: any = await createUser(userPayload as any)
+      if (response.isSuccess) {
+        message.success(t('adminUsers.createSuccess'))
+        showUserModal.value = false
+        options?.onSuccess?.()
       }
       else {
-        const userPayload = {
-          username: userForm.username,
-          password: userForm.password,
-          email: userForm.email,
-          nickname: userForm.nickname,
-          mobile: userForm.mobile,
-          language: userForm.language,
-          country: userForm.country,
-          admin_remark: userForm.admin_remark,
-          level: userForm.level,
-          role: userForm.role,
-          status: userForm.status,
-        }
-        const response: any = await createUser(userPayload as any)
-        if (response.isSuccess) {
-          message.success(t('adminUsers.createSuccess'))
-          showUserModal.value = false
-          options?.onSuccess?.()
-        }
-        else {
-          message.error(response.message || t('adminUsers.createFailed'))
-        }
+        message.error(response.message || t('adminUsers.createFailed'))
       }
-    }
-    catch (error) {
-      reportAdminUsersError('[adminUsers] form validation failed', error)
-    }
-    finally {
-      submitting.value = false
-    }
+    })
   }
 
   return {

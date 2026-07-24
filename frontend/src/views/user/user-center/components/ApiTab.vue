@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/store'
 import { fetchResetApiKey, fetchUserApiKey } from '@/service'
+import { withSubmitLock } from '@/hooks'
 
 const authStore = useAuthStore()
 const { t } = useI18n()
@@ -50,8 +51,7 @@ function handleResetApiKey() {
     content: t('apiTab.confirmResetContent'),
     positiveText: t('apiTab.confirmReset'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
-      resettingApiKey.value = true
+    onPositiveClick: () => withSubmitLock(resettingApiKey, async () => {
       try {
         const response = await fetchResetApiKey()
         if (!response.isSuccess) {
@@ -73,10 +73,7 @@ function handleResetApiKey() {
         message.error(t('apiTab.apiKeyResetFailed'))
         return false
       }
-      finally {
-        resettingApiKey.value = false
-      }
-    },
+    }),
   })
 }
 

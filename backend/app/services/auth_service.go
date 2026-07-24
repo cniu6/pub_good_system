@@ -190,20 +190,25 @@ func getAuthRuntimeDefaults() (loginMaxFailureCount, loginLockDurationMinutes, a
 
 // Login 用户登录
 func (s *AuthService) Login(username, password, authGuard, clientIP string) (*LoginResult, *ServiceError) {
+	rawGuard := authGuard
 	var ok bool
 	authGuard, ok = normalizeAuthGuard(authGuard)
 	if !ok {
+		log.Printf("[Auth] 登录拒绝: 非法 auth_guard=%q ip=%s", rawGuard, clientIP)
 		return nil, NewServiceError(400, "Invalid auth guard")
 	}
 
 	// 关闭「允许用户登录」后：普通用户无法密码登录拿 JWT；管理员与 API Key 不受影响
 	if authGuard == utils.UserAuthGuard && !GetGlobalAllowUserLogin() {
+		log.Printf("[Auth] 登录拒绝: 用户登录已关闭 username=%s ip=%s", username, clientIP)
 		return nil, NewServiceError(403, "User login is disabled")
 	}
 
 	// 查找用户
 	user, err := models.GetUserByUsernameOrEmail(username)
 	if err != nil {
+		// 不区分「用户不存在 / 密码错误」，但审计侧需要失败尝试痕迹（不含密码）
+		log.Printf("[Auth] 登录失败: 账号不存在或查询失败 username=%s guard=%s ip=%s", username, authGuard, clientIP)
 		return nil, NewServiceError(401, "Invalid account or password")
 	}
 
@@ -211,15 +216,20 @@ func (s *AuthService) Login(username, password, authGuard, clientIP string) (*Lo
 	now := time.Now().Unix()
 	if user.LockUntil != nil && *user.LockUntil > now {
 		remaining := (*user.LockUntil - now) / 60
+		log.Printf("[Auth] 登录拒绝: 账户锁定中 user_id=%d remaining_min=%d ip=%s", user.ID, remaining, clientIP)
 		return nil, NewServiceError(403, fmt.Sprintf("Account is locked. Please try again in %d minutes", remaining))
 	}
 
 	// 清除过期锁定
 	if user.LockUntil != nil && *user.LockUntil <= now {
-		s.userService.ClearLockUntil(user.ID)
+		if clearErr := s.userService.ClearLockUntil(user.ID); clearErr != nil {
+			log.Printf("[Auth] 清除过期锁定失败 user_id=%d: %v", user.ID, clearErr)
+		}
 	}
 
 	if accessErr := validateUserAccessForGuard(user, authGuard); accessErr != nil {
+		log.Printf("[Auth] 登录拒绝: 状态/角色不匹配 user_id=%d guard=%s code=%d msg=%s ip=%s",
+			user.ID, authGuard, accessErr.Code, accessErr.Message, clientIP)
 		return nil, accessErr
 	}
 
@@ -227,12 +237,18 @@ func (s *AuthService) Login(username, password, authGuard, clientIP string) (*Lo
 	if !utils.CheckPasswordHash(password, user.Password) {
 		// 增加失败次数（带锁定）
 		loginMaxFailureCount, loginLockDurationMinutes, _, _ := getAuthRuntimeDefaults()
-		s.userService.IncrementLoginFailureWithLock(user.ID, loginMaxFailureCount, loginLockDurationMinutes)
+		if incrErr := s.userService.IncrementLoginFailureWithLock(user.ID, loginMaxFailureCount, loginLockDurationMinutes); incrErr != nil {
+			log.Printf("[Auth] 累加登录失败次数出错 user_id=%d: %v", user.ID, incrErr)
+		}
+		log.Printf("[Auth] 登录失败: 密码错误 user_id=%d username=%s guard=%s ip=%s", user.ID, user.Username, authGuard, clientIP)
 		return nil, NewServiceError(401, "Invalid account or password")
 	}
 
 	// 更新登录信息
-	s.userService.UpdateLoginInfo(user.ID, clientIP)
+	if updErr := s.userService.UpdateLoginInfo(user.ID, clientIP); updErr != nil {
+		// 登录信息写失败不阻断签发，但必须可观测
+		log.Printf("[Auth] 更新登录信息失败 user_id=%d ip=%s: %v", user.ID, clientIP, updErr)
+	}
 
 	// 生成 Token
 	_, _, accessExpireSeconds, refreshExpireSeconds := getAuthRuntimeDefaults()
@@ -241,14 +257,17 @@ func (s *AuthService) Login(username, password, authGuard, clientIP string) (*Lo
 
 	accessToken, err := utils.GenerateTokenForGuardWithTTL(user.ID, user.Role, authGuard, accessTTL)
 	if err != nil {
+		log.Printf("[Auth] 签发 access token 失败 user_id=%d guard=%s: %v", user.ID, authGuard, err)
 		return nil, NewServiceError(500, "Failed to generate access token")
 	}
 
 	refreshToken, err := utils.GenerateRefreshTokenForGuardWithTTL(user.ID, authGuard, refreshTTL)
 	if err != nil {
+		log.Printf("[Auth] 签发 refresh token 失败 user_id=%d guard=%s: %v", user.ID, authGuard, err)
 		return nil, NewServiceError(500, "Failed to generate refresh token")
 	}
 
+	log.Printf("[Auth] 登录成功 user_id=%d username=%s guard=%s ip=%s", user.ID, user.Username, authGuard, clientIP)
 	return &LoginResult{
 		ID:               user.ID,
 		UserName:         user.Username,
@@ -305,25 +324,31 @@ func (s *AuthService) Register(user *models.User) error {
 
 // RefreshToken 刷新Token
 func (s *AuthService) RefreshToken(refreshToken, authGuard, clientIP, userAgent, device string) (*LoginResult, *ServiceError) {
+	rawGuard := authGuard
 	var ok bool
 	authGuard, ok = normalizeAuthGuard(authGuard)
 	if !ok {
+		log.Printf("[Auth] 刷新拒绝: 非法 auth_guard=%q ip=%s", rawGuard, clientIP)
 		return nil, NewServiceError(400, "Invalid auth guard")
 	}
 
 	// 解析 token
 	claims, err := utils.ParseRefreshTokenForGuard(refreshToken, authGuard)
 	if err != nil {
+		log.Printf("[Auth] 刷新失败: refresh token 无效/过期 guard=%s ip=%s", authGuard, clientIP)
 		return nil, NewServiceError(401, "Invalid or expired refresh token")
 	}
 
 	// 获取用户
 	user, err := models.GetUserByID(claims.UserID)
 	if err != nil {
+		log.Printf("[Auth] 刷新失败: 用户不存在 user_id=%d guard=%s ip=%s", claims.UserID, authGuard, clientIP)
 		return nil, NewServiceError(401, "User not found")
 	}
 
 	if accessErr := validateUserAccessForGuard(user, authGuard); accessErr != nil {
+		log.Printf("[Auth] 刷新拒绝: 状态/角色不匹配 user_id=%d guard=%s code=%d msg=%s ip=%s",
+			user.ID, authGuard, accessErr.Code, accessErr.Message, clientIP)
 		return nil, accessErr
 	}
 
@@ -335,6 +360,7 @@ func (s *AuthService) RefreshToken(refreshToken, authGuard, clientIP, userAgent,
 	refreshTokenHash := utils.HashToken(refreshToken)
 	active, err := models.IsRefreshSessionActive(user.ID, authGuard, refreshTokenHash)
 	if err != nil {
+		log.Printf("[Auth] 校验 refresh 会话失败 user_id=%d guard=%s: %v", user.ID, authGuard, err)
 		return nil, NewServiceError(500, "Failed to validate refresh session")
 	}
 	if !active {
@@ -356,6 +382,7 @@ func (s *AuthService) RefreshToken(refreshToken, authGuard, clientIP, userAgent,
 	// 限制形同虚设）。
 	isImpersonation, err := models.IsImpersonationSession(user.ID, authGuard, refreshTokenHash)
 	if err != nil {
+		log.Printf("[Auth] 判断代登会话失败 user_id=%d guard=%s: %v", user.ID, authGuard, err)
 		return nil, NewServiceError(500, "Failed to validate refresh session")
 	}
 	// 代登会话轮换时必须保留 device 标记，否则第二次 refresh 会丢失 impersonation 身份，
@@ -368,11 +395,13 @@ func (s *AuthService) RefreshToken(refreshToken, authGuard, clientIP, userAgent,
 
 	accessToken, err := utils.GenerateTokenForGuardWithTTL(user.ID, user.Role, authGuard, accessTTL)
 	if err != nil {
+		log.Printf("[Auth] 刷新签发 access token 失败 user_id=%d guard=%s: %v", user.ID, authGuard, err)
 		return nil, NewServiceError(500, "Failed to generate access token")
 	}
 
 	newRefreshToken, err := utils.GenerateRefreshTokenForGuardWithTTL(user.ID, authGuard, refreshTTL)
 	if err != nil {
+		log.Printf("[Auth] 刷新签发 refresh token 失败 user_id=%d guard=%s: %v", user.ID, authGuard, err)
 		return nil, NewServiceError(500, "Failed to generate refresh token")
 	}
 
@@ -391,9 +420,13 @@ func (s *AuthService) RefreshToken(refreshToken, authGuard, clientIP, userAgent,
 		refreshExpiresAt,
 	)
 	if err != nil {
+		log.Printf("[Auth] 会话令牌轮换失败 user_id=%d guard=%s: %v", user.ID, authGuard, err)
 		return nil, NewServiceError(500, "Failed to rotate session tokens")
 	}
 	if !rotated {
+		// 并发 refresh / 会话刚被踢：与「重放」不同，这里不再二次吊销（active 检测已通过）
+		log.Printf("[Auth] 会话令牌轮换未命中(并发/已失效) user_id=%d guard=%s ip=%s impersonation=%v",
+			user.ID, authGuard, clientIP, isImpersonation)
 		return nil, NewServiceError(401, "Refresh session expired or revoked")
 	}
 
@@ -424,18 +457,25 @@ func (s *AuthService) UpdatePassword(userID uint64, newPassword string) error {
 func (s *AuthService) ChangePassword(userID uint64, oldPassword, newPassword string) error {
 	user, err := models.GetUserByID(userID)
 	if err != nil {
+		log.Printf("[Auth] 改密失败: 用户不存在 user_id=%d", userID)
 		return NewClientError("用户不存在")
 	}
 
 	// 验证旧密码
 	if !utils.CheckPasswordHash(oldPassword, user.Password) {
+		log.Printf("[Auth] 改密失败: 原密码不正确 user_id=%d", userID)
 		return NewClientError("原密码不正确")
 	}
 	if oldPassword == newPassword {
 		return NewClientError("新密码不能与旧密码相同")
 	}
 
-	return s.UpdatePassword(userID, newPassword)
+	if err := s.UpdatePassword(userID, newPassword); err != nil {
+		log.Printf("[Auth] 改密写库失败 user_id=%d: %v", userID, err)
+		return err
+	}
+	log.Printf("[Auth] 改密成功并已吊销全部会话 user_id=%d", userID)
+	return nil
 }
 
 // ValidateToken 验证Token

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { withSubmitLock } from '@/hooks'
 import { deactivateAccount, fetchUserSessions, fetchUserStats, revokeAllSessions, revokeSession } from '@/service'
 import { useAuthStore, useSettingsStore } from '@/store'
 import NovaIcon from '@/components/common/NovaIcon.vue'
@@ -45,6 +46,8 @@ const deactivateForm = ref({
   reason: '',
 })
 const deactivating = ref(false)
+/** 踢会话 / 踢全部 防连点 */
+const sessionActionLock = ref(false)
 
 function parseBrowser(ua?: string): string {
   if (!ua)
@@ -94,21 +97,23 @@ async function loadStats() {
 }
 
 async function handleRevokeSession(sessionId: number | string) {
-  try {
-    const response = await revokeSession(sessionId)
-    if (response.isSuccess) {
-      window.$message.success(t('securityTab.revokedSession'))
-      loadSessions()
+  await withSubmitLock(sessionActionLock, async () => {
+    try {
+      const response = await revokeSession(sessionId)
+      if (response.isSuccess) {
+        window.$message.success(t('securityTab.revokedSession'))
+        loadSessions()
+      }
+      else {
+        window.$message.error(response.message || t('adminUsers.operationFailed'))
+      }
     }
-    else {
-      window.$message.error(response.message || t('adminUsers.operationFailed'))
+    catch (error) {
+      if (import.meta.env.DEV)
+        console.error('[securityTab] revoke session failed', error)
+      window.$message.error(t('securityTab.revokeFailed'))
     }
-  }
-  catch (error) {
-    if (import.meta.env.DEV)
-      console.error('[securityTab] revoke session failed', error)
-    window.$message.error(t('securityTab.revokeFailed'))
-  }
+  })
 }
 
 async function handleRevokeAll() {
@@ -117,7 +122,7 @@ async function handleRevokeAll() {
     content: t('securityTab.revokeAllContent'),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    onPositiveClick: () => withSubmitLock(sessionActionLock, async () => {
       try {
         const response = await revokeAllSessions()
         if (response.isSuccess) {
@@ -133,7 +138,7 @@ async function handleRevokeAll() {
           console.error('[securityTab] revoke all sessions failed', error)
         window.$message.error(t('securityTab.revokeAllFailed'))
       }
-    },
+    }),
   })
 }
 
@@ -160,31 +165,29 @@ function onDeactivateGeetestError() {
 }
 
 async function doDeactivate() {
-  deactivating.value = true
-  try {
-    const response = await deactivateAccount({
-      password: deactivateForm.value.password,
-      reason: deactivateForm.value.reason,
-    })
-    if (response.isSuccess) {
-      window.$message.success(t('securityTab.accountDeactivated'))
-      showDeactivateModal.value = false
-      setTimeout(() => {
-        authStore.logout()
-      }, 1500)
+  await withSubmitLock(deactivating, async () => {
+    try {
+      const response = await deactivateAccount({
+        password: deactivateForm.value.password,
+        reason: deactivateForm.value.reason,
+      })
+      if (response.isSuccess) {
+        window.$message.success(t('securityTab.accountDeactivated'))
+        showDeactivateModal.value = false
+        setTimeout(() => {
+          authStore.logout()
+        }, 1500)
+      }
+      else {
+        window.$message.error(response.message || t('securityTab.deactivateFailed'))
+      }
     }
-    else {
-      window.$message.error(response.message || t('securityTab.deactivateFailed'))
+    catch (error) {
+      if (import.meta.env.DEV)
+        console.error('[securityTab] deactivate failed', error)
+      window.$message.error(t('securityTab.deactivateFailed'))
     }
-  }
-  catch (error) {
-    if (import.meta.env.DEV)
-      console.error('[securityTab] deactivate failed', error)
-    window.$message.error(t('securityTab.deactivateFailed'))
-  }
-  finally {
-    deactivating.value = false
-  }
+  })
 }
 
 function formatTime(timestamp?: number | null) {

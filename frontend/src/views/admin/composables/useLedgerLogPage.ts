@@ -1,5 +1,5 @@
 import { reactive, ref } from 'vue'
-import { useRequestGuard } from '@/hooks'
+import { useRequestGuard, withSubmitLock } from '@/hooks'
 
 // money-logs / score-logs 两个页面的「搜索 + 分页 + 拉取列表 + 删除确认」逻辑几乎完全一样
 // （只是金额 vs 积分的字段/格式化不同），抽成通用 composable。
@@ -45,6 +45,8 @@ export function useLedgerLogPage<T>(options: UseLedgerLogPageOptions<T>) {
   const listFetchGuard = useRequestGuard()
 
   const loading = ref(false)
+  /** 删除写操作防连点 */
+  const deleting = ref(false)
   const logList = ref<T[]>([])
 
   const searchForm = reactive({
@@ -114,26 +116,29 @@ export function useLedgerLogPage<T>(options: UseLedgerLogPageOptions<T>) {
   }
 
   function handleDelete(id: number) {
+    if (deleting.value)
+      return
     dialog.warning({
       title: options.deleteConfirmTitle,
       content: options.deleteConfirmContent,
       positiveText: t('common.confirm'),
       negativeText: t('common.cancel'),
-      onPositiveClick: async () => {
+      onPositiveClick: () => withSubmitLock(deleting, async () => {
         try {
           const res = await options.deleteItem(id)
           if (res.isSuccess) {
             message.success(res.message || options.deleteSuccessMessage)
             fetchData()
+            return
           }
-          else {
-            message.error(res.message || options.deleteFailedMessage)
-          }
+          message.error(res.message || options.deleteFailedMessage)
+          return false
         }
         catch {
           message.error(options.deleteFailedMessage)
+          return false
         }
-      },
+      }),
     })
   }
 

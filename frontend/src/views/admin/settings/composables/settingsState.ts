@@ -22,6 +22,8 @@ export const testEmailTo = ref('')
 /** 短信设置页「发送测试短信」的手机号（不入库，仅本页临时） */
 export const testSmsPhone = ref('')
 export const restartingBackend = ref(false)
+/** 设置页 dialog 确认类写操作共用锁（删配置 / 危险开关确认 / 重启） */
+export const settingsDialogLock = ref(false)
 export const topTab = ref('system-config')
 export const systemSubTab = ref('basic')
 

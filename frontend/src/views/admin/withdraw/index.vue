@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { NButton, NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
+import { useRequestGuard, useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 import type { WithdrawRecord, WithdrawStats } from '@/service/api/admin/finance'
 import { adminUserApi } from '@/service/api/admin/user'
@@ -307,7 +307,7 @@ function openPay(row: WithdrawRecord) {
 }
 
 async function handleSubmitReview() {
-  if (!currentRow.value)
+  if (submitting.value || !currentRow.value)
     return
   if (reviewForm.review_remark.trim().length > 255) {
     message.error(t('adminWithdraw.reviewRemarkTooLong'))
@@ -327,31 +327,28 @@ async function handleSubmitReview() {
     }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
-      submitting.value = true
+    onPositiveClick: () => withSubmitLock(submitting, async () => {
       try {
         const res = await adminApi.finance.reviewWithdraw(row.id, reviewForm)
         if (res.isSuccess) {
           message.success(res.message || t('adminWithdraw.reviewSuccess'))
           showReviewModal.value = false
           fetchData()
+          return
         }
-        else {
-          message.error(res.message || t('adminWithdraw.reviewFailed'))
-        }
+        message.error(res.message || t('adminWithdraw.reviewFailed'))
+        return false
       }
       catch {
         message.error(t('adminWithdraw.reviewFailed'))
+        return false
       }
-      finally {
-        submitting.value = false
-      }
-    },
+    }),
   })
 }
 
 async function handleSubmitPay() {
-  if (!currentRow.value)
+  if (submitting.value || !currentRow.value)
     return
   if (payForm.transfer_remark.trim().length > 255) {
     message.error(t('adminWithdraw.transferRemarkTooLong'))
@@ -367,26 +364,23 @@ async function handleSubmitPay() {
     }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
-      submitting.value = true
+    onPositiveClick: () => withSubmitLock(submitting, async () => {
       try {
         const res = await adminApi.finance.payWithdraw(row.id, payForm)
         if (res.isSuccess) {
           message.success(res.message || t('adminWithdraw.markPaidSuccess'))
           showPayModal.value = false
           fetchData()
+          return
         }
-        else {
-          message.error(res.message || t('adminWithdraw.operationFailed'))
-        }
+        message.error(res.message || t('adminWithdraw.operationFailed'))
+        return false
       }
       catch {
         message.error(t('adminWithdraw.operationFailed'))
+        return false
       }
-      finally {
-        submitting.value = false
-      }
-    },
+    }),
   })
 }
 

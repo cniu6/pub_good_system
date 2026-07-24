@@ -20,7 +20,7 @@ import {
   NText,
 } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useTableColumnVisibility } from '@/hooks'
+import { useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import {
   fetchPreviewSMSTemplate,
   fetchResetSMSTemplate,
@@ -99,6 +99,8 @@ const previewText = ref('')
 const previewVars = ref<Record<string, string>>({})
 const previewLoading = ref(false)
 const resetStep = ref(0)
+const saving = ref(false)
+const resetting = ref(false)
 
 const langMap = computed<Record<string, string>>(() => ({
   'zh-CN': t('adminUsersDetail.chinese'),
@@ -271,23 +273,25 @@ async function handleSave() {
     window.$message?.warning(text.value.contentRequired)
     return
   }
-  try {
-    const result = await fetchUpdateSMSTemplate(currentTemplate.value.id, {
-      sign_name: formValue.value.sign_name,
-      content: formValue.value.content,
-      description: formValue.value.description,
-      status: formValue.value.status,
-    })
-    if (result.data) {
-      window.$message?.success(text.value.saveSuccess)
-      showModal.value = false
-      await loadData()
+  await withSubmitLock(saving, async () => {
+    try {
+      const result = await fetchUpdateSMSTemplate(currentTemplate.value!.id, {
+        sign_name: formValue.value.sign_name,
+        content: formValue.value.content,
+        description: formValue.value.description,
+        status: formValue.value.status,
+      })
+      if (result.data) {
+        window.$message?.success(text.value.saveSuccess)
+        showModal.value = false
+        await loadData()
+      }
     }
-  }
-  catch (error) {
-    reportSMSTemplateError('[smsTemplates] save failed', error)
-    window.$message?.error(text.value.saveFailed)
-  }
+    catch (error) {
+      reportSMSTemplateError('[smsTemplates] save failed', error)
+      window.$message?.error(text.value.saveFailed)
+    }
+  })
 }
 
 function handleResetClick() {
@@ -301,29 +305,31 @@ function handleResetCancel() {
 async function handleResetFinalConfirm() {
   if (!currentTemplate.value)
     return
-  try {
-    const result = await fetchResetSMSTemplate(currentTemplate.value.id)
-    if (result.data) {
-      window.$message?.success(text.value.resetSuccess)
-      resetStep.value = 0
-      await loadData()
-      const updated = templates.value.find(t => t.id === currentTemplate.value!.id)
-      if (updated) {
-        currentTemplate.value = updated
-        formValue.value = {
-          sign_name: updated.sign_name || '',
-          content: updated.content,
-          description: updated.description || '',
-          status: updated.status,
+  await withSubmitLock(resetting, async () => {
+    try {
+      const result = await fetchResetSMSTemplate(currentTemplate.value!.id)
+      if (result.data) {
+        window.$message?.success(text.value.resetSuccess)
+        resetStep.value = 0
+        await loadData()
+        const updated = templates.value.find(t => t.id === currentTemplate.value!.id)
+        if (updated) {
+          currentTemplate.value = updated
+          formValue.value = {
+            sign_name: updated.sign_name || '',
+            content: updated.content,
+            description: updated.description || '',
+            status: updated.status,
+          }
+          await refreshPreview()
         }
-        await refreshPreview()
       }
     }
-  }
-  catch (error) {
-    reportSMSTemplateError('[smsTemplates] reset failed', error)
-    window.$message?.error(text.value.resetFailed)
-  }
+    catch (error) {
+      reportSMSTemplateError('[smsTemplates] reset failed', error)
+      window.$message?.error(text.value.resetFailed)
+    }
+  })
 }
 
 function openByQueryName() {
@@ -415,7 +421,7 @@ onMounted(async () => {
             <template v-else-if="resetStep === 2">
               <NSpace align="center" :size="8">
                 <span class="reset-danger-text">{{ text.resetConfirmSecond }}</span>
-                <NButton size="small" type="error" @click="handleResetFinalConfirm">
+                <NButton size="small" type="error" :loading="resetting" @click="handleResetFinalConfirm">
                   {{ text.finalConfirmBtn }}
                 </NButton>
                 <NButton size="small" @click="handleResetCancel">
@@ -494,7 +500,7 @@ onMounted(async () => {
           <NButton @click="showModal = false">
             {{ text.cancel }}
           </NButton>
-          <NButton type="primary" @click="handleSave">
+          <NButton type="primary" :loading="saving" @click="handleSave">
             {{ text.save }}
           </NButton>
         </NSpace>

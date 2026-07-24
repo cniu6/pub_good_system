@@ -26,8 +26,6 @@ type LoggerConfig struct {
 var DefaultLoggerConfig = LoggerConfig{
 	SkipPaths: []string{
 		"/health",
-		"/ready",
-		"/metrics",
 		"/favicon.ico",
 	},
 	SkipPathPrefixes: []string{
@@ -74,9 +72,17 @@ func LoggerMiddlewareWithConfig(config LoggerConfig) gin.HandlerFunc {
 		// 获取请求方法
 		method := c.Request.Method
 
-		// 构建日志（附带 request_id，便于与 /ready、访问日志关联）
+		// 构建日志（附带 request_id / user_id，便于与访问日志、鉴权审计关联）
 		requestID := GetRequestID(c)
 		log_line := buildLogLine(start_time, status_code, latency, client_ip, method, path, requestID)
+		if uid, exists := c.Get("userID"); exists {
+			if parsed, ok := uid.(uint64); ok && parsed > 0 {
+				log_line += fmt.Sprintf(" | user_id=%d", parsed)
+			}
+		}
+		if len(c.Errors) > 0 {
+			log_line += " | gin_errors=" + c.Errors.String()
+		}
 
 		// 根据状态码选择日志级别
 		if status_code >= 500 {
@@ -149,14 +155,18 @@ func RequestLogger() gin.HandlerFunc {
 		c.Next()
 		latency := time.Since(start_time)
 
-		// 获取用户信息
+		// 获取用户信息（类型断言失败时视为匿名，避免 panic）
 		var user_id uint64
 		var role string
 		if uid, exists := c.Get("userID"); exists {
-			user_id = uid.(uint64)
+			if parsed, ok := uid.(uint64); ok {
+				user_id = parsed
+			}
 		}
 		if r, exists := c.Get("role"); exists {
-			role = r.(string)
+			if parsed, ok := r.(string); ok {
+				role = parsed
+			}
 		}
 
 		// 构建详细日志
@@ -164,6 +174,7 @@ func RequestLogger() gin.HandlerFunc {
 		status_code := c.Writer.Status()
 		client_ip := c.ClientIP()
 		method := c.Request.Method
+		requestID := GetRequestID(c)
 
 		var user_info string
 		if user_id > 0 {
@@ -181,6 +192,9 @@ func RequestLogger() gin.HandlerFunc {
 			path,
 			user_info,
 		)
+		if requestID != "" {
+			log_line += " | request_id=" + requestID
+		}
 
 		if status_code >= 500 {
 			gin.DefaultErrorWriter.Write([]byte("[ERROR] " + log_line + "\n"))

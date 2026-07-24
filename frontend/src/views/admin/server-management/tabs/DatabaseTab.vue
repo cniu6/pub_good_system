@@ -89,18 +89,18 @@ onMounted(() => {
               <NTabPane name="data" :tab="t('adminServer.dbData')">
                 <TableDataPane
                   :columns="consoleState.rowColumns"
+                  :create-row="consoleState.createRow"
+                  :delete-row="consoleState.deleteRow"
                   :loading="consoleState.loading"
                   :meta-columns="consoleState.meta?.columns || []"
                   :page="consoleState.query.page"
                   :page-size="consoleState.query.page_size"
                   :rows="consoleState.rows"
                   :total="consoleState.query.total"
+                  :update-row="consoleState.updateRow"
                   :write-enabled="consoleState.writeEnabled"
-                  @create="consoleState.createRow"
-                  @delete="consoleState.deleteRow"
                   @page-change="changePage"
                   @page-size-change="changePageSize"
-                  @update="consoleState.updateRow"
                 />
               </NTabPane>
               <NTabPane name="structure" :tab="t('adminServer.dbStructure')">

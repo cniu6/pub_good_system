@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { NButton, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
-import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
+import { useRequestGuard, useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import {
   deleteUser,
   fetchAdminUserPage,
@@ -54,6 +54,8 @@ export function useUserList(options?: {
 
   const userData = ref<AdminUser[]>([])
   const loading = ref(false)
+  /** 删除等危险写操作防连点 */
+  const actionLock = ref(false)
 
   /** 跳转详情页（唯一入口，不再弹窗） */
   function handleViewUserDetail(user: AdminUser) {
@@ -65,20 +67,22 @@ export function useUserList(options?: {
   }
 
   async function doLoginAsUser(user: AdminUser, authGuard: LoginAsAuthGuard) {
-    const res: any = await loginAsUser(user.id, { auth_guard: authGuard })
-    if (!(res.isSuccess && res.data?.user && res.data?.token))
-      return
+    await withSubmitLock(actionLock, async () => {
+      const res: any = await loginAsUser(user.id, { auth_guard: authGuard })
+      if (!(res.isSuccess && res.data?.user && res.data?.token))
+        return
 
-    const targetUrl = authGuard === 'admin'
-      ? `${buildAdminEntryUrl('/dashboard')}?_t=${Date.now()}`
-      : `/user/dashboard?_t=${Date.now()}`
+      const targetUrl = authGuard === 'admin'
+        ? `${buildAdminEntryUrl('/dashboard')}?_t=${Date.now()}`
+        : `/user/dashboard?_t=${Date.now()}`
 
-    openLoginAsUserWindow(res.data.user, res.data.token, res.data.refreshToken, res.data.expiresAt, targetUrl, authGuard)
-    message.success(
-      authGuard === 'admin'
-        ? t('adminUsers.openedAdminConsole')
-        : t('adminUsers.openedUserConsole'),
-    )
+      openLoginAsUserWindow(res.data.user, res.data.token, res.data.refreshToken, res.data.expiresAt, targetUrl, authGuard)
+      message.success(
+        authGuard === 'admin'
+          ? t('adminUsers.openedAdminConsole')
+          : t('adminUsers.openedUserConsole'),
+      )
+    })
   }
 
   function confirmAdminLoginTarget(user: AdminUser) {
@@ -93,6 +97,7 @@ export function useUserList(options?: {
         h(NButton, {
           size: 'small',
           type: 'info',
+          disabled: actionLock.value,
           onClick: () => {
             d.destroy()
             void doLoginAsUser(user, 'user')
@@ -101,6 +106,7 @@ export function useUserList(options?: {
         h(NButton, {
           size: 'small',
           type: 'warning',
+          disabled: actionLock.value,
           onClick: () => {
             d.destroy()
             void doLoginAsUser(user, 'admin')
@@ -111,6 +117,8 @@ export function useUserList(options?: {
   }
 
   function handleLoginAsUser(user: AdminUser) {
+    if (actionLock.value)
+      return
     dialog.warning({
       title: t('adminUsers.confirmLoginTitle'),
       content: t('adminUsers.confirmLoginContent', { username: user.username }),
@@ -127,26 +135,29 @@ export function useUserList(options?: {
   }
 
   function handleDelete(userId: number) {
+    if (actionLock.value)
+      return
     dialog.warning({
       title: t('adminUsers.confirmDeleteTitle'),
       content: t('adminUsers.confirmDeleteContent'),
       positiveText: t('common.confirm'),
       negativeText: t('common.cancel'),
-      onPositiveClick: async () => {
+      onPositiveClick: () => withSubmitLock(actionLock, async () => {
         try {
           const response: any = await deleteUser(userId)
           if (response.isSuccess) {
             message.success(t('adminUsers.deleteSuccess'))
             fetchData()
+            return
           }
-          else {
-            message.error(response.message || t('adminUsers.deleteFailed'))
-          }
+          message.error(response.message || t('adminUsers.deleteFailed'))
+          return false
         }
         catch {
           message.error(t('adminUsers.deleteFailed'))
+          return false
         }
-      },
+      }),
     })
   }
 

@@ -49,6 +49,8 @@ async function loadSettings() {
 }
 
 async function handleSaveSettings() {
+  if (saving.value)
+    return
   saving.value = true
   try {
     const response = await updateUserSettings({

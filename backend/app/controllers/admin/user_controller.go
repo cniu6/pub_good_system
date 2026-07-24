@@ -273,6 +273,9 @@ func (c *UserController) UpdateStatus(ctx *gin.Context) {
 		return
 	}
 
+	adminID, _ := ctx.Get("userID")
+	log.Printf("[SECURITY AUDIT] admin update user status | admin_id=%v target_user_id=%d status=%d ip=%s",
+		adminID, id, req.Status, ctx.ClientIP())
 	utils.Success(ctx, nil)
 }
 
@@ -319,6 +322,10 @@ func (c *UserController) ResetPassword(ctx *gin.Context) {
 		return
 	}
 
+	adminID, _ := ctx.Get("userID")
+	// 改密会吊销目标用户全部会话；此处只记审计，绝不记录新密码明文
+	log.Printf("[SECURITY AUDIT] admin reset password | admin_id=%v target_user_id=%d ip=%s",
+		adminID, id, ctx.ClientIP())
 	utils.Success(ctx, nil)
 }
 

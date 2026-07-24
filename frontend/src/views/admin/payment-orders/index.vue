@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { NButton, NSpace as NSpaceComp, NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useRequestGuard, useTableColumnVisibility } from '@/hooks'
+import { useRequestGuard, useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import { adminPaymentApi } from '@/service/api/admin/payment'
 import type { PaymentOrder, PaymentStats } from '@/service/api/admin/payment'
 
@@ -307,76 +307,79 @@ function handleComplete(row: PaymentOrder) {
 async function handleCompleteSubmit() {
   if (!completeOrder.value)
     return
-  submitting.value = true
-  try {
-    const res = await adminPaymentApi.completeOrder(completeOrder.value.id, { memo: completeMemo.value })
-    if (res.isSuccess) {
-      message.success(t('adminPaymentOrders.completeSuccess'))
-      showComplete.value = false
-      fetchData()
-      fetchStats()
-    }
-    else {
+  await withSubmitLock(submitting, async () => {
+    try {
+      const res = await adminPaymentApi.completeOrder(completeOrder.value!.id, { memo: completeMemo.value })
+      if (res.isSuccess) {
+        message.success(t('adminPaymentOrders.completeSuccess'))
+        showComplete.value = false
+        fetchData()
+        fetchStats()
+        return
+      }
       message.error(res.message || t('adminPaymentOrders.completeFailed'))
     }
-  }
-  catch {
-    message.error(t('adminPaymentOrders.completeFailed'))
-  }
-  finally {
-    submitting.value = false
-  }
+    catch {
+      message.error(t('adminPaymentOrders.completeFailed'))
+    }
+  })
 }
 
 // 取消
 function handleCancel(row: PaymentOrder) {
+  if (submitting.value)
+    return
   dialog.warning({
     title: t('adminPaymentOrders.confirmCancelTitle'),
     content: t('adminPaymentOrders.confirmCancelContent', { orderNo: row.order_no }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    onPositiveClick: () => withSubmitLock(submitting, async () => {
       try {
         const res = await adminPaymentApi.cancelOrder(row.id)
         if (res.isSuccess) {
           message.success(t('adminPaymentOrders.cancelSuccess'))
           fetchData()
           fetchStats()
+          return
         }
-        else {
-          message.error(res.message || t('adminPaymentOrders.cancelFailed'))
-        }
+        message.error(res.message || t('adminPaymentOrders.cancelFailed'))
+        return false
       }
       catch {
         message.error(t('adminPaymentOrders.cancelFailed'))
+        return false
       }
-    },
+    }),
   })
 }
 
 // 删除
 function handleDelete(row: PaymentOrder) {
+  if (submitting.value)
+    return
   dialog.error({
     title: t('adminUsers.delete'),
     content: t('adminPaymentOrders.confirmDeleteContent', { orderNo: row.order_no }),
     positiveText: t('adminPaymentOrders.confirmDelete'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    onPositiveClick: () => withSubmitLock(submitting, async () => {
       try {
         const res = await adminPaymentApi.deleteOrder(row.id)
         if (res.isSuccess) {
           message.success(t('adminUsers.deleteSuccess'))
           fetchData()
           fetchStats()
+          return
         }
-        else {
-          message.error(res.message || t('adminUsers.deleteFailed'))
-        }
+        message.error(res.message || t('adminUsers.deleteFailed'))
+        return false
       }
       catch {
         message.error(t('adminUsers.deleteFailed'))
+        return false
       }
-    },
+    }),
   })
 }
 

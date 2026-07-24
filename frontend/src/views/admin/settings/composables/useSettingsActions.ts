@@ -3,6 +3,7 @@
  */
 import { useI18n } from 'vue-i18n'
 import { useDialog, useMessage } from 'naive-ui'
+import { withSubmitLock } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 import type { SettingDTO, SettingType } from '@/service/api/admin/settings'
 import { useAuthStore } from '@/store/auth'
@@ -31,6 +32,7 @@ import {
   savingSecurity,
   savingSms,
   securityForm,
+  settingsDialogLock,
   showAddModal,
   showEditModal,
   smsForm,
@@ -67,7 +69,7 @@ export function useSettingsActions() {
       }),
       positiveText: t('common.confirm'),
       negativeText: t('common.cancel'),
-      onPositiveClick: () => run(),
+      onPositiveClick: () => withSubmitLock(settingsDialogLock, run),
     })
   }
 
@@ -242,6 +244,9 @@ export function useSettingsActions() {
     successKey?: string,
     failKey?: string,
   ) {
+    // reactive 开关态：同 key 进行中直接忽略（等价 withSubmitLock）
+    if (switchLoading[key])
+      return
     const prev = getPrev()
     setVal(nextValue)
     switchLoading[key] = true
@@ -522,8 +527,7 @@ export function useSettingsActions() {
   }
 
   async function handleSaveSms(options?: { silent?: boolean }): Promise<boolean> {
-    savingSms.value = true
-    try {
+    const ok = await withSubmitLock(savingSms, async () => {
       const res = await adminApi.settings.batchUpdate({
         sms_provider: smsForm.sms_provider,
         sms_access_key: smsForm.sms_access_key,
@@ -543,14 +547,12 @@ export function useSettingsActions() {
       }
       message.error(res.message || t('adminSettings.smsSettingsSaveFailed'))
       return false
-    }
-    catch {
-      message.error(t('adminSettings.saveFailed'))
+    })
+    if (ok === undefined) {
+      // 已被锁挡住：测试短信链路需要明确失败，避免误以为已保存
       return false
     }
-    finally {
-      savingSms.value = false
-    }
+    return ok
   }
 
   async function handleTestSms() {
@@ -560,8 +562,7 @@ export function useSettingsActions() {
       return
     }
 
-    testingSms.value = true
-    try {
+    await withSubmitLock(testingSms, async () => {
       // 先静默保存当前表单，避免「改了配置却没保存」测的还是旧通道
       const saved = await handleSaveSms({ silent: true })
       if (!saved) {
@@ -574,18 +575,11 @@ export function useSettingsActions() {
         message.success(res.data?.message || t('adminSettings.testSmsSent'))
       else
         message.error(res.message || t('adminSettings.testSmsFailed'))
-    }
-    catch (error: any) {
-      message.error(error?.message || t('adminSettings.testSmsFailed'))
-    }
-    finally {
-      testingSms.value = false
-    }
+    })
   }
 
   async function handleSaveRealnameApi() {
-    savingRealnameApi.value = true
-    try {
+    await withSubmitLock(savingRealnameApi, async () => {
       const res = await adminApi.settings.batchUpdate({
         realname_api_provider: realnameApiForm.realname_api_provider,
         realname_api_app_key: realnameApiForm.realname_api_app_key,
@@ -595,50 +589,41 @@ export function useSettingsActions() {
       if (res.isSuccess)
         message.success(res.message || t('adminSettings.realnameApiSaveSuccess'))
       else message.error(res.message || t('adminSettings.realnameApiSaveFailed'))
-    }
-    catch {
-      message.error(t('adminSettings.saveFailed'))
-    }
-    finally {
-      savingRealnameApi.value = false
-    }
+    })
   }
 
   async function handleSavePayment() {
-    savingPayment.value = true
-    try {
-      const parsedAccountTypes = JSON.parse(paymentForm.withdraw_account_types_text || '[]')
-      if (!Array.isArray(parsedAccountTypes) || parsedAccountTypes.length === 0 || parsedAccountTypes.some(item => typeof item !== 'string' || !item.trim()))
-        throw new Error(t('adminSettings.invalidAccountTypes'))
-      const res = await adminApi.settings.batchUpdate({
-        payment_order_expire_minutes: String(paymentForm.payment_order_expire_minutes),
-        withdraw_min_amount: String(paymentForm.withdraw_min_amount),
-        withdraw_notify_text: paymentForm.withdraw_notify_text,
-        withdraw_account_types: paymentForm.withdraw_account_types_text,
-      })
-      if (res.isSuccess) {
-        settingsStore.updateConfig({
-          withdraw_min_amount: paymentForm.withdraw_min_amount,
+    await withSubmitLock(savingPayment, async () => {
+      try {
+        const parsedAccountTypes = JSON.parse(paymentForm.withdraw_account_types_text || '[]')
+        if (!Array.isArray(parsedAccountTypes) || parsedAccountTypes.length === 0 || parsedAccountTypes.some(item => typeof item !== 'string' || !item.trim()))
+          throw new Error(t('adminSettings.invalidAccountTypes'))
+        const res = await adminApi.settings.batchUpdate({
+          payment_order_expire_minutes: String(paymentForm.payment_order_expire_minutes),
+          withdraw_min_amount: String(paymentForm.withdraw_min_amount),
           withdraw_notify_text: paymentForm.withdraw_notify_text,
-          withdraw_account_types: parsedAccountTypes,
+          withdraw_account_types: paymentForm.withdraw_account_types_text,
         })
-        message.success(res.message || t('adminSettings.paymentSettingsSaved'))
+        if (res.isSuccess) {
+          settingsStore.updateConfig({
+            withdraw_min_amount: paymentForm.withdraw_min_amount,
+            withdraw_notify_text: paymentForm.withdraw_notify_text,
+            withdraw_account_types: parsedAccountTypes,
+          })
+          message.success(res.message || t('adminSettings.paymentSettingsSaved'))
+        }
+        else {
+          message.error(res.message || t('adminSettings.paymentSettingsSaveFailed'))
+        }
       }
-      else {
-        message.error(res.message || t('adminSettings.paymentSettingsSaveFailed'))
+      catch {
+        message.error(t('adminSettings.saveFailed'))
       }
-    }
-    catch {
-      message.error(t('adminSettings.saveFailed'))
-    }
-    finally {
-      savingPayment.value = false
-    }
+    })
   }
 
   async function handleSaveBasic() {
-    savingBasic.value = true
-    try {
+    await withSubmitLock(savingBasic, async () => {
       const frontendUrl = basicForm.frontend_url.trim().replace(/\/+$/, '')
       const backendApiUrl = basicForm.backend_api_url.trim().replace(/\/+$/, '')
       basicForm.frontend_url = frontendUrl
@@ -672,18 +657,11 @@ export function useSettingsActions() {
       else {
         message.error(res.message || t('adminSettings.basicSettingsSaveFailed'))
       }
-    }
-    catch {
-      message.error(t('adminSettings.saveFailed'))
-    }
-    finally {
-      savingBasic.value = false
-    }
+    })
   }
 
   async function handleSaveEmail(opts?: { silent?: boolean }) {
-    savingEmail.value = true
-    try {
+    const ok = await withSubmitLock(savingEmail, async () => {
       const res = await adminApi.settings.batchUpdate({
         smtp_host: emailForm.smtp_host,
         smtp_port: String(emailForm.smtp_port),
@@ -707,14 +685,8 @@ export function useSettingsActions() {
         message.error(res.message || t('adminSettings.emailSettingsSaveFailed'))
       }
       return res.isSuccess
-    }
-    catch {
-      message.error(t('adminSettings.saveFailed'))
-      return false
-    }
-    finally {
-      savingEmail.value = false
-    }
+    })
+    return ok ?? false
   }
 
   async function handleTestEmail() {
@@ -736,8 +708,7 @@ export function useSettingsActions() {
       return
     }
 
-    testingEmail.value = true
-    try {
+    await withSubmitLock(testingEmail, async () => {
       // 先静默保存当前表单，避免「改了配置却没保存」测的还是旧 SMTP
       const saved = await handleSaveEmail({ silent: true })
       if (!saved) {
@@ -749,18 +720,11 @@ export function useSettingsActions() {
       if (res.isSuccess)
         message.success(res.data?.message || t('adminSettings.testEmailSent'))
       else message.error(res.message || t('adminSettings.testEmailFailed'))
-    }
-    catch (error: any) {
-      message.error(error?.message || t('adminSettings.testEmailFailed'))
-    }
-    finally {
-      testingEmail.value = false
-    }
+    })
   }
 
   async function handleSaveSecurity() {
-    savingSecurity.value = true
-    try {
+    await withSubmitLock(savingSecurity, async () => {
       const res = await adminApi.settings.batchUpdate({
         geetest_captcha_id: securityForm.geetest_captcha_id,
         geetest_captcha_key: securityForm.geetest_captcha_key,
@@ -777,13 +741,7 @@ export function useSettingsActions() {
       else {
         message.error(res.message || t('adminSettings.securitySettingsSaveFailed'))
       }
-    }
-    catch {
-      message.error(t('adminSettings.saveFailed'))
-    }
-    finally {
-      savingSecurity.value = false
-    }
+    })
   }
 
   async function handleRestartBackend() {
@@ -792,21 +750,12 @@ export function useSettingsActions() {
       content: t('adminSettings.confirmRestartContent'),
       positiveText: t('common.confirm'),
       negativeText: t('common.cancel'),
-      onPositiveClick: async () => {
-        restartingBackend.value = true
-        try {
-          const res = await adminApi.settings.restartBackend()
-          if (res.isSuccess)
-            message.success(res.message || t('adminSettings.restartBackendRequested'))
-          else message.error(res.message || t('adminSettings.restartBackendFailed'))
-        }
-        catch {
-          message.error(t('adminSettings.restartFailed'))
-        }
-        finally {
-          restartingBackend.value = false
-        }
-      },
+      onPositiveClick: () => withSubmitLock(restartingBackend, async () => {
+        const res = await adminApi.settings.restartBackend()
+        if (res.isSuccess)
+          message.success(res.message || t('adminSettings.restartBackendRequested'))
+        else message.error(res.message || t('adminSettings.restartBackendFailed'))
+      }),
     })
   }
 
@@ -817,8 +766,7 @@ export function useSettingsActions() {
     catch {
       return
     }
-    adding.value = true
-    try {
+    await withSubmitLock(adding, async () => {
       const res = await adminApi.settings.create({
         key: addForm.key,
         value: addForm.value,
@@ -843,13 +791,7 @@ export function useSettingsActions() {
       else {
         message.error(res.message || t('adminSettings.configItemAddFailed'))
       }
-    }
-    catch {
-      message.error(t('adminSettings.addFailed'))
-    }
-    finally {
-      adding.value = false
-    }
+    })
   }
 
   async function handleDeleteSetting(key: string) {
@@ -858,21 +800,16 @@ export function useSettingsActions() {
       content: t('adminSettings.confirmDeleteSettingContent', { key }),
       positiveText: t('common.confirm'),
       negativeText: t('common.cancel'),
-      onPositiveClick: async () => {
-        try {
-          const res = await adminApi.settings.delete(key)
-          if (res.isSuccess) {
-            message.success(res.message || t('adminSettings.configItemDeleted'))
-            await loadSettings()
-          }
-          else {
-            message.error(res.message || t('adminSettings.configItemDeleteFailed'))
-          }
+      onPositiveClick: () => withSubmitLock(settingsDialogLock, async () => {
+        const res = await adminApi.settings.delete(key)
+        if (res.isSuccess) {
+          message.success(res.message || t('adminSettings.configItemDeleted'))
+          await loadSettings()
         }
-        catch (error: any) {
-          message.error(t('adminSettings.deleteFailed') + (error.message || ''))
+        else {
+          message.error(res.message || t('adminSettings.configItemDeleteFailed'))
         }
-      },
+      }),
     })
   }
 
@@ -889,8 +826,7 @@ export function useSettingsActions() {
   async function handleSaveSettingEdit() {
     if (!editForm.key)
       return
-    savingEdit.value = true
-    try {
+    await withSubmitLock(savingEdit, async () => {
       const res = await adminApi.settings.updateMeta(editForm.key, {
         value: editForm.value,
         type: editForm.type,
@@ -908,13 +844,7 @@ export function useSettingsActions() {
       else {
         message.error(res.message || t('adminSettings.configItemUpdateFailed'))
       }
-    }
-    catch {
-      message.error(t('adminSettings.editFailed'))
-    }
-    finally {
-      savingEdit.value = false
-    }
+    })
   }
 
   return {

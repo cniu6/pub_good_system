@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { FormInst } from 'naive-ui'
 import { useRoute } from 'vue-router'
+import { withSubmitLock } from '@/hooks'
 import { fetchResetPasswordConfirm } from '@/service'
 
 const emit = defineEmits(['update:modelValue'])
@@ -73,8 +74,7 @@ async function handleConfirm() {
   if (hasErrors)
     return
 
-  isLoading.value = true
-  try {
+  await withSubmitLock(isLoading, async () => {
     const { isSuccess } = await fetchResetPasswordConfirm({
       email: email.value,
       code: formValue.value.code,
@@ -84,10 +84,7 @@ async function handleConfirm() {
       window.$message.success(t('login.resetSuccess'))
       toLogin()
     }
-  }
-  finally {
-    isLoading.value = false
-  }
+  })
 }
 </script>
 

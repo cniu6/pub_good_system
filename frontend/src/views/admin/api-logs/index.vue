@@ -25,7 +25,7 @@ import {
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { adminApi } from '@/service/api/admin'
-import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
+import { useEcharts, useRequestGuard, useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { adminAPILogApi } from '@/service/api/admin/api-log'
 import type { APIAccessLog, APIAccessLogListParams, APIAccessLogStats } from '@/service/api/admin/api-log'
@@ -460,37 +460,35 @@ async function fetchStats() {
 }
 
 async function handleSaveRuntimeConfig() {
-  runtimeSaving.value = true
-  try {
-    runtimeForm.api_log_query_days = normalizeLogQueryDays(runtimeForm.api_log_query_days, 7)
-    runtimeForm.api_log_max_count = normalizeLogMaxCount(runtimeForm.api_log_max_count, 5000)
-    runtimeForm.api_log_cleanup_interval_seconds = normalizeAPILogCleanupIntervalSeconds(runtimeForm.api_log_cleanup_interval_seconds, 600)
-    runtimeForm.api_log_per_user_max_count = normalizeLogPerUserMaxCount(runtimeForm.api_log_per_user_max_count)
+  await withSubmitLock(runtimeSaving, async () => {
+    try {
+      runtimeForm.api_log_query_days = normalizeLogQueryDays(runtimeForm.api_log_query_days, 7)
+      runtimeForm.api_log_max_count = normalizeLogMaxCount(runtimeForm.api_log_max_count, 5000)
+      runtimeForm.api_log_cleanup_interval_seconds = normalizeAPILogCleanupIntervalSeconds(runtimeForm.api_log_cleanup_interval_seconds, 600)
+      runtimeForm.api_log_per_user_max_count = normalizeLogPerUserMaxCount(runtimeForm.api_log_per_user_max_count)
 
-    const res = await adminApi.settings.batchUpdate({
-      api_access_log_enabled: String(runtimeForm.api_access_log_enabled),
-      api_log_query_days: String(runtimeForm.api_log_query_days),
-      api_log_max_count: String(runtimeForm.api_log_max_count),
-      api_log_cleanup_interval_seconds: String(runtimeForm.api_log_cleanup_interval_seconds),
-      api_log_per_user_limit_enabled: String(runtimeForm.api_log_per_user_limit_enabled),
-      api_log_per_user_max_count: String(runtimeForm.api_log_per_user_max_count),
-      user_api_log_visible: String(runtimeForm.user_api_log_visible),
-    })
-    if (!res.isSuccess)
-      throw new Error(res.message || t('adminServer.saveRuntimeFailed'))
+      const res = await adminApi.settings.batchUpdate({
+        api_access_log_enabled: String(runtimeForm.api_access_log_enabled),
+        api_log_query_days: String(runtimeForm.api_log_query_days),
+        api_log_max_count: String(runtimeForm.api_log_max_count),
+        api_log_cleanup_interval_seconds: String(runtimeForm.api_log_cleanup_interval_seconds),
+        api_log_per_user_limit_enabled: String(runtimeForm.api_log_per_user_limit_enabled),
+        api_log_per_user_max_count: String(runtimeForm.api_log_per_user_max_count),
+        user_api_log_visible: String(runtimeForm.user_api_log_visible),
+      })
+      if (!res.isSuccess)
+        throw new Error(res.message || t('adminServer.saveRuntimeFailed'))
 
-    applyDefaultDateRange(runtimeForm.api_log_query_days)
-    query.page = 1
-    pagination.page = 1
-    await Promise.all([fetchList(), fetchStats()])
-    message.success(res.message || t('adminServer.saveRuntimeSuccess'))
-  }
-  catch (error: any) {
-    message.error(error?.message || t('adminServer.saveRuntimeFailed'))
-  }
-  finally {
-    runtimeSaving.value = false
-  }
+      applyDefaultDateRange(runtimeForm.api_log_query_days)
+      query.page = 1
+      pagination.page = 1
+      await Promise.all([fetchList(), fetchStats()])
+      message.success(res.message || t('adminServer.saveRuntimeSuccess'))
+    }
+    catch (error: any) {
+      message.error(error?.message || t('adminServer.saveRuntimeFailed'))
+    }
+  })
 }
 
 async function handleDetail(id: number | string) {
@@ -549,22 +547,20 @@ async function handleClean() {
     message.warning(t('adminAPILogs.selectCleanDate'))
     return
   }
-  cleaning.value = true
-  try {
-    const beforeTime = Math.floor(cleanBefore.value / 1000)
-    const res = await adminAPILogApi.clean(beforeTime)
-    message.success(t('adminAPILogs.cleanSuccess', { count: res.data?.affected || 0 }))
-    showClean.value = false
-    cleanBefore.value = null
-    fetchList()
-    fetchStats()
-  }
-  catch {
-    message.error(t('adminAPILogs.cleanFailed'))
-  }
-  finally {
-    cleaning.value = false
-  }
+  await withSubmitLock(cleaning, async () => {
+    try {
+      const beforeTime = Math.floor(cleanBefore.value! / 1000)
+      const res = await adminAPILogApi.clean(beforeTime)
+      message.success(t('adminAPILogs.cleanSuccess', { count: res.data?.affected || 0 }))
+      showClean.value = false
+      cleanBefore.value = null
+      fetchList()
+      fetchStats()
+    }
+    catch {
+      message.error(t('adminAPILogs.cleanFailed'))
+    }
+  })
 }
 
 onMounted(() => {

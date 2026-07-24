@@ -43,8 +43,8 @@ var dangerousSQLKeywords = []string{
 	"LOAD_EXTENSION", "VACUUM INTO", "COPY PROGRAM",
 }
 
+// sensitiveColumnRe 用于禁止经控制台直接写 password/token 等敏感列（产品防护，非日志脱敏）。
 var sensitiveColumnRe = regexp.MustCompile(`(?i)(password|passwd|secret|token|api[_ -]?key|access[_ -]?key|private[_ -]?key|credential)`)
-var sensitiveAssignmentRe = regexp.MustCompile(`(?i)((?:password|passwd|secret|token|api[_ -]?key|access[_ -]?key|private[_ -]?key|credential)\s*=\s*)(?:'[^']*'|"[^"]*"|[^\s,;]+)`)
 
 const maxDBConsoleRowsAffected = 1000
 
@@ -83,7 +83,8 @@ func adminAuditUser(c *gin.Context) (uint64, string) {
 
 func writeDBConsoleAudit(c *gin.Context, action, reqBody, respBody string, status int) {
 	uid, name := adminAuditUser(c)
-	rb, sb := sanitizeDBConsoleAudit(reqBody), sanitizeDBConsoleAudit(respBody)
+	// 操作日志明文落库（与全局操作日志策略一致，不做字段脱敏）
+	rb, sb := reqBody, respBody
 	_ = models.CreateOperationLog(&models.OperationLog{
 		UserID:       uid,
 		Username:     name,
@@ -98,38 +99,6 @@ func writeDBConsoleAudit(c *gin.Context, action, reqBody, respBody string, statu
 		ResponseBody: &sb,
 		StatusCode:   status,
 	})
-}
-
-func sanitizeDBConsoleAudit(body string) string {
-	var payload interface{}
-	if err := json.Unmarshal([]byte(body), &payload); err == nil {
-		sanitizeAuditValue(payload)
-		data, marshalErr := json.Marshal(payload)
-		if marshalErr == nil {
-			return string(data)
-		}
-	}
-	if sensitiveColumnRe.MatchString(body) {
-		return "[SQL 已脱敏：包含敏感字段]"
-	}
-	return sensitiveAssignmentRe.ReplaceAllString(body, "${1}***")
-}
-
-func sanitizeAuditValue(value interface{}) {
-	switch v := value.(type) {
-	case map[string]interface{}:
-		for key, item := range v {
-			if sensitiveColumnRe.MatchString(key) {
-				v[key] = "***"
-				continue
-			}
-			sanitizeAuditValue(item)
-		}
-	case []interface{}:
-		for _, item := range v {
-			sanitizeAuditValue(item)
-		}
-	}
 }
 
 // Info GET /db/info
@@ -1096,8 +1065,10 @@ func (ctrl *DBConsoleController) execSQLParsed(c *gin.Context, req execSQLReques
 	if req.AllowWrite {
 		affected, err := executeDBConsoleWrite(ctx, sqlText)
 		if err != nil {
+			// 原始 SQL 错误只进审计/服务端日志，避免把库内部细节回给客户端
 			writeDBConsoleAudit(c, "sql_error", sqlText, err.Error(), 400)
-			utils.Fail(c, 400, "执行失败: "+err.Error())
+			log.Printf("[DBConsole] sql write failed: %v", err)
+			utils.Fail(c, 400, "执行失败")
 			return
 		}
 		writeDBConsoleAudit(c, "sql_exec", sqlText, fmt.Sprintf("rows_affected=%d", affected), 200)
@@ -1113,7 +1084,8 @@ func (ctrl *DBConsoleController) execSQLParsed(c *gin.Context, req execSQLReques
 	cols, data, err := queryReadOnlySQL(ctx, sqlText)
 	if err != nil {
 		writeDBConsoleAudit(c, "sql_error", sqlText, err.Error(), 400)
-		utils.Fail(c, 400, "执行失败: "+err.Error())
+		log.Printf("[DBConsole] sql query failed: %v", err)
+		utils.Fail(c, 400, "执行失败")
 		return
 	}
 	writeDBConsoleAudit(c, "sql_query", truncateStr(sqlText, 2000), fmt.Sprintf("rows=%d", len(data)), 200)

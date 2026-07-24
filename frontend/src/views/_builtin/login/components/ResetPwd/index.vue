@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { FormInst } from 'naive-ui'
 import GeetestCaptcha from '@/components/common/GeetestCaptcha.vue'
+import { withSubmitLock } from '@/hooks'
 import { geetestManager } from '@/utils/geetest'
 import { fetchSendResetEmail } from '@/service'
 import { i18n } from '@/modules/i18n'
@@ -58,19 +59,14 @@ async function sendResetEmail() {
   if (hasErrors)
     return
 
-  isLoading.value = true
-  try {
+  await withSubmitLock(isLoading, async () => {
     const { isSuccess } = await fetchSendResetEmail({
       email: formValue.value.account,
       lang: i18n.global.locale.value,
     })
-    if (isSuccess) {
+    if (isSuccess)
       window.$message.success(t('login.resetEmailSent'))
-    }
-  }
-  finally {
-    isLoading.value = false
-  }
+  })
 }
 
 async function onGeetestSuccess() {

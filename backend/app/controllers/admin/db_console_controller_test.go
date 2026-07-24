@@ -240,21 +240,18 @@ func TestDBConsoleWritesDisabledInProduction(t *testing.T) {
 	}
 }
 
-func TestDBConsoleAuditMasksSensitiveData(t *testing.T) {
+func TestDBConsoleAuditKeepsPlaintext(t *testing.T) {
 	cleanup := testutil.SetupSQLite(t)
 	defer cleanup()
 	ctx, _ := newDBConsoleTestContext(http.MethodPost, "/db/sql", nil)
-	writeDBConsoleAudit(ctx, "test_mask", `{"password":"super-secret","name":"safe"}`, "ok", http.StatusOK)
+	writeDBConsoleAudit(ctx, "test_audit_plain", `{"password":"super-secret","name":"safe"}`, "ok", http.StatusOK)
 
 	var logItem models.OperationLog
-	if err := db.DB.Where("action = ?", "test_mask").Order("id DESC").First(&logItem).Error; err != nil {
+	if err := db.DB.Where("action = ?", "test_audit_plain").Order("id DESC").First(&logItem).Error; err != nil {
 		t.Fatalf("load operation log: %v", err)
 	}
-	if logItem.RequestBody == nil || strings.Contains(*logItem.RequestBody, "super-secret") || !strings.Contains(*logItem.RequestBody, "***") {
-		t.Fatalf("audit request body=%v, want masked value", logItem.RequestBody)
-	}
-	sqlAudit := sanitizeDBConsoleAudit(`INSERT INTO users (password) VALUES ('super-secret')`)
-	if strings.Contains(sqlAudit, "super-secret") {
-		t.Fatalf("sql audit=%q, sensitive value must not be stored", sqlAudit)
+	// 操作日志按产品要求明文落库，不做字段脱敏
+	if logItem.RequestBody == nil || !strings.Contains(*logItem.RequestBody, "super-secret") {
+		t.Fatalf("audit request body=%v, want plaintext password kept", logItem.RequestBody)
 	}
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Regex } from '@/constants/Regex'
 import GeetestCaptcha from '@/components/common/GeetestCaptcha.vue'
+import { withSubmitLock } from '@/hooks'
 import { geetestManager } from '@/utils/geetest'
 import { fetchRegister, fetchSendRegisterCode } from '@/service'
 import { i18n } from '@/modules/i18n'
@@ -129,8 +130,7 @@ async function handleSendCode() {
 }
 
 async function sendCode() {
-  isSending.value = true
-  try {
+  await withSubmitLock(isSending, async () => {
     const { isSuccess } = await fetchSendRegisterCode({
       email: formValue.value.account,
       lang: i18n.global.locale.value,
@@ -139,10 +139,7 @@ async function sendCode() {
       window.$message.success(t('login.codeSent'))
       startCountDown()
     }
-  }
-  finally {
-    isSending.value = false
-  }
+  })
 }
 
 watch(() => formValue.value.account, (val) => {

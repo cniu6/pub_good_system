@@ -13,7 +13,7 @@ const CtxRequestID = "requestID"
 const HeaderRequestID = "X-Request-Id"
 
 // RequestIDMiddleware 轻量请求 ID：优先沿用客户端传入的 X-Request-Id / X-Request-ID，
-// 否则生成 UUID，写入 context 与响应头，供 /ready、访问日志、请求日志引用。
+// 否则生成 UUID，写入 context 与响应头，供访问日志、请求日志、panic 恢复引用。
 func RequestIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		rid := strings.TrimSpace(c.GetHeader(HeaderRequestID))

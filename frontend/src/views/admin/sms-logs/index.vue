@@ -26,7 +26,7 @@ import {
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
-import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
+import { useEcharts, useRequestGuard, useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import type { ECOption } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 import { adminSMSLogApi } from '@/service/api/admin/sms-log'
@@ -360,28 +360,26 @@ async function loadRuntimeConfig() {
 }
 
 async function handleSaveRuntimeConfig() {
-  runtimeSaving.value = true
-  try {
-    runtimeForm.sms_log_max_count = normalizeLogMaxCount(runtimeForm.sms_log_max_count)
-    runtimeForm.sms_log_per_user_max_count = normalizeLogPerUserMaxCount(runtimeForm.sms_log_per_user_max_count)
+  await withSubmitLock(runtimeSaving, async () => {
+    try {
+      runtimeForm.sms_log_max_count = normalizeLogMaxCount(runtimeForm.sms_log_max_count)
+      runtimeForm.sms_log_per_user_max_count = normalizeLogPerUserMaxCount(runtimeForm.sms_log_per_user_max_count)
 
-    const res = await adminApi.settings.batchUpdate({
-      sms_log_max_count: String(runtimeForm.sms_log_max_count),
-      sms_log_per_user_limit_enabled: String(runtimeForm.sms_log_per_user_limit_enabled),
-      sms_log_per_user_max_count: String(runtimeForm.sms_log_per_user_max_count),
-    })
-    if (!res.isSuccess)
-      throw new Error(res.message || t('adminServer.saveRuntimeFailed'))
+      const res = await adminApi.settings.batchUpdate({
+        sms_log_max_count: String(runtimeForm.sms_log_max_count),
+        sms_log_per_user_limit_enabled: String(runtimeForm.sms_log_per_user_limit_enabled),
+        sms_log_per_user_max_count: String(runtimeForm.sms_log_per_user_max_count),
+      })
+      if (!res.isSuccess)
+        throw new Error(res.message || t('adminServer.saveRuntimeFailed'))
 
-    await Promise.all([fetchList(), fetchStats()])
-    message.success(res.message || t('adminServer.saveRuntimeSuccess'))
-  }
-  catch (error: any) {
-    message.error(error?.message || t('adminServer.saveRuntimeFailed'))
-  }
-  finally {
-    runtimeSaving.value = false
-  }
+      await Promise.all([fetchList(), fetchStats()])
+      message.success(res.message || t('adminServer.saveRuntimeSuccess'))
+    }
+    catch (error: any) {
+      message.error(error?.message || t('adminServer.saveRuntimeFailed'))
+    }
+  })
 }
 
 async function handleDetail(row: SMSLog) {
@@ -430,23 +428,21 @@ async function handleClean() {
     message.warning(t('adminSMSLogs.selectCleanDate'))
     return
   }
-  cleaning.value = true
-  try {
-    const res = await adminSMSLogApi.clean(cleanBefore.value)
-    if (res.data) {
-      message.success(t('adminSMSLogs.cleanSuccess', { count: res.data.affected }))
-      showClean.value = false
-      cleanBefore.value = ''
-      fetchList()
-      fetchStats()
+  await withSubmitLock(cleaning, async () => {
+    try {
+      const res = await adminSMSLogApi.clean(cleanBefore.value)
+      if (res.data) {
+        message.success(t('adminSMSLogs.cleanSuccess', { count: res.data.affected }))
+        showClean.value = false
+        cleanBefore.value = ''
+        fetchList()
+        fetchStats()
+      }
     }
-  }
-  catch {
-    message.error(t('adminSMSLogs.cleanFailed'))
-  }
-  finally {
-    cleaning.value = false
-  }
+    catch {
+      message.error(t('adminSMSLogs.cleanFailed'))
+    }
+  })
 }
 
 function handleCleanDateChange(val: number | null) {

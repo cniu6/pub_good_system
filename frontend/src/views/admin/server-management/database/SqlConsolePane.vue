@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, h, ref, watch } from 'vue'
 import type { DataTableColumns } from 'naive-ui'
+import { withSubmitLock } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 
 const props = defineProps<{
@@ -38,8 +39,7 @@ async function runSql() {
     message.warning(t('adminServer.dbSqlEmpty'))
     return
   }
-  loading.value = true
-  try {
+  await withSubmitLock(loading, async () => {
     const res = await adminApi.db.execSql({ sql, allow_write: allowWrite.value && props.writeEnabled })
     if (!res.isSuccess || !res.data) {
       message.error(res.message || t('adminServer.dbSqlFailed'))
@@ -55,10 +55,7 @@ async function runSql() {
     ].filter(Boolean)
     metaText.value = parts.join(' · ')
     message.success(t('adminServer.dbSqlSuccess'))
-  }
-  finally {
-    loading.value = false
-  }
+  })
 }
 </script>
 

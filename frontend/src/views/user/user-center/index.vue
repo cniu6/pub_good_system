@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { withSubmitLock } from '@/hooks'
 import { useAuthStore, useSettingsStore } from '@/store'
 import { fetchUpdateProfile, fetchUserProfile } from '@/service'
 import ProfileTab from './components/ProfileTab.vue'
@@ -48,6 +49,7 @@ const bgForm = ref({
   currentBg: '',
   newBg: '',
 })
+const profileSaving = ref(false)
 
 function openAvatarModal() {
   avatarForm.value.currentAvatar = userInfo.value?.avatar || ''
@@ -56,27 +58,29 @@ function openAvatarModal() {
 }
 
 async function handleAvatarSubmit() {
-  try {
-    const nextAvatar = avatarForm.value.newAvatar.trim()
-    if (nextAvatar && !/^https?:\/\//i.test(nextAvatar)) {
-      window.$message.error(t('userCenter.avatarUrlProtocolError'))
-      return
+  await withSubmitLock(profileSaving, async () => {
+    try {
+      const nextAvatar = avatarForm.value.newAvatar.trim()
+      if (nextAvatar && !/^https?:\/\//i.test(nextAvatar)) {
+        window.$message.error(t('userCenter.avatarUrlProtocolError'))
+        return
+      }
+      const response = await fetchUpdateProfile({ avatar: nextAvatar })
+      if (response.isSuccess) {
+        authStore.updateUserInfo({ avatar: nextAvatar })
+        showAvatarModal.value = false
+        window.$message.success(t('userCenter.avatarUpdateSuccess'))
+      }
+      else {
+        window.$message.error(response.message || t('userCenter.avatarUpdateFailed'))
+      }
     }
-    const response = await fetchUpdateProfile({ avatar: nextAvatar })
-    if (response.isSuccess) {
-      authStore.updateUserInfo({ avatar: nextAvatar })
-      showAvatarModal.value = false
-      window.$message.success(t('userCenter.avatarUpdateSuccess'))
+    catch (error) {
+      if (import.meta.env.DEV)
+        console.error('[userCenter] avatar update failed', error)
+      window.$message.error(t('userCenter.avatarUpdateFailed'))
     }
-    else {
-      window.$message.error(response.message || t('userCenter.avatarUpdateFailed'))
-    }
-  }
-  catch (error) {
-    if (import.meta.env.DEV)
-      console.error('[userCenter] avatar update failed', error)
-    window.$message.error(t('userCenter.avatarUpdateFailed'))
-  }
+  })
 }
 
 function openMottoModal() {
@@ -85,27 +89,29 @@ function openMottoModal() {
 }
 
 async function handleMottoSubmit() {
-  try {
-    const nextMotto = mottoForm.value.trim()
-    if (nextMotto.length > 200) {
-      window.$message.error(t('userCenter.mottoTooLong'))
-      return
+  await withSubmitLock(profileSaving, async () => {
+    try {
+      const nextMotto = mottoForm.value.trim()
+      if (nextMotto.length > 200) {
+        window.$message.error(t('userCenter.mottoTooLong'))
+        return
+      }
+      const response = await fetchUpdateProfile({ motto: nextMotto })
+      if (response.isSuccess) {
+        authStore.updateUserInfo({ motto: nextMotto })
+        showMottoModal.value = false
+        window.$message.success(t('userCenter.mottoUpdateSuccess'))
+      }
+      else {
+        window.$message.error(response.message || t('userCenter.mottoUpdateFailed'))
+      }
     }
-    const response = await fetchUpdateProfile({ motto: nextMotto })
-    if (response.isSuccess) {
-      authStore.updateUserInfo({ motto: nextMotto })
-      showMottoModal.value = false
-      window.$message.success(t('userCenter.mottoUpdateSuccess'))
+    catch (error) {
+      if (import.meta.env.DEV)
+        console.error('[userCenter] motto update failed', error)
+      window.$message.error(t('userCenter.mottoUpdateFailed'))
     }
-    else {
-      window.$message.error(response.message || t('userCenter.mottoUpdateFailed'))
-    }
-  }
-  catch (error) {
-    if (import.meta.env.DEV)
-      console.error('[userCenter] motto update failed', error)
-    window.$message.error(t('userCenter.mottoUpdateFailed'))
-  }
+  })
 }
 
 function openBgModal() {
@@ -115,27 +121,29 @@ function openBgModal() {
 }
 
 async function handleBgSubmit() {
-  try {
-    const nextBg = bgForm.value.newBg.trim()
-    if (nextBg && !/^https?:\/\//i.test(nextBg)) {
-      window.$message.error(t('userCenter.bgUrlProtocolError'))
-      return
+  await withSubmitLock(profileSaving, async () => {
+    try {
+      const nextBg = bgForm.value.newBg.trim()
+      if (nextBg && !/^https?:\/\//i.test(nextBg)) {
+        window.$message.error(t('userCenter.bgUrlProtocolError'))
+        return
+      }
+      const response = await fetchUpdateProfile({ back_ground: nextBg })
+      if (response.isSuccess) {
+        authStore.updateUserInfo({ backGround: nextBg })
+        showBgModal.value = false
+        window.$message.success(t('userCenter.bgUpdateSuccess'))
+      }
+      else {
+        window.$message.error(response.message || t('userCenter.bgUpdateFailed'))
+      }
     }
-    const response = await fetchUpdateProfile({ back_ground: nextBg })
-    if (response.isSuccess) {
-      authStore.updateUserInfo({ backGround: nextBg })
-      showBgModal.value = false
-      window.$message.success(t('userCenter.bgUpdateSuccess'))
+    catch (error) {
+      if (import.meta.env.DEV)
+        console.error('[userCenter] bg update failed', error)
+      window.$message.error(t('userCenter.bgUpdateFailed'))
     }
-    else {
-      window.$message.error(response.message || t('userCenter.bgUpdateFailed'))
-    }
-  }
-  catch (error) {
-    if (import.meta.env.DEV)
-      console.error('[userCenter] bg update failed', error)
-    window.$message.error(t('userCenter.bgUpdateFailed'))
-  }
+  })
 }
 
 async function refreshUserInfo() {
@@ -327,7 +335,7 @@ onActivated(() => {
           <n-button @click="showAvatarModal = false">
             {{ t('common.cancel') }}
           </n-button>
-          <n-button type="primary" @click="handleAvatarSubmit">
+          <n-button type="primary" :loading="profileSaving" @click="handleAvatarSubmit">
             {{ t('common.confirm') }}
           </n-button>
         </n-space>
@@ -349,7 +357,7 @@ onActivated(() => {
           <n-button @click="showMottoModal = false">
             {{ t('common.cancel') }}
           </n-button>
-          <n-button type="primary" @click="handleMottoSubmit">
+          <n-button type="primary" :loading="profileSaving" @click="handleMottoSubmit">
             {{ t('common.confirm') }}
           </n-button>
         </n-space>
@@ -392,7 +400,7 @@ onActivated(() => {
           <n-button @click="showBgModal = false">
             {{ t('common.cancel') }}
           </n-button>
-          <n-button type="primary" @click="handleBgSubmit">
+          <n-button type="primary" :loading="profileSaving" @click="handleBgSubmit">
             {{ t('common.confirm') }}
           </n-button>
         </n-space>

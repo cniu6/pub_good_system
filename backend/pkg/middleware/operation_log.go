@@ -15,7 +15,7 @@ import (
 )
 
 // SimpleLogMiddleware 操作日志中间件：记录模块/动作/路径，以及请求内容、响应内容、处理函数名。
-// GET 无 body 时把 query 写入 request_body；响应体会捕获并截断后入库（不做字段脱敏）。
+// GET 无 body 时把 query 写入 request_body；请求/响应体明文截断入库（不做字段脱敏）。
 func SimpleLogMiddleware(module string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		startTime := time.Now()
@@ -46,8 +46,8 @@ func SimpleLogMiddleware(module string) gin.HandlerFunc {
 
 		// 响应内容：安全截断（复用 API 访问日志的类型判断；管理端可见，不做字段脱敏）
 		responseContentType := normalizeContentType(blw.Header().Get("Content-Type"))
-		responseBody := sanitizeResponseBodyByType(blw.body.String(), responseContentType, "http", c.Writer.Status(), true)
-		requestBody = sanitizeOperationRequestContent(requestBody)
+		responseBody := truncateResponseBodyByType(blw.body.String(), responseContentType, "http", c.Writer.Status())
+		requestBody = truncateOperationRequestContent(requestBody)
 
 		handlerName := truncateForLog(c.HandlerName(), 255)
 
@@ -92,7 +92,7 @@ func captureOperationRequestContent(c *gin.Context) string {
 			}
 			return ""
 		}
-		qs := sanitizeQueryString(rawQuery)
+		qs := formatQueryString(rawQuery)
 		if qs == "" {
 			return `{"query":{}}`
 		}
@@ -109,6 +109,8 @@ func captureOperationRequestContent(c *gin.Context) string {
 
 	bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, maxLogReadableBodyBytes+1))
 	if err != nil {
+		log.Printf("[OperationLog] 读取请求体失败 method=%s path=%s: %v",
+			c.Request.Method, c.Request.URL.Path, err)
 		return ""
 	}
 	// 读完后还原，供后续 handler / 其它中间件使用
@@ -120,7 +122,7 @@ func captureOperationRequestContent(c *gin.Context) string {
 	body := string(bodyBytes)
 	// 同时有 query 时一并附上，方便排查
 	if strings.TrimSpace(rawQuery) != "" {
-		qs := sanitizeQueryString(rawQuery)
+		qs := formatQueryString(rawQuery)
 		if qs != "" && strings.TrimSpace(body) != "" {
 			return `{"query":` + qs + `,"body":` + wrapAsJSONValue(body) + `}`
 		}
@@ -148,15 +150,12 @@ func wrapAsJSONValue(body string) string {
 	return string(b)
 }
 
-func sanitizeOperationRequestContent(raw string) string {
+// truncateOperationRequestContent 仅长度截断（不做字段脱敏）。
+func truncateOperationRequestContent(raw string) string {
 	if raw == "" {
 		return raw
 	}
-	// 说明性占位文案只做长度截断
-	if strings.HasPrefix(raw, "[") && strings.Contains(raw, "omitted") {
-		return truncateForLog(raw, maxLogStoredBodyBytes)
-	}
-	return sanitizeLogBody(raw, maxLogStoredBodyBytes, true)
+	return truncateForLog(raw, maxLogStoredBodyBytes)
 }
 
 func getActionByMethod(method string) string {

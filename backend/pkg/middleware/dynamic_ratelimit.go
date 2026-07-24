@@ -149,16 +149,38 @@ func defaultAdminRateLimitKey(c *gin.Context) string {
 	return "admin:ip:" + c.ClientIP()
 }
 
+// isGlobalRateLimitExemptPath 全局限流白名单。
+//
+// 支付回调（/public/payment/notify、/return）故意不参与全局限流：
+// 支付网关的异步通知本来就该进来；若因 IP 令牌桶打满被 429 丢掉，
+// 会出现「用户已付款但本系统未入账」。因此这里跳过是刻意设计，
+// 不要给回调再加独立限流。验签/订单状态机仍由支付业务层负责防伪造。
+//
+// pprof 同样豁免，避免 profiling 采样被限流干扰（路径随 ADMIN_API_PATH 变化）。
+func isGlobalRateLimitExemptPath(path string) bool {
+	if path == "" {
+		return false
+	}
+	if !strings.HasPrefix(path, "/api/") {
+		return true
+	}
+	// 支付异步通知 / 同步回跳：必须放行，防止单次合法回调被限流丢弃
+	if strings.HasPrefix(path, "/api/v1/public/payment/notify") ||
+		strings.HasPrefix(path, "/api/v1/public/payment/return") {
+		return true
+	}
+	adminPprofPrefix := "/api/v1/admin/debug/pprof"
+	if cfg := config.GlobalConfig; cfg != nil {
+		adminPprofPrefix = "/api/v1" + config.NormalizeAdminAPIPath(cfg.AdminAPIPath) + "/debug/pprof"
+	}
+	return strings.HasPrefix(path, adminPprofPrefix)
+}
+
 func DynamicGlobalRateLimitMiddleware() gin.HandlerFunc {
 	state := ensureDynamicRateLimiterState("global_api", DefaultKeyFunc)
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
-		// pprof 不计入全局限流（路径随 ADMIN_API_PATH 变化）
-		adminPprofPrefix := "/api/v1/admin/debug/pprof"
-		if cfg := config.GlobalConfig; cfg != nil {
-			adminPprofPrefix = "/api/v1" + config.NormalizeAdminAPIPath(cfg.AdminAPIPath) + "/debug/pprof"
-		}
-		if !strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, adminPprofPrefix) {
+		if isGlobalRateLimitExemptPath(path) {
 			c.Next()
 			return
 		}

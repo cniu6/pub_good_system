@@ -4,13 +4,15 @@ import type { DataTableColumns } from 'naive-ui'
 import { NButton, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import { adminApi } from '@/service/api/admin'
 import type { PaymentException } from '@/service/api/admin/payment'
-import { useRequestGuard } from '@/hooks'
+import { useRequestGuard, withSubmitLock } from '@/hooks'
 
 const { t } = useI18n()
 const message = useMessage()
 const dialog = useDialog()
 const listFetchGuard = useRequestGuard()
 const loading = ref(false)
+/** 异常处理写操作防连点 */
+const submitting = ref(false)
 const list = ref<PaymentException[]>([])
 const query = reactive({ page: 1, page_size: 20, status: '' as number | '', exception_type: '', order_no: '' })
 const pagination = reactive({ page: 1, pageSize: 20, itemCount: 0 })
@@ -112,21 +114,23 @@ function handlePageSizeChange(pageSize: number) {
 }
 
 function resolveRow(row: PaymentException, action: 'resolve' | 'ignore') {
+  if (submitting.value)
+    return
   dialog.warning({
     title: action === 'resolve' ? t('adminPaymentExceptions.resolveTitle') : t('adminPaymentExceptions.ignoreTitle'),
     content: t('adminPaymentExceptions.resolveConfirm', { id: row.id, orderNo: row.order_no }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    onPositiveClick: () => withSubmitLock(submitting, async () => {
       const res = await adminApi.payment.resolveException(row.id, { action, remark: action })
       if (res.isSuccess) {
         message.success(t('adminPaymentExceptions.resolveSuccess'))
         fetchList()
+        return
       }
-      else {
-        message.error(res.message || t('adminPaymentExceptions.resolveFailed'))
-      }
-    },
+      message.error(res.message || t('adminPaymentExceptions.resolveFailed'))
+      return false
+    }),
   })
 }
 

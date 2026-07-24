@@ -82,10 +82,10 @@ func SetupHTTP(router *gin.Engine, disableSlashRedirect bool) *plugins.Manager {
 
 	// ---------- 全局中间件 ----------
 	// 请求日志统一走 LoggerMiddleware（可配置跳过路径），不再叠加 gin.Logger
-	router.Use(gin.Recovery())
 	router.SetTrustedProxies(nil)
-	router.Use(middleware.RequestIDMiddleware()) // 尽早写入 X-Request-Id，供日志 /ready 等使用
-	router.Use(middleware.MetricsMiddleware())
+	// RequestID 必须在 Recovery 之前：panic 时才能把 request_id 打进堆栈日志
+	router.Use(middleware.RequestIDMiddleware())
+	router.Use(middleware.RecoveryMiddleware())
 	router.Use(middleware.SecurityHeadersMiddleware())
 	router.Use(middleware.CorsMiddleware())
 	router.Use(middleware.LoggerMiddleware())

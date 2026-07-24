@@ -10,6 +10,7 @@ import { adminUserApi } from '@/service/api/admin/user'
 import type { AdminUser, UserSimpleInfo } from '@/service/api/admin/user'
 import { adminApi } from '@/service/api/admin'
 import type { MoneyOperationPayload, WithdrawRecord } from '@/service/api/admin/finance'
+import { withSubmitLock } from '@/hooks'
 import {
   formatTime,
   getAdminDisplayName,
@@ -268,28 +269,23 @@ export function useUserFinance(options: {
       }),
       positiveText: t('common.confirm'),
       negativeText: t('common.cancel'),
-      onPositiveClick: async () => {
-        if (options.submitting.value)
-          return
+      onPositiveClick: () => withSubmitLock(options.submitting, async () => {
         try {
-          options.submitting.value = true
           const response: any = await adminApi.finance.operateUserMoney(user.id, payload)
           if (response.isSuccess) {
             message.success(t('adminUsers.balanceOperationSuccess'))
             options.onSuccess?.()
+            return
           }
-          else {
-            message.error(response.message || t('adminUsers.balanceOperationFailed'))
-          }
+          message.error(response.message || t('adminUsers.balanceOperationFailed'))
+          return false
         }
         catch (error) {
           reportAdminUsersError('[adminUsers] balance operation failed', error)
           message.error(t('adminUsers.operationFailed'))
+          return false
         }
-        finally {
-          options.submitting.value = false
-        }
-      },
+      }),
     })
   }
 
@@ -352,12 +348,8 @@ export function useUserFinance(options: {
       }),
       positiveText: t('common.confirm'),
       negativeText: t('common.cancel'),
-      onPositiveClick: async () => {
-        if (options.submitting.value)
-          return
+      onPositiveClick: () => withSubmitLock(options.submitting, async () => {
         try {
-          options.submitting.value = true
-
           if (operation === 'modify') {
             const response: any = await adminUserApi.changeScore(user.id, {
               score,
@@ -366,12 +358,12 @@ export function useUserFinance(options: {
             if (response.isSuccess) {
               message.success(t('adminUsers.scoreChangedSuccess'))
               options.onSuccess?.()
+              return
             }
-            else {
-              message.error(response.message || t('adminUsers.scoreChangedFailed'))
-            }
+            message.error(response.message || t('adminUsers.scoreChangedFailed'))
+            return false
           }
-          else if (operation === 'log') {
+          if (operation === 'log') {
             const response: any = await adminApi.finance.addScoreLog(user.id, {
               score,
               memo,
@@ -379,20 +371,18 @@ export function useUserFinance(options: {
             if (response.isSuccess) {
               message.success(t('adminUsers.scoreLogAddedSuccess'))
               options.onSuccess?.()
+              return
             }
-            else {
-              message.error(response.message || t('adminUsers.scoreLogAddedFailed'))
-            }
+            message.error(response.message || t('adminUsers.scoreLogAddedFailed'))
+            return false
           }
         }
         catch (error) {
           reportAdminUsersError('[adminUsers] score operation failed', error)
           message.error(t('adminUsers.operationFailed'))
+          return false
         }
-        finally {
-          options.submitting.value = false
-        }
-      },
+      }),
     })
   }
 

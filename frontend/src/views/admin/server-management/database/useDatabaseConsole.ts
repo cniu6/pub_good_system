@@ -1,5 +1,6 @@
 import { computed, reactive, ref } from 'vue'
 import { useMessage } from 'naive-ui'
+import { withSubmitLock } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
 import { authStorage } from '@/utils'
 import type { DbTableMeta } from '@/service/api/admin/db'
@@ -11,6 +12,8 @@ export function useDatabaseConsole() {
   const metaLoading = ref(false)
   const ddlLoading = ref(false)
   const backupLoading = ref(false)
+  /** 增删改行串行锁，防止连点并发写库 */
+  const writeLock = ref(false)
   const driver = ref('')
   const backupSupported = ref(false)
   const writeEnabled = ref(false)
@@ -122,68 +125,75 @@ export function useDatabaseConsole() {
   async function createRow(values: Record<string, unknown>) {
     if (!selectedTable.value)
       return false
-    const res = await adminApi.db.createTableRow(selectedTable.value, values)
-    if (!res.isSuccess) {
-      message.error(res.message || t('adminServer.dbRowCreateFailed'))
-      return false
-    }
-    message.success(t('adminServer.dbRowCreateSuccess'))
-    await loadRows()
-    return true
+    const ok = await withSubmitLock(writeLock, async () => {
+      const res = await adminApi.db.createTableRow(selectedTable.value!, values)
+      if (!res.isSuccess) {
+        message.error(res.message || t('adminServer.dbRowCreateFailed'))
+        return false
+      }
+      message.success(t('adminServer.dbRowCreateSuccess'))
+      await loadRows()
+      return true
+    })
+    return ok ?? false
   }
 
   async function updateRow(primaryKey: Record<string, unknown>, values: Record<string, unknown>) {
     if (!selectedTable.value)
       return false
-    const res = await adminApi.db.updateTableRow(selectedTable.value, primaryKey, values)
-    if (!res.isSuccess) {
-      message.error(res.message || t('adminServer.dbRowUpdateFailed'))
-      return false
-    }
-    message.success(t('adminServer.dbRowUpdateSuccess'))
-    await loadRows()
-    return true
+    const ok = await withSubmitLock(writeLock, async () => {
+      const res = await adminApi.db.updateTableRow(selectedTable.value!, primaryKey, values)
+      if (!res.isSuccess) {
+        message.error(res.message || t('adminServer.dbRowUpdateFailed'))
+        return false
+      }
+      message.success(t('adminServer.dbRowUpdateSuccess'))
+      await loadRows()
+      return true
+    })
+    return ok ?? false
   }
 
   async function deleteRow(primaryKey: Record<string, unknown>) {
     if (!selectedTable.value)
       return false
-    const res = await adminApi.db.deleteTableRow(selectedTable.value, primaryKey)
-    if (!res.isSuccess) {
-      message.error(res.message || t('adminServer.dbRowDeleteFailed'))
-      return false
-    }
-    message.success(t('adminServer.dbRowDeleteSuccess'))
-    await loadRows()
-    return true
+    const ok = await withSubmitLock(writeLock, async () => {
+      const res = await adminApi.db.deleteTableRow(selectedTable.value!, primaryKey)
+      if (!res.isSuccess) {
+        message.error(res.message || t('adminServer.dbRowDeleteFailed'))
+        return false
+      }
+      message.success(t('adminServer.dbRowDeleteSuccess'))
+      await loadRows()
+      return true
+    })
+    return ok ?? false
   }
 
   async function downloadBackup() {
     if (!backupSupported.value)
       return
-    backupLoading.value = true
-    try {
-      const headers: Record<string, string> = {}
-      const token = authStorage.get('accessToken')
-      if (token)
-        headers.Authorization = `Bearer ${token}`
-      const response = await fetch(await adminApi.db.backupUrl(), { headers })
-      if (!response.ok)
-        throw new Error((await response.json() as { message?: string }).message || t('adminServer.dbBackupFailed'))
-      const objectUrl = URL.createObjectURL(await response.blob())
-      const link = document.createElement('a')
-      link.href = objectUrl
-      link.download = `fst-backup-${Date.now()}.db`
-      link.click()
-      URL.revokeObjectURL(objectUrl)
-      message.success(t('adminServer.dbBackupSuccess'))
-    }
-    catch (error: any) {
-      message.error(error?.message || t('adminServer.dbBackupFailed'))
-    }
-    finally {
-      backupLoading.value = false
-    }
+    await withSubmitLock(backupLoading, async () => {
+      try {
+        const headers: Record<string, string> = {}
+        const token = authStorage.get('accessToken')
+        if (token)
+          headers.Authorization = `Bearer ${token}`
+        const response = await fetch(await adminApi.db.backupUrl(), { headers })
+        if (!response.ok)
+          throw new Error((await response.json() as { message?: string }).message || t('adminServer.dbBackupFailed'))
+        const objectUrl = URL.createObjectURL(await response.blob())
+        const link = document.createElement('a')
+        link.href = objectUrl
+        link.download = `fst-backup-${Date.now()}.db`
+        link.click()
+        URL.revokeObjectURL(objectUrl)
+        message.success(t('adminServer.dbBackupSuccess'))
+      }
+      catch (error: any) {
+        message.error(error?.message || t('adminServer.dbBackupFailed'))
+      }
+    })
   }
 
   return {

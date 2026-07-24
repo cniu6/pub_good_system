@@ -19,6 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
 const (
@@ -89,7 +90,8 @@ func writeTerminalAudit(c *gin.Context, cmd, output string, status int) {
 // buildShellCommand 按平台构造 shell 命令（Windows: cmd /C；Unix: bash -lc 或 sh -c）
 func buildShellCommand(ctx context.Context, cmdLine string) *exec.Cmd {
 	if runtime.GOOS == "windows" {
-		return exec.CommandContext(ctx, "cmd", "/C", cmdLine)
+		// 先切 UTF-8 代码页；仍乱码时由 decodeTerminalOutput 按 GB18030 兜底
+		return exec.CommandContext(ctx, "cmd", "/C", "chcp 65001 >nul & "+cmdLine)
 	}
 	if path, err := exec.LookPath("bash"); err == nil && path != "" {
 		return exec.CommandContext(ctx, "bash", "-lc", cmdLine)
@@ -119,10 +121,8 @@ func runShellCommand(cmdLine string) (string, int, error) {
 	cmd.Stderr = limited
 
 	err := cmd.Run()
-	out := buf.String()
-	if !utf8.ValidString(out) {
-		out = string([]rune(out))
-	}
+	// Windows cmd 默认 GBK/GB18030；按 UTF-8 硬转会变成 � 乱码
+	out := decodeTerminalOutput(buf.Bytes())
 	if limited.truncated {
 		out += "\n…[output truncated at 256KB]"
 	}
@@ -134,6 +134,24 @@ func runShellCommand(cmdLine string) (string, int, error) {
 		return out, 200, err
 	}
 	return out, 200, nil
+}
+
+// decodeTerminalOutput 将命令输出规范为 UTF-8 字符串。
+// 中文 Windows 下 cmd 输出多为 GBK；非法 UTF-8 时按 GB18030 解码（兼容 GBK）。
+func decodeTerminalOutput(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+	if utf8.Valid(b) {
+		return string(b)
+	}
+	if runtime.GOOS == "windows" {
+		if decoded, err := simplifiedchinese.GB18030.NewDecoder().Bytes(b); err == nil && utf8.Valid(decoded) {
+			return string(decoded)
+		}
+	}
+	// 兜底：替换非法字节，避免再走 string([]rune) 把整段弄成 �
+	return strings.ToValidUTF8(string(b), "\uFFFD")
 }
 
 type limitedWriter struct {

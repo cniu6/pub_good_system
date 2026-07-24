@@ -27,7 +27,7 @@ import 'md-editor-v3/lib/style.css'
 import { adminAnnouncementApi } from '@/service/api/admin/announcement'
 import type { AdminAnnouncement, AnnouncementUpsertPayload } from '@/service/api/admin/announcement'
 import { useAppStore } from '@/store'
-import { useRequestGuard } from '@/hooks'
+import { useRequestGuard, withSubmitLock } from '@/hooks'
 import { sanitizeMarkdownHtml } from '@/utils/safeMarkdown'
 
 const { t } = useI18n()
@@ -47,6 +47,8 @@ const statusFilter = ref<number | ''>('')
 
 const showModal = ref(false)
 const saving = ref(false)
+/** 发布/下架/删除等行操作共用锁 */
+const actionLock = ref(false)
 const editingId = ref<number | null>(null)
 const form = ref<AnnouncementUpsertPayload>({
   title: '',
@@ -206,51 +208,53 @@ async function handleSave() {
     message.warning(t('announcements.titleContentRequired'))
     return
   }
-  saving.value = true
-  try {
-    const payload = buildPayload()
-    const res = editingId.value
-      ? await adminAnnouncementApi.update(editingId.value, payload)
-      : await adminAnnouncementApi.create(payload)
-    if (res.isSuccess) {
-      message.success(t('announcements.saveSuccess'))
-      showModal.value = false
-      await loadList()
+  await withSubmitLock(saving, async () => {
+    try {
+      const payload = buildPayload()
+      const res = editingId.value
+        ? await adminAnnouncementApi.update(editingId.value, payload)
+        : await adminAnnouncementApi.create(payload)
+      if (res.isSuccess) {
+        message.success(t('announcements.saveSuccess'))
+        showModal.value = false
+        await loadList()
+      }
+      else {
+        message.error(res.message || t('announcements.saveFailed'))
+      }
     }
-    else {
-      message.error(res.message || t('announcements.saveFailed'))
+    catch (e) {
+      if (import.meta.env.DEV)
+        console.error(e)
+      message.error(t('announcements.saveFailed'))
     }
-  }
-  catch (e) {
-    if (import.meta.env.DEV)
-      console.error(e)
-    message.error(t('announcements.saveFailed'))
-  }
-  finally {
-    saving.value = false
-  }
+  })
 }
 
 async function doPublish(id: number) {
-  const res = await adminAnnouncementApi.publish(id)
-  if (res.isSuccess) {
-    message.success(t('announcements.publishSuccess'))
-    await loadList()
-  }
-  else {
-    message.error(res.message || t('announcements.actionFailed'))
-  }
+  await withSubmitLock(actionLock, async () => {
+    const res = await adminAnnouncementApi.publish(id)
+    if (res.isSuccess) {
+      message.success(t('announcements.publishSuccess'))
+      await loadList()
+    }
+    else {
+      message.error(res.message || t('announcements.actionFailed'))
+    }
+  })
 }
 
 async function doUnpublish(id: number) {
-  const res = await adminAnnouncementApi.unpublish(id)
-  if (res.isSuccess) {
-    message.success(t('announcements.unpublishSuccess'))
-    await loadList()
-  }
-  else {
-    message.error(res.message || t('announcements.actionFailed'))
-  }
+  await withSubmitLock(actionLock, async () => {
+    const res = await adminAnnouncementApi.unpublish(id)
+    if (res.isSuccess) {
+      message.success(t('announcements.unpublishSuccess'))
+      await loadList()
+    }
+    else {
+      message.error(res.message || t('announcements.actionFailed'))
+    }
+  })
 }
 
 function doDelete(id: number) {
@@ -259,7 +263,7 @@ function doDelete(id: number) {
     content: t('announcements.confirmDeleteContent'),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    onPositiveClick: () => withSubmitLock(actionLock, async () => {
       const res = await adminAnnouncementApi.remove(id)
       if (res.isSuccess) {
         message.success(t('announcements.deleteSuccess'))
@@ -268,7 +272,7 @@ function doDelete(id: number) {
       else {
         message.error(res.message || t('announcements.actionFailed'))
       }
-    },
+    }),
   })
 }
 
