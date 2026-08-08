@@ -24,11 +24,13 @@ func NewPaymentController() *PaymentController {
 // 请求结构体
 // ========================================
 
+// AdminCompleteOrderRequest 管理端补单请求
 type AdminCompleteOrderRequest struct {
 	Memo  string `json:"memo"`
 	Force bool   `json:"force"` // 强制补单（canceled/failed 高危路径，须填 memo）
 }
 
+// AdminResolveExceptionRequest 管理端订单异常处理请求
 type AdminResolveExceptionRequest struct {
 	Action string `json:"action"` // resolve | ignore
 	Remark string `json:"remark"`

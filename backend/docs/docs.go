@@ -264,7 +264,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_admin.EmailSendTestRequest"
+                            "$ref": "#/definitions/admin.EmailSendTestRequest"
                         }
                     }
                 ],
@@ -373,7 +373,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_admin.EmailTemplateUpdateRequest"
+                            "$ref": "#/definitions/admin.EmailTemplateUpdateRequest"
                         }
                     }
                 ],
@@ -419,7 +419,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_admin.EmailPreviewRequest"
+                            "$ref": "#/definitions/admin.EmailPreviewRequest"
                         }
                     }
                 ],
@@ -869,7 +869,7 @@ const docTemplate = `{
                         "name": "body",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_admin.AdminCompleteOrderRequest"
+                            "$ref": "#/definitions/admin.AdminCompleteOrderRequest"
                         }
                     }
                 ],
@@ -1021,7 +1021,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_admin.ReviewRealnameRequest"
+                            "$ref": "#/definitions/admin.ReviewRealnameRequest"
                         }
                     }
                 ],
@@ -1102,7 +1102,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/app_controllers_admin.SettingsListResponse"
+                                            "$ref": "#/definitions/admin.SettingsListResponse"
                                         }
                                     }
                                 }
@@ -1135,7 +1135,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_admin.CreateSettingRequest"
+                            "$ref": "#/definitions/admin.CreateSettingRequest"
                         }
                     }
                 ],
@@ -1174,7 +1174,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_admin.BatchUpdateSettingsRequest"
+                            "$ref": "#/definitions/admin.BatchUpdateSettingsRequest"
                         }
                     }
                 ],
@@ -1292,7 +1292,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_admin.UpdateSettingRequest"
+                            "$ref": "#/definitions/admin.UpdateSettingRequest"
                         }
                     }
                 ],
@@ -1373,7 +1373,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_admin.UpdateSettingMetaRequest"
+                            "$ref": "#/definitions/admin.UpdateSettingMetaRequest"
                         }
                     }
                 ],
@@ -1633,7 +1633,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_admin.SMSSendTestRequest"
+                            "$ref": "#/definitions/admin.SMSSendTestRequest"
                         }
                     }
                 ],
@@ -1721,7 +1721,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_admin.SMSTemplateUpdateRequest"
+                            "$ref": "#/definitions/admin.SMSTemplateUpdateRequest"
                         }
                     }
                 ],
@@ -1760,7 +1760,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_admin.SMSPreviewRequest"
+                            "$ref": "#/definitions/admin.SMSPreviewRequest"
                         }
                     }
                 ],
@@ -1889,7 +1889,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/fst_backend_app_services.UserCreateRequest"
+                            "$ref": "#/definitions/services.UserCreateRequest"
                         }
                     }
                 ],
@@ -2025,7 +2025,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/app_controllers_admin.AdminUserDetailResponse"
+                                            "$ref": "#/definitions/admin.AdminUserDetailResponse"
                                         }
                                     }
                                 }
@@ -2065,7 +2065,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/fst_backend_app_services.UserUpdateRequest"
+                            "$ref": "#/definitions/services.UserUpdateRequest"
                         }
                     }
                 ],
@@ -2306,7 +2306,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_public.LoginRequest"
+                            "$ref": "#/definitions/public.LoginRequest"
                         }
                     }
                 ],
@@ -2360,7 +2360,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/app_controllers_public.AppConfigResponse"
+                                            "$ref": "#/definitions/public.AppConfigResponse"
                                         }
                                     }
                                 }
@@ -2390,7 +2390,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_public.ResetEmailRequest"
+                            "$ref": "#/definitions/public.ResetEmailRequest"
                         }
                     }
                 ],
@@ -2425,7 +2425,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/app_controllers_public.DialCountriesResponse"
+                                            "$ref": "#/definitions/public.DialCountriesResponse"
                                         }
                                     }
                                 }
@@ -2465,7 +2465,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/app_controllers_public.PhoneCountryResponse"
+                                            "$ref": "#/definitions/public.PhoneCountryResponse"
                                         }
                                     }
                                 }
@@ -2495,7 +2495,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_public.LoginRequest"
+                            "$ref": "#/definitions/public.LoginRequest"
                         }
                     }
                 ],
@@ -2547,7 +2547,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_public.RefreshTokenRequest"
+                            "$ref": "#/definitions/public.RefreshTokenRequest"
                         }
                     }
                 ],
@@ -2581,7 +2581,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_public.RegisterRequest"
+                            "$ref": "#/definitions/public.RegisterRequest"
                         }
                     }
                 ],
@@ -2627,7 +2627,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_public.ResetPasswordConfirmRequest"
+                            "$ref": "#/definitions/public.ResetPasswordConfirmRequest"
                         }
                     }
                 ],
@@ -2661,7 +2661,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_public.SendCodeRequest"
+                            "$ref": "#/definitions/public.SendCodeRequest"
                         }
                     }
                 ],
@@ -2833,7 +2833,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_user.DeactivateAccountRequest"
+                            "$ref": "#/definitions/user.DeactivateAccountRequest"
                         }
                     }
                 ],
@@ -2872,7 +2872,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_user.SendEmailCodeRequest"
+                            "$ref": "#/definitions/user.SendEmailCodeRequest"
                         }
                     }
                 ],
@@ -2911,7 +2911,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_user.VerifyEmailChangeRequest"
+                            "$ref": "#/definitions/user.VerifyEmailChangeRequest"
                         }
                     }
                 ],
@@ -2996,7 +2996,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_user.ChangePasswordRequest"
+                            "$ref": "#/definitions/user.ChangePasswordRequest"
                         }
                     }
                 ],
@@ -3034,7 +3034,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_user.CreateOrderRequest"
+                            "$ref": "#/definitions/user.CreateOrderRequest"
                         }
                     }
                 ],
@@ -3210,7 +3210,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_user.SendPhoneCodeRequest"
+                            "$ref": "#/definitions/user.SendPhoneCodeRequest"
                         }
                     }
                 ],
@@ -3249,7 +3249,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_user.VerifyPhoneChangeRequest"
+                            "$ref": "#/definitions/user.VerifyPhoneChangeRequest"
                         }
                     }
                 ],
@@ -3293,7 +3293,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/app_controllers_user.ProfileResponse"
+                                            "$ref": "#/definitions/user.ProfileResponse"
                                         }
                                     }
                                 }
@@ -3326,7 +3326,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_user.UpdateProfileRequest"
+                            "$ref": "#/definitions/user.UpdateProfileRequest"
                         }
                     }
                 ],
@@ -3391,7 +3391,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_user.SubmitRealnameRequest"
+                            "$ref": "#/definitions/user.SubmitRealnameRequest"
                         }
                     }
                 ],
@@ -3623,7 +3623,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/app_controllers_user.UpdateSettingsRequest"
+                            "$ref": "#/definitions/user.UpdateSettingsRequest"
                         }
                     }
                 ],
@@ -3667,7 +3667,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "app_controllers_admin.AdminCompleteOrderRequest": {
+        "admin.AdminCompleteOrderRequest": {
             "type": "object",
             "properties": {
                 "force": {
@@ -3679,18 +3679,18 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_admin.AdminUserDetailResponse": {
+        "admin.AdminUserDetailResponse": {
             "type": "object",
             "properties": {
                 "realname": {
-                    "$ref": "#/definitions/app_controllers_admin.AdminUserRealnameSummary"
+                    "$ref": "#/definitions/admin.AdminUserRealnameSummary"
                 },
                 "user": {
-                    "$ref": "#/definitions/fst_backend_app_services.AdminUserListItem"
+                    "$ref": "#/definitions/services.AdminUserListItem"
                 }
             }
         },
-        "app_controllers_admin.AdminUserRealnameSummary": {
+        "admin.AdminUserRealnameSummary": {
             "type": "object",
             "properties": {
                 "certificate_no": {
@@ -3722,7 +3722,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_admin.BatchUpdateSettingsRequest": {
+        "admin.BatchUpdateSettingsRequest": {
             "type": "object",
             "required": [
                 "settings"
@@ -3736,7 +3736,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_admin.CreateSettingRequest": {
+        "admin.CreateSettingRequest": {
             "type": "object",
             "required": [
                 "key",
@@ -3774,7 +3774,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_admin.EmailPreviewRequest": {
+        "admin.EmailPreviewRequest": {
             "type": "object",
             "required": [
                 "content"
@@ -3789,7 +3789,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_admin.EmailSendTestRequest": {
+        "admin.EmailSendTestRequest": {
             "type": "object",
             "required": [
                 "to"
@@ -3810,7 +3810,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_admin.EmailTemplateUpdateRequest": {
+        "admin.EmailTemplateUpdateRequest": {
             "type": "object",
             "required": [
                 "content"
@@ -3830,7 +3830,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_admin.ReviewRealnameRequest": {
+        "admin.ReviewRealnameRequest": {
             "type": "object",
             "required": [
                 "id",
@@ -3850,7 +3850,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_admin.SMSPreviewRequest": {
+        "admin.SMSPreviewRequest": {
             "type": "object",
             "required": [
                 "content"
@@ -3865,7 +3865,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_admin.SMSSendTestRequest": {
+        "admin.SMSSendTestRequest": {
             "type": "object",
             "required": [
                 "phone"
@@ -3879,7 +3879,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_admin.SMSTemplateUpdateRequest": {
+        "admin.SMSTemplateUpdateRequest": {
             "type": "object",
             "required": [
                 "content"
@@ -3899,18 +3899,18 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_admin.SettingsListResponse": {
+        "admin.SettingsListResponse": {
             "type": "object",
             "properties": {
                 "categories": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/fst_backend_app_models.SettingsGroup"
+                        "$ref": "#/definitions/models.SettingsGroup"
                     }
                 }
             }
         },
-        "app_controllers_admin.UpdateSettingMetaRequest": {
+        "admin.UpdateSettingMetaRequest": {
             "type": "object",
             "properties": {
                 "category": {
@@ -3939,7 +3939,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_admin.UpdateSettingRequest": {
+        "admin.UpdateSettingRequest": {
             "type": "object",
             "properties": {
                 "value": {
@@ -3947,7 +3947,51 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_public.AppConfigResponse": {
+        "models.SettingDTO": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_editable": {
+                    "type": "boolean"
+                },
+                "is_public": {
+                    "type": "boolean"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "value": {}
+            }
+        },
+        "models.SettingsGroup": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SettingDTO"
+                    }
+                },
+                "label": {
+                    "type": "string"
+                }
+            }
+        },
+        "public.AppConfigResponse": {
             "type": "object",
             "properties": {
                 "admin_api_path": {
@@ -4050,7 +4094,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_public.DialCountriesResponse": {
+        "public.DialCountriesResponse": {
             "type": "object",
             "properties": {
                 "items": {
@@ -4061,7 +4105,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_public.LoginRequest": {
+        "public.LoginRequest": {
             "type": "object",
             "required": [
                 "password"
@@ -4084,7 +4128,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_public.PhoneCountryResponse": {
+        "public.PhoneCountryResponse": {
             "type": "object",
             "properties": {
                 "country_code": {
@@ -4111,7 +4155,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_public.RefreshTokenRequest": {
+        "public.RefreshTokenRequest": {
             "type": "object",
             "required": [
                 "refreshToken"
@@ -4125,7 +4169,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_public.RegisterRequest": {
+        "public.RegisterRequest": {
             "type": "object",
             "required": [
                 "code",
@@ -4150,7 +4194,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_public.ResetEmailRequest": {
+        "public.ResetEmailRequest": {
             "type": "object",
             "required": [
                 "email"
@@ -4164,7 +4208,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_public.ResetPasswordConfirmRequest": {
+        "public.ResetPasswordConfirmRequest": {
             "type": "object",
             "required": [
                 "code",
@@ -4184,7 +4228,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_public.SendCodeRequest": {
+        "public.SendCodeRequest": {
             "type": "object",
             "required": [
                 "email"
@@ -4198,350 +4242,7 @@ const docTemplate = `{
                 }
             }
         },
-        "app_controllers_user.ChangePasswordRequest": {
-            "type": "object",
-            "required": [
-                "new_password",
-                "old_password"
-            ],
-            "properties": {
-                "new_password": {
-                    "type": "string",
-                    "minLength": 8
-                },
-                "old_password": {
-                    "type": "string"
-                }
-            }
-        },
-        "app_controllers_user.CreateOrderRequest": {
-            "type": "object",
-            "required": [
-                "amount",
-                "gateway_id"
-            ],
-            "properties": {
-                "amount": {
-                    "type": "number"
-                },
-                "gateway_id": {
-                    "type": "integer"
-                },
-                "subject": {
-                    "type": "string"
-                }
-            }
-        },
-        "app_controllers_user.DeactivateAccountRequest": {
-            "type": "object",
-            "required": [
-                "password"
-            ],
-            "properties": {
-                "password": {
-                    "type": "string"
-                },
-                "reason": {
-                    "type": "string"
-                }
-            }
-        },
-        "app_controllers_user.ProfileRealnameSummary": {
-            "type": "object",
-            "properties": {
-                "certificateNo": {
-                    "type": "string"
-                },
-                "certificateType": {
-                    "type": "integer"
-                },
-                "hasVerification": {
-                    "type": "boolean"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "realName": {
-                    "type": "string"
-                },
-                "rejectReason": {
-                    "type": "string"
-                },
-                "reviewedAt": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "integer"
-                },
-                "submittedAt": {
-                    "type": "integer"
-                }
-            }
-        },
-        "app_controllers_user.ProfileResponse": {
-            "type": "object",
-            "properties": {
-                "avatar": {
-                    "type": "string"
-                },
-                "backGround": {
-                    "type": "string"
-                },
-                "back_ground": {
-                    "type": "string"
-                },
-                "birthday": {
-                    "type": "integer"
-                },
-                "country": {
-                    "type": "string"
-                },
-                "createTime": {
-                    "type": "integer"
-                },
-                "email": {
-                    "type": "string"
-                },
-                "gender": {
-                    "type": "integer"
-                },
-                "groupId": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "joinIp": {
-                    "type": "string"
-                },
-                "joinTime": {
-                    "type": "integer"
-                },
-                "language": {
-                    "type": "string"
-                },
-                "lastLoginIp": {
-                    "type": "string"
-                },
-                "lastLoginTime": {
-                    "type": "integer"
-                },
-                "level": {
-                    "type": "integer"
-                },
-                "loginFailure": {
-                    "type": "integer"
-                },
-                "mobile": {
-                    "type": "string"
-                },
-                "money": {
-                    "type": "number"
-                },
-                "motto": {
-                    "type": "string"
-                },
-                "nickname": {
-                    "type": "string"
-                },
-                "realname": {
-                    "$ref": "#/definitions/app_controllers_user.ProfileRealnameSummary"
-                },
-                "role": {
-                    "type": "string"
-                },
-                "score": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "integer"
-                },
-                "updateTime": {
-                    "type": "integer"
-                },
-                "userName": {
-                    "type": "string"
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "app_controllers_user.SendEmailCodeRequest": {
-            "type": "object",
-            "required": [
-                "new_email"
-            ],
-            "properties": {
-                "lang": {
-                    "type": "string"
-                },
-                "new_email": {
-                    "type": "string"
-                }
-            }
-        },
-        "app_controllers_user.SendPhoneCodeRequest": {
-            "type": "object",
-            "required": [
-                "new_mobile"
-            ],
-            "properties": {
-                "new_mobile": {
-                    "type": "string"
-                }
-            }
-        },
-        "app_controllers_user.SubmitRealnameRequest": {
-            "type": "object",
-            "required": [
-                "certificate_back",
-                "certificate_front",
-                "certificate_no",
-                "certificate_type",
-                "real_name"
-            ],
-            "properties": {
-                "certificate_back": {
-                    "type": "string"
-                },
-                "certificate_front": {
-                    "type": "string"
-                },
-                "certificate_no": {
-                    "type": "string"
-                },
-                "certificate_type": {
-                    "type": "integer",
-                    "maximum": 3,
-                    "minimum": 1
-                },
-                "real_name": {
-                    "type": "string"
-                }
-            }
-        },
-        "app_controllers_user.UpdateProfileRequest": {
-            "type": "object",
-            "properties": {
-                "avatar": {
-                    "type": "string"
-                },
-                "back_ground": {
-                    "type": "string"
-                },
-                "birthday": {
-                    "type": "integer"
-                },
-                "country": {
-                    "type": "string"
-                },
-                "gender": {
-                    "type": "integer"
-                },
-                "language": {
-                    "type": "string"
-                },
-                "mobile": {
-                    "type": "string"
-                },
-                "motto": {
-                    "type": "string"
-                },
-                "nickname": {
-                    "type": "string"
-                }
-            }
-        },
-        "app_controllers_user.UpdateSettingsRequest": {
-            "type": "object",
-            "properties": {
-                "language": {
-                    "type": "string"
-                },
-                "notify_email": {
-                    "type": "boolean"
-                },
-                "theme": {
-                    "type": "string"
-                }
-            }
-        },
-        "app_controllers_user.VerifyEmailChangeRequest": {
-            "type": "object",
-            "required": [
-                "code",
-                "new_email"
-            ],
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "new_email": {
-                    "type": "string"
-                }
-            }
-        },
-        "app_controllers_user.VerifyPhoneChangeRequest": {
-            "type": "object",
-            "required": [
-                "code",
-                "new_mobile"
-            ],
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "new_mobile": {
-                    "type": "string"
-                }
-            }
-        },
-        "fst_backend_app_models.SettingDTO": {
-            "type": "object",
-            "properties": {
-                "category": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "is_editable": {
-                    "type": "boolean"
-                },
-                "is_public": {
-                    "type": "boolean"
-                },
-                "key": {
-                    "type": "string"
-                },
-                "label": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                },
-                "value": {}
-            }
-        },
-        "fst_backend_app_models.SettingsGroup": {
-            "type": "object",
-            "properties": {
-                "category": {
-                    "type": "string"
-                },
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/fst_backend_app_models.SettingDTO"
-                    }
-                },
-                "label": {
-                    "type": "string"
-                }
-            }
-        },
-        "fst_backend_app_services.AdminUserListItem": {
+        "services.AdminUserListItem": {
             "type": "object",
             "properties": {
                 "admin_remark": {
@@ -4652,7 +4353,7 @@ const docTemplate = `{
                 }
             }
         },
-        "fst_backend_app_services.UserCreateRequest": {
+        "services.UserCreateRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -4699,7 +4400,7 @@ const docTemplate = `{
                 }
             }
         },
-        "fst_backend_app_services.UserUpdateRequest": {
+        "services.UserUpdateRequest": {
             "type": "object",
             "properties": {
                 "admin_remark": {
@@ -4750,6 +4451,305 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "integer"
+                }
+            }
+        },
+        "user.ChangePasswordRequest": {
+            "type": "object",
+            "required": [
+                "new_password",
+                "old_password"
+            ],
+            "properties": {
+                "new_password": {
+                    "type": "string",
+                    "minLength": 8
+                },
+                "old_password": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.CreateOrderRequest": {
+            "type": "object",
+            "required": [
+                "amount",
+                "gateway_id"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "gateway_id": {
+                    "type": "integer"
+                },
+                "subject": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.DeactivateAccountRequest": {
+            "type": "object",
+            "required": [
+                "password"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.ProfileRealnameSummary": {
+            "type": "object",
+            "properties": {
+                "certificateNo": {
+                    "type": "string"
+                },
+                "certificateType": {
+                    "type": "integer"
+                },
+                "hasVerification": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "realName": {
+                    "type": "string"
+                },
+                "rejectReason": {
+                    "type": "string"
+                },
+                "reviewedAt": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "submittedAt": {
+                    "type": "integer"
+                }
+            }
+        },
+        "user.ProfileResponse": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "backGround": {
+                    "type": "string"
+                },
+                "back_ground": {
+                    "type": "string"
+                },
+                "birthday": {
+                    "type": "integer"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "createTime": {
+                    "type": "integer"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "gender": {
+                    "type": "integer"
+                },
+                "groupId": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "joinIp": {
+                    "type": "string"
+                },
+                "joinTime": {
+                    "type": "integer"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "lastLoginIp": {
+                    "type": "string"
+                },
+                "lastLoginTime": {
+                    "type": "integer"
+                },
+                "level": {
+                    "type": "integer"
+                },
+                "loginFailure": {
+                    "type": "integer"
+                },
+                "mobile": {
+                    "type": "string"
+                },
+                "money": {
+                    "type": "number"
+                },
+                "motto": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "realname": {
+                    "$ref": "#/definitions/user.ProfileRealnameSummary"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "updateTime": {
+                    "type": "integer"
+                },
+                "userName": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.SendEmailCodeRequest": {
+            "type": "object",
+            "required": [
+                "new_email"
+            ],
+            "properties": {
+                "lang": {
+                    "type": "string"
+                },
+                "new_email": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.SendPhoneCodeRequest": {
+            "type": "object",
+            "required": [
+                "new_mobile"
+            ],
+            "properties": {
+                "new_mobile": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.SubmitRealnameRequest": {
+            "type": "object",
+            "required": [
+                "certificate_back",
+                "certificate_front",
+                "certificate_no",
+                "certificate_type",
+                "real_name"
+            ],
+            "properties": {
+                "certificate_back": {
+                    "type": "string"
+                },
+                "certificate_front": {
+                    "type": "string"
+                },
+                "certificate_no": {
+                    "type": "string"
+                },
+                "certificate_type": {
+                    "type": "integer",
+                    "maximum": 3,
+                    "minimum": 1
+                },
+                "real_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.UpdateProfileRequest": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "back_ground": {
+                    "type": "string"
+                },
+                "birthday": {
+                    "type": "integer"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "gender": {
+                    "type": "integer"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "mobile": {
+                    "type": "string"
+                },
+                "motto": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.UpdateSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "language": {
+                    "type": "string"
+                },
+                "notify_email": {
+                    "type": "boolean"
+                },
+                "theme": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.VerifyEmailChangeRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "new_email"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "new_email": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.VerifyPhoneChangeRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "new_mobile"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "new_mobile": {
+                    "type": "string"
                 }
             }
         },

@@ -1,6 +1,6 @@
 basePath: /api
 definitions:
-  app_controllers_admin.AdminCompleteOrderRequest:
+  admin.AdminCompleteOrderRequest:
     properties:
       force:
         description: 强制补单（canceled/failed 高危路径，须填 memo）
@@ -8,14 +8,14 @@ definitions:
       memo:
         type: string
     type: object
-  app_controllers_admin.AdminUserDetailResponse:
+  admin.AdminUserDetailResponse:
     properties:
       realname:
-        $ref: '#/definitions/app_controllers_admin.AdminUserRealnameSummary'
+        $ref: '#/definitions/admin.AdminUserRealnameSummary'
       user:
-        $ref: '#/definitions/fst_backend_app_services.AdminUserListItem'
+        $ref: '#/definitions/services.AdminUserListItem'
     type: object
-  app_controllers_admin.AdminUserRealnameSummary:
+  admin.AdminUserRealnameSummary:
     properties:
       certificate_no:
         type: string
@@ -36,7 +36,7 @@ definitions:
       submitted_at:
         type: integer
     type: object
-  app_controllers_admin.BatchUpdateSettingsRequest:
+  admin.BatchUpdateSettingsRequest:
     properties:
       settings:
         additionalProperties:
@@ -45,7 +45,7 @@ definitions:
     required:
     - settings
     type: object
-  app_controllers_admin.CreateSettingRequest:
+  admin.CreateSettingRequest:
     properties:
       category:
         description: basic, security, email, custom
@@ -71,7 +71,7 @@ definitions:
     - key
     - label
     type: object
-  app_controllers_admin.EmailPreviewRequest:
+  admin.EmailPreviewRequest:
     properties:
       content:
         type: string
@@ -81,7 +81,7 @@ definitions:
     required:
     - content
     type: object
-  app_controllers_admin.EmailSendTestRequest:
+  admin.EmailSendTestRequest:
     properties:
       content:
         type: string
@@ -95,7 +95,7 @@ definitions:
     required:
     - to
     type: object
-  app_controllers_admin.EmailTemplateUpdateRequest:
+  admin.EmailTemplateUpdateRequest:
     properties:
       content:
         type: string
@@ -108,7 +108,7 @@ definitions:
     required:
     - content
     type: object
-  app_controllers_admin.ReviewRealnameRequest:
+  admin.ReviewRealnameRequest:
     properties:
       id:
         type: integer
@@ -122,7 +122,7 @@ definitions:
     - id
     - status
     type: object
-  app_controllers_admin.SMSPreviewRequest:
+  admin.SMSPreviewRequest:
     properties:
       content:
         type: string
@@ -132,7 +132,7 @@ definitions:
     required:
     - content
     type: object
-  app_controllers_admin.SMSSendTestRequest:
+  admin.SMSSendTestRequest:
     properties:
       lang:
         type: string
@@ -141,7 +141,7 @@ definitions:
     required:
     - phone
     type: object
-  app_controllers_admin.SMSTemplateUpdateRequest:
+  admin.SMSTemplateUpdateRequest:
     properties:
       content:
         type: string
@@ -154,14 +154,14 @@ definitions:
     required:
     - content
     type: object
-  app_controllers_admin.SettingsListResponse:
+  admin.SettingsListResponse:
     properties:
       categories:
         items:
-          $ref: '#/definitions/fst_backend_app_models.SettingsGroup'
+          $ref: '#/definitions/models.SettingsGroup'
         type: array
     type: object
-  app_controllers_admin.UpdateSettingMetaRequest:
+  admin.UpdateSettingMetaRequest:
     properties:
       category:
         type: string
@@ -180,12 +180,41 @@ definitions:
       value:
         type: string
     type: object
-  app_controllers_admin.UpdateSettingRequest:
+  admin.UpdateSettingRequest:
     properties:
       value:
         type: string
     type: object
-  app_controllers_public.AppConfigResponse:
+  models.SettingDTO:
+    properties:
+      category:
+        type: string
+      description:
+        type: string
+      is_editable:
+        type: boolean
+      is_public:
+        type: boolean
+      key:
+        type: string
+      label:
+        type: string
+      type:
+        type: string
+      value: {}
+    type: object
+  models.SettingsGroup:
+    properties:
+      category:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/models.SettingDTO'
+        type: array
+      label:
+        type: string
+    type: object
+  public.AppConfigResponse:
     properties:
       admin_api_path:
         description: 管理端 REST API 在 /api/v1 下的前缀（来自 env ADMIN_API_PATH，默认 /admin）
@@ -257,14 +286,14 @@ definitions:
       withdraw_notify_text:
         type: string
     type: object
-  app_controllers_public.DialCountriesResponse:
+  public.DialCountriesResponse:
     properties:
       items:
         items:
           $ref: '#/definitions/utils.DialCountry'
         type: array
     type: object
-  app_controllers_public.LoginRequest:
+  public.LoginRequest:
     properties:
       authGuard:
         type: string
@@ -279,7 +308,7 @@ definitions:
     required:
     - password
     type: object
-  app_controllers_public.PhoneCountryResponse:
+  public.PhoneCountryResponse:
     properties:
       country_code:
         type: string
@@ -297,7 +326,7 @@ definitions:
         description: cn_only | header | ip | lang | default
         type: string
     type: object
-  app_controllers_public.RefreshTokenRequest:
+  public.RefreshTokenRequest:
     properties:
       authGuard:
         type: string
@@ -306,7 +335,7 @@ definitions:
     required:
     - refreshToken
     type: object
-  app_controllers_public.RegisterRequest:
+  public.RegisterRequest:
     properties:
       code:
         type: string
@@ -324,7 +353,7 @@ definitions:
     - password
     - username
     type: object
-  app_controllers_public.ResetEmailRequest:
+  public.ResetEmailRequest:
     properties:
       email:
         type: string
@@ -333,7 +362,7 @@ definitions:
     required:
     - email
     type: object
-  app_controllers_public.ResetPasswordConfirmRequest:
+  public.ResetPasswordConfirmRequest:
     properties:
       code:
         type: string
@@ -347,7 +376,7 @@ definitions:
     - email
     - new_password
     type: object
-  app_controllers_public.SendCodeRequest:
+  public.SendCodeRequest:
     properties:
       email:
         type: string
@@ -356,235 +385,7 @@ definitions:
     required:
     - email
     type: object
-  app_controllers_user.ChangePasswordRequest:
-    properties:
-      new_password:
-        minLength: 8
-        type: string
-      old_password:
-        type: string
-    required:
-    - new_password
-    - old_password
-    type: object
-  app_controllers_user.CreateOrderRequest:
-    properties:
-      amount:
-        type: number
-      gateway_id:
-        type: integer
-      subject:
-        type: string
-    required:
-    - amount
-    - gateway_id
-    type: object
-  app_controllers_user.DeactivateAccountRequest:
-    properties:
-      password:
-        type: string
-      reason:
-        type: string
-    required:
-    - password
-    type: object
-  app_controllers_user.ProfileRealnameSummary:
-    properties:
-      certificateNo:
-        type: string
-      certificateType:
-        type: integer
-      hasVerification:
-        type: boolean
-      id:
-        type: integer
-      realName:
-        type: string
-      rejectReason:
-        type: string
-      reviewedAt:
-        type: integer
-      status:
-        type: integer
-      submittedAt:
-        type: integer
-    type: object
-  app_controllers_user.ProfileResponse:
-    properties:
-      avatar:
-        type: string
-      back_ground:
-        type: string
-      backGround:
-        type: string
-      birthday:
-        type: integer
-      country:
-        type: string
-      createTime:
-        type: integer
-      email:
-        type: string
-      gender:
-        type: integer
-      groupId:
-        type: integer
-      id:
-        type: integer
-      joinIp:
-        type: string
-      joinTime:
-        type: integer
-      language:
-        type: string
-      lastLoginIp:
-        type: string
-      lastLoginTime:
-        type: integer
-      level:
-        type: integer
-      loginFailure:
-        type: integer
-      mobile:
-        type: string
-      money:
-        type: number
-      motto:
-        type: string
-      nickname:
-        type: string
-      realname:
-        $ref: '#/definitions/app_controllers_user.ProfileRealnameSummary'
-      role:
-        type: string
-      score:
-        type: integer
-      status:
-        type: integer
-      updateTime:
-        type: integer
-      userName:
-        type: string
-      username:
-        type: string
-    type: object
-  app_controllers_user.SendEmailCodeRequest:
-    properties:
-      lang:
-        type: string
-      new_email:
-        type: string
-    required:
-    - new_email
-    type: object
-  app_controllers_user.SendPhoneCodeRequest:
-    properties:
-      new_mobile:
-        type: string
-    required:
-    - new_mobile
-    type: object
-  app_controllers_user.SubmitRealnameRequest:
-    properties:
-      certificate_back:
-        type: string
-      certificate_front:
-        type: string
-      certificate_no:
-        type: string
-      certificate_type:
-        maximum: 3
-        minimum: 1
-        type: integer
-      real_name:
-        type: string
-    required:
-    - certificate_back
-    - certificate_front
-    - certificate_no
-    - certificate_type
-    - real_name
-    type: object
-  app_controllers_user.UpdateProfileRequest:
-    properties:
-      avatar:
-        type: string
-      back_ground:
-        type: string
-      birthday:
-        type: integer
-      country:
-        type: string
-      gender:
-        type: integer
-      language:
-        type: string
-      mobile:
-        type: string
-      motto:
-        type: string
-      nickname:
-        type: string
-    type: object
-  app_controllers_user.UpdateSettingsRequest:
-    properties:
-      language:
-        type: string
-      notify_email:
-        type: boolean
-      theme:
-        type: string
-    type: object
-  app_controllers_user.VerifyEmailChangeRequest:
-    properties:
-      code:
-        type: string
-      new_email:
-        type: string
-    required:
-    - code
-    - new_email
-    type: object
-  app_controllers_user.VerifyPhoneChangeRequest:
-    properties:
-      code:
-        type: string
-      new_mobile:
-        type: string
-    required:
-    - code
-    - new_mobile
-    type: object
-  fst_backend_app_models.SettingDTO:
-    properties:
-      category:
-        type: string
-      description:
-        type: string
-      is_editable:
-        type: boolean
-      is_public:
-        type: boolean
-      key:
-        type: string
-      label:
-        type: string
-      type:
-        type: string
-      value: {}
-    type: object
-  fst_backend_app_models.SettingsGroup:
-    properties:
-      category:
-        type: string
-      items:
-        items:
-          $ref: '#/definitions/fst_backend_app_models.SettingDTO'
-        type: array
-      label:
-        type: string
-    type: object
-  fst_backend_app_services.AdminUserListItem:
+  services.AdminUserListItem:
     properties:
       admin_remark:
         type: string
@@ -662,7 +463,7 @@ definitions:
         description: MySQL：string 未指定 size 时 GORM 会迁成 longtext，无法建唯一索引（Error 1170）
         type: string
     type: object
-  fst_backend_app_services.UserCreateRequest:
+  services.UserCreateRequest:
     properties:
       admin_remark:
         type: string
@@ -694,7 +495,7 @@ definitions:
     - password
     - username
     type: object
-  fst_backend_app_services.UserUpdateRequest:
+  services.UserUpdateRequest:
     properties:
       admin_remark:
         type: string
@@ -729,6 +530,205 @@ definitions:
         type: string
       status:
         type: integer
+    type: object
+  user.ChangePasswordRequest:
+    properties:
+      new_password:
+        minLength: 8
+        type: string
+      old_password:
+        type: string
+    required:
+    - new_password
+    - old_password
+    type: object
+  user.CreateOrderRequest:
+    properties:
+      amount:
+        type: number
+      gateway_id:
+        type: integer
+      subject:
+        type: string
+    required:
+    - amount
+    - gateway_id
+    type: object
+  user.DeactivateAccountRequest:
+    properties:
+      password:
+        type: string
+      reason:
+        type: string
+    required:
+    - password
+    type: object
+  user.ProfileRealnameSummary:
+    properties:
+      certificateNo:
+        type: string
+      certificateType:
+        type: integer
+      hasVerification:
+        type: boolean
+      id:
+        type: integer
+      realName:
+        type: string
+      rejectReason:
+        type: string
+      reviewedAt:
+        type: integer
+      status:
+        type: integer
+      submittedAt:
+        type: integer
+    type: object
+  user.ProfileResponse:
+    properties:
+      avatar:
+        type: string
+      back_ground:
+        type: string
+      backGround:
+        type: string
+      birthday:
+        type: integer
+      country:
+        type: string
+      createTime:
+        type: integer
+      email:
+        type: string
+      gender:
+        type: integer
+      groupId:
+        type: integer
+      id:
+        type: integer
+      joinIp:
+        type: string
+      joinTime:
+        type: integer
+      language:
+        type: string
+      lastLoginIp:
+        type: string
+      lastLoginTime:
+        type: integer
+      level:
+        type: integer
+      loginFailure:
+        type: integer
+      mobile:
+        type: string
+      money:
+        type: number
+      motto:
+        type: string
+      nickname:
+        type: string
+      realname:
+        $ref: '#/definitions/user.ProfileRealnameSummary'
+      role:
+        type: string
+      score:
+        type: integer
+      status:
+        type: integer
+      updateTime:
+        type: integer
+      userName:
+        type: string
+      username:
+        type: string
+    type: object
+  user.SendEmailCodeRequest:
+    properties:
+      lang:
+        type: string
+      new_email:
+        type: string
+    required:
+    - new_email
+    type: object
+  user.SendPhoneCodeRequest:
+    properties:
+      new_mobile:
+        type: string
+    required:
+    - new_mobile
+    type: object
+  user.SubmitRealnameRequest:
+    properties:
+      certificate_back:
+        type: string
+      certificate_front:
+        type: string
+      certificate_no:
+        type: string
+      certificate_type:
+        maximum: 3
+        minimum: 1
+        type: integer
+      real_name:
+        type: string
+    required:
+    - certificate_back
+    - certificate_front
+    - certificate_no
+    - certificate_type
+    - real_name
+    type: object
+  user.UpdateProfileRequest:
+    properties:
+      avatar:
+        type: string
+      back_ground:
+        type: string
+      birthday:
+        type: integer
+      country:
+        type: string
+      gender:
+        type: integer
+      language:
+        type: string
+      mobile:
+        type: string
+      motto:
+        type: string
+      nickname:
+        type: string
+    type: object
+  user.UpdateSettingsRequest:
+    properties:
+      language:
+        type: string
+      notify_email:
+        type: boolean
+      theme:
+        type: string
+    type: object
+  user.VerifyEmailChangeRequest:
+    properties:
+      code:
+        type: string
+      new_email:
+        type: string
+    required:
+    - code
+    - new_email
+    type: object
+  user.VerifyPhoneChangeRequest:
+    properties:
+      code:
+        type: string
+      new_mobile:
+        type: string
+    required:
+    - code
+    - new_mobile
     type: object
   utils.DialCountry:
     properties:
@@ -909,7 +909,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_admin.EmailSendTestRequest'
+          $ref: '#/definitions/admin.EmailSendTestRequest'
       produces:
       - application/json
       responses:
@@ -977,7 +977,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_admin.EmailTemplateUpdateRequest'
+          $ref: '#/definitions/admin.EmailTemplateUpdateRequest'
       produces:
       - application/json
       responses:
@@ -1006,7 +1006,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_admin.EmailPreviewRequest'
+          $ref: '#/definitions/admin.EmailPreviewRequest'
       produces:
       - application/json
       responses:
@@ -1285,7 +1285,7 @@ paths:
         in: body
         name: body
         schema:
-          $ref: '#/definitions/app_controllers_admin.AdminCompleteOrderRequest'
+          $ref: '#/definitions/admin.AdminCompleteOrderRequest'
       produces:
       - application/json
       responses:
@@ -1402,7 +1402,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_admin.ReviewRealnameRequest'
+          $ref: '#/definitions/admin.ReviewRealnameRequest'
       produces:
       - application/json
       responses:
@@ -1430,7 +1430,7 @@ paths:
             - $ref: '#/definitions/utils.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/app_controllers_admin.SettingsListResponse'
+                  $ref: '#/definitions/admin.SettingsListResponse'
               type: object
       security:
       - BearerAuth: []
@@ -1447,7 +1447,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_admin.CreateSettingRequest'
+          $ref: '#/definitions/admin.CreateSettingRequest'
       produces:
       - application/json
       responses:
@@ -1520,7 +1520,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_admin.UpdateSettingRequest'
+          $ref: '#/definitions/admin.UpdateSettingRequest'
       produces:
       - application/json
       responses:
@@ -1549,7 +1549,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_admin.UpdateSettingMetaRequest'
+          $ref: '#/definitions/admin.UpdateSettingMetaRequest'
       produces:
       - application/json
       responses:
@@ -1573,7 +1573,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_admin.BatchUpdateSettingsRequest'
+          $ref: '#/definitions/admin.BatchUpdateSettingsRequest'
       produces:
       - application/json
       responses:
@@ -1759,7 +1759,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_admin.SMSSendTestRequest'
+          $ref: '#/definitions/admin.SMSSendTestRequest'
       produces:
       - application/json
       responses:
@@ -1814,7 +1814,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_admin.SMSTemplateUpdateRequest'
+          $ref: '#/definitions/admin.SMSTemplateUpdateRequest'
       responses:
         "200":
           description: OK
@@ -1838,7 +1838,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_admin.SMSPreviewRequest'
+          $ref: '#/definitions/admin.SMSPreviewRequest'
       responses:
         "200":
           description: OK
@@ -1917,7 +1917,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/fst_backend_app_services.UserCreateRequest'
+          $ref: '#/definitions/services.UserCreateRequest'
       produces:
       - application/json
       responses:
@@ -1973,7 +1973,7 @@ paths:
             - $ref: '#/definitions/utils.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/app_controllers_admin.AdminUserDetailResponse'
+                  $ref: '#/definitions/admin.AdminUserDetailResponse'
               type: object
       security:
       - BearerAuth: []
@@ -1995,7 +1995,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/fst_backend_app_services.UserUpdateRequest'
+          $ref: '#/definitions/services.UserUpdateRequest'
       produces:
       - application/json
       responses:
@@ -2179,7 +2179,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_public.LoginRequest'
+          $ref: '#/definitions/public.LoginRequest'
       produces:
       - application/json
       responses:
@@ -2215,7 +2215,7 @@ paths:
             - $ref: '#/definitions/utils.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/app_controllers_public.AppConfigResponse'
+                  $ref: '#/definitions/public.AppConfigResponse'
               type: object
       summary: 获取应用配置
       tags:
@@ -2231,7 +2231,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_public.ResetEmailRequest'
+          $ref: '#/definitions/public.ResetEmailRequest'
       produces:
       - application/json
       responses:
@@ -2254,7 +2254,7 @@ paths:
             - $ref: '#/definitions/utils.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/app_controllers_public.DialCountriesResponse'
+                  $ref: '#/definitions/public.DialCountriesResponse'
               type: object
       summary: 国家区号列表
       tags:
@@ -2277,7 +2277,7 @@ paths:
             - $ref: '#/definitions/utils.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/app_controllers_public.PhoneCountryResponse'
+                  $ref: '#/definitions/public.PhoneCountryResponse'
               type: object
       summary: 探测手机号默认国家
       tags:
@@ -2293,7 +2293,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_public.LoginRequest'
+          $ref: '#/definitions/public.LoginRequest'
       produces:
       - application/json
       responses:
@@ -2327,7 +2327,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_public.RefreshTokenRequest'
+          $ref: '#/definitions/public.RefreshTokenRequest'
       produces:
       - application/json
       responses:
@@ -2349,7 +2349,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_public.RegisterRequest'
+          $ref: '#/definitions/public.RegisterRequest'
       produces:
       - application/json
       responses:
@@ -2379,7 +2379,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_public.ResetPasswordConfirmRequest'
+          $ref: '#/definitions/public.ResetPasswordConfirmRequest'
       produces:
       - application/json
       responses:
@@ -2401,7 +2401,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_public.SendCodeRequest'
+          $ref: '#/definitions/public.SendCodeRequest'
       produces:
       - application/json
       responses:
@@ -2507,7 +2507,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_user.DeactivateAccountRequest'
+          $ref: '#/definitions/user.DeactivateAccountRequest'
       produces:
       - application/json
       responses:
@@ -2531,7 +2531,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_user.SendEmailCodeRequest'
+          $ref: '#/definitions/user.SendEmailCodeRequest'
       produces:
       - application/json
       responses:
@@ -2555,7 +2555,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_user.VerifyEmailChangeRequest'
+          $ref: '#/definitions/user.VerifyEmailChangeRequest'
       produces:
       - application/json
       responses:
@@ -2608,7 +2608,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_user.ChangePasswordRequest'
+          $ref: '#/definitions/user.ChangePasswordRequest'
       produces:
       - application/json
       responses:
@@ -2631,7 +2631,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_user.CreateOrderRequest'
+          $ref: '#/definitions/user.CreateOrderRequest'
       produces:
       - application/json
       responses:
@@ -2739,7 +2739,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_user.SendPhoneCodeRequest'
+          $ref: '#/definitions/user.SendPhoneCodeRequest'
       produces:
       - application/json
       responses:
@@ -2763,7 +2763,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_user.VerifyPhoneChangeRequest'
+          $ref: '#/definitions/user.VerifyPhoneChangeRequest'
       produces:
       - application/json
       responses:
@@ -2791,7 +2791,7 @@ paths:
             - $ref: '#/definitions/utils.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/app_controllers_user.ProfileResponse'
+                  $ref: '#/definitions/user.ProfileResponse'
               type: object
       security:
       - BearerAuth: []
@@ -2808,7 +2808,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_user.UpdateProfileRequest'
+          $ref: '#/definitions/user.UpdateProfileRequest'
       produces:
       - application/json
       responses:
@@ -2848,7 +2848,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_user.SubmitRealnameRequest'
+          $ref: '#/definitions/user.SubmitRealnameRequest'
       produces:
       - application/json
       responses:
@@ -2991,7 +2991,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/app_controllers_user.UpdateSettingsRequest'
+          $ref: '#/definitions/user.UpdateSettingsRequest'
       produces:
       - application/json
       responses:

@@ -40,11 +40,13 @@ type UpdateProfileRequest struct {
 	Country    string `json:"country"`
 }
 
+// ChangePasswordRequest 修改密码请求
 type ChangePasswordRequest struct {
 	OldPassword string `json:"old_password" binding:"required"`
 	NewPassword string `json:"new_password" binding:"required,min=8"`
 }
 
+// ProfileRealnameSummary 用户实名认证摘要
 type ProfileRealnameSummary struct {
 	HasVerification bool   `json:"hasVerification"`
 	ID              uint64 `json:"id,omitempty"`
@@ -57,6 +59,7 @@ type ProfileRealnameSummary struct {
 	RejectReason    string `json:"rejectReason,omitempty"`
 }
 
+// ProfileResponse 用户资料响应
 type ProfileResponse struct {
 	ID            uint64                 `json:"id"`
 	GroupID       uint64                 `json:"groupId"`

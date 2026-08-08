@@ -43,6 +43,7 @@ type RegisterRequest struct {
 	Code     string `json:"code" binding:"required"`
 }
 
+// LoginRequest 登录请求
 type LoginRequest struct {
 	UserName   string `json:"userName"`
 	Username   string `json:"username"`
@@ -51,22 +52,26 @@ type LoginRequest struct {
 	ClientType string `json:"clientType"`
 }
 
+// SendCodeRequest 发送验证码请求
 type SendCodeRequest struct {
 	Email string `json:"email" binding:"required,email"`
 	Lang  string `json:"lang"`
 }
 
+// ResetEmailRequest 重置邮箱请求
 type ResetEmailRequest struct {
 	Email string `json:"email" binding:"required"`
 	Lang  string `json:"lang"`
 }
 
+// ResetPasswordConfirmRequest 重置密码确认请求
 type ResetPasswordConfirmRequest struct {
 	Email       string `json:"email" binding:"required,email"`
 	Code        string `json:"code" binding:"required"`
 	NewPassword string `json:"new_password" binding:"required,min=8"`
 }
 
+// RefreshTokenRequest 刷新令牌请求
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refreshToken" binding:"required"`
 	AuthGuard    string `json:"authGuard"`
