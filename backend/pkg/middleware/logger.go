@@ -29,7 +29,7 @@ var DefaultLoggerConfig = LoggerConfig{
 		"/favicon.ico",
 	},
 	SkipPathPrefixes: []string{
-		"/swagger",
+		"/scalar",
 		"/static",
 	},
 	LogRequestBody:  false,

@@ -6,7 +6,7 @@ FST (Full Stack Template) 是一个基于 Go (Gin) 和 Vue 3 (Naive UI) 构建�
 
 | 层 | 技术 |
 |---|------|
-| 后端 | Go 1.24+ · Gin · GORM（MySQL / SQLite / Postgres）· JWT · Swagger |
+| 后端 | Go 1.24+ · Gin · GORM（MySQL / SQLite / Postgres）· JWT · Scalar |
 | 前端 | Vue 3 · TypeScript · Vite · Naive UI · UnoCSS · Pinia · Alova |
 | 构建 | Windows / Linux · amd64 / arm64 |
 
@@ -122,10 +122,10 @@ func init() {
 
 WebSocket 心跳上报在线状态；管理端「在线用户」可查看/踢下线。见 [doc/在线会话与Presence.md](doc/在线会话与Presence.md)。
 
-### Swagger 文档
+### Scalar 文档
 
-启动时（dev）可自动检测代码变化并重新生成，自动包含插件 API。访问：`http://localhost:{PORT}/swagger/index.html`。  
-管理端注解路径仍为 `/api/v1/admin/*`；若配置了自定义 `ADMIN_API_PATH`，`doc.json` **运行时改写**为实际前缀。
+启动时（dev）可自动检测代码变化并重新生成，自动包含插件 API。访问：`http://localhost:{PORT}/scalar/index.html`。  
+管理端注解路径仍为 `/api/v1/admin/*`；若配置了自定义 `ADMIN_API_PATH`，`openapi.json` **运行时改写**为实际前缀。
 
 ### 管理端两套路径
 
@@ -134,7 +134,7 @@ WebSocket 心跳上报在线状态；管理端「在线用户」可查看/踢下
 | `ADMIN_PATH` + `VITE_ADMIN_BASE_PATH` | 管理**页面**入口 | `/system-mgr` |
 | `ADMIN_API_PATH`（前端运行时 app-config） | 管理 **REST** | `/admin` → `/api/v1/admin` |
 
-详见 [doc/管理端路径与Swagger自适应.md](doc/管理端路径与Swagger自适应.md)。
+详见 [doc/管理端路径与Scalar自适应.md](doc/管理端路径与Scalar自适应.md)。
 
 ### 控制器三层架构
 
@@ -180,7 +180,7 @@ controllers/
 | `DB_DRIVER` | mysql / postgres / sqlite | mysql |
 | `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | 数据库连接 | 127.0.0.1:3306 |
 | `JWT_SECRET` | JWT 签名密钥 | 见 .env.example |
-| `ENABLE_SWAGGER` | 启用 Swagger | true |
+| `ENABLE_SWAGGER` | 启用 Scalar | true |
 | `ENABLE_ADMIN_DEBUG` | 管理端 debug/pprof（生产强制关） | 非生产 true |
 | `GO_ENV` / `APP_ENV` | 运行环境 | development |
 | `GEETEST_ENABLED` | 启用极验验证码 | true |
@@ -197,7 +197,7 @@ controllers/
 | [doc/文档索引与目录留档.md](doc/文档索引与目录留档.md) | 全仓留档清单 |
 | [doc/配置系统.md](doc/配置系统.md) | 根 `.env` 加载与配置 |
 | [doc/在线会话与Presence.md](doc/在线会话与Presence.md) | 在线心跳与强退 |
-| [doc/管理端路径与Swagger自适应.md](doc/管理端路径与Swagger自适应.md) | 页面/API 路径分离与自适应 |
+| [doc/管理端路径与Scalar自适应.md](doc/管理端路径与Scalar自适应.md) | 页面/API 路径分离与自适应 |
 | [doc/JWT认证.md](doc/JWT认证.md) | Token 生成与验证 |
 | [doc/邮件系统.md](doc/邮件系统.md) | 邮件发送与模板管理 |
 | [doc/短信插件系统.md](doc/短信插件系统.md) | 短信插件 |
@@ -222,7 +222,7 @@ controllers/
 
 - 支付回调绑定校验与日志脱敏；代登录与 debug 高危接口收紧
 - 全局配置并发安全（Clone/Update）
-- `ADMIN_API_PATH` + app-config 注入前端管理 API 前缀；Swagger doc.json 运行时改写
+- `ADMIN_API_PATH` + app-config 注入前端管理 API 前缀；Scalar openapi.json 运行时改写
 - 各目录留档与 doc 知识库同步更新
 
 ### 2026-02-24
@@ -233,7 +233,7 @@ controllers/
 ### 2026-02-21
 
 - 插件自动发现/注册机制 + 独立注册表 `pkg/pluginregistry`
-- Swagger 启动时自动更新 + Bearer 认证支持
+- Scalar 启动时自动更新 + Bearer 认证支持
 - 控制器三层架构重构 (public/user/admin)
 - 邮件模板管理 (后端 + 前端页面)
 - 请求日志中间件 + 接口限流中间件

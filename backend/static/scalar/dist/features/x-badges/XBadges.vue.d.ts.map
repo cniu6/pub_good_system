@@ -1,0 +1,1 @@
+{"version":3,"file":"XBadges.vue.d.ts","sourceRoot":"","sources":["../../../src/features/x-badges/XBadges.vue"],"names":[],"mappings":"AAsCA,OAAO,KAAK,EAAE,MAAM,EAAE,MAAM,sDAAsD,CAAA;AAKlF,KAAK,WAAW,GAAG;IACjB,QAAQ,EAAE,QAAQ,GAAG,OAAO,CAAA;IAC5B,MAAM,EAAE,MAAM,EAAE,GAAG,OAAO,CAAA;CAC3B,CAAC;AA4DF,QAAA,MAAM,YAAY,kSAEhB,CAAC;wBACkB,OAAO,YAAY;AAAxC,wBAAyC"}

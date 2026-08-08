@@ -1,0 +1,30 @@
+//#region src/components/Content/Schema/helpers/format-example.ts
+/**
+* Trims surrounding whitespace, but keeps the original string when trimming would empty it
+* (so an intentional " " example is not silently turned into "").
+*/
+function preserveOrTrim(value) {
+	const trimmed = value.trim();
+	return trimmed === "" ? value : trimmed;
+}
+/**
+* Converts an example value to a string that can be displayed in the UI.
+*/
+function formatExample(example) {
+	if (Array.isArray(example)) return `[${example.map((item) => {
+		if (typeof item === "string") return `"${preserveOrTrim(item)}"`;
+		if (typeof item === "object") return JSON.stringify(item);
+		if (item === void 0) return "undefined";
+		if (item === null) return "null";
+		return item;
+	}).join(", ")}]`;
+	if (example === null) return "null";
+	if (typeof example === "object") return JSON.stringify(example);
+	if (example === void 0) return "undefined";
+	if (typeof example === "string") return preserveOrTrim(example);
+	return preserveOrTrim(example.toString());
+}
+//#endregion
+export { formatExample };
+
+//# sourceMappingURL=format-example.js.map

@@ -10,7 +10,7 @@
 ## 路由树（当前）
 
 ```text
-/swagger/*any          # 可选 EnableSwagger + 管理路径改写中间件
+/scalar/*any          # 可选 EnableScalar + 管理路径改写中间件
 /api/v1/
 ├── public/            # 无需登录：登录注册、app-config、geo、session 强退、支付回调
 ├── user/              # 需 user 或 admin token：资料/支付/实名/提现
@@ -40,18 +40,18 @@ adminGroup := v1.Group(adminAPIPath)
 ```
 
 - **页面路径** `ADMIN_PATH` 不在此注册，由前端 history/hash 入口处理。
-- 改 `ADMIN_API_PATH` 后：路由、app-config、Swagger doc、前端 `getAdminApiBase()` 一致。
+- 改 `ADMIN_API_PATH` 后：路由、app-config、Scalar doc、前端 `getAdminApiBase()` 一致。
 
-## Swagger
+## Scalar
 
 ```go
-router.GET("/swagger/*any",
-  middleware.SwaggerAdminPathRewriteMiddleware(),
-  ginSwagger.WrapHandler(swaggerFiles.Handler),
+router.GET("/scalar/*any",
+  middleware.ScalarAdminPathRewriteMiddleware(),
+  ginScalar.WrapHandler(scalarFiles.Handler),
 )
 ```
 
-注解路径保持 `/api/v1/admin/...`；非默认前缀时 doc.json 运行时改写。
+注解路径保持 `/api/v1/admin/...`；非默认前缀时 openapi.json 运行时改写。
 
 ## 规范
 

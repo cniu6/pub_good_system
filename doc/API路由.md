@@ -14,8 +14,8 @@
 
 - 管理端 REST 组前缀：`ADMIN_API_PATH`（默认 `/admin`）→ `/api/v1{ADMIN_API_PATH}`。
 - 页面入口 `ADMIN_PATH` **不**在 API 路由里注册。
-- Swagger：`SwaggerAdminPathRewriteMiddleware` 按运行时前缀改写 `doc.json`。
-- 详细说明见 [管理端路径与Swagger自适应.md](./管理端路径与Swagger自适应.md)。
+- Scalar：`ScalarAdminPathRewriteMiddleware` 按运行时前缀改写 `openapi.json`。
+- 详细说明见 [管理端路径与Scalar自适应.md](./管理端路径与Scalar自适应.md)。
 
 当前路由树：
 
@@ -35,7 +35,7 @@
 3. [中间件使用](#中间件使用)
 4. [控制器编写](#控制器编写)
 5. [路由分组](#路由分组)
-6. [Swagger 文档](#swagger-文档)
+6. [Scalar 文档](#scalar-文档)
 7. [常见模式](#常见模式)
 
 ---
@@ -88,8 +88,8 @@ import (
     "fst/backend/utils"
     
     "github.com/gin-gonic/gin"
-    swaggerFiles "github.com/swaggo/files"
-    ginSwagger "github.com/swaggo/gin-swagger"
+    scalarFiles "github.com/swaggo/files"
+    ginScalar "github.com/swaggo/gin-scalar"
 )
 
 func SetupRoutes(router *gin.Engine) {
@@ -97,9 +97,9 @@ func SetupRoutes(router *gin.Engine) {
     authCtrl := &controllers.AuthController{}
     systemCtrl := &controllers.SystemController{}
     
-    // Swagger 文档路由
-    if config.GlobalConfig.EnableSwagger {
-        router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+    // Scalar 文档路由
+    if config.GlobalConfig.EnableScalar {
+        router.GET("/scalar/*any", ginScalar.WrapHandler(scalarFiles.Handler))
     }
     
     // API 路由组
@@ -491,9 +491,9 @@ func SetupRoutes(router *gin.Engine) {
 
 ---
 
-## Swagger 文档
+## Scalar 文档
 
-### 添加 Swagger 注释
+### 添加 Scalar 注释
 
 ```go
 package controllers
@@ -528,7 +528,7 @@ func (ctrl *UserController) GetProfile(c *gin.Context) {
 }
 ```
 
-### 更新 Swagger 文档
+### 更新 Scalar 文档
 
 ```bash
 # 在项目根目录执行
@@ -540,10 +540,10 @@ go run github.com/swaggo/swag/cmd/swag init \
 go run github.com/swaggo/swag/cmd/swag init -g backend/cmd/main.go
 ```
 
-### 访问 Swagger UI
+### 访问 Scalar UI
 
 ```
-http://localhost:8080/swagger/index.html
+http://localhost:8080/scalar/index.html
 ```
 
 ---
@@ -641,4 +641,4 @@ func (ctrl *UserController) GetUser(c *gin.Context) {
 ---
 
 > 📝 **最后更新**: 2026-07-16  
-> 如有疑问，请参考 `backend/routes/routes.go` 与 [管理端路径与Swagger自适应.md](./管理端路径与Swagger自适应.md)。
+> 如有疑问，请参考 `backend/routes/routes.go` 与 [管理端路径与Scalar自适应.md](./管理端路径与Scalar自适应.md)。

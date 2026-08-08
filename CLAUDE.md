@@ -14,8 +14,8 @@ FST (Full Stack Template)：Go 1.24 (Gin) + Vue 3 (TypeScript / Vite / Naive UI 
 # 后端开发（必须在仓库根目录运行，读取根 .env）
 go run .
 
-# 前后端一起：扫插件 + 生成 Swagger + 启动前端与后端
-./dev.bat            # 后端 :8080，前端 :9980，Swagger /swagger/index.html
+# 前后端一起：扫插件 + 生成 Scalar + 启动前端与后端
+./dev.bat            # 后端 :8080，前端 :9980，Scalar /scalar/index.html
 
 # 前端单独
 cd frontend && pnpm install && pnpm dev
@@ -33,7 +33,7 @@ go test ./backend/pkg/config/ -run DotEnv -count=1     # 运行单个测试
 # 生产构建（交互选 embedded 单文件 / external 外置前端；交叉编译 Windows+Linux 到 build/）
 ./build.bat
 
-# Swagger 手动生成（dev.bat 已自动做）
+# Scalar 手动生成（dev.bat 已自动做）
 go run backend/app/plugins/gen_plugins.go
 cd backend && swag init -g ../main.go -o docs --parseDependency --parseInternal
 ```
@@ -126,7 +126,7 @@ SQLite 用 `github.com/glebarez/sqlite`（纯 Go，无 CGO）。Postgres 上生�
 | `ADMIN_PATH` + 前端 `VITE_ADMIN_BASE_PATH` | 管理**页面**入口 | `/system-mgr` |
 | `ADMIN_API_PATH`（前端经 app-config 运行时注入） | 管理 **REST** 前缀 | `/admin` → `/api/v1/admin` |
 
-Swagger 注解仍写 `/api/v1/admin/*`；doc.json 在运行时按 `ADMIN_API_PATH` 改写。
+Scalar 注解仍写 `/api/v1/admin/*`；openapi.json 在运行时按 `ADMIN_API_PATH` 改写。
 
 ### 认证与在线
 
@@ -147,7 +147,7 @@ Swagger 注解仍写 `/api/v1/admin/*`；doc.json 在运行时按 `ADMIN_API_PAT
 | `DynamicAdminRateLimitMiddleware` | `pkg/middleware` | 管理端专用限流 |
 | `RequireIdempotency` | `pkg/middleware` | X-Idempotency-Key 幂等控制 |
 | `SimpleLogMiddleware` | `pkg/middleware` | 管理写操作审计日志 |
-| `SwaggerAdminPathRewriteMiddleware` | `pkg/middleware` | doc.json 路径改写 |
+| `ScalarAdminPathRewriteMiddleware` | `pkg/middleware` | openapi.json 路径改写 |
 
 ### 后端工具函数（`backend/utils/`）
 
@@ -175,7 +175,7 @@ Swagger 注解仍写 `/api/v1/admin/*`；doc.json 在运行时按 `ADMIN_API_PAT
 ### API 路由树
 
 ```text
-/swagger/*any          # 可选 EnableSwagger + 管理路径改写中间件
+/scalar/*any          # 可选 EnableScalar + 管理路径改写中间件
 /api/v1/
 ├── public/            # 无需登录：登录注册、app-config、geo、session 强退、支付回调
 ├── user/              # 需 user 或 admin token：资料/支付/实名/提现/公告
@@ -323,7 +323,7 @@ const res = await adminApi.user.list({ page: 1 })
 | 业务逻辑核心 | `backend/app/业务逻辑核心.md` | 分层调用、近期业务要点 |
 | 插件系统 | `backend/app/plugins/插件系统接口与管理逻辑.md` | Plugin 接口、注册/装载、gen_plugins |
 | 内部系统库 | `backend/internal/内部系统库.md` | appinit/migrate/task 说明 |
-| API 路由 | `backend/routes/API路由定义与分发规则.md` | 路由树、管理端前缀、Swagger |
+| API 路由 | `backend/routes/API路由定义与分发规则.md` | 路由树、管理端前缀、Scalar |
 | 通用工具 | `backend/utils/通用工具函数库.md` | 响应/JWT/邮件/手机号/代理等 |
 | 全局配置 | `backend/pkg/config/全局配置管理与环境加载.md` | Config 结构、并发安全 API、.env 查找 |
 | 自动任务 | `backend/internal/task/留档.md` | handler/seed/运行要点/默认任务 |
@@ -335,7 +335,7 @@ const res = await adminApi.user.list({ page: 1 })
 | 工具脚本 | `tools/留档.md` | 运维/诊断脚本与单元测试的区别 |
 | 配置系统 | `doc/配置系统.md` | .env 加载与配置 |
 | 在线会话 | `doc/在线会话与Presence.md` | WS 在线心跳与强退 |
-| 管理端路径 | `doc/管理端路径与Swagger自适应.md` | 页面/API 路径分离与自适应 |
+| 管理端路径 | `doc/管理端路径与Scalar自适应.md` | 页面/API 路径分离与自适应 |
 | JWT 认证 | `doc/JWT认证.md` | Token 生成与验证 |
 | 邮件系统 | `doc/邮件系统.md` | 邮件发送与模板管理 |
 | 短信插件 | `doc/短信插件系统.md` | 短信多厂商 |

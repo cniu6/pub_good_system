@@ -2,6 +2,7 @@ package routes
 
 // routes.go 是路由文件，负责将各个控制器注册到路由中。
 import (
+	"net/http"
 	"time"
 
 	"fst/backend/app/controllers"
@@ -13,8 +14,6 @@ import (
 	"fst/backend/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 // 控制器实例（延迟初始化，避免包加载期循环依赖）
@@ -94,13 +93,9 @@ func initControllers() {
 func SetupRoutes(router *gin.Engine) {
 	initControllers()
 
-	// Swagger：注解仍写 /api/v1/admin/*；返回 doc.json 时按 ADMIN_API_PATH 改写
+	// Scalar 文档：注解仍写 /api/v1/admin/*；返回 openapi.json 时按 ADMIN_API_PATH 改写
 	if cfg := config.GlobalConfig; cfg != nil && cfg.EnableSwagger {
-		router.GET(
-			"/swagger/*any",
-			middleware.SwaggerAdminPathRewriteMiddleware(),
-			ginSwagger.WrapHandler(swaggerFiles.Handler),
-		)
+		mountScalar(router)
 	}
 
 	api := router.Group("/api")
@@ -123,4 +118,43 @@ func SetupRoutes(router *gin.Engine) {
 			},
 		})
 	})
+}
+
+// mountScalar 挂载 Scalar API 文档入口和管理端路径自适应的 openapi.json。
+// 入口：GET /scalar；OpenAPI 文档：GET /scalar/openapi.json。
+func mountScalar(router *gin.Engine) {
+	// 管理端路径自适应的中间件：仅对 /scalar/openapi.json 返回改写后的 doc.json
+	router.GET("/scalar/openapi.json", middleware.ScalarAdminPathRewriteMiddleware())
+
+	// 托管 Scalar 本地前端静态资源
+	router.Static("/scalar-static", "./backend/static/scalar/dist/browser")
+
+	// Scalar 文档主页面：直接返回内嵌 Scalar 的 HTML，指定 spec URL 为同源 openapi.json
+	router.GET("/scalar", func(c *gin.Context) {
+		c.Header("Content-Type", "text/html; charset=utf-8")
+		c.String(http.StatusOK, scalarReferenceHTML())
+	})
+}
+
+// scalarReferenceHTML 生成 Scalar API Reference 的 HTML 页面。
+// 使用本地 @scalar/api-reference 静态资源，并指定 data-spec-url 加载后端 OpenAPI 文档。
+func scalarReferenceHTML() string {
+	return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FST Platform API</title>
+    <style>
+        body { margin: 0; padding: 0; }
+        #app { height: 100vh; }
+    </style>
+</head>
+<body>
+    <script
+      data-spec-url="/scalar/openapi.json"
+      data-configuration='{"theme":"default","layout":"modern","darkMode":true,"showSidebar":true}'
+      src="/scalar-static/standalone.js"></script>
+</body>
+</html>`
 }

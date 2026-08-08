@@ -53,6 +53,9 @@ frontend/admin/
 build/*
 build
 
+# 但 backend/static/scalar 是本地 Scalar 前端依赖，需要纳入版本控制
+!backend/static/scalar/
+
 # Windows 垃圾文件
 *nul*
 *null*

@@ -1,0 +1,1 @@
+{"version":3,"file":"DocumentSelector.vue.d.ts","sourceRoot":"","sources":["../../../src/features/multiple-documents/DocumentSelector.vue"],"names":[],"mappings":"AAsDA,KAAK,WAAW,GAAG;IACjB,OAAO,EAAE;QAAE,KAAK,EAAE,MAAM,CAAC;QAAC,EAAE,EAAE,MAAM,CAAA;KAAE,EAAE,CAAA;IACxC,UAAU,CAAC,EAAE,MAAM,CAAA;CACpB,CAAC;AAuHF,QAAA,MAAM,YAAY;;;;kFAGhB,CAAC;wBACkB,OAAO,YAAY;AAAxC,wBAAyC"}

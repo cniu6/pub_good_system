@@ -1,0 +1,1 @@
+{"version":3,"file":"LinkButton.vue.js","names":[],"sources":["../../../../src/components/Content/Schema/LinkButton.vue"],"sourcesContent":["<template>\n  <button\n    class=\"text-c-3 hover:text-c-1 underline\"\n    type=\"button\">\n    <slot />\n  </button>\n</template>\n"],"mappings":";;;;;CAEI,OAAM;CACN,MAAK;;;qBAFP,mBAIS,UAJT,YAIS,CADP,WAAQ,KAAA,QAAA,SAAA,CAAA,CAAA"}

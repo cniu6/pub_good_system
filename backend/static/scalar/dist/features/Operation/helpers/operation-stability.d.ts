@@ -1,0 +1,19 @@
+import { XScalarStability } from '@scalar/types/legacy';
+type OperationStability = {
+    deprecated?: boolean;
+    'x-scalar-stability'?: unknown;
+};
+/**
+ * Returns true if an operation is considered deprecated.
+ */
+export declare const isOperationDeprecated: (operation: OperationStability) => boolean;
+/**
+ * Get operation stability from deprecated or x-scalar-stability
+ */
+export declare const getOperationStability: (operation: OperationStability) => XScalarStability | undefined;
+/**
+ * Get Operation stability tailwind color class
+ */
+export declare const getOperationStabilityColor: (operation: OperationStability) => string;
+export {};
+//# sourceMappingURL=operation-stability.d.ts.map

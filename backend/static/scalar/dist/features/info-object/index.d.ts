@@ -1,0 +1,5 @@
+export { default as Contact } from './Contact.vue.js';
+export { default as InfoLink } from './InfoLink.vue.js';
+export { default as License } from './License.vue.js';
+export { default as TermsOfService } from './TermsOfService.vue.js';
+//# sourceMappingURL=index.d.ts.map

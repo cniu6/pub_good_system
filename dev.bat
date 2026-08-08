@@ -4,7 +4,7 @@ cd /d "%~dp0"
 
 echo.
 echo ============================================================
-echo   FST - Dev Mode (Auto Swagger)
+echo   FST - Dev Mode (Auto Docs)
 echo ============================================================
 echo.
 
@@ -33,7 +33,7 @@ echo ============================================================
 echo.
 echo   Backend:  http://localhost:8080
 echo   Frontend: http://localhost:9980
-echo   Swagger:  http://localhost:8080/swagger/index.html
+echo   Scalar:   http://localhost:8080/scalar
 echo.
 echo   Press Ctrl+C to stop backend
 echo   Close "FST Frontend" window to stop frontend

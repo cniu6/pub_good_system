@@ -235,7 +235,7 @@ func WarnProductionMisconfig() {
 		log.Println("[Security Warning] 生产环境 CORS_ORIGINS 含 *，任意来源可跨域访问，强烈建议改为具体域名白名单")
 	}
 	if cfg.EnableSwagger {
-		log.Println("[Security Warning] 生产环境 ENABLE_SWAGGER=true，Swagger 文档会暴露接口细节，建议关闭")
+		log.Println("[Security Warning] 生产环境 ENABLE_SWAGGER=true，API 文档会暴露接口细节，建议关闭")
 	}
 	if isWeakJWTSecret(cfg.JWTSecret) {
 		log.Println("[Security Warning] 生产环境 JWT_SECRET 为弱/占位值，存在令牌伪造风险，请立即更换强随机密钥")
