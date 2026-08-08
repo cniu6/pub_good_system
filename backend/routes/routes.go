@@ -137,7 +137,7 @@ func mountScalar(router *gin.Engine) {
 }
 
 // scalarReferenceHTML 生成 Scalar API Reference 的 HTML 页面。
-// 使用本地 @scalar/api-reference 静态资源，并指定 data-spec-url 加载后端 OpenAPI 文档。
+// 使用本地 @scalar/api-reference 静态资源，并指定 data-url 加载后端 OpenAPI 文档。
 func scalarReferenceHTML() string {
 	return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -152,8 +152,9 @@ func scalarReferenceHTML() string {
 </head>
 <body>
     <script
-      data-spec-url="/scalar/openapi.json"
-      data-configuration='{"theme":"default","layout":"modern","darkMode":true,"showSidebar":true}'
+      id="api-reference"
+      data-url="/scalar/openapi.json"
+      data-configuration='{"theme":"default","layout":"modern","darkMode":true,"showSidebar":true,"agent":{"disabled":true}}'
       src="/scalar-static/standalone.js"></script>
 </body>
 </html>`
