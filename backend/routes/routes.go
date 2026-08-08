@@ -145,7 +145,7 @@ func SetupRoutes(router *gin.Engine) {
 			"message": "ok",
 			"data": gin.H{
 				"status":    "ok",
-				"message":   "健康检查成功",
+				"message":   "Health check passed",
 				"timestamp": time.Now().Format("2006-01-02 15:04:05"),
 			},
 		})

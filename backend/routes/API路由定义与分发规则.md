@@ -1,7 +1,7 @@
 # API 路由定义与分发规则 (Routes)
 
-> 路径：`backend/routes/`（`routes.go` 汇总，`public.go` / `user.go` / `admin.go` / `ws.go` 分文件）  
-> **最后更新**：2026-07-20
+> 路径：`backend/routes/`（`routes.go` 汇总，`public.go` / `user.go` / `admin.go` / `system.go` / `v2.go` / `ws.go` 分文件）  
+> **最后更新**：2026-08-09
 
 ## 简介
 
@@ -18,15 +18,20 @@
 ├── ws/presence        # Presence WebSocket（JWT）
 ├── {ADMIN_API_PATH}/  # 默认 /admin；需 admin token + AdminOnly + 动态限流
 │   ├── dashboard
-│   ├── users / online / money-logs / score-logs
+│   ├── users / user-levels / user-money / online
+│   ├── money-logs / score-logs
 │   ├── logs / api-logs
 │   ├── settings / email-templates / email-logs
 │   ├── sms-templates / sms-logs
-│   ├── payment / payment/gateways / withdraw / realname
+│   ├── payment / pay-gateways / payment-exceptions / withdraw / realname
+│   ├── announcements / auto-jobs
 │   ├── db/*              # 数据库控制台：表/数据/结构/DDL；生产环境强制只读
+│   ├── server-management   # 重启等高危能力
 │   ├── generate-nos
 │   └── debug/*        # 仅 IsAdminDebugOpsEnabled 时注册
-└── 插件路由           # pluginregistry 自动注册
+├── 插件路由           # pluginregistry 自动注册
+/api/v2/
+└── test/*             # V2 测试接口（占位/示例）
 ```
 
 公开补充：`/public/geo/*`（区号/地理探测）、`/public/session/force-logout`（过期 token 亦可吊销会话）。  
@@ -55,9 +60,10 @@ router.GET("/scalar/*any",
 
 ## 规范
 
-- 新接口按 public / user / admin 分层注册。
+- 新接口按 public / user / admin / system 分层注册。
 - 管理写操作可挂 `SimpleLogMiddleware` 做操作审计。
 - 支付回调必须在 public，且服务层做签名与订单绑定校验。
+- 控制器目录重构后，routes 按 `controllers/{scope}/{business}/` 方式 `NewXXXController().RegisterRoutes(group)`；包名冲突用 import alias 区分（如 `adminpayment` / `userpayment`）。
 
 ## 数据库控制台
 
