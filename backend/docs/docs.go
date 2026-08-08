@@ -634,7 +634,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "管理端-支付"
+                    "Admin-支付"
                 ],
                 "summary": "管理端-支付异常列表",
                 "responses": {
@@ -661,7 +661,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "管理端-支付"
+                    "Admin-支付"
                 ],
                 "summary": "管理端-处理支付异常",
                 "parameters": [
@@ -694,7 +694,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "管理端-支付"
+                    "Admin-支付"
                 ],
                 "summary": "管理端-支付订单列表",
                 "parameters": [
@@ -753,7 +753,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "管理端-支付"
+                    "Admin-支付"
                 ],
                 "summary": "管理端-订单详情",
                 "parameters": [
@@ -784,7 +784,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "管理端-支付"
+                    "Admin-支付"
                 ],
                 "summary": "管理端-删除订单",
                 "parameters": [
@@ -817,7 +817,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "管理端-支付"
+                    "Admin-支付"
                 ],
                 "summary": "管理端-取消订单",
                 "parameters": [
@@ -853,7 +853,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "管理端-支付"
+                    "Admin-支付"
                 ],
                 "summary": "管理端-手动补单",
                 "parameters": [
@@ -894,7 +894,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "管理端-支付"
+                    "Admin-支付"
                 ],
                 "summary": "管理端-支付订单对账",
                 "parameters": [
@@ -927,7 +927,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "管理端-支付"
+                    "Admin-支付"
                 ],
                 "summary": "管理端-支付统计",
                 "responses": {
@@ -2704,7 +2704,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "系统管理"
+                    "System-管理"
                 ],
                 "summary": "获取清理任务状态",
                 "responses": {
@@ -2724,7 +2724,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "系统管理"
+                    "System-管理"
                 ],
                 "summary": "获取 Presence WS 票据",
                 "responses": {
@@ -2753,7 +2753,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-资料"
                 ],
                 "summary": "更新头像",
                 "parameters": [
@@ -2986,7 +2986,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-资料"
                 ],
                 "summary": "修改密码",
                 "parameters": [
@@ -3024,7 +3024,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "支付"
+                    "User-支付"
                 ],
                 "summary": "创建充值订单",
                 "parameters": [
@@ -3059,7 +3059,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "支付"
+                    "User-支付"
                 ],
                 "summary": "获取可用支付通道列表",
                 "responses": {
@@ -3083,7 +3083,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "支付"
+                    "User-支付"
                 ],
                 "summary": "获取我的充值订单列表",
                 "parameters": [
@@ -3130,7 +3130,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "支付"
+                    "User-支付"
                 ],
                 "summary": "获取订单详情",
                 "parameters": [
@@ -3163,7 +3163,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "支付"
+                    "User-支付"
                 ],
                 "summary": "检查订单状态",
                 "parameters": [
@@ -3278,7 +3278,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-资料"
                 ],
                 "summary": "获取个人信息",
                 "responses": {
@@ -3316,7 +3316,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-资料"
                 ],
                 "summary": "更新个人信息",
                 "parameters": [
@@ -3355,7 +3355,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "实名认证"
+                    "User-实名"
                 ],
                 "summary": "获取实名认证状态",
                 "responses": {
@@ -3381,7 +3381,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "实名认证"
+                    "User-实名"
                 ],
                 "summary": "提交实名认证",
                 "parameters": [
@@ -3420,7 +3420,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-会话"
                 ],
                 "summary": "重置API密钥",
                 "responses": {
@@ -3494,7 +3494,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-会话"
                 ],
                 "summary": "获取登录会话",
                 "responses": {
@@ -3522,7 +3522,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-会话"
                 ],
                 "summary": "踢出会话",
                 "parameters": [
@@ -3559,7 +3559,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-会话"
                 ],
                 "summary": "踢出所有其他会话",
                 "responses": {
@@ -3587,7 +3587,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-设置"
                 ],
                 "summary": "获取用户设置",
                 "responses": {
@@ -3613,7 +3613,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-设置"
                 ],
                 "summary": "更新用户设置",
                 "parameters": [

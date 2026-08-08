@@ -109,81 +109,24 @@ func buildRewrittenSwaggerDoc(adminAPIPath, realHost string) ([]byte, error) {
 		}
 	}
 
-	// 翻译模型名为中文（从 ModelNameCN 映射读取）
-	translateModelNames(root)
+	// 注入 x-tagGroups，使 Scalar 侧边栏按 Public/User/Admin/System 四大组规整
+	injectTagGroups(root)
 
 	return json.Marshal(root)
 }
 
-// translateModelNames 翻译 definitions 的 key 为中文，并更新所有 $ref 引用。
-// 映射表来自 modelname_cn.go 的 ModelNameCN。
-func translateModelNames(root map[string]any) {
-	defs, ok := root["definitions"].(map[string]any)
-	if !ok || len(defs) == 0 {
-		return
+// injectTagGroups 注入 x-tagGroups 扩展，将各 tag 分组到四大导航组下。
+// Scalar / Redoc 支持 x-tagGroups 实现分组侧边栏。
+func injectTagGroups(root map[string]any) {
+	root["x-tagGroups"] = []map[string]any{
+		{"name": "📢 Public 公共接口", "tags": []string{"Public-认证", "Public-配置", "Public-区号", "Public-回调", "Public-会话"}},
+		{"name": "👤 User 用户接口", "tags": []string{"User-资料", "User-支付", "User-实名", "User-提现", "User-公告", "User-会话"}},
+		{"name": "🔧 Admin 管理员接口", "tags": []string{
+			"Admin-公告", "Admin-邮件日志", "Admin-邮件模板", "Admin-短信日志", "Admin-短信模板",
+			"Admin-用户", "Admin-用户等级", "Admin-用户积分", "Admin-支付", "Admin-实名",
+			"Admin-设置", "Admin-操作日志", "Admin-API日志", "Admin-仪表盘", "Admin-自动任务",
+			"Admin-在线用户", "Admin-调试", "Admin-终端", "Admin-待办", "Admin-数据库",
+		}},
+		{"name": "⚙ System 系统管理", "tags": []string{"System-管理"}},
 	}
-	if len(ModelNameCN) == 0 {
-		return
-	}
-
-	// 构建旧名 -> 新名映射（完整 key）
-	oldToNew := make(map[string]string, len(defs))
-	for key := range defs {
-		for en, cn := range ModelNameCN {
-			if key == en || strings.HasSuffix(key, "."+en) {
-				oldToNew[key] = cn
-				break
-			}
-		}
-	}
-	if len(oldToNew) == 0 {
-		return
-	}
-
-	// 替换 definitions 的 key
-	newDefs := make(map[string]any, len(defs))
-	for oldKey, val := range defs {
-		if newKey, ok := oldToNew[oldKey]; ok {
-			newDefs[newKey] = val
-		} else {
-			newDefs[oldKey] = val
-		}
-	}
-	root["definitions"] = newDefs
-
-	// 递归替换整个文档中所有 $ref 字符串
-	replaceRefs(root)
-}
-
-// replaceRefs 递归遍历 JSON 树，替换所有形如 `#/definitions/旧名` 的 $ref 值。
-func replaceRefs(v any) {
-	switch val := v.(type) {
-	case map[string]any:
-		for k, child := range val {
-			if k == "$ref" {
-				if ref, ok := child.(string); ok && strings.HasPrefix(ref, "#/definitions/") {
-					suffix := ref[len("#/definitions/"):]
-					if cn, found := modelNameFromOld(suffix); found {
-						val[k] = "#/definitions/" + cn
-					}
-				}
-			} else {
-				replaceRefs(child)
-			}
-		}
-	case []any:
-		for i := range val {
-			replaceRefs(val[i])
-		}
-	}
-}
-
-// modelNameFromOld 从 ModelNameCN 中查找旧名对应的中文名。
-func modelNameFromOld(old string) (string, bool) {
-	for en, cn := range ModelNameCN {
-		if old == en || strings.HasSuffix(old, "."+en) {
-			return cn, true
-		}
-	}
-	return "", false
 }

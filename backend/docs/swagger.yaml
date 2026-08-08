@@ -1151,7 +1151,7 @@ paths:
       - BearerAuth: []
       summary: 管理端-支付异常列表
       tags:
-      - 管理端-支付
+      - Admin-支付
   /api/v1/admin/payment/exceptions/{id}/resolve:
     post:
       consumes:
@@ -1173,7 +1173,7 @@ paths:
       - BearerAuth: []
       summary: 管理端-处理支付异常
       tags:
-      - 管理端-支付
+      - Admin-支付
   /api/v1/admin/payment/orders:
     get:
       parameters:
@@ -1211,7 +1211,7 @@ paths:
       - BearerAuth: []
       summary: 管理端-支付订单列表
       tags:
-      - 管理端-支付
+      - Admin-支付
   /api/v1/admin/payment/orders/{id}:
     delete:
       parameters:
@@ -1231,7 +1231,7 @@ paths:
       - BearerAuth: []
       summary: 管理端-删除订单
       tags:
-      - 管理端-支付
+      - Admin-支付
     get:
       parameters:
       - description: 订单ID
@@ -1250,7 +1250,7 @@ paths:
       - BearerAuth: []
       summary: 管理端-订单详情
       tags:
-      - 管理端-支付
+      - Admin-支付
   /api/v1/admin/payment/orders/{id}/cancel:
     post:
       parameters:
@@ -1270,7 +1270,7 @@ paths:
       - BearerAuth: []
       summary: 管理端-取消订单
       tags:
-      - 管理端-支付
+      - Admin-支付
   /api/v1/admin/payment/orders/{id}/complete:
     post:
       consumes:
@@ -1297,7 +1297,7 @@ paths:
       - BearerAuth: []
       summary: 管理端-手动补单
       tags:
-      - 管理端-支付
+      - Admin-支付
   /api/v1/admin/payment/orders/{id}/reconcile:
     post:
       parameters:
@@ -1317,7 +1317,7 @@ paths:
       - BearerAuth: []
       summary: 管理端-支付订单对账
       tags:
-      - 管理端-支付
+      - Admin-支付
   /api/v1/admin/payment/stats:
     get:
       produces:
@@ -1331,7 +1331,7 @@ paths:
       - BearerAuth: []
       summary: 管理端-支付统计
       tags:
-      - 管理端-支付
+      - Admin-支付
   /api/v1/admin/realname:
     get:
       consumes:
@@ -2439,7 +2439,7 @@ paths:
             type: object
       summary: 获取清理任务状态
       tags:
-      - 系统管理
+      - System-管理
   /api/v1/system/ws-ticket:
     post:
       produces:
@@ -2452,7 +2452,7 @@ paths:
             type: object
       summary: 获取 Presence WS 票据
       tags:
-      - 系统管理
+      - System-管理
   /api/v1/user/avatar:
     put:
       consumes:
@@ -2478,7 +2478,7 @@ paths:
       - BearerAuth: []
       summary: 更新头像
       tags:
-      - 用户中心
+      - User-资料
   /api/v1/user/dashboard:
     get:
       consumes:
@@ -2620,7 +2620,7 @@ paths:
       - BearerAuth: []
       summary: 修改密码
       tags:
-      - 用户中心
+      - User-资料
   /api/v1/user/payment/create:
     post:
       consumes:
@@ -2643,7 +2643,7 @@ paths:
       - BearerAuth: []
       summary: 创建充值订单
       tags:
-      - 支付
+      - User-支付
   /api/v1/user/payment/gateways:
     get:
       produces:
@@ -2657,7 +2657,7 @@ paths:
       - BearerAuth: []
       summary: 获取可用支付通道列表
       tags:
-      - 支付
+      - User-支付
   /api/v1/user/payment/orders:
     get:
       parameters:
@@ -2687,7 +2687,7 @@ paths:
       - BearerAuth: []
       summary: 获取我的充值订单列表
       tags:
-      - 支付
+      - User-支付
   /api/v1/user/payment/orders/{id}:
     get:
       parameters:
@@ -2707,7 +2707,7 @@ paths:
       - BearerAuth: []
       summary: 获取订单详情
       tags:
-      - 支付
+      - User-支付
   /api/v1/user/payment/orders/{id}/status:
     get:
       parameters:
@@ -2727,7 +2727,7 @@ paths:
       - BearerAuth: []
       summary: 检查订单状态
       tags:
-      - 支付
+      - User-支付
   /api/v1/user/phone/send-code:
     post:
       consumes:
@@ -2797,7 +2797,7 @@ paths:
       - BearerAuth: []
       summary: 获取个人信息
       tags:
-      - 用户中心
+      - User-资料
     put:
       consumes:
       - application/json
@@ -2820,7 +2820,7 @@ paths:
       - BearerAuth: []
       summary: 更新个人信息
       tags:
-      - 用户中心
+      - User-资料
   /api/v1/user/realname:
     get:
       consumes:
@@ -2837,7 +2837,7 @@ paths:
       - BearerAuth: []
       summary: 获取实名认证状态
       tags:
-      - 实名认证
+      - User-实名
     post:
       consumes:
       - application/json
@@ -2860,7 +2860,7 @@ paths:
       - BearerAuth: []
       summary: 提交实名认证
       tags:
-      - 实名认证
+      - User-实名
   /api/v1/user/resetapikey:
     post:
       consumes:
@@ -2877,7 +2877,7 @@ paths:
       - BearerAuth: []
       summary: 重置API密钥
       tags:
-      - 用户中心
+      - User-会话
   /api/v1/user/score-logs:
     get:
       parameters:
@@ -2923,7 +2923,7 @@ paths:
       - BearerAuth: []
       summary: 获取登录会话
       tags:
-      - 用户中心
+      - User-会话
   /api/v1/user/sessions/:id:
     delete:
       consumes:
@@ -2946,7 +2946,7 @@ paths:
       - BearerAuth: []
       summary: 踢出会话
       tags:
-      - 用户中心
+      - User-会话
   /api/v1/user/sessions/revoke-all:
     post:
       consumes:
@@ -2963,7 +2963,7 @@ paths:
       - BearerAuth: []
       summary: 踢出所有其他会话
       tags:
-      - 用户中心
+      - User-会话
   /api/v1/user/settings:
     get:
       consumes:
@@ -2980,7 +2980,7 @@ paths:
       - BearerAuth: []
       summary: 获取用户设置
       tags:
-      - 用户中心
+      - User-设置
     put:
       consumes:
       - application/json
@@ -3003,7 +3003,7 @@ paths:
       - BearerAuth: []
       summary: 更新用户设置
       tags:
-      - 用户中心
+      - User-设置
   /api/v1/user/stats:
     get:
       consumes:

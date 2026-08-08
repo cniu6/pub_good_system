@@ -42,7 +42,7 @@ type AdminResolveExceptionRequest struct {
 
 // ListOrders 订单列表（管理端，支持筛选）
 // @Summary 管理端-支付订单列表
-// @Tags 管理端-支付
+// @Tags Admin-支付
 // @Produce json
 // @Security BearerAuth
 // @Param page query int false "页码" default(1)
@@ -79,7 +79,7 @@ func (ctrl *PaymentController) ListOrders(c *gin.Context) {
 
 // OrderDetail 订单详情
 // @Summary 管理端-订单详情
-// @Tags 管理端-支付
+// @Tags Admin-支付
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "订单ID"
@@ -110,7 +110,7 @@ func (ctrl *PaymentController) OrderDetail(c *gin.Context) {
 
 // CompleteOrder 手动补单
 // @Summary 管理端-手动补单
-// @Tags 管理端-支付
+// @Tags Admin-支付
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -147,7 +147,7 @@ func (ctrl *PaymentController) CompleteOrder(c *gin.Context) {
 
 // ReconcileOrder 单笔主动对账
 // @Summary 管理端-支付订单对账
-// @Tags 管理端-支付
+// @Tags Admin-支付
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "订单ID"
@@ -174,7 +174,7 @@ func (ctrl *PaymentController) ReconcileOrder(c *gin.Context) {
 
 // ListExceptions 支付异常列表
 // @Summary 管理端-支付异常列表
-// @Tags 管理端-支付
+// @Tags Admin-支付
 // @Produce json
 // @Security BearerAuth
 // @Success 200 {object} utils.Response
@@ -209,7 +209,7 @@ func (ctrl *PaymentController) ListExceptions(c *gin.Context) {
 
 // ResolveException 处理/忽略支付异常
 // @Summary 管理端-处理支付异常
-// @Tags 管理端-支付
+// @Tags Admin-支付
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -256,7 +256,7 @@ func (ctrl *PaymentController) ResolveException(c *gin.Context) {
 
 // CancelOrder 取消订单
 // @Summary 管理端-取消订单
-// @Tags 管理端-支付
+// @Tags Admin-支付
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "订单ID"
@@ -284,7 +284,7 @@ func (ctrl *PaymentController) CancelOrder(c *gin.Context) {
 
 // GetStats 支付统计
 // @Summary 管理端-支付统计
-// @Tags 管理端-支付
+// @Tags Admin-支付
 // @Produce json
 // @Security BearerAuth
 // @Success 200 {object} utils.Response
@@ -302,7 +302,7 @@ func (ctrl *PaymentController) GetStats(c *gin.Context) {
 
 // DeleteOrder 删除订单
 // @Summary 管理端-删除订单
-// @Tags 管理端-支付
+// @Tags Admin-支付
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "订单ID"

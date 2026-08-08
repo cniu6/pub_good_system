@@ -38,7 +38,7 @@ type CreateOrderRequest struct {
 
 // CreateOrder 创建充值订单
 // @Summary 创建充值订单
-// @Tags 支付
+// @Tags User-支付
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -105,7 +105,7 @@ func (ctrl *PaymentController) CreateOrder(c *gin.Context) {
 
 // GetOrders 获取当前用户的订单列表
 // @Summary 获取我的充值订单列表
-// @Tags 支付
+// @Tags User-支付
 // @Produce json
 // @Security BearerAuth
 // @Param page query int false "页码" default(1)
@@ -136,7 +136,7 @@ func (ctrl *PaymentController) GetOrders(c *gin.Context) {
 
 // GetOrderDetail 获取订单详情（仅限自己的订单）
 // @Summary 获取订单详情
-// @Tags 支付
+// @Tags User-支付
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "订单ID"
@@ -180,7 +180,7 @@ func (ctrl *PaymentController) GetOrderDetail(c *gin.Context) {
 
 // CheckOrderStatus 轮询订单支付状态
 // @Summary 检查订单状态
-// @Tags 支付
+// @Tags User-支付
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "订单ID"
@@ -232,7 +232,7 @@ func (ctrl *PaymentController) CheckOrderStatus(c *gin.Context) {
 
 // GetPayGateways 获取可用支付通道列表
 // @Summary 获取可用支付通道列表
-// @Tags 支付
+// @Tags User-支付
 // @Produce json
 // @Security BearerAuth
 // @Success 200 {object} utils.Response

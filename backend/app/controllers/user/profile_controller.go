@@ -102,7 +102,7 @@ type ProfileResponse struct {
 // GetProfile 获取个人信息
 // @Summary 获取个人信息
 // @Description 获取当前登录用户的个人信息
-// @Tags 用户中心
+// @Tags User-资料
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -182,7 +182,7 @@ func (ctrl *ProfileController) GetProfile(c *gin.Context) {
 // UpdateProfile 更新个人信息
 // @Summary 更新个人信息
 // @Description 更新当前登录用户的个人信息
-// @Tags 用户中心
+// @Tags User-资料
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -274,7 +274,7 @@ func (ctrl *ProfileController) UpdateProfile(c *gin.Context) {
 // ChangePassword 修改密码
 // @Summary 修改密码
 // @Description 修改当前登录用户的密码
-// @Tags 用户中心
+// @Tags User-资料
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -330,7 +330,7 @@ type UpdateSettingsRequest struct {
 // GetSettings 获取用户设置
 // @Summary 获取用户设置
 // @Description 获取当前用户的个人设置
-// @Tags 用户中心
+// @Tags User-设置
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -384,7 +384,7 @@ func (ctrl *ProfileController) GetSettings(c *gin.Context) {
 // UpdateSettings 更新用户设置
 // @Summary 更新用户设置
 // @Description 更新当前用户的个人设置（语言、主题、通知偏好等）
-// @Tags 用户中心
+// @Tags User-设置
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -454,7 +454,7 @@ func (ctrl *ProfileController) UpdateSettings(c *gin.Context) {
 // UpdateAvatar 更新头像
 // @Summary 更新头像
 // @Description 更新当前用户的头像URL
-// @Tags 用户中心
+// @Tags User-资料
 // @Accept json
 // @Produce json
 // @Security BearerAuth

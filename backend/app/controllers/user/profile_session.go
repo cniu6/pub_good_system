@@ -43,7 +43,7 @@ func (ctrl *ProfileController) GetApiKey(c *gin.Context) {
 // GetSessions 获取用户登录会话列表
 // @Summary 获取登录会话
 // @Description 获取当前用户的所有活跃登录会话
-// @Tags 用户中心
+// @Tags User-会话
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -80,7 +80,7 @@ func (ctrl *ProfileController) GetSessions(c *gin.Context) {
 // RevokeSession 踢出指定会话
 // @Summary 踢出会话
 // @Description 撤销指定的登录会话
-// @Tags 用户中心
+// @Tags User-会话
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -125,7 +125,7 @@ func (ctrl *ProfileController) RevokeSession(c *gin.Context) {
 // RevokeAllSessions 踢出所有其他会话
 // @Summary 踢出所有其他会话
 // @Description 撤销当前会话以外的所有登录会话
-// @Tags 用户中心
+// @Tags User-会话
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -198,7 +198,7 @@ func (ctrl *ProfileController) Logout(c *gin.Context) {
 // ResetApiKey 重置API密钥
 // @Summary 重置API密钥
 // @Description 重置当前用户的API密钥
-// @Tags 用户中心
+// @Tags User-会话
 // @Accept json
 // @Produce json
 // @Security BearerAuth

@@ -35,7 +35,7 @@ type SubmitRealnameRequest struct {
 // SubmitRealname 提交实名认证
 // @Summary 提交实名认证
 // @Description 用户提交实名认证申请
-// @Tags 实名认证
+// @Tags User-实名
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -117,7 +117,7 @@ func (c *RealnameController) SubmitRealname(ctx *gin.Context) {
 // GetMyRealnameStatus 获取我的实名认证状态
 // @Summary 获取实名认证状态
 // @Description 获取当前用户的实名认证状态
-// @Tags 实名认证
+// @Tags User-实名
 // @Accept json
 // @Produce json
 // @Security BearerAuth
