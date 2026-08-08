@@ -1,7 +1,7 @@
 # API 路由系统 - 完整使用指南
 
 > 🌐 **文档位置**: `doc/API路由.md`  
-> **最后更新**: 2026-07-16
+> **最后更新**: 2026-08-09
 > 
 > **关联文件**:
 > - `backend/routes/routes.go` - 路由定义主文件
@@ -431,6 +431,7 @@ func (ctrl *UserController) CreateUser(c *gin.Context) {
 - 二级目录按业务拆分，包名为英文，中文含义放在 Swagger `@Tags` 中。
 - 相同业务在不同 scope 下可同名包，routes 中使用 import alias 区分。
 - Scalar 文档按 `v1------Admin` / `v1------User` 等 `x-tagGroups` 分组，并支持根据路径自动推断 tag。
+- 所有层返回 message 统一改为英文：controllers / services / models / middleware / utils / plugins / internal/task 中的 `utils.Fail`、`utils.SuccessMsg`、`Success(c, gin.H{"message": ...})`、`errors.New`、`fmt.Errorf` 中文返回消息全部译为英文；注释、日志、Swagger 描述保持中文。
 
 **目录结构示例：**
 
@@ -688,5 +689,5 @@ func (ctrl *UserController) GetUser(c *gin.Context) {
 
 ---
 
-> 📝 **最后更新**: 2026-07-16  
+> 📝 **最后更新**: 2026-08-09  
 > 如有疑问，请参考 `backend/routes/routes.go` 与 [管理端路径与Scalar自适应.md](./管理端路径与Scalar自适应.md)。

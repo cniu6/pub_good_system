@@ -346,6 +346,7 @@ const res = await adminApi.user.list({ page: 1 })
 | 数据库模型 | `doc/数据库模型.md` | 数据模型 |
 | API 路由 | `doc/API路由.md` | 路由规则 |
 | 前端请求 | `doc/前端请求.md` | 前端请求封装 |
+| Embedded 打包 | `doc/留档-embedded打包问题总结.md` | embedded 构建问题与修复 |
 
 ## 已知设计（勿当 Bug"修复"）
 

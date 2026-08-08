@@ -1,6 +1,6 @@
 # Embedded 打包问题总结与修复留档
 
-> 文件位置：`golang/留档-embedded打包问题总结.md`
+> 文件位置：`doc/留档-embedded打包问题总结.md`
 > 
 > 最后更新：2026-04-26
 > 

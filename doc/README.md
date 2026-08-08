@@ -21,6 +21,7 @@
 | [API路由](./API路由.md) | 路由定义、中间件使用 | ⭐⭐⭐⭐⭐ |
 | [管理端路径与Swagger自适应](./管理端路径与Swagger自适应.md) | ADMIN_PATH / ADMIN_API_PATH、前端注入、doc.json 改写 | ⭐⭐⭐⭐⭐ |
 | [前端请求](./前端请求.md) | Alova封装、API调用 | ⭐⭐⭐⭐ |
+| [留档-embedded打包问题总结](./留档-embedded打包问题总结.md) | embedded 构建问题与修复 | ⭐⭐⭐⭐ |
 | [支付订单系统](./支付订单系统.md) | 下单、回调、绑定校验 | ⭐⭐⭐⭐⭐ |
 | [提现流程与余额管理](./提现流程与余额管理.md) | 提现状态机 | ⭐⭐⭐⭐ |
 | [短信插件系统](./短信插件系统.md) | 短信多厂商 | ⭐⭐⭐ |
@@ -29,6 +30,7 @@
 | [在线会话与Presence](./在线会话与Presence.md) | WS 在线心跳、管理端在线用户、force-logout | ⭐⭐⭐⭐ |
 | [备份与恢复](./备份与恢复.md) | mysqldump/SQLite/pg_dump 脚本与保留策略 | ⭐⭐⭐ |
 
+> **2026-08-09**：控制器目录重构为 `controllers/{scope}/{business}` 二级结构；Scalar `x-tagGroups` 分组与路径自动推断 tag；所有层返回 message 统一改为英文（注释/日志/Swagger 描述保持中文）。详见 [`API路由.md`](./API路由.md)。
 > **2026-07-24**：必要/不必要总清单写入 [`backend/留档.md`](../backend/留档.md)、[`frontend/留档.md`](../frontend/留档.md)、[`backend/internal/task/留档.md`](../backend/internal/task/留档.md)。要点：JWT≠API Key；refresh 轮换+重放吊销属必要；TOTP/导入导出已删；对账自动任务默关；DB 控制台正式能力；调试终端仅 debug；注册默认等级 1；侧栏宽度重置进系统设置抽屉。  
 > **2026-07-23**：单组织完善——支付迟到回调/对账异常台、实名唯一与 PII、WS ticket、API Key 收紧、`/ready` `/metrics`、Docker/备份 等。Postgres 仍须 `FST_PG_DSN` 真机集成测后才标生产。  
 > **2026-07-20**：根 `.env` 唯一加载；Presence/会话强退；邮件代理与手机区号等。  
@@ -170,7 +172,7 @@ import "fst/backend/utils"
 utils.Success(c, data)
 
 // 失败响应
-utils.Fail(c, 400, "错误信息")
+utils.Fail(c, 400, "Invalid parameters")
 
 // 标准响应格式
 {
