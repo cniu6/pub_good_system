@@ -534,25 +534,22 @@ func HandlePaymentReturn(params map[string]string) (*models.PaymentOrder, error)
 	return order, nil
 }
 
+// ReconcilePaymentOrderByID 主动查单并对账。
+// 只查一次订单，reconcile 成功后直接返回事务内最新的订单对象，避免二次查询。
 func ReconcilePaymentOrderByID(orderID uint64) (*models.PaymentOrder, bool, error) {
 	order, err := models.GetPaymentOrderByID(orderID)
 	if err != nil {
 		return nil, false, err
 	}
 
-	reconciled, err := reconcilePaymentOrder(order)
+	updated, reconciled, err := reconcilePaymentOrder(order)
 	if err != nil {
 		return order, false, err
 	}
 	if !reconciled {
 		return order, false, nil
 	}
-
-	refreshedOrder, err := models.GetPaymentOrderByID(orderID)
-	if err != nil {
-		return nil, true, err
-	}
-	return refreshedOrder, true, nil
+	return updated, true, nil
 }
 
 // PaymentReconcileBatchResult 批量对账结果
@@ -579,7 +576,7 @@ func ReconcilePaymentOrdersBatch(ctx context.Context, limit int) (*PaymentReconc
 			}
 		}
 		o := order
-		changed, err := reconcilePaymentOrder(&o)
+		_, changed, err := reconcilePaymentOrder(&o)
 		if err != nil {
 			result.Exceptions++
 			msg := fmt.Sprintf("%s: %v", o.OrderNo, err)
@@ -608,42 +605,43 @@ func ReconcilePaymentOrdersBatch(ctx context.Context, limit int) (*PaymentReconc
 	return result, nil
 }
 
-// reconcilePaymentOrder 对单笔订单向网关查单；支持 pending/canceled/failed 恢复
-func reconcilePaymentOrder(order *models.PaymentOrder) (bool, error) {
+// reconcilePaymentOrder 对单笔订单向网关查单；支持 pending/canceled/failed 恢复。
+// 返回事务内最新的订单对象、是否对账成功、错误。
+func reconcilePaymentOrder(order *models.PaymentOrder) (*models.PaymentOrder, bool, error) {
 	if order == nil {
-		return false, errors.New("订单不存在")
+		return nil, false, errors.New("订单不存在")
 	}
 	switch order.Status {
 	case models.PaymentStatusPending, models.PaymentStatusCanceled, models.PaymentStatusFailed:
 		// ok
 	default:
-		return false, nil
+		return order, false, nil
 	}
 	if order.GatewayID == 0 {
-		return false, nil
+		return order, false, nil
 	}
 	channel, ok := GetPaymentChannel(order.PaymentChannel)
 	if !ok {
-		return false, nil
+		return order, false, nil
 	}
 
 	orderNo := strings.TrimSpace(order.OrderNo)
 	tradeNo := models.NormalizeTradeNo(order.TradeNo)
 	if orderNo == "" && tradeNo == "" {
-		return false, nil
+		return order, false, nil
 	}
 
 	gateway, err := models.GetPayGatewayByID(order.GatewayID)
 	if err != nil {
-		return false, fmt.Errorf("获取支付通道失败: %w", err)
+		return order, false, fmt.Errorf("获取支付通道失败: %w", err)
 	}
 
 	queryResult, err := channel.QueryOrder(gateway, orderNo, tradeNo)
 	if err != nil {
-		return false, err
+		return order, false, err
 	}
 	if queryResult == nil {
-		return false, errors.New("查询结果为空")
+		return order, false, errors.New("查询结果为空")
 	}
 	if queryResult.Code != 1 {
 		msg := strings.TrimSpace(queryResult.Msg)
@@ -653,10 +651,10 @@ func reconcilePaymentOrder(order *models.PaymentOrder) (bool, error) {
 		if isPermanentGatewayQueryFailure(queryResult.Code, msg, status) {
 			markPermanentReconcileFailure(order, queryResult.Code, msg, status)
 		}
-		return false, nil
+		return order, false, nil
 	}
 	if queryResult.OutTradeNo != "" && queryResult.OutTradeNo != orderNo {
-		return false, newPaymentNotifyError(true, "云端订单号不匹配")
+		return order, false, newPaymentNotifyError(true, "云端订单号不匹配")
 	}
 
 	queryTradeNo := models.NormalizeTradeNo(queryResult.TradeNo)
@@ -664,36 +662,39 @@ func reconcilePaymentOrder(order *models.PaymentOrder) (bool, error) {
 		queryTradeNo = tradeNo
 	}
 	if err := validatePaymentNotifyBinding(order, gateway, strings.TrimSpace(gateway.PID), strings.TrimSpace(queryResult.Type), queryTradeNo); err != nil {
-		return false, newPaymentNotifyError(true, err.Error())
+		return order, false, newPaymentNotifyError(true, err.Error())
 	}
 	if err := validateCallbackMoney(order.PayAmount, queryResult.Money); err != nil {
-		return false, newPaymentNotifyError(true, err.Error())
+		return order, false, newPaymentNotifyError(true, err.Error())
 	}
 	if queryResult.TradeStatus != "TRADE_SUCCESS" {
 		log.Printf("[Payment] 主动查单未确认支付成功: order_no=%s, trade_no=%s, code=%d, msg=%s, status=%s", orderNo, tradeNo, queryResult.Code, strings.TrimSpace(queryResult.Msg), strings.TrimSpace(queryResult.TradeStatus))
-		return false, nil
+		return order, false, nil
 	}
 
 	var changed bool
+	var finalOrder *models.PaymentOrder
 	err = db.DB.Transaction(func(tx *gorm.DB) error {
-		var lockedOrder *models.PaymentOrder
 		var balanceResult *utils.BalanceResult
 		var innerErr error
-		lockedOrder, balanceResult, changed, innerErr = settleThirdPartyPaidOrderTx(tx, order.OrderNo, queryTradeNo, strings.TrimSpace(queryResult.Type), queryResult.Money, "reconcile")
+		finalOrder, balanceResult, changed, innerErr = settleThirdPartyPaidOrderTx(tx, order.OrderNo, queryTradeNo, strings.TrimSpace(queryResult.Type), queryResult.Money, "reconcile")
 		if innerErr != nil {
 			return innerErr
 		}
 		if changed {
 			log.Printf("[Payment] 主动查单补账成功: order_no=%s, user_id=%d, amount=%.2f, fee=%.2f, pay_amount=%.2f, before=%.2f, after=%.2f",
-				lockedOrder.OrderNo, lockedOrder.UserID, lockedOrder.Amount, lockedOrder.Fee, lockedOrder.PayAmount, balanceResult.BeforeMoney, balanceResult.AfterMoney)
+				finalOrder.OrderNo, finalOrder.UserID, finalOrder.Amount, finalOrder.Fee, finalOrder.PayAmount, balanceResult.BeforeMoney, balanceResult.AfterMoney)
 		}
 		return nil
 	})
 	if err != nil {
-		return false, err
+		return order, false, err
+	}
+	if finalOrder != nil {
+		*order = *finalOrder
 	}
 
-	return changed, nil
+	return order, changed, nil
 }
 
 // isPermanentGatewayQueryFailure 判断网关查单是否为不可恢复错误（继续轮询只会浪费）
@@ -773,13 +774,13 @@ func AdminCompleteOrder(orderID uint64, memo string, force bool) error {
 	}
 	if order.Status == models.PaymentStatusPending {
 		// 默认：先尝试网关查单补账
-		if changed, rerr := reconcilePaymentOrder(order); rerr == nil && changed {
+		if _, changed, rerr := reconcilePaymentOrder(order); rerr == nil && changed {
 			return nil
 		}
 	} else if order.Status == models.PaymentStatusCanceled || order.Status == models.PaymentStatusFailed {
 		if !force {
 			// 非强制：仅允许对账路径
-			if changed, rerr := reconcilePaymentOrder(order); rerr == nil && changed {
+			if _, changed, rerr := reconcilePaymentOrder(order); rerr == nil && changed {
 				return nil
 			}
 			return NewClientError("订单非待支付状态；请先对账，或确认后强制补单")

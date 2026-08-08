@@ -15,7 +15,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/v1/admin/announcements": {
+        "/v1/admin/announcements": {
             "get": {
                 "security": [
                     {
@@ -27,9 +27,952 @@ const docTemplate = `{
                 ],
                 "summary": "管理端公告列表",
                 "responses": {}
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-公告"
+                ],
+                "summary": "管理端公告创建",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
             }
         },
-        "/api/v1/admin/email-logs": {
+        "/v1/admin/announcements/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-公告"
+                ],
+                "summary": "管理端公告详情",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-公告"
+                ],
+                "summary": "管理端公告更新",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-公告"
+                ],
+                "summary": "管理端公告删除",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/announcements/{id}/publish": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-公告"
+                ],
+                "summary": "管理端公告发布",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/announcements/{id}/unpublish": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-公告"
+                ],
+                "summary": "管理端公告下架",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/api-logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-API日志"
+                ],
+                "summary": "API接口日志列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/api-logs/clean": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-API日志"
+                ],
+                "summary": "清理API接口日志",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/api-logs/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-API日志"
+                ],
+                "summary": "API接口日志统计",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/api-logs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-API日志"
+                ],
+                "summary": "API接口日志详情",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/auto-jobs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "自动任务定义列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/auto-jobs/config": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "获取自动任务配置",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "更新自动任务配置",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/auto-jobs/handlers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "列出自动任务处理器",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/auto-jobs/overview": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "自动任务概览",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/auto-jobs/presets/import": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "导入自动任务预设",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/auto-jobs/running": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "列出运行中的自动任务",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/auto-jobs/runs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "自动任务运行记录列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/auto-jobs/runs/clean": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "清理自动任务运行记录",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/auto-jobs/runs/mark-keep": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "标记运行记录永久保留",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/auto-jobs/runs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "自动任务运行详情",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/auto-jobs/{job_code}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "自动任务定义详情",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "更新自动任务定义",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/auto-jobs/{job_code}/disable": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "禁用自动任务",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/auto-jobs/{job_code}/enable": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "启用自动任务",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/auto-jobs/{job_code}/run": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-自动任务"
+                ],
+                "summary": "立即执行自动任务",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/dashboard": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-仪表盘"
+                ],
+                "summary": "管理端仪表盘",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/db/backup": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-数据库"
+                ],
+                "summary": "下载 SQLite 数据库备份",
+                "responses": {}
+            }
+        },
+        "/v1/admin/db/info": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-数据库"
+                ],
+                "summary": "数据库信息",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/db/sql": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-数据库"
+                ],
+                "summary": "数据库 SQL 执行",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/db/tables": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-数据库"
+                ],
+                "summary": "数据库表列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/db/tables/{name}/ddl": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-数据库"
+                ],
+                "summary": "表建表语句",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/db/tables/{name}/meta": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-数据库"
+                ],
+                "summary": "表结构元信息",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/db/tables/{name}/rows": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-数据库"
+                ],
+                "summary": "表数据预览",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-数据库"
+                ],
+                "summary": "表数据新增",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-数据库"
+                ],
+                "summary": "表数据删除",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-数据库"
+                ],
+                "summary": "表数据更新",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/debug/gc": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-调试"
+                ],
+                "summary": "强制执行垃圾回收",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/debug/goroutines/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-调试"
+                ],
+                "summary": "协程统计信息",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/debug/pprof/allocs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-调试"
+                ],
+                "summary": "Allocs profile",
+                "responses": {}
+            }
+        },
+        "/v1/admin/debug/pprof/block": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-调试"
+                ],
+                "summary": "Block profile",
+                "responses": {}
+            }
+        },
+        "/v1/admin/debug/pprof/goroutine": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-调试"
+                ],
+                "summary": "Goroutine profile",
+                "responses": {}
+            }
+        },
+        "/v1/admin/debug/pprof/heap": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-调试"
+                ],
+                "summary": "Heap profile",
+                "responses": {}
+            }
+        },
+        "/v1/admin/debug/pprof/mutex": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-调试"
+                ],
+                "summary": "Mutex profile",
+                "responses": {}
+            }
+        },
+        "/v1/admin/debug/pprof/profile": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-调试"
+                ],
+                "summary": "CPU profile",
+                "responses": {}
+            }
+        },
+        "/v1/admin/debug/pprof/threadcreate": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-调试"
+                ],
+                "summary": "Thread creation profile",
+                "responses": {}
+            }
+        },
+        "/v1/admin/debug/pprof/trace": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-调试"
+                ],
+                "summary": "Execution trace",
+                "responses": {}
+            }
+        },
+        "/v1/admin/debug/terminal": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-终端"
+                ],
+                "summary": "调试终端 WebSocket",
+                "responses": {}
+            }
+        },
+        "/v1/admin/debug/terminal/exec": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-终端"
+                ],
+                "summary": "调试终端执行命令",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/email-logs": {
             "get": {
                 "security": [
                     {
@@ -104,7 +1047,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/email-logs/clean": {
+        "/v1/admin/email-logs/clean": {
             "post": {
                 "security": [
                     {
@@ -146,7 +1089,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/email-logs/stats": {
+        "/v1/admin/email-logs/stats": {
             "get": {
                 "security": [
                     {
@@ -174,7 +1117,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/email-logs/template-names": {
+        "/v1/admin/email-logs/template-names": {
             "get": {
                 "security": [
                     {
@@ -202,7 +1145,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/email-logs/{id}": {
+        "/v1/admin/email-logs/{id}": {
             "get": {
                 "security": [
                     {
@@ -239,7 +1182,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/email-send-test": {
+        "/v1/admin/email-send-test": {
             "post": {
                 "security": [
                     {
@@ -264,7 +1207,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/admin.EmailSendTestRequest"
+                            "$ref": "#/definitions/app_controllers_admin_emailtemplate.EmailSendTestRequest"
                         }
                     }
                 ],
@@ -278,7 +1221,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/email-templates": {
+        "/v1/admin/email-templates": {
             "get": {
                 "security": [
                     {
@@ -306,7 +1249,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/email-templates/{id}": {
+        "/v1/admin/email-templates/{id}": {
             "get": {
                 "security": [
                     {
@@ -373,7 +1316,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/admin.EmailTemplateUpdateRequest"
+                            "$ref": "#/definitions/app_controllers_admin_emailtemplate.EmailTemplateUpdateRequest"
                         }
                     }
                 ],
@@ -387,7 +1330,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/email-templates/{id}/preview": {
+        "/v1/admin/email-templates/{id}/preview": {
             "post": {
                 "security": [
                     {
@@ -419,7 +1362,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/admin.EmailPreviewRequest"
+                            "$ref": "#/definitions/app_controllers_admin_emailtemplate.EmailPreviewRequest"
                         }
                     }
                 ],
@@ -433,7 +1376,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/email-templates/{id}/reset": {
+        "/v1/admin/email-templates/{id}/reset": {
             "post": {
                 "security": [
                     {
@@ -470,7 +1413,28 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/logs": {
+        "/v1/admin/generate-nos": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户积分"
+                ],
+                "summary": "生成订单号和交易号",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/logs": {
             "get": {
                 "security": [
                     {
@@ -514,7 +1478,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/logs/clean": {
+        "/v1/admin/logs/clean": {
             "post": {
                 "security": [
                     {
@@ -557,7 +1521,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/logs/stats": {
+        "/v1/admin/logs/stats": {
             "get": {
                 "security": [
                     {
@@ -585,7 +1549,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/logs/{id}": {
+        "/v1/admin/logs/{id}": {
             "get": {
                 "security": [
                     {
@@ -623,7 +1587,173 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/payment/exceptions": {
+        "/v1/admin/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-设置"
+                ],
+                "summary": "当前管理员信息",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/me/password": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-设置"
+                ],
+                "summary": "修改管理员密码",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/money-logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户积分"
+                ],
+                "summary": "余额变动日志列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/money-logs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户积分"
+                ],
+                "summary": "余额变动日志详情",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户积分"
+                ],
+                "summary": "删除余额变动日志",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/online/sessions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-在线用户"
+                ],
+                "summary": "在线会话列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/online/sessions/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-在线用户"
+                ],
+                "summary": "强制下线指定会话",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/online/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-在线用户"
+                ],
+                "summary": "在线用户统计",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/payment/exceptions": {
             "get": {
                 "security": [
                     {
@@ -647,7 +1777,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/payment/exceptions/{id}/resolve": {
+        "/v1/admin/payment/exceptions/{id}/resolve": {
             "post": {
                 "security": [
                     {
@@ -683,7 +1813,106 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/payment/orders": {
+        "/v1/admin/payment/gateways": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "支付通道列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "创建支付通道",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/payment/gateways/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "支付通道详情",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "更新支付通道",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "删除支付通道",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/payment/orders": {
             "get": {
                 "security": [
                     {
@@ -742,7 +1971,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/payment/orders/{id}": {
+        "/v1/admin/payment/orders/{id}": {
             "get": {
                 "security": [
                     {
@@ -806,7 +2035,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/payment/orders/{id}/cancel": {
+        "/v1/admin/payment/orders/{id}/cancel": {
             "post": {
                 "security": [
                     {
@@ -839,7 +2068,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/payment/orders/{id}/complete": {
+        "/v1/admin/payment/orders/{id}/complete": {
             "post": {
                 "security": [
                     {
@@ -883,7 +2112,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/payment/orders/{id}/reconcile": {
+        "/v1/admin/payment/orders/{id}/reconcile": {
             "post": {
                 "security": [
                     {
@@ -916,7 +2145,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/payment/stats": {
+        "/v1/admin/payment/stats": {
             "get": {
                 "security": [
                     {
@@ -940,7 +2169,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/realname": {
+        "/v1/admin/realname": {
             "get": {
                 "security": [
                     {
@@ -955,7 +2184,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-实名认证管理"
+                    "Admin-实名"
                 ],
                 "summary": "获取实名认证列表",
                 "parameters": [
@@ -996,7 +2225,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/realname/review": {
+        "/v1/admin/realname/review": {
             "post": {
                 "security": [
                     {
@@ -1011,7 +2240,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-实名认证管理"
+                    "Admin-实名"
                 ],
                 "summary": "审核实名认证",
                 "parameters": [
@@ -1021,7 +2250,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/admin.ReviewRealnameRequest"
+                            "$ref": "#/definitions/app_controllers_admin_realname.ReviewRealnameRequest"
                         }
                     }
                 ],
@@ -1035,7 +2264,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/realname/{id}": {
+        "/v1/admin/realname/{id}": {
             "get": {
                 "security": [
                     {
@@ -1050,7 +2279,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-实名认证管理"
+                    "Admin-实名"
                 ],
                 "summary": "获取实名认证详情",
                 "parameters": [
@@ -1072,7 +2301,89 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/settings": {
+        "/v1/admin/realname/{id}/reveal-certificate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-实名"
+                ],
+                "summary": "临时查看证件号明文",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/score-logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户积分"
+                ],
+                "summary": "积分变动日志列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/score-logs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户积分"
+                ],
+                "summary": "积分变动日志详情",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户积分"
+                ],
+                "summary": "删除积分变动日志",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/settings": {
             "get": {
                 "security": [
                     {
@@ -1087,7 +2398,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-系统配置"
+                    "Admin-设置"
                 ],
                 "summary": "获取所有系统配置",
                 "responses": {
@@ -1102,7 +2413,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/admin.SettingsListResponse"
+                                            "$ref": "#/definitions/app_controllers_admin_settings.SettingsListResponse"
                                         }
                                     }
                                 }
@@ -1125,7 +2436,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-系统配置"
+                    "Admin-设置"
                 ],
                 "summary": "创建新配置",
                 "parameters": [
@@ -1135,7 +2446,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/admin.CreateSettingRequest"
+                            "$ref": "#/definitions/app_controllers_admin_settings.CreateSettingRequest"
                         }
                     }
                 ],
@@ -1149,7 +2460,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/settings/batch": {
+        "/v1/admin/settings/batch": {
             "put": {
                 "security": [
                     {
@@ -1164,7 +2475,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-系统配置"
+                    "Admin-设置"
                 ],
                 "summary": "批量更新配置",
                 "parameters": [
@@ -1174,7 +2485,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/admin.BatchUpdateSettingsRequest"
+                            "$ref": "#/definitions/app_controllers_admin_settings.BatchUpdateSettingsRequest"
                         }
                     }
                 ],
@@ -1188,7 +2499,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/settings/category/{category}": {
+        "/v1/admin/settings/category/{category}": {
             "get": {
                 "security": [
                     {
@@ -1203,7 +2514,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-系统配置"
+                    "Admin-设置"
                 ],
                 "summary": "获取指定分类的配置",
                 "parameters": [
@@ -1225,7 +2536,70 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/settings/{key}": {
+        "/v1/admin/settings/restart-backend": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-设置"
+                ],
+                "summary": "重启后端进程",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/settings/server-monitoring": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-设置"
+                ],
+                "summary": "服务端运行监控",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/settings/server-ops": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-设置"
+                ],
+                "summary": "服务运营状态",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/settings/{key}": {
             "get": {
                 "security": [
                     {
@@ -1240,7 +2614,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-系统配置"
+                    "Admin-设置"
                 ],
                 "summary": "获取单个配置",
                 "parameters": [
@@ -1275,7 +2649,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-系统配置"
+                    "Admin-设置"
                 ],
                 "summary": "更新单个配置值",
                 "parameters": [
@@ -1292,7 +2666,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/admin.UpdateSettingRequest"
+                            "$ref": "#/definitions/app_controllers_admin_settings.UpdateSettingRequest"
                         }
                     }
                 ],
@@ -1319,7 +2693,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-系统配置"
+                    "Admin-设置"
                 ],
                 "summary": "删除配置",
                 "parameters": [
@@ -1341,7 +2715,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/settings/{key}/meta": {
+        "/v1/admin/settings/{key}/meta": {
             "put": {
                 "security": [
                     {
@@ -1356,7 +2730,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-系统配置"
+                    "Admin-设置"
                 ],
                 "summary": "更新配置元数据",
                 "parameters": [
@@ -1373,7 +2747,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/admin.UpdateSettingMetaRequest"
+                            "$ref": "#/definitions/app_controllers_admin_settings.UpdateSettingMetaRequest"
                         }
                     }
                 ],
@@ -1387,7 +2761,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/sms-logs": {
+        "/v1/admin/sms-logs": {
             "get": {
                 "security": [
                     {
@@ -1474,7 +2848,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/sms-logs/clean": {
+        "/v1/admin/sms-logs/clean": {
             "post": {
                 "security": [
                     {
@@ -1516,7 +2890,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/sms-logs/stats": {
+        "/v1/admin/sms-logs/stats": {
             "get": {
                 "security": [
                     {
@@ -1544,7 +2918,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/sms-logs/template-names": {
+        "/v1/admin/sms-logs/template-names": {
             "get": {
                 "security": [
                     {
@@ -1572,7 +2946,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/sms-logs/{id}": {
+        "/v1/admin/sms-logs/{id}": {
             "get": {
                 "security": [
                     {
@@ -1609,7 +2983,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/sms-send-test": {
+        "/v1/admin/sms-send-test": {
             "post": {
                 "security": [
                     {
@@ -1633,7 +3007,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/admin.SMSSendTestRequest"
+                            "$ref": "#/definitions/app_controllers_admin_smstemplate.SMSSendTestRequest"
                         }
                     }
                 ],
@@ -1647,7 +3021,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/sms-templates": {
+        "/v1/admin/sms-templates": {
             "get": {
                 "security": [
                     {
@@ -1668,7 +3042,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/sms-templates/{id}": {
+        "/v1/admin/sms-templates/{id}": {
             "get": {
                 "security": [
                     {
@@ -1721,7 +3095,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/admin.SMSTemplateUpdateRequest"
+                            "$ref": "#/definitions/app_controllers_admin_smstemplate.SMSTemplateUpdateRequest"
                         }
                     }
                 ],
@@ -1735,7 +3109,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/sms-templates/{id}/preview": {
+        "/v1/admin/sms-templates/{id}/preview": {
             "post": {
                 "security": [
                     {
@@ -1760,7 +3134,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/admin.SMSPreviewRequest"
+                            "$ref": "#/definitions/app_controllers_admin_smstemplate.SMSPreviewRequest"
                         }
                     }
                 ],
@@ -1774,7 +3148,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/sms-templates/{id}/reset": {
+        "/v1/admin/sms-templates/{id}/reset": {
             "post": {
                 "security": [
                     {
@@ -1804,7 +3178,68 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/users": {
+        "/v1/admin/todos": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-待办"
+                ],
+                "summary": "管理端待办聚合",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/user-levels": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户等级"
+                ],
+                "summary": "用户等级列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户等级"
+                ],
+                "summary": "更新用户等级能力",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/users": {
             "get": {
                 "security": [
                     {
@@ -1819,7 +3254,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-用户管理"
+                    "Admin-用户"
                 ],
                 "summary": "获取用户列表",
                 "parameters": [
@@ -1879,7 +3314,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-用户管理"
+                    "Admin-用户"
                 ],
                 "summary": "创建用户",
                 "parameters": [
@@ -1889,7 +3324,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/services.UserCreateRequest"
+                            "$ref": "#/definitions/fst_backend_app_services.UserCreateRequest"
                         }
                     }
                 ],
@@ -1903,7 +3338,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/users/batch-simple": {
+        "/v1/admin/users/batch-simple": {
             "post": {
                 "security": [
                     {
@@ -1918,7 +3353,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-用户管理"
+                    "Admin-用户"
                 ],
                 "summary": "批量获取用户简要信息",
                 "parameters": [
@@ -1949,7 +3384,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/users/lookup": {
+        "/v1/admin/users/lookup": {
             "get": {
                 "security": [
                     {
@@ -1964,7 +3399,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-用户管理"
+                    "Admin-用户"
                 ],
                 "summary": "按标识查找用户",
                 "parameters": [
@@ -1986,7 +3421,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/users/{id}": {
+        "/v1/admin/users/{id}": {
             "get": {
                 "security": [
                     {
@@ -2001,7 +3436,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-用户管理"
+                    "Admin-用户"
                 ],
                 "summary": "获取用户详情",
                 "parameters": [
@@ -2025,7 +3460,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/admin.AdminUserDetailResponse"
+                                            "$ref": "#/definitions/app_controllers_admin_user.AdminUserDetailResponse"
                                         }
                                     }
                                 }
@@ -2048,7 +3483,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-用户管理"
+                    "Admin-用户"
                 ],
                 "summary": "更新用户",
                 "parameters": [
@@ -2065,7 +3500,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/services.UserUpdateRequest"
+                            "$ref": "#/definitions/fst_backend_app_services.UserUpdateRequest"
                         }
                     }
                 ],
@@ -2092,7 +3527,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-用户管理"
+                    "Admin-用户"
                 ],
                 "summary": "删除用户",
                 "parameters": [
@@ -2114,7 +3549,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/users/{id}/login-as": {
+        "/v1/admin/users/{id}/login-as": {
             "post": {
                 "security": [
                     {
@@ -2129,7 +3564,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-用户管理"
+                    "Admin-用户"
                 ],
                 "summary": "管理员登录指定用户",
                 "parameters": [
@@ -2151,7 +3586,91 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/users/{id}/password": {
+        "/v1/admin/users/{id}/money": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户积分"
+                ],
+                "summary": "直接设置用户余额",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/users/{id}/money/change": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户积分"
+                ],
+                "summary": "变更用户余额",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/users/{id}/money/log": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户积分"
+                ],
+                "summary": "仅添加余额变动日志",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/users/{id}/money/operate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户积分"
+                ],
+                "summary": "统一余额操作",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/users/{id}/password": {
             "put": {
                 "security": [
                     {
@@ -2166,7 +3685,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-用户管理"
+                    "Admin-用户"
                 ],
                 "summary": "重置用户密码",
                 "parameters": [
@@ -2200,7 +3719,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/users/{id}/reset-apikey": {
+        "/v1/admin/users/{id}/reset-apikey": {
             "post": {
                 "security": [
                     {
@@ -2215,7 +3734,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-用户管理"
+                    "Admin-用户"
                 ],
                 "summary": "重置用户 API Key",
                 "parameters": [
@@ -2237,7 +3756,112 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/users/{id}/status": {
+        "/v1/admin/users/{id}/score": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户积分"
+                ],
+                "summary": "直接设置用户积分",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/users/{id}/score/change": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户积分"
+                ],
+                "summary": "变更用户积分",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/users/{id}/score/log": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-用户积分"
+                ],
+                "summary": "仅添加积分变动日志",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/users/{id}/sessions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-在线用户"
+                ],
+                "summary": "指定用户的会话列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/users/{id}/sessions/revoke-all": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-在线用户"
+                ],
+                "summary": "强制下线用户全部会话",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/users/{id}/status": {
             "put": {
                 "security": [
                     {
@@ -2252,7 +3876,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin-用户管理"
+                    "Admin-用户"
                 ],
                 "summary": "更新用户状态",
                 "parameters": [
@@ -2286,7 +3910,133 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/public/admin/login": {
+        "/v1/admin/withdraw": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-提现"
+                ],
+                "summary": "提现列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/withdraw/legacy-risk": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-提现"
+                ],
+                "summary": "提现历史风险单检测",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/withdraw/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-提现"
+                ],
+                "summary": "提现统计",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/withdraw/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-提现"
+                ],
+                "summary": "提现详情",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/withdraw/{id}/pay": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-提现"
+                ],
+                "summary": "标记提现已人工打款",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/withdraw/{id}/review": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-提现"
+                ],
+                "summary": "提现审核",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/public/admin/login": {
             "post": {
                 "description": "管理端专用登录，服务端强制 authGuard=admin",
                 "consumes": [
@@ -2306,7 +4056,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/public.LoginRequest"
+                            "$ref": "#/definitions/app_controllers_public_auth.LoginRequest"
                         }
                     }
                 ],
@@ -2338,7 +4088,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/public/app-config": {
+        "/v1/public/app-config": {
             "get": {
                 "description": "获取前端应用需要的公开配置信息",
                 "produces": [
@@ -2360,7 +4110,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/public.AppConfigResponse"
+                                            "$ref": "#/definitions/app_controllers_public_settings.AppConfigResponse"
                                         }
                                     }
                                 }
@@ -2370,7 +4120,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/public/forgot-password": {
+        "/v1/public/forgot-password": {
             "post": {
                 "description": "发送重置密码验证码到邮箱",
                 "consumes": [
@@ -2390,7 +4140,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/public.ResetEmailRequest"
+                            "$ref": "#/definitions/app_controllers_public_auth.ResetEmailRequest"
                         }
                     }
                 ],
@@ -2404,13 +4154,13 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/public/geo/dial-countries": {
+        "/v1/public/geo/dial-countries": {
             "get": {
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Public-配置"
+                    "Public-区号"
                 ],
                 "summary": "国家区号列表",
                 "responses": {
@@ -2425,7 +4175,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/public.DialCountriesResponse"
+                                            "$ref": "#/definitions/app_controllers_public_geo.DialCountriesResponse"
                                         }
                                     }
                                 }
@@ -2435,14 +4185,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/public/geo/phone-country": {
+        "/v1/public/geo/phone-country": {
             "get": {
                 "description": "优先级：仅大陆强制CN → CDN国家头 →（可选）IP查询 → 语言 → 美国+1保底。query.lang 建议传前端当前语言（zhCN/enUS）",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Public-配置"
+                    "Public-区号"
                 ],
                 "summary": "探测手机号默认国家",
                 "parameters": [
@@ -2465,7 +4215,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/public.PhoneCountryResponse"
+                                            "$ref": "#/definitions/app_controllers_public_geo.PhoneCountryResponse"
                                         }
                                     }
                                 }
@@ -2475,7 +4225,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/public/login": {
+        "/v1/public/login": {
             "post": {
                 "description": "用户登录并获取 Token",
                 "consumes": [
@@ -2495,7 +4245,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/public.LoginRequest"
+                            "$ref": "#/definitions/app_controllers_public_auth.LoginRequest"
                         }
                     }
                 ],
@@ -2527,7 +4277,39 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/public/refresh-token": {
+        "/v1/public/payment/notify": {
+            "post": {
+                "tags": [
+                    "Public-回调"
+                ],
+                "summary": "支付异步通知回调",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/public/payment/return": {
+            "get": {
+                "tags": [
+                    "Public-回调"
+                ],
+                "summary": "支付同步跳转回调",
+                "responses": {
+                    "302": {
+                        "description": "Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/public/refresh-token": {
             "post": {
                 "description": "使用refresh token获取新的access token",
                 "consumes": [
@@ -2547,7 +4329,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/public.RefreshTokenRequest"
+                            "$ref": "#/definitions/app_controllers_public_auth.RefreshTokenRequest"
                         }
                     }
                 ],
@@ -2561,7 +4343,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/public/register": {
+        "/v1/public/register": {
             "post": {
                 "description": "注册一个新用户",
                 "consumes": [
@@ -2581,7 +4363,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/public.RegisterRequest"
+                            "$ref": "#/definitions/app_controllers_public_auth.RegisterRequest"
                         }
                     }
                 ],
@@ -2607,7 +4389,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/public/reset-password": {
+        "/v1/public/reset-password": {
             "post": {
                 "description": "使用验证码重置密码",
                 "consumes": [
@@ -2627,7 +4409,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/public.ResetPasswordConfirmRequest"
+                            "$ref": "#/definitions/app_controllers_public_auth.ResetPasswordConfirmRequest"
                         }
                     }
                 ],
@@ -2641,7 +4423,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/public/send-register-code": {
+        "/v1/public/send-register-code": {
             "post": {
                 "description": "发送注册验证码到邮箱",
                 "consumes": [
@@ -2661,7 +4443,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/public.SendCodeRequest"
+                            "$ref": "#/definitions/app_controllers_public_auth.SendCodeRequest"
                         }
                     }
                 ],
@@ -2675,7 +4457,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/public/session/force-logout": {
+        "/v1/public/session/force-logout": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -2697,7 +4479,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/system/cleanup-status": {
+        "/v1/system/cleanup-status": {
             "get": {
                 "description": "返回验证码清理任务的运行状态、间隔、上次/下次执行时间",
                 "produces": [
@@ -2718,7 +4500,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/system/ws-ticket": {
+        "/v1/system/ws-ticket": {
             "post": {
                 "produces": [
                     "application/json"
@@ -2738,7 +4520,196 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/avatar": {
+        "/v1/user/announcements": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "User-公告"
+                ],
+                "summary": "我的公告列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/user/announcements/read-all": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "User-公告"
+                ],
+                "summary": "标记全部公告已读",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/user/announcements/unread-count": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "User-公告"
+                ],
+                "summary": "未读公告数量",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/user/announcements/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "User-公告"
+                ],
+                "summary": "公告详情",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/user/announcements/{id}/read": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "User-公告"
+                ],
+                "summary": "标记公告已读",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/user/api-logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "User-资料"
+                ],
+                "summary": "我的 API 访问日志列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/user/api-logs/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "User-资料"
+                ],
+                "summary": "我的 API 调用统计",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/user/api-logs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "User-资料"
+                ],
+                "summary": "我的 API 访问日志详情",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/user/apikey": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "User-会话"
+                ],
+                "summary": "获取 API Key",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/user/avatar": {
             "put": {
                 "security": [
                     {
@@ -2780,7 +4751,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/dashboard": {
+        "/v1/user/dashboard": {
             "get": {
                 "security": [
                     {
@@ -2795,7 +4766,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-资料"
                 ],
                 "summary": "获取用户仪表盘",
                 "responses": {
@@ -2808,7 +4779,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/deactivate": {
+        "/v1/user/deactivate": {
             "post": {
                 "security": [
                     {
@@ -2823,7 +4794,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-设置"
                 ],
                 "summary": "注销账号",
                 "parameters": [
@@ -2833,7 +4804,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.DeactivateAccountRequest"
+                            "$ref": "#/definitions/app_controllers_user_profile.DeactivateAccountRequest"
                         }
                     }
                 ],
@@ -2847,7 +4818,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/email/send-code": {
+        "/v1/user/email/send-code": {
             "post": {
                 "security": [
                     {
@@ -2862,7 +4833,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-资料"
                 ],
                 "summary": "发送修改邮箱验证码",
                 "parameters": [
@@ -2872,7 +4843,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.SendEmailCodeRequest"
+                            "$ref": "#/definitions/app_controllers_user_profile.SendEmailCodeRequest"
                         }
                     }
                 ],
@@ -2886,7 +4857,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/email/verify": {
+        "/v1/user/email/verify": {
             "post": {
                 "security": [
                     {
@@ -2901,7 +4872,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-资料"
                 ],
                 "summary": "验证并修改邮箱",
                 "parameters": [
@@ -2911,7 +4882,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.VerifyEmailChangeRequest"
+                            "$ref": "#/definitions/app_controllers_user_profile.VerifyEmailChangeRequest"
                         }
                     }
                 ],
@@ -2925,7 +4896,70 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/money-logs": {
+        "/v1/user/logout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "User-会话"
+                ],
+                "summary": "登出当前会话",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/user/logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "User-资料"
+                ],
+                "summary": "我的操作日志列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/user/logs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "User-资料"
+                ],
+                "summary": "我的操作日志详情",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/user/money-logs": {
             "get": {
                 "security": [
                     {
@@ -2936,7 +4970,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-资料"
                 ],
                 "summary": "获取我的余额变动日志",
                 "parameters": [
@@ -2971,7 +5005,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/password": {
+        "/v1/user/password": {
             "put": {
                 "security": [
                     {
@@ -2996,7 +5030,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.ChangePasswordRequest"
+                            "$ref": "#/definitions/app_controllers_user_profile.ChangePasswordRequest"
                         }
                     }
                 ],
@@ -3010,7 +5044,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/payment/create": {
+        "/v1/user/payment/create": {
             "post": {
                 "security": [
                     {
@@ -3034,7 +5068,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.CreateOrderRequest"
+                            "$ref": "#/definitions/app_controllers_user_payment.CreateOrderRequest"
                         }
                     }
                 ],
@@ -3048,7 +5082,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/payment/gateways": {
+        "/v1/user/payment/gateways": {
             "get": {
                 "security": [
                     {
@@ -3072,7 +5106,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/payment/orders": {
+        "/v1/user/payment/orders": {
             "get": {
                 "security": [
                     {
@@ -3119,7 +5153,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/payment/orders/{id}": {
+        "/v1/user/payment/orders/{id}": {
             "get": {
                 "security": [
                     {
@@ -3152,7 +5186,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/payment/orders/{id}/status": {
+        "/v1/user/payment/orders/{id}/status": {
             "get": {
                 "security": [
                     {
@@ -3185,7 +5219,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/phone/send-code": {
+        "/v1/user/phone/send-code": {
             "post": {
                 "security": [
                     {
@@ -3200,7 +5234,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-资料"
                 ],
                 "summary": "发送修改手机号验证码",
                 "parameters": [
@@ -3210,7 +5244,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.SendPhoneCodeRequest"
+                            "$ref": "#/definitions/app_controllers_user_profile.SendPhoneCodeRequest"
                         }
                     }
                 ],
@@ -3224,7 +5258,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/phone/verify": {
+        "/v1/user/phone/verify": {
             "post": {
                 "security": [
                     {
@@ -3239,7 +5273,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-资料"
                 ],
                 "summary": "验证并修改手机号",
                 "parameters": [
@@ -3249,7 +5283,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.VerifyPhoneChangeRequest"
+                            "$ref": "#/definitions/app_controllers_user_profile.VerifyPhoneChangeRequest"
                         }
                     }
                 ],
@@ -3263,7 +5297,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/profile": {
+        "/v1/user/profile": {
             "get": {
                 "security": [
                     {
@@ -3293,7 +5327,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/user.ProfileResponse"
+                                            "$ref": "#/definitions/app_controllers_user_profile.ProfileResponse"
                                         }
                                     }
                                 }
@@ -3326,7 +5360,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.UpdateProfileRequest"
+                            "$ref": "#/definitions/app_controllers_user_profile.UpdateProfileRequest"
                         }
                     }
                 ],
@@ -3340,7 +5374,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/realname": {
+        "/v1/user/realname": {
             "get": {
                 "security": [
                     {
@@ -3391,7 +5425,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.SubmitRealnameRequest"
+                            "$ref": "#/definitions/app_controllers_user_realname.SubmitRealnameRequest"
                         }
                     }
                 ],
@@ -3405,7 +5439,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/resetapikey": {
+        "/v1/user/resetapikey": {
             "post": {
                 "security": [
                     {
@@ -3433,7 +5467,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/score-logs": {
+        "/v1/user/score-logs": {
             "get": {
                 "security": [
                     {
@@ -3444,7 +5478,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-资料"
                 ],
                 "summary": "获取我的积分变动日志",
                 "parameters": [
@@ -3479,7 +5513,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/sessions": {
+        "/v1/user/sessions": {
             "get": {
                 "security": [
                     {
@@ -3507,7 +5541,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/sessions/:id": {
+        "/v1/user/sessions/:id": {
             "delete": {
                 "security": [
                     {
@@ -3544,7 +5578,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/sessions/revoke-all": {
+        "/v1/user/sessions/revoke-all": {
             "post": {
                 "security": [
                     {
@@ -3572,7 +5606,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/settings": {
+        "/v1/user/settings": {
             "get": {
                 "security": [
                     {
@@ -3623,7 +5657,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.UpdateSettingsRequest"
+                            "$ref": "#/definitions/app_controllers_user_profile.UpdateSettingsRequest"
                         }
                     }
                 ],
@@ -3637,7 +5671,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/stats": {
+        "/v1/user/stats": {
             "get": {
                 "security": [
                     {
@@ -3652,9 +5686,95 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户中心"
+                    "User-资料"
                 ],
                 "summary": "获取用户统计",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/user/withdraw": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "User-提现"
+                ],
+                "summary": "我的提现列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "User-提现"
+                ],
+                "summary": "创建提现申请",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/user/withdraw/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "User-提现"
+                ],
+                "summary": "提现详情",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v2/user/device": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "V2 版本示例接口，用于验证多版本路由与 Scalar 嵌套展示",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "User-本机数据"
+                ],
+                "summary": "获取用户本机数据",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -3667,50 +5787,83 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "admin.AdminUserDetailResponse": {
+        "app_controllers_admin_emailtemplate.EmailPreviewRequest": {
             "type": "object",
+            "required": [
+                "content"
+            ],
             "properties": {
-                "realname": {
-                    "$ref": "#/definitions/admin.AdminUserRealnameSummary"
+                "content": {
+                    "type": "string"
                 },
-                "user": {
-                    "$ref": "#/definitions/services.AdminUserListItem"
+                "vars": {
+                    "type": "object",
+                    "additionalProperties": true
                 }
             }
         },
-        "admin.AdminUserRealnameSummary": {
+        "app_controllers_admin_emailtemplate.EmailSendTestRequest": {
             "type": "object",
+            "required": [
+                "to"
+            ],
             "properties": {
-                "certificate_no": {
+                "content": {
                     "type": "string"
                 },
-                "certificate_type": {
-                    "type": "integer"
-                },
-                "has_verification": {
-                    "type": "boolean"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "real_name": {
+                "subject": {
                     "type": "string"
                 },
-                "reject_reason": {
+                "template_id": {
+                    "description": "可选：使用模板发送",
+                    "type": "integer"
+                },
+                "to": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_admin_emailtemplate.EmailTemplateUpdateRequest": {
+            "type": "object",
+            "required": [
+                "content"
+            ],
+            "properties": {
+                "content": {
                     "type": "string"
                 },
-                "reviewed_at": {
-                    "type": "integer"
+                "description": {
+                    "type": "string"
                 },
                 "status": {
                     "type": "integer"
                 },
-                "submitted_at": {
-                    "type": "integer"
+                "subject": {
+                    "type": "string"
                 }
             }
         },
-        "admin.BatchUpdateSettingsRequest": {
+        "app_controllers_admin_realname.ReviewRealnameRequest": {
+            "type": "object",
+            "required": [
+                "id",
+                "status"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "reject_reason": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "integer",
+                    "maximum": 2,
+                    "minimum": 1
+                }
+            }
+        },
+        "app_controllers_admin_settings.BatchUpdateSettingsRequest": {
             "type": "object",
             "required": [
                 "settings"
@@ -3724,7 +5877,7 @@ const docTemplate = `{
                 }
             }
         },
-        "admin.CreateSettingRequest": {
+        "app_controllers_admin_settings.CreateSettingRequest": {
             "type": "object",
             "required": [
                 "key",
@@ -3762,143 +5915,18 @@ const docTemplate = `{
                 }
             }
         },
-        "admin.EmailPreviewRequest": {
-            "type": "object",
-            "required": [
-                "content"
-            ],
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "vars": {
-                    "type": "object",
-                    "additionalProperties": true
-                }
-            }
-        },
-        "admin.EmailSendTestRequest": {
-            "type": "object",
-            "required": [
-                "to"
-            ],
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "subject": {
-                    "type": "string"
-                },
-                "template_id": {
-                    "description": "可选：使用模板发送",
-                    "type": "integer"
-                },
-                "to": {
-                    "type": "string"
-                }
-            }
-        },
-        "admin.EmailTemplateUpdateRequest": {
-            "type": "object",
-            "required": [
-                "content"
-            ],
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "integer"
-                },
-                "subject": {
-                    "type": "string"
-                }
-            }
-        },
-        "admin.ReviewRealnameRequest": {
-            "type": "object",
-            "required": [
-                "id",
-                "status"
-            ],
-            "properties": {
-                "id": {
-                    "type": "integer"
-                },
-                "reject_reason": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "integer",
-                    "maximum": 2,
-                    "minimum": 1
-                }
-            }
-        },
-        "admin.SMSPreviewRequest": {
-            "type": "object",
-            "required": [
-                "content"
-            ],
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "vars": {
-                    "type": "object",
-                    "additionalProperties": true
-                }
-            }
-        },
-        "admin.SMSSendTestRequest": {
-            "type": "object",
-            "required": [
-                "phone"
-            ],
-            "properties": {
-                "lang": {
-                    "type": "string"
-                },
-                "phone": {
-                    "type": "string"
-                }
-            }
-        },
-        "admin.SMSTemplateUpdateRequest": {
-            "type": "object",
-            "required": [
-                "content"
-            ],
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "sign_name": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "integer"
-                }
-            }
-        },
-        "admin.SettingsListResponse": {
+        "app_controllers_admin_settings.SettingsListResponse": {
             "type": "object",
             "properties": {
                 "categories": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.SettingsGroup"
+                        "$ref": "#/definitions/fst_backend_app_models.SettingsGroup"
                     }
                 }
             }
         },
-        "admin.UpdateSettingMetaRequest": {
+        "app_controllers_admin_settings.UpdateSettingMetaRequest": {
             "type": "object",
             "properties": {
                 "category": {
@@ -3927,7 +5955,7 @@ const docTemplate = `{
                 }
             }
         },
-        "admin.UpdateSettingRequest": {
+        "app_controllers_admin_settings.UpdateSettingRequest": {
             "type": "object",
             "properties": {
                 "value": {
@@ -3935,51 +5963,247 @@ const docTemplate = `{
                 }
             }
         },
-        "models.SettingDTO": {
+        "app_controllers_admin_smstemplate.SMSPreviewRequest": {
             "type": "object",
+            "required": [
+                "content"
+            ],
             "properties": {
-                "category": {
+                "content": {
+                    "type": "string"
+                },
+                "vars": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
+        "app_controllers_admin_smstemplate.SMSSendTestRequest": {
+            "type": "object",
+            "required": [
+                "phone"
+            ],
+            "properties": {
+                "lang": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_admin_smstemplate.SMSTemplateUpdateRequest": {
+            "type": "object",
+            "required": [
+                "content"
+            ],
+            "properties": {
+                "content": {
                     "type": "string"
                 },
                 "description": {
                     "type": "string"
                 },
-                "is_editable": {
-                    "type": "boolean"
-                },
-                "is_public": {
-                    "type": "boolean"
-                },
-                "key": {
+                "sign_name": {
                     "type": "string"
                 },
-                "label": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                },
-                "value": {}
+                "status": {
+                    "type": "integer"
+                }
             }
         },
-        "models.SettingsGroup": {
+        "app_controllers_admin_user.AdminUserDetailResponse": {
             "type": "object",
             "properties": {
-                "category": {
+                "realname": {
+                    "$ref": "#/definitions/app_controllers_admin_user.AdminUserRealnameSummary"
+                },
+                "user": {
+                    "$ref": "#/definitions/fst_backend_app_services.AdminUserListItem"
+                }
+            }
+        },
+        "app_controllers_admin_user.AdminUserRealnameSummary": {
+            "type": "object",
+            "properties": {
+                "certificate_no": {
                     "type": "string"
                 },
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.SettingDTO"
-                    }
+                "certificate_type": {
+                    "type": "integer"
                 },
-                "label": {
+                "has_verification": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "real_name": {
+                    "type": "string"
+                },
+                "reject_reason": {
+                    "type": "string"
+                },
+                "reviewed_at": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "submitted_at": {
+                    "type": "integer"
+                }
+            }
+        },
+        "app_controllers_public_auth.LoginRequest": {
+            "type": "object",
+            "required": [
+                "password"
+            ],
+            "properties": {
+                "authGuard": {
+                    "type": "string"
+                },
+                "clientType": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "userName": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }
         },
-        "public.AppConfigResponse": {
+        "app_controllers_public_auth.RefreshTokenRequest": {
+            "type": "object",
+            "required": [
+                "refreshToken"
+            ],
+            "properties": {
+                "authGuard": {
+                    "type": "string"
+                },
+                "refreshToken": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_public_auth.RegisterRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "email",
+                "password",
+                "username"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "password": {
+                    "type": "string",
+                    "minLength": 8
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_public_auth.ResetEmailRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "lang": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_public_auth.ResetPasswordConfirmRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "email",
+                "new_password"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "new_password": {
+                    "type": "string",
+                    "minLength": 8
+                }
+            }
+        },
+        "app_controllers_public_auth.SendCodeRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "lang": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_public_geo.DialCountriesResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/utils.DialCountry"
+                    }
+                }
+            }
+        },
+        "app_controllers_public_geo.PhoneCountryResponse": {
+            "type": "object",
+            "properties": {
+                "country_code": {
+                    "type": "string"
+                },
+                "dial_code": {
+                    "type": "string"
+                },
+                "ip_detect_enabled": {
+                    "type": "boolean"
+                },
+                "mobile_cn_only": {
+                    "type": "boolean"
+                },
+                "name_en": {
+                    "type": "string"
+                },
+                "name_zh": {
+                    "type": "string"
+                },
+                "source": {
+                    "description": "cn_only | header | ip | lang | default",
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_public_settings.AppConfigResponse": {
             "type": "object",
             "properties": {
                 "admin_api_path": {
@@ -4082,31 +6306,166 @@ const docTemplate = `{
                 }
             }
         },
-        "public.DialCountriesResponse": {
+        "app_controllers_user_payment.CreateOrderRequest": {
             "type": "object",
+            "required": [
+                "amount",
+                "gateway_id"
+            ],
             "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/utils.DialCountry"
-                    }
+                "amount": {
+                    "type": "number"
+                },
+                "gateway_id": {
+                    "type": "integer"
+                },
+                "subject": {
+                    "type": "string"
                 }
             }
         },
-        "public.LoginRequest": {
+        "app_controllers_user_profile.ChangePasswordRequest": {
+            "type": "object",
+            "required": [
+                "new_password",
+                "old_password"
+            ],
+            "properties": {
+                "new_password": {
+                    "type": "string",
+                    "minLength": 8
+                },
+                "old_password": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_user_profile.DeactivateAccountRequest": {
             "type": "object",
             "required": [
                 "password"
             ],
             "properties": {
-                "authGuard": {
-                    "type": "string"
-                },
-                "clientType": {
-                    "type": "string"
-                },
                 "password": {
                     "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_user_profile.ProfileRealnameSummary": {
+            "type": "object",
+            "properties": {
+                "certificateNo": {
+                    "type": "string"
+                },
+                "certificateType": {
+                    "type": "integer"
+                },
+                "hasVerification": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "realName": {
+                    "type": "string"
+                },
+                "rejectReason": {
+                    "type": "string"
+                },
+                "reviewedAt": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "submittedAt": {
+                    "type": "integer"
+                }
+            }
+        },
+        "app_controllers_user_profile.ProfileResponse": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "backGround": {
+                    "type": "string"
+                },
+                "back_ground": {
+                    "type": "string"
+                },
+                "birthday": {
+                    "type": "integer"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "createTime": {
+                    "type": "integer"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "gender": {
+                    "type": "integer"
+                },
+                "groupId": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "joinIp": {
+                    "type": "string"
+                },
+                "joinTime": {
+                    "type": "integer"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "lastLoginIp": {
+                    "type": "string"
+                },
+                "lastLoginTime": {
+                    "type": "integer"
+                },
+                "level": {
+                    "type": "integer"
+                },
+                "loginFailure": {
+                    "type": "integer"
+                },
+                "mobile": {
+                    "type": "string"
+                },
+                "money": {
+                    "type": "number"
+                },
+                "motto": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "realname": {
+                    "$ref": "#/definitions/app_controllers_user_profile.ProfileRealnameSummary"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "updateTime": {
+                    "type": "integer"
                 },
                 "userName": {
                     "type": "string"
@@ -4116,121 +6475,181 @@ const docTemplate = `{
                 }
             }
         },
-        "public.PhoneCountryResponse": {
-            "type": "object",
-            "properties": {
-                "country_code": {
-                    "type": "string"
-                },
-                "dial_code": {
-                    "type": "string"
-                },
-                "ip_detect_enabled": {
-                    "type": "boolean"
-                },
-                "mobile_cn_only": {
-                    "type": "boolean"
-                },
-                "name_en": {
-                    "type": "string"
-                },
-                "name_zh": {
-                    "type": "string"
-                },
-                "source": {
-                    "description": "cn_only | header | ip | lang | default",
-                    "type": "string"
-                }
-            }
-        },
-        "public.RefreshTokenRequest": {
+        "app_controllers_user_profile.SendEmailCodeRequest": {
             "type": "object",
             "required": [
-                "refreshToken"
+                "new_email"
             ],
             "properties": {
-                "authGuard": {
+                "lang": {
                     "type": "string"
                 },
-                "refreshToken": {
+                "new_email": {
                     "type": "string"
                 }
             }
         },
-        "public.RegisterRequest": {
+        "app_controllers_user_profile.SendPhoneCodeRequest": {
+            "type": "object",
+            "required": [
+                "new_mobile"
+            ],
+            "properties": {
+                "new_mobile": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_user_profile.UpdateProfileRequest": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "back_ground": {
+                    "type": "string"
+                },
+                "birthday": {
+                    "type": "integer"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "gender": {
+                    "type": "integer"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "mobile": {
+                    "type": "string"
+                },
+                "motto": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_user_profile.UpdateSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "language": {
+                    "type": "string"
+                },
+                "notify_email": {
+                    "type": "boolean"
+                },
+                "theme": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_user_profile.VerifyEmailChangeRequest": {
             "type": "object",
             "required": [
                 "code",
-                "email",
-                "password",
-                "username"
+                "new_email"
             ],
             "properties": {
                 "code": {
                     "type": "string"
                 },
-                "email": {
-                    "type": "string",
-                    "maxLength": 255
-                },
-                "password": {
-                    "type": "string",
-                    "minLength": 8
-                },
-                "username": {
+                "new_email": {
                     "type": "string"
                 }
             }
         },
-        "public.ResetEmailRequest": {
-            "type": "object",
-            "required": [
-                "email"
-            ],
-            "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "lang": {
-                    "type": "string"
-                }
-            }
-        },
-        "public.ResetPasswordConfirmRequest": {
+        "app_controllers_user_profile.VerifyPhoneChangeRequest": {
             "type": "object",
             "required": [
                 "code",
-                "email",
-                "new_password"
+                "new_mobile"
             ],
             "properties": {
                 "code": {
                     "type": "string"
                 },
-                "email": {
+                "new_mobile": {
                     "type": "string"
-                },
-                "new_password": {
-                    "type": "string",
-                    "minLength": 8
                 }
             }
         },
-        "public.SendCodeRequest": {
+        "app_controllers_user_realname.SubmitRealnameRequest": {
             "type": "object",
             "required": [
-                "email"
+                "certificate_back",
+                "certificate_front",
+                "certificate_no",
+                "certificate_type",
+                "real_name"
             ],
             "properties": {
-                "email": {
+                "certificate_back": {
                     "type": "string"
                 },
-                "lang": {
+                "certificate_front": {
+                    "type": "string"
+                },
+                "certificate_no": {
+                    "type": "string"
+                },
+                "certificate_type": {
+                    "type": "integer",
+                    "maximum": 3,
+                    "minimum": 1
+                },
+                "real_name": {
                     "type": "string"
                 }
             }
         },
-        "services.AdminUserListItem": {
+        "fst_backend_app_models.SettingDTO": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_editable": {
+                    "type": "boolean"
+                },
+                "is_public": {
+                    "type": "boolean"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "value": {}
+            }
+        },
+        "fst_backend_app_models.SettingsGroup": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/fst_backend_app_models.SettingDTO"
+                    }
+                },
+                "label": {
+                    "type": "string"
+                }
+            }
+        },
+        "fst_backend_app_services.AdminUserListItem": {
             "type": "object",
             "properties": {
                 "admin_remark": {
@@ -4341,7 +6760,7 @@ const docTemplate = `{
                 }
             }
         },
-        "services.UserCreateRequest": {
+        "fst_backend_app_services.UserCreateRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -4388,7 +6807,7 @@ const docTemplate = `{
                 }
             }
         },
-        "services.UserUpdateRequest": {
+        "fst_backend_app_services.UserUpdateRequest": {
             "type": "object",
             "properties": {
                 "admin_remark": {
@@ -4439,305 +6858,6 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "integer"
-                }
-            }
-        },
-        "user.ChangePasswordRequest": {
-            "type": "object",
-            "required": [
-                "new_password",
-                "old_password"
-            ],
-            "properties": {
-                "new_password": {
-                    "type": "string",
-                    "minLength": 8
-                },
-                "old_password": {
-                    "type": "string"
-                }
-            }
-        },
-        "user.CreateOrderRequest": {
-            "type": "object",
-            "required": [
-                "amount",
-                "gateway_id"
-            ],
-            "properties": {
-                "amount": {
-                    "type": "number"
-                },
-                "gateway_id": {
-                    "type": "integer"
-                },
-                "subject": {
-                    "type": "string"
-                }
-            }
-        },
-        "user.DeactivateAccountRequest": {
-            "type": "object",
-            "required": [
-                "password"
-            ],
-            "properties": {
-                "password": {
-                    "type": "string"
-                },
-                "reason": {
-                    "type": "string"
-                }
-            }
-        },
-        "user.ProfileRealnameSummary": {
-            "type": "object",
-            "properties": {
-                "certificateNo": {
-                    "type": "string"
-                },
-                "certificateType": {
-                    "type": "integer"
-                },
-                "hasVerification": {
-                    "type": "boolean"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "realName": {
-                    "type": "string"
-                },
-                "rejectReason": {
-                    "type": "string"
-                },
-                "reviewedAt": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "integer"
-                },
-                "submittedAt": {
-                    "type": "integer"
-                }
-            }
-        },
-        "user.ProfileResponse": {
-            "type": "object",
-            "properties": {
-                "avatar": {
-                    "type": "string"
-                },
-                "backGround": {
-                    "type": "string"
-                },
-                "back_ground": {
-                    "type": "string"
-                },
-                "birthday": {
-                    "type": "integer"
-                },
-                "country": {
-                    "type": "string"
-                },
-                "createTime": {
-                    "type": "integer"
-                },
-                "email": {
-                    "type": "string"
-                },
-                "gender": {
-                    "type": "integer"
-                },
-                "groupId": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "joinIp": {
-                    "type": "string"
-                },
-                "joinTime": {
-                    "type": "integer"
-                },
-                "language": {
-                    "type": "string"
-                },
-                "lastLoginIp": {
-                    "type": "string"
-                },
-                "lastLoginTime": {
-                    "type": "integer"
-                },
-                "level": {
-                    "type": "integer"
-                },
-                "loginFailure": {
-                    "type": "integer"
-                },
-                "mobile": {
-                    "type": "string"
-                },
-                "money": {
-                    "type": "number"
-                },
-                "motto": {
-                    "type": "string"
-                },
-                "nickname": {
-                    "type": "string"
-                },
-                "realname": {
-                    "$ref": "#/definitions/user.ProfileRealnameSummary"
-                },
-                "role": {
-                    "type": "string"
-                },
-                "score": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "integer"
-                },
-                "updateTime": {
-                    "type": "integer"
-                },
-                "userName": {
-                    "type": "string"
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "user.SendEmailCodeRequest": {
-            "type": "object",
-            "required": [
-                "new_email"
-            ],
-            "properties": {
-                "lang": {
-                    "type": "string"
-                },
-                "new_email": {
-                    "type": "string"
-                }
-            }
-        },
-        "user.SendPhoneCodeRequest": {
-            "type": "object",
-            "required": [
-                "new_mobile"
-            ],
-            "properties": {
-                "new_mobile": {
-                    "type": "string"
-                }
-            }
-        },
-        "user.SubmitRealnameRequest": {
-            "type": "object",
-            "required": [
-                "certificate_back",
-                "certificate_front",
-                "certificate_no",
-                "certificate_type",
-                "real_name"
-            ],
-            "properties": {
-                "certificate_back": {
-                    "type": "string"
-                },
-                "certificate_front": {
-                    "type": "string"
-                },
-                "certificate_no": {
-                    "type": "string"
-                },
-                "certificate_type": {
-                    "type": "integer",
-                    "maximum": 3,
-                    "minimum": 1
-                },
-                "real_name": {
-                    "type": "string"
-                }
-            }
-        },
-        "user.UpdateProfileRequest": {
-            "type": "object",
-            "properties": {
-                "avatar": {
-                    "type": "string"
-                },
-                "back_ground": {
-                    "type": "string"
-                },
-                "birthday": {
-                    "type": "integer"
-                },
-                "country": {
-                    "type": "string"
-                },
-                "gender": {
-                    "type": "integer"
-                },
-                "language": {
-                    "type": "string"
-                },
-                "mobile": {
-                    "type": "string"
-                },
-                "motto": {
-                    "type": "string"
-                },
-                "nickname": {
-                    "type": "string"
-                }
-            }
-        },
-        "user.UpdateSettingsRequest": {
-            "type": "object",
-            "properties": {
-                "language": {
-                    "type": "string"
-                },
-                "notify_email": {
-                    "type": "boolean"
-                },
-                "theme": {
-                    "type": "string"
-                }
-            }
-        },
-        "user.VerifyEmailChangeRequest": {
-            "type": "object",
-            "required": [
-                "code",
-                "new_email"
-            ],
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "new_email": {
-                    "type": "string"
-                }
-            }
-        },
-        "user.VerifyPhoneChangeRequest": {
-            "type": "object",
-            "required": [
-                "code",
-                "new_mobile"
-            ],
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "new_mobile": {
-                    "type": "string"
                 }
             }
         },

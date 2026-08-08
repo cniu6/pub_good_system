@@ -31,6 +31,19 @@ func ResolveRequestLang(c *gin.Context, reqLang, defaultLang string) string {
 // 中间件里写入的是 uint64（见 pkg/middleware/auth.go），这里额外兼容 int64/float64/int 只是防御性写法
 // （历史上多个 controller 各自写了一份几乎一样的 type switch，这里统一收敛成一个函数）。
 // exists=false 表示 context 里没有 userID 或类型对不上（未登录 / 中间件未生效）。
+// GetAdminAuditUser 从 gin.Context 中同时提取管理员用户ID与用户名，
+// 用于写操作审计日志。与 GetUserID 配套，避免各管理端 controller 重复实现。
+func GetAdminAuditUser(c *gin.Context) (uint64, string) {
+	uid, _ := GetUserID(c)
+	var name string
+	if v, ok := c.Get("username"); ok {
+		if s, ok2 := v.(string); ok2 {
+			name = s
+		}
+	}
+	return uid, name
+}
+
 func GetUserID(c *gin.Context) (uint64, bool) {
 	v, ok := c.Get("userID")
 	if !ok {

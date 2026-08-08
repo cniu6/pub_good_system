@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// registerWSRoutes 注册独立鉴权的 WebSocket 路由。
+// registerWSRoutes 注册独立鉴权的 WebSocket 路由。（心跳上报在线状态）
 func registerWSRoutes(v1 *gin.RouterGroup) {
 	v1.GET("/ws/presence", presence.HandlePresence)
 }

@@ -425,6 +425,54 @@ func (ctrl *UserController) CreateUser(c *gin.Context) {
 
 ## 变更记录
 
+### 2026-08-09
+- 控制器目录重构为二级结构：`controllers/{scope}/{business}/controller.go`。
+- 一级目录：`public/`、`user/`、`admin/`、`system/`。
+- 二级目录按业务拆分，包名为英文，中文含义放在 Swagger `@Tags` 中。
+- 相同业务在不同 scope 下可同名包，routes 中使用 import alias 区分。
+- Scalar 文档按 `v1------Admin` / `v1------User` 等 `x-tagGroups` 分组，并支持根据路径自动推断 tag。
+
+**目录结构示例：**
+
+```text
+backend/app/controllers/
+├── public/
+│   ├── auth/               # package auth        → Swagger: Public-认证
+│   ├── session/            # package session     → Swagger: Public-会话
+│   ├── geo/                # package geo         → Swagger: Public-区号
+│   ├── settings/           # package settings    → Swagger: Public-配置
+│   └── payment/            # package payment     → Swagger: Public-回调
+├── user/
+│   ├── profile/            # package profile     → Swagger: User-资料
+│   ├── payment/            # package payment     → Swagger: User-支付
+│   ├── realname/           # package realname    → Swagger: User-实名
+│   ├── announcement/       # package announcement → Swagger: User-公告
+│   └── withdraw/           # package withdraw    → Swagger: User-提现
+├── admin/
+│   ├── user/               # package user        → Swagger: Admin-用户
+│   ├── usermoney/          # package usermoney   → Swagger: Admin-用户积分
+│   ├── userlevel/          # package userlevel   → Swagger: Admin-用户等级
+│   ├── payment/            # package payment     → Swagger: Admin-支付
+│   ├── withdraw/           # package withdraw    → Swagger: Admin-提现
+│   ├── realname/           # package realname    → Swagger: Admin-实名
+│   ├── settings/           # package settings    → Swagger: Admin-设置
+│   ├── announcement/       # package announcement → Swagger: Admin-公告
+│   ├── apilog/             # package apilog      → Swagger: Admin-API日志
+│   ├── emaillog/           # package emaillog    → Swagger: Admin-邮件日志
+│   ├── smslog/             # package smslog      → Swagger: Admin-短信日志
+│   ├── log/                # package log         → Swagger: Admin-日志
+│   ├── dbconsole/          # package dbconsole   → Swagger: Admin-数据库
+│   ├── debug/              # package debug       → Swagger: Admin-调试
+│   ├── terminal/           # package terminal    → Swagger: Admin-终端
+│   ├── online/             # package online      → Swagger: Admin-在线用户
+│   ├── autojob/            # package autojob     → Swagger: Admin-自动任务
+│   ├── todo/               # package todo        → Swagger: Admin-待办
+│   ├── dashboard/          # package dashboard   → Swagger: Admin-仪表盘
+│   └── profile/            # package profile     → Swagger: Admin-设置
+└── system/
+    └── system/             # package system      → Swagger: System-管理
+```
+
 ### 2026-02-24
 - 前端管理端侧边栏移除独立“调试”页面入口，调试能力统一放在“系统设置”页面。
 - 补充管理员调试接口说明（`/api/v1/admin/debug/*`）和典型端点。

@@ -1,34 +1,57 @@
 basePath: /api
 definitions:
-  admin.AdminUserDetailResponse:
+  app_controllers_admin_emailtemplate.EmailPreviewRequest:
     properties:
-      realname:
-        $ref: '#/definitions/admin.AdminUserRealnameSummary'
-      user:
-        $ref: '#/definitions/services.AdminUserListItem'
+      content:
+        type: string
+      vars:
+        additionalProperties: true
+        type: object
+    required:
+    - content
     type: object
-  admin.AdminUserRealnameSummary:
+  app_controllers_admin_emailtemplate.EmailSendTestRequest:
     properties:
-      certificate_no:
+      content:
         type: string
-      certificate_type:
-        type: integer
-      has_verification:
-        type: boolean
-      id:
-        type: integer
-      real_name:
+      subject:
         type: string
-      reject_reason:
-        type: string
-      reviewed_at:
+      template_id:
+        description: 可选：使用模板发送
         type: integer
+      to:
+        type: string
+    required:
+    - to
+    type: object
+  app_controllers_admin_emailtemplate.EmailTemplateUpdateRequest:
+    properties:
+      content:
+        type: string
+      description:
+        type: string
       status:
         type: integer
-      submitted_at:
-        type: integer
+      subject:
+        type: string
+    required:
+    - content
     type: object
-  admin.BatchUpdateSettingsRequest:
+  app_controllers_admin_realname.ReviewRealnameRequest:
+    properties:
+      id:
+        type: integer
+      reject_reason:
+        type: string
+      status:
+        maximum: 2
+        minimum: 1
+        type: integer
+    required:
+    - id
+    - status
+    type: object
+  app_controllers_admin_settings.BatchUpdateSettingsRequest:
     properties:
       settings:
         additionalProperties:
@@ -37,7 +60,7 @@ definitions:
     required:
     - settings
     type: object
-  admin.CreateSettingRequest:
+  app_controllers_admin_settings.CreateSettingRequest:
     properties:
       category:
         description: basic, security, email, custom
@@ -63,97 +86,14 @@ definitions:
     - key
     - label
     type: object
-  admin.EmailPreviewRequest:
-    properties:
-      content:
-        type: string
-      vars:
-        additionalProperties: true
-        type: object
-    required:
-    - content
-    type: object
-  admin.EmailSendTestRequest:
-    properties:
-      content:
-        type: string
-      subject:
-        type: string
-      template_id:
-        description: 可选：使用模板发送
-        type: integer
-      to:
-        type: string
-    required:
-    - to
-    type: object
-  admin.EmailTemplateUpdateRequest:
-    properties:
-      content:
-        type: string
-      description:
-        type: string
-      status:
-        type: integer
-      subject:
-        type: string
-    required:
-    - content
-    type: object
-  admin.ReviewRealnameRequest:
-    properties:
-      id:
-        type: integer
-      reject_reason:
-        type: string
-      status:
-        maximum: 2
-        minimum: 1
-        type: integer
-    required:
-    - id
-    - status
-    type: object
-  admin.SMSPreviewRequest:
-    properties:
-      content:
-        type: string
-      vars:
-        additionalProperties: true
-        type: object
-    required:
-    - content
-    type: object
-  admin.SMSSendTestRequest:
-    properties:
-      lang:
-        type: string
-      phone:
-        type: string
-    required:
-    - phone
-    type: object
-  admin.SMSTemplateUpdateRequest:
-    properties:
-      content:
-        type: string
-      description:
-        type: string
-      sign_name:
-        type: string
-      status:
-        type: integer
-    required:
-    - content
-    type: object
-  admin.SettingsListResponse:
+  app_controllers_admin_settings.SettingsListResponse:
     properties:
       categories:
         items:
-          $ref: '#/definitions/models.SettingsGroup'
+          $ref: '#/definitions/fst_backend_app_models.SettingsGroup'
         type: array
     type: object
-  admin.UpdateSettingMetaRequest:
+  app_controllers_admin_settings.UpdateSettingMetaRequest:
     properties:
       category:
         type: string
@@ -172,41 +112,171 @@ definitions:
       value:
         type: string
     type: object
-  admin.UpdateSettingRequest:
+  app_controllers_admin_settings.UpdateSettingRequest:
     properties:
       value:
         type: string
     type: object
-  models.SettingDTO:
+  app_controllers_admin_smstemplate.SMSPreviewRequest:
     properties:
-      category:
+      content:
+        type: string
+      vars:
+        additionalProperties: true
+        type: object
+    required:
+    - content
+    type: object
+  app_controllers_admin_smstemplate.SMSSendTestRequest:
+    properties:
+      lang:
+        type: string
+      phone:
+        type: string
+    required:
+    - phone
+    type: object
+  app_controllers_admin_smstemplate.SMSTemplateUpdateRequest:
+    properties:
+      content:
         type: string
       description:
         type: string
-      is_editable:
-        type: boolean
-      is_public:
-        type: boolean
-      key:
+      sign_name:
         type: string
-      label:
-        type: string
-      type:
-        type: string
-      value: {}
+      status:
+        type: integer
+    required:
+    - content
     type: object
-  models.SettingsGroup:
+  app_controllers_admin_user.AdminUserDetailResponse:
     properties:
-      category:
+      realname:
+        $ref: '#/definitions/app_controllers_admin_user.AdminUserRealnameSummary'
+      user:
+        $ref: '#/definitions/fst_backend_app_services.AdminUserListItem'
+    type: object
+  app_controllers_admin_user.AdminUserRealnameSummary:
+    properties:
+      certificate_no:
         type: string
+      certificate_type:
+        type: integer
+      has_verification:
+        type: boolean
+      id:
+        type: integer
+      real_name:
+        type: string
+      reject_reason:
+        type: string
+      reviewed_at:
+        type: integer
+      status:
+        type: integer
+      submitted_at:
+        type: integer
+    type: object
+  app_controllers_public_auth.LoginRequest:
+    properties:
+      authGuard:
+        type: string
+      clientType:
+        type: string
+      password:
+        type: string
+      userName:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    type: object
+  app_controllers_public_auth.RefreshTokenRequest:
+    properties:
+      authGuard:
+        type: string
+      refreshToken:
+        type: string
+    required:
+    - refreshToken
+    type: object
+  app_controllers_public_auth.RegisterRequest:
+    properties:
+      code:
+        type: string
+      email:
+        maxLength: 255
+        type: string
+      password:
+        minLength: 8
+        type: string
+      username:
+        type: string
+    required:
+    - code
+    - email
+    - password
+    - username
+    type: object
+  app_controllers_public_auth.ResetEmailRequest:
+    properties:
+      email:
+        type: string
+      lang:
+        type: string
+    required:
+    - email
+    type: object
+  app_controllers_public_auth.ResetPasswordConfirmRequest:
+    properties:
+      code:
+        type: string
+      email:
+        type: string
+      new_password:
+        minLength: 8
+        type: string
+    required:
+    - code
+    - email
+    - new_password
+    type: object
+  app_controllers_public_auth.SendCodeRequest:
+    properties:
+      email:
+        type: string
+      lang:
+        type: string
+    required:
+    - email
+    type: object
+  app_controllers_public_geo.DialCountriesResponse:
+    properties:
       items:
         items:
-          $ref: '#/definitions/models.SettingDTO'
+          $ref: '#/definitions/utils.DialCountry'
         type: array
-      label:
+    type: object
+  app_controllers_public_geo.PhoneCountryResponse:
+    properties:
+      country_code:
+        type: string
+      dial_code:
+        type: string
+      ip_detect_enabled:
+        type: boolean
+      mobile_cn_only:
+        type: boolean
+      name_en:
+        type: string
+      name_zh:
+        type: string
+      source:
+        description: cn_only | header | ip | lang | default
         type: string
     type: object
-  public.AppConfigResponse:
+  app_controllers_public_settings.AppConfigResponse:
     properties:
       admin_api_path:
         description: 管理端 REST API 在 /api/v1 下的前缀（来自 env ADMIN_API_PATH，默认 /admin）
@@ -278,106 +348,235 @@ definitions:
       withdraw_notify_text:
         type: string
     type: object
-  public.DialCountriesResponse:
+  app_controllers_user_payment.CreateOrderRequest:
     properties:
-      items:
-        items:
-          $ref: '#/definitions/utils.DialCountry'
-        type: array
+      amount:
+        type: number
+      gateway_id:
+        type: integer
+      subject:
+        type: string
+    required:
+    - amount
+    - gateway_id
     type: object
-  public.LoginRequest:
+  app_controllers_user_profile.ChangePasswordRequest:
     properties:
-      authGuard:
+      new_password:
+        minLength: 8
         type: string
-      clientType:
+      old_password:
         type: string
+    required:
+    - new_password
+    - old_password
+    type: object
+  app_controllers_user_profile.DeactivateAccountRequest:
+    properties:
       password:
         type: string
+      reason:
+        type: string
+    required:
+    - password
+    type: object
+  app_controllers_user_profile.ProfileRealnameSummary:
+    properties:
+      certificateNo:
+        type: string
+      certificateType:
+        type: integer
+      hasVerification:
+        type: boolean
+      id:
+        type: integer
+      realName:
+        type: string
+      rejectReason:
+        type: string
+      reviewedAt:
+        type: integer
+      status:
+        type: integer
+      submittedAt:
+        type: integer
+    type: object
+  app_controllers_user_profile.ProfileResponse:
+    properties:
+      avatar:
+        type: string
+      back_ground:
+        type: string
+      backGround:
+        type: string
+      birthday:
+        type: integer
+      country:
+        type: string
+      createTime:
+        type: integer
+      email:
+        type: string
+      gender:
+        type: integer
+      groupId:
+        type: integer
+      id:
+        type: integer
+      joinIp:
+        type: string
+      joinTime:
+        type: integer
+      language:
+        type: string
+      lastLoginIp:
+        type: string
+      lastLoginTime:
+        type: integer
+      level:
+        type: integer
+      loginFailure:
+        type: integer
+      mobile:
+        type: string
+      money:
+        type: number
+      motto:
+        type: string
+      nickname:
+        type: string
+      realname:
+        $ref: '#/definitions/app_controllers_user_profile.ProfileRealnameSummary'
+      role:
+        type: string
+      score:
+        type: integer
+      status:
+        type: integer
+      updateTime:
+        type: integer
       userName:
         type: string
       username:
         type: string
-    required:
-    - password
     type: object
-  public.PhoneCountryResponse:
+  app_controllers_user_profile.SendEmailCodeRequest:
     properties:
-      country_code:
+      lang:
         type: string
-      dial_code:
-        type: string
-      ip_detect_enabled:
-        type: boolean
-      mobile_cn_only:
-        type: boolean
-      name_en:
-        type: string
-      name_zh:
-        type: string
-      source:
-        description: cn_only | header | ip | lang | default
-        type: string
-    type: object
-  public.RefreshTokenRequest:
-    properties:
-      authGuard:
-        type: string
-      refreshToken:
+      new_email:
         type: string
     required:
-    - refreshToken
+    - new_email
     type: object
-  public.RegisterRequest:
+  app_controllers_user_profile.SendPhoneCodeRequest:
+    properties:
+      new_mobile:
+        type: string
+    required:
+    - new_mobile
+    type: object
+  app_controllers_user_profile.UpdateProfileRequest:
+    properties:
+      avatar:
+        type: string
+      back_ground:
+        type: string
+      birthday:
+        type: integer
+      country:
+        type: string
+      gender:
+        type: integer
+      language:
+        type: string
+      mobile:
+        type: string
+      motto:
+        type: string
+      nickname:
+        type: string
+    type: object
+  app_controllers_user_profile.UpdateSettingsRequest:
+    properties:
+      language:
+        type: string
+      notify_email:
+        type: boolean
+      theme:
+        type: string
+    type: object
+  app_controllers_user_profile.VerifyEmailChangeRequest:
     properties:
       code:
         type: string
-      email:
-        maxLength: 255
-        type: string
-      password:
-        minLength: 8
-        type: string
-      username:
+      new_email:
         type: string
     required:
     - code
-    - email
-    - password
-    - username
+    - new_email
     type: object
-  public.ResetEmailRequest:
-    properties:
-      email:
-        type: string
-      lang:
-        type: string
-    required:
-    - email
-    type: object
-  public.ResetPasswordConfirmRequest:
+  app_controllers_user_profile.VerifyPhoneChangeRequest:
     properties:
       code:
         type: string
-      email:
-        type: string
-      new_password:
-        minLength: 8
+      new_mobile:
         type: string
     required:
     - code
-    - email
-    - new_password
+    - new_mobile
     type: object
-  public.SendCodeRequest:
+  app_controllers_user_realname.SubmitRealnameRequest:
     properties:
-      email:
+      certificate_back:
         type: string
-      lang:
+      certificate_front:
+        type: string
+      certificate_no:
+        type: string
+      certificate_type:
+        maximum: 3
+        minimum: 1
+        type: integer
+      real_name:
         type: string
     required:
-    - email
+    - certificate_back
+    - certificate_front
+    - certificate_no
+    - certificate_type
+    - real_name
     type: object
-  services.AdminUserListItem:
+  fst_backend_app_models.SettingDTO:
+    properties:
+      category:
+        type: string
+      description:
+        type: string
+      is_editable:
+        type: boolean
+      is_public:
+        type: boolean
+      key:
+        type: string
+      label:
+        type: string
+      type:
+        type: string
+      value: {}
+    type: object
+  fst_backend_app_models.SettingsGroup:
+    properties:
+      category:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/fst_backend_app_models.SettingDTO'
+        type: array
+      label:
+        type: string
+    type: object
+  fst_backend_app_services.AdminUserListItem:
     properties:
       admin_remark:
         type: string
@@ -455,7 +654,7 @@ definitions:
         description: MySQL：string 未指定 size 时 GORM 会迁成 longtext，无法建唯一索引（Error 1170）
         type: string
     type: object
-  services.UserCreateRequest:
+  fst_backend_app_services.UserCreateRequest:
     properties:
       admin_remark:
         type: string
@@ -487,7 +686,7 @@ definitions:
     - password
     - username
     type: object
-  services.UserUpdateRequest:
+  fst_backend_app_services.UserUpdateRequest:
     properties:
       admin_remark:
         type: string
@@ -522,205 +721,6 @@ definitions:
         type: string
       status:
         type: integer
-    type: object
-  user.ChangePasswordRequest:
-    properties:
-      new_password:
-        minLength: 8
-        type: string
-      old_password:
-        type: string
-    required:
-    - new_password
-    - old_password
-    type: object
-  user.CreateOrderRequest:
-    properties:
-      amount:
-        type: number
-      gateway_id:
-        type: integer
-      subject:
-        type: string
-    required:
-    - amount
-    - gateway_id
-    type: object
-  user.DeactivateAccountRequest:
-    properties:
-      password:
-        type: string
-      reason:
-        type: string
-    required:
-    - password
-    type: object
-  user.ProfileRealnameSummary:
-    properties:
-      certificateNo:
-        type: string
-      certificateType:
-        type: integer
-      hasVerification:
-        type: boolean
-      id:
-        type: integer
-      realName:
-        type: string
-      rejectReason:
-        type: string
-      reviewedAt:
-        type: integer
-      status:
-        type: integer
-      submittedAt:
-        type: integer
-    type: object
-  user.ProfileResponse:
-    properties:
-      avatar:
-        type: string
-      back_ground:
-        type: string
-      backGround:
-        type: string
-      birthday:
-        type: integer
-      country:
-        type: string
-      createTime:
-        type: integer
-      email:
-        type: string
-      gender:
-        type: integer
-      groupId:
-        type: integer
-      id:
-        type: integer
-      joinIp:
-        type: string
-      joinTime:
-        type: integer
-      language:
-        type: string
-      lastLoginIp:
-        type: string
-      lastLoginTime:
-        type: integer
-      level:
-        type: integer
-      loginFailure:
-        type: integer
-      mobile:
-        type: string
-      money:
-        type: number
-      motto:
-        type: string
-      nickname:
-        type: string
-      realname:
-        $ref: '#/definitions/user.ProfileRealnameSummary'
-      role:
-        type: string
-      score:
-        type: integer
-      status:
-        type: integer
-      updateTime:
-        type: integer
-      userName:
-        type: string
-      username:
-        type: string
-    type: object
-  user.SendEmailCodeRequest:
-    properties:
-      lang:
-        type: string
-      new_email:
-        type: string
-    required:
-    - new_email
-    type: object
-  user.SendPhoneCodeRequest:
-    properties:
-      new_mobile:
-        type: string
-    required:
-    - new_mobile
-    type: object
-  user.SubmitRealnameRequest:
-    properties:
-      certificate_back:
-        type: string
-      certificate_front:
-        type: string
-      certificate_no:
-        type: string
-      certificate_type:
-        maximum: 3
-        minimum: 1
-        type: integer
-      real_name:
-        type: string
-    required:
-    - certificate_back
-    - certificate_front
-    - certificate_no
-    - certificate_type
-    - real_name
-    type: object
-  user.UpdateProfileRequest:
-    properties:
-      avatar:
-        type: string
-      back_ground:
-        type: string
-      birthday:
-        type: integer
-      country:
-        type: string
-      gender:
-        type: integer
-      language:
-        type: string
-      mobile:
-        type: string
-      motto:
-        type: string
-      nickname:
-        type: string
-    type: object
-  user.UpdateSettingsRequest:
-    properties:
-      language:
-        type: string
-      notify_email:
-        type: boolean
-      theme:
-        type: string
-    type: object
-  user.VerifyEmailChangeRequest:
-    properties:
-      code:
-        type: string
-      new_email:
-        type: string
-    required:
-    - code
-    - new_email
-    type: object
-  user.VerifyPhoneChangeRequest:
-    properties:
-      code:
-        type: string
-      new_mobile:
-        type: string
-    required:
-    - code
-    - new_mobile
     type: object
   utils.DialCountry:
     properties:
@@ -758,7 +758,7 @@ info:
   title: FST Platform API
   version: "1.0"
 paths:
-  /api/v1/admin/announcements:
+  /v1/admin/announcements:
     get:
       responses: {}
       security:
@@ -766,7 +766,547 @@ paths:
       summary: 管理端公告列表
       tags:
       - Admin-公告
-  /api/v1/admin/email-logs:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 管理端公告创建
+      tags:
+      - Admin-公告
+  /v1/admin/announcements/{id}:
+    delete:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 管理端公告删除
+      tags:
+      - Admin-公告
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 管理端公告详情
+      tags:
+      - Admin-公告
+    put:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 管理端公告更新
+      tags:
+      - Admin-公告
+  /v1/admin/announcements/{id}/publish:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 管理端公告发布
+      tags:
+      - Admin-公告
+  /v1/admin/announcements/{id}/unpublish:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 管理端公告下架
+      tags:
+      - Admin-公告
+  /v1/admin/api-logs:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: API接口日志列表
+      tags:
+      - Admin-API日志
+  /v1/admin/api-logs/{id}:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: API接口日志详情
+      tags:
+      - Admin-API日志
+  /v1/admin/api-logs/clean:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 清理API接口日志
+      tags:
+      - Admin-API日志
+  /v1/admin/api-logs/stats:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: API接口日志统计
+      tags:
+      - Admin-API日志
+  /v1/admin/auto-jobs:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 自动任务定义列表
+      tags:
+      - Admin-自动任务
+  /v1/admin/auto-jobs/{job_code}:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 自动任务定义详情
+      tags:
+      - Admin-自动任务
+    put:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新自动任务定义
+      tags:
+      - Admin-自动任务
+  /v1/admin/auto-jobs/{job_code}/disable:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 禁用自动任务
+      tags:
+      - Admin-自动任务
+  /v1/admin/auto-jobs/{job_code}/enable:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 启用自动任务
+      tags:
+      - Admin-自动任务
+  /v1/admin/auto-jobs/{job_code}/run:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 立即执行自动任务
+      tags:
+      - Admin-自动任务
+  /v1/admin/auto-jobs/config:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取自动任务配置
+      tags:
+      - Admin-自动任务
+    put:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新自动任务配置
+      tags:
+      - Admin-自动任务
+  /v1/admin/auto-jobs/handlers:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 列出自动任务处理器
+      tags:
+      - Admin-自动任务
+  /v1/admin/auto-jobs/overview:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 自动任务概览
+      tags:
+      - Admin-自动任务
+  /v1/admin/auto-jobs/presets/import:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 导入自动任务预设
+      tags:
+      - Admin-自动任务
+  /v1/admin/auto-jobs/running:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 列出运行中的自动任务
+      tags:
+      - Admin-自动任务
+  /v1/admin/auto-jobs/runs:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 自动任务运行记录列表
+      tags:
+      - Admin-自动任务
+  /v1/admin/auto-jobs/runs/{id}:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 自动任务运行详情
+      tags:
+      - Admin-自动任务
+  /v1/admin/auto-jobs/runs/clean:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 清理自动任务运行记录
+      tags:
+      - Admin-自动任务
+  /v1/admin/auto-jobs/runs/mark-keep:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 标记运行记录永久保留
+      tags:
+      - Admin-自动任务
+  /v1/admin/dashboard:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 管理端仪表盘
+      tags:
+      - Admin-仪表盘
+  /v1/admin/db/backup:
+    get:
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: 下载 SQLite 数据库备份
+      tags:
+      - Admin-数据库
+  /v1/admin/db/info:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 数据库信息
+      tags:
+      - Admin-数据库
+  /v1/admin/db/sql:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 数据库 SQL 执行
+      tags:
+      - Admin-数据库
+  /v1/admin/db/tables:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 数据库表列表
+      tags:
+      - Admin-数据库
+  /v1/admin/db/tables/{name}/ddl:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 表建表语句
+      tags:
+      - Admin-数据库
+  /v1/admin/db/tables/{name}/meta:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 表结构元信息
+      tags:
+      - Admin-数据库
+  /v1/admin/db/tables/{name}/rows:
+    delete:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 表数据删除
+      tags:
+      - Admin-数据库
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 表数据预览
+      tags:
+      - Admin-数据库
+    patch:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 表数据更新
+      tags:
+      - Admin-数据库
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 表数据新增
+      tags:
+      - Admin-数据库
+  /v1/admin/debug/gc:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 强制执行垃圾回收
+      tags:
+      - Admin-调试
+  /v1/admin/debug/goroutines/stats:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 协程统计信息
+      tags:
+      - Admin-调试
+  /v1/admin/debug/pprof/allocs:
+    get:
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Allocs profile
+      tags:
+      - Admin-调试
+  /v1/admin/debug/pprof/block:
+    get:
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Block profile
+      tags:
+      - Admin-调试
+  /v1/admin/debug/pprof/goroutine:
+    get:
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Goroutine profile
+      tags:
+      - Admin-调试
+  /v1/admin/debug/pprof/heap:
+    get:
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Heap profile
+      tags:
+      - Admin-调试
+  /v1/admin/debug/pprof/mutex:
+    get:
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Mutex profile
+      tags:
+      - Admin-调试
+  /v1/admin/debug/pprof/profile:
+    get:
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: CPU profile
+      tags:
+      - Admin-调试
+  /v1/admin/debug/pprof/threadcreate:
+    get:
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Thread creation profile
+      tags:
+      - Admin-调试
+  /v1/admin/debug/pprof/trace:
+    get:
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Execution trace
+      tags:
+      - Admin-调试
+  /v1/admin/debug/terminal:
+    get:
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: 调试终端 WebSocket
+      tags:
+      - Admin-终端
+  /v1/admin/debug/terminal/exec:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 调试终端执行命令
+      tags:
+      - Admin-终端
+  /v1/admin/email-logs:
     get:
       consumes:
       - application/json
@@ -815,7 +1355,7 @@ paths:
       summary: 获取邮件发送记录列表
       tags:
       - Admin-邮件日志
-  /api/v1/admin/email-logs/{id}:
+  /v1/admin/email-logs/{id}:
     get:
       consumes:
       - application/json
@@ -838,7 +1378,7 @@ paths:
       summary: 获取邮件发送记录详情
       tags:
       - Admin-邮件日志
-  /api/v1/admin/email-logs/clean:
+  /v1/admin/email-logs/clean:
     post:
       consumes:
       - application/json
@@ -864,7 +1404,7 @@ paths:
       summary: 清理邮件发送记录
       tags:
       - Admin-邮件日志
-  /api/v1/admin/email-logs/stats:
+  /v1/admin/email-logs/stats:
     get:
       consumes:
       - application/json
@@ -881,7 +1421,7 @@ paths:
       summary: 邮件发送统计
       tags:
       - Admin-邮件日志
-  /api/v1/admin/email-logs/template-names:
+  /v1/admin/email-logs/template-names:
     get:
       consumes:
       - application/json
@@ -898,7 +1438,7 @@ paths:
       summary: 获取邮件模板名列表
       tags:
       - Admin-邮件日志
-  /api/v1/admin/email-send-test:
+  /v1/admin/email-send-test:
     post:
       consumes:
       - application/json
@@ -909,7 +1449,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/admin.EmailSendTestRequest'
+          $ref: '#/definitions/app_controllers_admin_emailtemplate.EmailSendTestRequest'
       produces:
       - application/json
       responses:
@@ -922,7 +1462,7 @@ paths:
       summary: 发件测试
       tags:
       - Admin-邮件模板
-  /api/v1/admin/email-templates:
+  /v1/admin/email-templates:
     get:
       consumes:
       - application/json
@@ -939,7 +1479,7 @@ paths:
       summary: 获取邮件模板列表
       tags:
       - Admin-邮件模板
-  /api/v1/admin/email-templates/{id}:
+  /v1/admin/email-templates/{id}:
     get:
       consumes:
       - application/json
@@ -977,7 +1517,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/admin.EmailTemplateUpdateRequest'
+          $ref: '#/definitions/app_controllers_admin_emailtemplate.EmailTemplateUpdateRequest'
       produces:
       - application/json
       responses:
@@ -990,7 +1530,7 @@ paths:
       summary: 更新邮件模板
       tags:
       - Admin-邮件模板
-  /api/v1/admin/email-templates/{id}/preview:
+  /v1/admin/email-templates/{id}/preview:
     post:
       consumes:
       - application/json
@@ -1006,7 +1546,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/admin.EmailPreviewRequest'
+          $ref: '#/definitions/app_controllers_admin_emailtemplate.EmailPreviewRequest'
       produces:
       - application/json
       responses:
@@ -1019,7 +1559,7 @@ paths:
       summary: 预览邮件模板
       tags:
       - Admin-邮件模板
-  /api/v1/admin/email-templates/{id}/reset:
+  /v1/admin/email-templates/{id}/reset:
     post:
       consumes:
       - application/json
@@ -1042,7 +1582,19 @@ paths:
       summary: 重置邮件模板
       tags:
       - Admin-邮件模板
-  /api/v1/admin/logs:
+  /v1/admin/generate-nos:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 生成订单号和交易号
+      tags:
+      - Admin-用户积分
+  /v1/admin/logs:
     get:
       consumes:
       - application/json
@@ -1070,7 +1622,7 @@ paths:
       summary: 获取操作日志列表
       tags:
       - Admin-操作日志
-  /api/v1/admin/logs/{id}:
+  /v1/admin/logs/{id}:
     get:
       consumes:
       - application/json
@@ -1094,7 +1646,7 @@ paths:
       summary: 获取操作日志详情
       tags:
       - Admin-操作日志
-  /api/v1/admin/logs/clean:
+  /v1/admin/logs/clean:
     post:
       consumes:
       - application/json
@@ -1121,7 +1673,7 @@ paths:
       summary: 清理操作日志
       tags:
       - Admin-操作日志
-  /api/v1/admin/logs/stats:
+  /v1/admin/logs/stats:
     get:
       consumes:
       - application/json
@@ -1138,7 +1690,102 @@ paths:
       summary: 操作日志统计
       tags:
       - Admin-操作日志
-  /api/v1/admin/payment/exceptions:
+  /v1/admin/me:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 当前管理员信息
+      tags:
+      - Admin-设置
+  /v1/admin/me/password:
+    put:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 修改管理员密码
+      tags:
+      - Admin-设置
+  /v1/admin/money-logs:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 余额变动日志列表
+      tags:
+      - Admin-用户积分
+  /v1/admin/money-logs/{id}:
+    delete:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除余额变动日志
+      tags:
+      - Admin-用户积分
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 余额变动日志详情
+      tags:
+      - Admin-用户积分
+  /v1/admin/online/sessions:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 在线会话列表
+      tags:
+      - Admin-在线用户
+  /v1/admin/online/sessions/{id}:
+    delete:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 强制下线指定会话
+      tags:
+      - Admin-在线用户
+  /v1/admin/online/stats:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 在线用户统计
+      tags:
+      - Admin-在线用户
+  /v1/admin/payment/exceptions:
     get:
       produces:
       - application/json
@@ -1152,7 +1799,7 @@ paths:
       summary: 管理端-支付异常列表
       tags:
       - Admin-支付
-  /api/v1/admin/payment/exceptions/{id}/resolve:
+  /v1/admin/payment/exceptions/{id}/resolve:
     post:
       consumes:
       - application/json
@@ -1174,7 +1821,64 @@ paths:
       summary: 管理端-处理支付异常
       tags:
       - Admin-支付
-  /api/v1/admin/payment/orders:
+  /v1/admin/payment/gateways:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 支付通道列表
+      tags:
+      - Admin-支付
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 创建支付通道
+      tags:
+      - Admin-支付
+  /v1/admin/payment/gateways/{id}:
+    delete:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除支付通道
+      tags:
+      - Admin-支付
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 支付通道详情
+      tags:
+      - Admin-支付
+    put:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新支付通道
+      tags:
+      - Admin-支付
+  /v1/admin/payment/orders:
     get:
       parameters:
       - default: 1
@@ -1212,7 +1916,7 @@ paths:
       summary: 管理端-支付订单列表
       tags:
       - Admin-支付
-  /api/v1/admin/payment/orders/{id}:
+  /v1/admin/payment/orders/{id}:
     delete:
       parameters:
       - description: 订单ID
@@ -1251,7 +1955,7 @@ paths:
       summary: 管理端-订单详情
       tags:
       - Admin-支付
-  /api/v1/admin/payment/orders/{id}/cancel:
+  /v1/admin/payment/orders/{id}/cancel:
     post:
       parameters:
       - description: 订单ID
@@ -1271,7 +1975,7 @@ paths:
       summary: 管理端-取消订单
       tags:
       - Admin-支付
-  /api/v1/admin/payment/orders/{id}/complete:
+  /v1/admin/payment/orders/{id}/complete:
     post:
       consumes:
       - application/json
@@ -1298,7 +2002,7 @@ paths:
       summary: 管理端-手动补单
       tags:
       - Admin-支付
-  /api/v1/admin/payment/orders/{id}/reconcile:
+  /v1/admin/payment/orders/{id}/reconcile:
     post:
       parameters:
       - description: 订单ID
@@ -1318,7 +2022,7 @@ paths:
       summary: 管理端-支付订单对账
       tags:
       - Admin-支付
-  /api/v1/admin/payment/stats:
+  /v1/admin/payment/stats:
     get:
       produces:
       - application/json
@@ -1332,7 +2036,7 @@ paths:
       summary: 管理端-支付统计
       tags:
       - Admin-支付
-  /api/v1/admin/realname:
+  /v1/admin/realname:
     get:
       consumes:
       - application/json
@@ -1367,8 +2071,8 @@ paths:
       - BearerAuth: []
       summary: 获取实名认证列表
       tags:
-      - Admin-实名认证管理
-  /api/v1/admin/realname/{id}:
+      - Admin-实名
+  /v1/admin/realname/{id}:
     get:
       consumes:
       - application/json
@@ -1390,8 +2094,20 @@ paths:
       - BearerAuth: []
       summary: 获取实名认证详情
       tags:
-      - Admin-实名认证管理
-  /api/v1/admin/realname/review:
+      - Admin-实名
+  /v1/admin/realname/{id}/reveal-certificate:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 临时查看证件号明文
+      tags:
+      - Admin-实名
+  /v1/admin/realname/review:
     post:
       consumes:
       - application/json
@@ -1402,7 +2118,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/admin.ReviewRealnameRequest'
+          $ref: '#/definitions/app_controllers_admin_realname.ReviewRealnameRequest'
       produces:
       - application/json
       responses:
@@ -1414,8 +2130,43 @@ paths:
       - BearerAuth: []
       summary: 审核实名认证
       tags:
-      - Admin-实名认证管理
-  /api/v1/admin/settings:
+      - Admin-实名
+  /v1/admin/score-logs:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 积分变动日志列表
+      tags:
+      - Admin-用户积分
+  /v1/admin/score-logs/{id}:
+    delete:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除积分变动日志
+      tags:
+      - Admin-用户积分
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 积分变动日志详情
+      tags:
+      - Admin-用户积分
+  /v1/admin/settings:
     get:
       consumes:
       - application/json
@@ -1430,13 +2181,13 @@ paths:
             - $ref: '#/definitions/utils.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/admin.SettingsListResponse'
+                  $ref: '#/definitions/app_controllers_admin_settings.SettingsListResponse'
               type: object
       security:
       - BearerAuth: []
       summary: 获取所有系统配置
       tags:
-      - Admin-系统配置
+      - Admin-设置
     post:
       consumes:
       - application/json
@@ -1447,7 +2198,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/admin.CreateSettingRequest'
+          $ref: '#/definitions/app_controllers_admin_settings.CreateSettingRequest'
       produces:
       - application/json
       responses:
@@ -1459,8 +2210,8 @@ paths:
       - BearerAuth: []
       summary: 创建新配置
       tags:
-      - Admin-系统配置
-  /api/v1/admin/settings/{key}:
+      - Admin-设置
+  /v1/admin/settings/{key}:
     delete:
       consumes:
       - application/json
@@ -1482,7 +2233,7 @@ paths:
       - BearerAuth: []
       summary: 删除配置
       tags:
-      - Admin-系统配置
+      - Admin-设置
     get:
       consumes:
       - application/json
@@ -1504,7 +2255,7 @@ paths:
       - BearerAuth: []
       summary: 获取单个配置
       tags:
-      - Admin-系统配置
+      - Admin-设置
     put:
       consumes:
       - application/json
@@ -1520,7 +2271,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/admin.UpdateSettingRequest'
+          $ref: '#/definitions/app_controllers_admin_settings.UpdateSettingRequest'
       produces:
       - application/json
       responses:
@@ -1532,8 +2283,8 @@ paths:
       - BearerAuth: []
       summary: 更新单个配置值
       tags:
-      - Admin-系统配置
-  /api/v1/admin/settings/{key}/meta:
+      - Admin-设置
+  /v1/admin/settings/{key}/meta:
     put:
       consumes:
       - application/json
@@ -1549,7 +2300,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/admin.UpdateSettingMetaRequest'
+          $ref: '#/definitions/app_controllers_admin_settings.UpdateSettingMetaRequest'
       produces:
       - application/json
       responses:
@@ -1561,8 +2312,8 @@ paths:
       - BearerAuth: []
       summary: 更新配置元数据
       tags:
-      - Admin-系统配置
-  /api/v1/admin/settings/batch:
+      - Admin-设置
+  /v1/admin/settings/batch:
     put:
       consumes:
       - application/json
@@ -1573,7 +2324,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/admin.BatchUpdateSettingsRequest'
+          $ref: '#/definitions/app_controllers_admin_settings.BatchUpdateSettingsRequest'
       produces:
       - application/json
       responses:
@@ -1585,8 +2336,8 @@ paths:
       - BearerAuth: []
       summary: 批量更新配置
       tags:
-      - Admin-系统配置
-  /api/v1/admin/settings/category/{category}:
+      - Admin-设置
+  /v1/admin/settings/category/{category}:
     get:
       consumes:
       - application/json
@@ -1608,8 +2359,44 @@ paths:
       - BearerAuth: []
       summary: 获取指定分类的配置
       tags:
-      - Admin-系统配置
-  /api/v1/admin/sms-logs:
+      - Admin-设置
+  /v1/admin/settings/restart-backend:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 重启后端进程
+      tags:
+      - Admin-设置
+  /v1/admin/settings/server-monitoring:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 服务端运行监控
+      tags:
+      - Admin-设置
+  /v1/admin/settings/server-ops:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 服务运营状态
+      tags:
+      - Admin-设置
+  /v1/admin/sms-logs:
     get:
       consumes:
       - application/json
@@ -1666,7 +2453,7 @@ paths:
       summary: 获取短信发送记录列表
       tags:
       - Admin-短信日志
-  /api/v1/admin/sms-logs/{id}:
+  /v1/admin/sms-logs/{id}:
     get:
       consumes:
       - application/json
@@ -1689,7 +2476,7 @@ paths:
       summary: 获取短信发送记录详情
       tags:
       - Admin-短信日志
-  /api/v1/admin/sms-logs/clean:
+  /v1/admin/sms-logs/clean:
     post:
       consumes:
       - application/json
@@ -1715,7 +2502,7 @@ paths:
       summary: 清理短信发送记录
       tags:
       - Admin-短信日志
-  /api/v1/admin/sms-logs/stats:
+  /v1/admin/sms-logs/stats:
     get:
       consumes:
       - application/json
@@ -1732,7 +2519,7 @@ paths:
       summary: 短信发送统计
       tags:
       - Admin-短信日志
-  /api/v1/admin/sms-logs/template-names:
+  /v1/admin/sms-logs/template-names:
     get:
       consumes:
       - application/json
@@ -1749,7 +2536,7 @@ paths:
       summary: 获取短信模板名列表
       tags:
       - Admin-短信日志
-  /api/v1/admin/sms-send-test:
+  /v1/admin/sms-send-test:
     post:
       consumes:
       - application/json
@@ -1759,7 +2546,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/admin.SMSSendTestRequest'
+          $ref: '#/definitions/app_controllers_admin_smstemplate.SMSSendTestRequest'
       produces:
       - application/json
       responses:
@@ -1772,7 +2559,7 @@ paths:
       summary: 短信发送测试
       tags:
       - Admin-短信模板
-  /api/v1/admin/sms-templates:
+  /v1/admin/sms-templates:
     get:
       responses:
         "200":
@@ -1784,7 +2571,7 @@ paths:
       summary: 获取短信模板列表
       tags:
       - Admin-短信模板
-  /api/v1/admin/sms-templates/{id}:
+  /v1/admin/sms-templates/{id}:
     get:
       parameters:
       - description: 模板ID
@@ -1814,7 +2601,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/admin.SMSTemplateUpdateRequest'
+          $ref: '#/definitions/app_controllers_admin_smstemplate.SMSTemplateUpdateRequest'
       responses:
         "200":
           description: OK
@@ -1825,7 +2612,7 @@ paths:
       summary: 更新短信模板
       tags:
       - Admin-短信模板
-  /api/v1/admin/sms-templates/{id}/preview:
+  /v1/admin/sms-templates/{id}/preview:
     post:
       parameters:
       - description: 模板ID
@@ -1838,7 +2625,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/admin.SMSPreviewRequest'
+          $ref: '#/definitions/app_controllers_admin_smstemplate.SMSPreviewRequest'
       responses:
         "200":
           description: OK
@@ -1849,7 +2636,7 @@ paths:
       summary: 预览短信模板
       tags:
       - Admin-短信模板
-  /api/v1/admin/sms-templates/{id}/reset:
+  /v1/admin/sms-templates/{id}/reset:
     post:
       parameters:
       - description: 模板ID
@@ -1867,7 +2654,42 @@ paths:
       summary: 重置短信模板
       tags:
       - Admin-短信模板
-  /api/v1/admin/users:
+  /v1/admin/todos:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 管理端待办聚合
+      tags:
+      - Admin-待办
+  /v1/admin/user-levels:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 用户等级列表
+      tags:
+      - Admin-用户等级
+    put:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新用户等级能力
+      tags:
+      - Admin-用户等级
+  /v1/admin/users:
     get:
       consumes:
       - application/json
@@ -1906,7 +2728,7 @@ paths:
       - BearerAuth: []
       summary: 获取用户列表
       tags:
-      - Admin-用户管理
+      - Admin-用户
     post:
       consumes:
       - application/json
@@ -1917,7 +2739,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/services.UserCreateRequest'
+          $ref: '#/definitions/fst_backend_app_services.UserCreateRequest'
       produces:
       - application/json
       responses:
@@ -1929,8 +2751,8 @@ paths:
       - BearerAuth: []
       summary: 创建用户
       tags:
-      - Admin-用户管理
-  /api/v1/admin/users/{id}:
+      - Admin-用户
+  /v1/admin/users/{id}:
     delete:
       consumes:
       - application/json
@@ -1952,7 +2774,7 @@ paths:
       - BearerAuth: []
       summary: 删除用户
       tags:
-      - Admin-用户管理
+      - Admin-用户
     get:
       consumes:
       - application/json
@@ -1973,13 +2795,13 @@ paths:
             - $ref: '#/definitions/utils.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/admin.AdminUserDetailResponse'
+                  $ref: '#/definitions/app_controllers_admin_user.AdminUserDetailResponse'
               type: object
       security:
       - BearerAuth: []
       summary: 获取用户详情
       tags:
-      - Admin-用户管理
+      - Admin-用户
     put:
       consumes:
       - application/json
@@ -1995,7 +2817,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/services.UserUpdateRequest'
+          $ref: '#/definitions/fst_backend_app_services.UserUpdateRequest'
       produces:
       - application/json
       responses:
@@ -2007,8 +2829,8 @@ paths:
       - BearerAuth: []
       summary: 更新用户
       tags:
-      - Admin-用户管理
-  /api/v1/admin/users/{id}/login-as:
+      - Admin-用户
+  /v1/admin/users/{id}/login-as:
     post:
       consumes:
       - application/json
@@ -2030,8 +2852,56 @@ paths:
       - BearerAuth: []
       summary: 管理员登录指定用户
       tags:
-      - Admin-用户管理
-  /api/v1/admin/users/{id}/password:
+      - Admin-用户
+  /v1/admin/users/{id}/money:
+    put:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 直接设置用户余额
+      tags:
+      - Admin-用户积分
+  /v1/admin/users/{id}/money/change:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 变更用户余额
+      tags:
+      - Admin-用户积分
+  /v1/admin/users/{id}/money/log:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 仅添加余额变动日志
+      tags:
+      - Admin-用户积分
+  /v1/admin/users/{id}/money/operate:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 统一余额操作
+      tags:
+      - Admin-用户积分
+  /v1/admin/users/{id}/password:
     put:
       consumes:
       - application/json
@@ -2061,8 +2931,8 @@ paths:
       - BearerAuth: []
       summary: 重置用户密码
       tags:
-      - Admin-用户管理
-  /api/v1/admin/users/{id}/reset-apikey:
+      - Admin-用户
+  /v1/admin/users/{id}/reset-apikey:
     post:
       consumes:
       - application/json
@@ -2084,8 +2954,68 @@ paths:
       - BearerAuth: []
       summary: 重置用户 API Key
       tags:
-      - Admin-用户管理
-  /api/v1/admin/users/{id}/status:
+      - Admin-用户
+  /v1/admin/users/{id}/score:
+    put:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 直接设置用户积分
+      tags:
+      - Admin-用户积分
+  /v1/admin/users/{id}/score/change:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 变更用户积分
+      tags:
+      - Admin-用户积分
+  /v1/admin/users/{id}/score/log:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 仅添加积分变动日志
+      tags:
+      - Admin-用户积分
+  /v1/admin/users/{id}/sessions:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 指定用户的会话列表
+      tags:
+      - Admin-在线用户
+  /v1/admin/users/{id}/sessions/revoke-all:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 强制下线用户全部会话
+      tags:
+      - Admin-在线用户
+  /v1/admin/users/{id}/status:
     put:
       consumes:
       - application/json
@@ -2115,8 +3045,8 @@ paths:
       - BearerAuth: []
       summary: 更新用户状态
       tags:
-      - Admin-用户管理
-  /api/v1/admin/users/batch-simple:
+      - Admin-用户
+  /v1/admin/users/batch-simple:
     post:
       consumes:
       - application/json
@@ -2144,8 +3074,8 @@ paths:
       - BearerAuth: []
       summary: 批量获取用户简要信息
       tags:
-      - Admin-用户管理
-  /api/v1/admin/users/lookup:
+      - Admin-用户
+  /v1/admin/users/lookup:
     get:
       consumes:
       - application/json
@@ -2167,8 +3097,80 @@ paths:
       - BearerAuth: []
       summary: 按标识查找用户
       tags:
-      - Admin-用户管理
-  /api/v1/public/admin/login:
+      - Admin-用户
+  /v1/admin/withdraw:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 提现列表
+      tags:
+      - Admin-提现
+  /v1/admin/withdraw/{id}:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 提现详情
+      tags:
+      - Admin-提现
+  /v1/admin/withdraw/{id}/pay:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 标记提现已人工打款
+      tags:
+      - Admin-提现
+  /v1/admin/withdraw/{id}/review:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 提现审核
+      tags:
+      - Admin-提现
+  /v1/admin/withdraw/legacy-risk:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 提现历史风险单检测
+      tags:
+      - Admin-提现
+  /v1/admin/withdraw/stats:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 提现统计
+      tags:
+      - Admin-提现
+  /v1/public/admin/login:
     post:
       consumes:
       - application/json
@@ -2179,7 +3181,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/public.LoginRequest'
+          $ref: '#/definitions/app_controllers_public_auth.LoginRequest'
       produces:
       - application/json
       responses:
@@ -2202,7 +3204,7 @@ paths:
       summary: 管理员登录
       tags:
       - Public-认证
-  /api/v1/public/app-config:
+  /v1/public/app-config:
     get:
       description: 获取前端应用需要的公开配置信息
       produces:
@@ -2215,12 +3217,12 @@ paths:
             - $ref: '#/definitions/utils.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/public.AppConfigResponse'
+                  $ref: '#/definitions/app_controllers_public_settings.AppConfigResponse'
               type: object
       summary: 获取应用配置
       tags:
       - Public-配置
-  /api/v1/public/forgot-password:
+  /v1/public/forgot-password:
     post:
       consumes:
       - application/json
@@ -2231,7 +3233,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/public.ResetEmailRequest'
+          $ref: '#/definitions/app_controllers_public_auth.ResetEmailRequest'
       produces:
       - application/json
       responses:
@@ -2242,7 +3244,7 @@ paths:
       summary: 发送重置密码邮件
       tags:
       - Public-认证
-  /api/v1/public/geo/dial-countries:
+  /v1/public/geo/dial-countries:
     get:
       produces:
       - application/json
@@ -2254,12 +3256,12 @@ paths:
             - $ref: '#/definitions/utils.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/public.DialCountriesResponse'
+                  $ref: '#/definitions/app_controllers_public_geo.DialCountriesResponse'
               type: object
       summary: 国家区号列表
       tags:
-      - Public-配置
-  /api/v1/public/geo/phone-country:
+      - Public-区号
+  /v1/public/geo/phone-country:
     get:
       description: 优先级：仅大陆强制CN → CDN国家头 →（可选）IP查询 → 语言 → 美国+1保底。query.lang 建议传前端当前语言（zhCN/enUS）
       parameters:
@@ -2277,12 +3279,12 @@ paths:
             - $ref: '#/definitions/utils.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/public.PhoneCountryResponse'
+                  $ref: '#/definitions/app_controllers_public_geo.PhoneCountryResponse'
               type: object
       summary: 探测手机号默认国家
       tags:
-      - Public-配置
-  /api/v1/public/login:
+      - Public-区号
+  /v1/public/login:
     post:
       consumes:
       - application/json
@@ -2293,7 +3295,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/public.LoginRequest'
+          $ref: '#/definitions/app_controllers_public_auth.LoginRequest'
       produces:
       - application/json
       responses:
@@ -2316,7 +3318,27 @@ paths:
       summary: 用户登录
       tags:
       - Public-认证
-  /api/v1/public/refresh-token:
+  /v1/public/payment/notify:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: 支付异步通知回调
+      tags:
+      - Public-回调
+  /v1/public/payment/return:
+    get:
+      responses:
+        "302":
+          description: Found
+          schema:
+            type: string
+      summary: 支付同步跳转回调
+      tags:
+      - Public-回调
+  /v1/public/refresh-token:
     post:
       consumes:
       - application/json
@@ -2327,7 +3349,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/public.RefreshTokenRequest'
+          $ref: '#/definitions/app_controllers_public_auth.RefreshTokenRequest'
       produces:
       - application/json
       responses:
@@ -2338,7 +3360,7 @@ paths:
       summary: 刷新Token
       tags:
       - Public-认证
-  /api/v1/public/register:
+  /v1/public/register:
     post:
       consumes:
       - application/json
@@ -2349,7 +3371,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/public.RegisterRequest'
+          $ref: '#/definitions/app_controllers_public_auth.RegisterRequest'
       produces:
       - application/json
       responses:
@@ -2368,7 +3390,7 @@ paths:
       summary: 用户注册
       tags:
       - Public-认证
-  /api/v1/public/reset-password:
+  /v1/public/reset-password:
     post:
       consumes:
       - application/json
@@ -2379,7 +3401,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/public.ResetPasswordConfirmRequest'
+          $ref: '#/definitions/app_controllers_public_auth.ResetPasswordConfirmRequest'
       produces:
       - application/json
       responses:
@@ -2390,7 +3412,7 @@ paths:
       summary: 确认重置密码
       tags:
       - Public-认证
-  /api/v1/public/send-register-code:
+  /v1/public/send-register-code:
     post:
       consumes:
       - application/json
@@ -2401,7 +3423,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/public.SendCodeRequest'
+          $ref: '#/definitions/app_controllers_public_auth.SendCodeRequest'
       produces:
       - application/json
       responses:
@@ -2412,7 +3434,7 @@ paths:
       summary: 发送注册验证码
       tags:
       - Public-认证
-  /api/v1/public/session/force-logout:
+  /v1/public/session/force-logout:
     post:
       consumes:
       - application/json
@@ -2426,7 +3448,7 @@ paths:
       summary: 强制退出登录（容忍 token 已过期）
       tags:
       - Public-会话
-  /api/v1/system/cleanup-status:
+  /v1/system/cleanup-status:
     get:
       description: 返回验证码清理任务的运行状态、间隔、上次/下次执行时间
       produces:
@@ -2440,7 +3462,7 @@ paths:
       summary: 获取清理任务状态
       tags:
       - System-管理
-  /api/v1/system/ws-ticket:
+  /v1/system/ws-ticket:
     post:
       produces:
       - application/json
@@ -2453,7 +3475,115 @@ paths:
       summary: 获取 Presence WS 票据
       tags:
       - System-管理
-  /api/v1/user/avatar:
+  /v1/user/announcements:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 我的公告列表
+      tags:
+      - User-公告
+  /v1/user/announcements/{id}:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 公告详情
+      tags:
+      - User-公告
+  /v1/user/announcements/{id}/read:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 标记公告已读
+      tags:
+      - User-公告
+  /v1/user/announcements/read-all:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 标记全部公告已读
+      tags:
+      - User-公告
+  /v1/user/announcements/unread-count:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 未读公告数量
+      tags:
+      - User-公告
+  /v1/user/api-logs:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 我的 API 访问日志列表
+      tags:
+      - User-资料
+  /v1/user/api-logs/{id}:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 我的 API 访问日志详情
+      tags:
+      - User-资料
+  /v1/user/api-logs/stats:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 我的 API 调用统计
+      tags:
+      - User-资料
+  /v1/user/apikey:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取 API Key
+      tags:
+      - User-会话
+  /v1/user/avatar:
     put:
       consumes:
       - application/json
@@ -2479,7 +3609,7 @@ paths:
       summary: 更新头像
       tags:
       - User-资料
-  /api/v1/user/dashboard:
+  /v1/user/dashboard:
     get:
       consumes:
       - application/json
@@ -2495,8 +3625,8 @@ paths:
       - BearerAuth: []
       summary: 获取用户仪表盘
       tags:
-      - 用户中心
-  /api/v1/user/deactivate:
+      - User-资料
+  /v1/user/deactivate:
     post:
       consumes:
       - application/json
@@ -2507,7 +3637,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/user.DeactivateAccountRequest'
+          $ref: '#/definitions/app_controllers_user_profile.DeactivateAccountRequest'
       produces:
       - application/json
       responses:
@@ -2519,8 +3649,8 @@ paths:
       - BearerAuth: []
       summary: 注销账号
       tags:
-      - 用户中心
-  /api/v1/user/email/send-code:
+      - User-设置
+  /v1/user/email/send-code:
     post:
       consumes:
       - application/json
@@ -2531,7 +3661,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/user.SendEmailCodeRequest'
+          $ref: '#/definitions/app_controllers_user_profile.SendEmailCodeRequest'
       produces:
       - application/json
       responses:
@@ -2543,8 +3673,8 @@ paths:
       - BearerAuth: []
       summary: 发送修改邮箱验证码
       tags:
-      - 用户中心
-  /api/v1/user/email/verify:
+      - User-资料
+  /v1/user/email/verify:
     post:
       consumes:
       - application/json
@@ -2555,7 +3685,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/user.VerifyEmailChangeRequest'
+          $ref: '#/definitions/app_controllers_user_profile.VerifyEmailChangeRequest'
       produces:
       - application/json
       responses:
@@ -2567,8 +3697,44 @@ paths:
       - BearerAuth: []
       summary: 验证并修改邮箱
       tags:
-      - 用户中心
-  /api/v1/user/money-logs:
+      - User-资料
+  /v1/user/logout:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 登出当前会话
+      tags:
+      - User-会话
+  /v1/user/logs:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 我的操作日志列表
+      tags:
+      - User-资料
+  /v1/user/logs/{id}:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 我的操作日志详情
+      tags:
+      - User-资料
+  /v1/user/money-logs:
     get:
       parameters:
       - default: 1
@@ -2596,8 +3762,8 @@ paths:
       - BearerAuth: []
       summary: 获取我的余额变动日志
       tags:
-      - 用户中心
-  /api/v1/user/password:
+      - User-资料
+  /v1/user/password:
     put:
       consumes:
       - application/json
@@ -2608,7 +3774,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/user.ChangePasswordRequest'
+          $ref: '#/definitions/app_controllers_user_profile.ChangePasswordRequest'
       produces:
       - application/json
       responses:
@@ -2621,7 +3787,7 @@ paths:
       summary: 修改密码
       tags:
       - User-资料
-  /api/v1/user/payment/create:
+  /v1/user/payment/create:
     post:
       consumes:
       - application/json
@@ -2631,7 +3797,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/user.CreateOrderRequest'
+          $ref: '#/definitions/app_controllers_user_payment.CreateOrderRequest'
       produces:
       - application/json
       responses:
@@ -2644,7 +3810,7 @@ paths:
       summary: 创建充值订单
       tags:
       - User-支付
-  /api/v1/user/payment/gateways:
+  /v1/user/payment/gateways:
     get:
       produces:
       - application/json
@@ -2658,7 +3824,7 @@ paths:
       summary: 获取可用支付通道列表
       tags:
       - User-支付
-  /api/v1/user/payment/orders:
+  /v1/user/payment/orders:
     get:
       parameters:
       - default: 1
@@ -2688,7 +3854,7 @@ paths:
       summary: 获取我的充值订单列表
       tags:
       - User-支付
-  /api/v1/user/payment/orders/{id}:
+  /v1/user/payment/orders/{id}:
     get:
       parameters:
       - description: 订单ID
@@ -2708,7 +3874,7 @@ paths:
       summary: 获取订单详情
       tags:
       - User-支付
-  /api/v1/user/payment/orders/{id}/status:
+  /v1/user/payment/orders/{id}/status:
     get:
       parameters:
       - description: 订单ID
@@ -2728,7 +3894,7 @@ paths:
       summary: 检查订单状态
       tags:
       - User-支付
-  /api/v1/user/phone/send-code:
+  /v1/user/phone/send-code:
     post:
       consumes:
       - application/json
@@ -2739,7 +3905,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/user.SendPhoneCodeRequest'
+          $ref: '#/definitions/app_controllers_user_profile.SendPhoneCodeRequest'
       produces:
       - application/json
       responses:
@@ -2751,8 +3917,8 @@ paths:
       - BearerAuth: []
       summary: 发送修改手机号验证码
       tags:
-      - 用户中心
-  /api/v1/user/phone/verify:
+      - User-资料
+  /v1/user/phone/verify:
     post:
       consumes:
       - application/json
@@ -2763,7 +3929,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/user.VerifyPhoneChangeRequest'
+          $ref: '#/definitions/app_controllers_user_profile.VerifyPhoneChangeRequest'
       produces:
       - application/json
       responses:
@@ -2775,8 +3941,8 @@ paths:
       - BearerAuth: []
       summary: 验证并修改手机号
       tags:
-      - 用户中心
-  /api/v1/user/profile:
+      - User-资料
+  /v1/user/profile:
     get:
       consumes:
       - application/json
@@ -2791,7 +3957,7 @@ paths:
             - $ref: '#/definitions/utils.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/user.ProfileResponse'
+                  $ref: '#/definitions/app_controllers_user_profile.ProfileResponse'
               type: object
       security:
       - BearerAuth: []
@@ -2808,7 +3974,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/user.UpdateProfileRequest'
+          $ref: '#/definitions/app_controllers_user_profile.UpdateProfileRequest'
       produces:
       - application/json
       responses:
@@ -2821,7 +3987,7 @@ paths:
       summary: 更新个人信息
       tags:
       - User-资料
-  /api/v1/user/realname:
+  /v1/user/realname:
     get:
       consumes:
       - application/json
@@ -2848,7 +4014,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/user.SubmitRealnameRequest'
+          $ref: '#/definitions/app_controllers_user_realname.SubmitRealnameRequest'
       produces:
       - application/json
       responses:
@@ -2861,7 +4027,7 @@ paths:
       summary: 提交实名认证
       tags:
       - User-实名
-  /api/v1/user/resetapikey:
+  /v1/user/resetapikey:
     post:
       consumes:
       - application/json
@@ -2878,7 +4044,7 @@ paths:
       summary: 重置API密钥
       tags:
       - User-会话
-  /api/v1/user/score-logs:
+  /v1/user/score-logs:
     get:
       parameters:
       - default: 1
@@ -2906,8 +4072,8 @@ paths:
       - BearerAuth: []
       summary: 获取我的积分变动日志
       tags:
-      - 用户中心
-  /api/v1/user/sessions:
+      - User-资料
+  /v1/user/sessions:
     get:
       consumes:
       - application/json
@@ -2924,7 +4090,7 @@ paths:
       summary: 获取登录会话
       tags:
       - User-会话
-  /api/v1/user/sessions/:id:
+  /v1/user/sessions/:id:
     delete:
       consumes:
       - application/json
@@ -2947,7 +4113,7 @@ paths:
       summary: 踢出会话
       tags:
       - User-会话
-  /api/v1/user/sessions/revoke-all:
+  /v1/user/sessions/revoke-all:
     post:
       consumes:
       - application/json
@@ -2964,7 +4130,7 @@ paths:
       summary: 踢出所有其他会话
       tags:
       - User-会话
-  /api/v1/user/settings:
+  /v1/user/settings:
     get:
       consumes:
       - application/json
@@ -2991,7 +4157,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/user.UpdateSettingsRequest'
+          $ref: '#/definitions/app_controllers_user_profile.UpdateSettingsRequest'
       produces:
       - application/json
       responses:
@@ -3004,7 +4170,7 @@ paths:
       summary: 更新用户设置
       tags:
       - User-设置
-  /api/v1/user/stats:
+  /v1/user/stats:
     get:
       consumes:
       - application/json
@@ -3020,7 +4186,57 @@ paths:
       - BearerAuth: []
       summary: 获取用户统计
       tags:
-      - 用户中心
+      - User-资料
+  /v1/user/withdraw:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 我的提现列表
+      tags:
+      - User-提现
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 创建提现申请
+      tags:
+      - User-提现
+  /v1/user/withdraw/{id}:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 提现详情
+      tags:
+      - User-提现
+  /v2/user/device:
+    get:
+      description: V2 版本示例接口，用于验证多版本路由与 Scalar 嵌套展示
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取用户本机数据
+      tags:
+      - User-本机数据
 securityDefinitions:
   BearerAuth:
     description: 'JWT认证令牌，格式: Bearer {token}'
