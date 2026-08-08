@@ -25,11 +25,13 @@ type PhoneCountryResponse struct {
 	MobileCNOnly    bool   `json:"mobile_cn_only"`
 	IPDetectEnabled bool   `json:"ip_detect_enabled"`
 }
+//@name 手机号国家区号响应
 
 // DialCountriesResponse 区号列表
 type DialCountriesResponse struct {
 	Items []utils.DialCountry `json:"items"`
 }
+//@name 国际区号列表响应
 
 // DetectPhoneCountry 探测默认手机号国家（大厂式区号选择的默认值）
 // @Summary 探测手机号默认国家

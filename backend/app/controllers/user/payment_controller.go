@@ -30,6 +30,7 @@ type CreateOrderRequest struct {
 	Amount    float64 `json:"amount" binding:"required"`
 	Subject   string  `json:"subject"`
 }
+//@name 创建订单请求
 
 // ========================================
 // 接口方法

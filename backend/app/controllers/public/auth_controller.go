@@ -42,6 +42,7 @@ type RegisterRequest struct {
 	Email    string `json:"email" binding:"required,email,max=255"`
 	Code     string `json:"code" binding:"required"`
 }
+//@name 注册请求
 
 // LoginRequest 登录请求
 type LoginRequest struct {
@@ -51,18 +52,21 @@ type LoginRequest struct {
 	AuthGuard  string `json:"authGuard"`
 	ClientType string `json:"clientType"`
 }
+//@name 登录请求
 
 // SendCodeRequest 发送验证码请求
 type SendCodeRequest struct {
 	Email string `json:"email" binding:"required,email"`
 	Lang  string `json:"lang"`
 }
+//@name 发送验证码请求
 
 // ResetEmailRequest 重置邮箱请求
 type ResetEmailRequest struct {
 	Email string `json:"email" binding:"required"`
 	Lang  string `json:"lang"`
 }
+//@name 重置邮箱请求
 
 // ResetPasswordConfirmRequest 重置密码确认请求
 type ResetPasswordConfirmRequest struct {
@@ -70,12 +74,14 @@ type ResetPasswordConfirmRequest struct {
 	Code        string `json:"code" binding:"required"`
 	NewPassword string `json:"new_password" binding:"required,min=8"`
 }
+//@name 重置密码确认请求
 
 // RefreshTokenRequest 刷新令牌请求
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refreshToken" binding:"required"`
 	AuthGuard    string `json:"authGuard"`
 }
+//@name 刷新令牌请求
 
 // ========================================
 // 辅助函数

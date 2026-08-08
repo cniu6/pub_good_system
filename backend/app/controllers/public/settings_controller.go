@@ -70,6 +70,7 @@ type AppConfigResponse struct {
 	UserAPILogVisible       bool `json:"user_api_log_visible"`
 	UserOperationLogVisible bool `json:"user_operation_log_visible"`
 }
+//@name 应用配置响应
 
 // GetAppConfig 获取应用配置
 // @Summary 获取应用配置

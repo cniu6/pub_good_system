@@ -25,11 +25,13 @@ func NewSettingsController() *SettingsController {
 type UpdateSettingRequest struct {
 	Value string `json:"value"`
 }
+//@name 更新系统设置请求
 
 // BatchUpdateSettingsRequest 批量更新配置请求
 type BatchUpdateSettingsRequest struct {
 	Settings map[string]string `json:"settings" binding:"required"`
 }
+//@name 批量更新系统设置请求
 
 // CreateSettingRequest 创建新配置请求
 type CreateSettingRequest struct {
@@ -43,6 +45,7 @@ type CreateSettingRequest struct {
 	IsEditable  *bool  `json:"is_editable"`
 	SortOrder   int    `json:"sort_order"`
 }
+//@name 创建系统设置请求
 
 // UpdateSettingMetaRequest 更新配置元数据请求
 type UpdateSettingMetaRequest struct {
@@ -55,11 +58,13 @@ type UpdateSettingMetaRequest struct {
 	IsEditable  *bool   `json:"is_editable"`
 	SortOrder   *int    `json:"sort_order"`
 }
+//@name 更新系统设置元信息请求
 
 // SettingsListResponse 配置列表响应
 type SettingsListResponse struct {
 	Categories []models.SettingsGroup `json:"categories"`
 }
+//@name 系统设置列表响应
 
 // CategoryLabelMap 分类名称映射
 var CategoryLabelMap = map[string]string{

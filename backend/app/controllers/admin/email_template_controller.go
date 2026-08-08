@@ -76,6 +76,7 @@ type EmailTemplateUpdateRequest struct {
 	Description string `json:"description"`
 	Status      *uint8 `json:"status"`
 }
+//@name 邮件模板更新请求
 
 // Update 更新邮件模板
 // @Summary 更新邮件模板
@@ -138,6 +139,7 @@ type EmailPreviewRequest struct {
 	Content string                 `json:"content" binding:"required"`
 	Vars    map[string]interface{} `json:"vars"`
 }
+//@name 邮件内容预览请求
 
 // Preview 预览邮件模板
 // @Summary 预览邮件模板
@@ -236,6 +238,7 @@ type EmailSendTestRequest struct {
 	Content    string `json:"content"`
 	TemplateID uint64 `json:"template_id"` // 可选：使用模板发送
 }
+//@name 邮件发送测试请求
 
 // SendTest 发件测试
 // @Summary 发件测试

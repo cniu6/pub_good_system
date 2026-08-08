@@ -30,6 +30,7 @@ type SubmitRealnameRequest struct {
 	CertificateFront string `json:"certificate_front" binding:"required"`
 	CertificateBack  string `json:"certificate_back" binding:"required"`
 }
+//@name 提交实名认证请求
 
 // SubmitRealname 提交实名认证
 // @Summary 提交实名认证

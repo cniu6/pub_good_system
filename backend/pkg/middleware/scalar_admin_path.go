@@ -109,5 +109,81 @@ func buildRewrittenSwaggerDoc(adminAPIPath, realHost string) ([]byte, error) {
 		}
 	}
 
+	// 翻译模型名为中文（从 ModelNameCN 映射读取）
+	translateModelNames(root)
+
 	return json.Marshal(root)
+}
+
+// translateModelNames 翻译 definitions 的 key 为中文，并更新所有 $ref 引用。
+// 映射表来自 modelname_cn.go 的 ModelNameCN。
+func translateModelNames(root map[string]any) {
+	defs, ok := root["definitions"].(map[string]any)
+	if !ok || len(defs) == 0 {
+		return
+	}
+	if len(ModelNameCN) == 0 {
+		return
+	}
+
+	// 构建旧名 -> 新名映射（完整 key）
+	oldToNew := make(map[string]string, len(defs))
+	for key := range defs {
+		for en, cn := range ModelNameCN {
+			if key == en || strings.HasSuffix(key, "."+en) {
+				oldToNew[key] = cn
+				break
+			}
+		}
+	}
+	if len(oldToNew) == 0 {
+		return
+	}
+
+	// 替换 definitions 的 key
+	newDefs := make(map[string]any, len(defs))
+	for oldKey, val := range defs {
+		if newKey, ok := oldToNew[oldKey]; ok {
+			newDefs[newKey] = val
+		} else {
+			newDefs[oldKey] = val
+		}
+	}
+	root["definitions"] = newDefs
+
+	// 递归替换整个文档中所有 $ref 字符串
+	replaceRefs(root)
+}
+
+// replaceRefs 递归遍历 JSON 树，替换所有形如 `#/definitions/旧名` 的 $ref 值。
+func replaceRefs(v any) {
+	switch val := v.(type) {
+	case map[string]any:
+		for k, child := range val {
+			if k == "$ref" {
+				if ref, ok := child.(string); ok && strings.HasPrefix(ref, "#/definitions/") {
+					suffix := ref[len("#/definitions/"):]
+					if cn, found := modelNameFromOld(suffix); found {
+						val[k] = "#/definitions/" + cn
+					}
+				}
+			} else {
+				replaceRefs(child)
+			}
+		}
+	case []any:
+		for i := range val {
+			replaceRefs(val[i])
+		}
+	}
+}
+
+// modelNameFromOld 从 ModelNameCN 中查找旧名对应的中文名。
+func modelNameFromOld(old string) (string, bool) {
+	for en, cn := range ModelNameCN {
+		if old == en || strings.HasSuffix(old, "."+en) {
+			return cn, true
+		}
+	}
+	return "", false
 }

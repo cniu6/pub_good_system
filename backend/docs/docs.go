@@ -869,7 +869,7 @@ const docTemplate = `{
                         "name": "body",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/admin.AdminCompleteOrderRequest"
+                            "$ref": "#/definitions/%E7%AE%A1%E7%90%86%E7%AB%AF%E8%A1%A5%E5%8D%95%E8%AF%B7%E6%B1%82"
                         }
                     }
                 ],
@@ -3667,18 +3667,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "admin.AdminCompleteOrderRequest": {
-            "type": "object",
-            "properties": {
-                "force": {
-                    "description": "强制补单（canceled/failed 高危路径，须填 memo）",
-                    "type": "boolean"
-                },
-                "memo": {
-                    "type": "string"
-                }
-            }
-        },
         "admin.AdminUserDetailResponse": {
             "type": "object",
             "properties": {
@@ -4780,6 +4768,18 @@ const docTemplate = `{
                 },
                 "data": {},
                 "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "管理端补单请求": {
+            "type": "object",
+            "properties": {
+                "force": {
+                    "description": "强制补单（canceled/failed 高危路径，须填 memo）",
+                    "type": "boolean"
+                },
+                "memo": {
                     "type": "string"
                 }
             }

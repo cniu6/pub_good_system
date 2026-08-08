@@ -20,6 +20,7 @@ type DialCountry struct {
 	NameZH   string `json:"name_zh"`
 	NameEN   string `json:"name_en"`
 }
+//@name 国际区号
 
 // 常用国家/地区区号（覆盖主要市场；前端同构一份）
 var dialCountries = []DialCountry{

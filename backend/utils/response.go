@@ -10,6 +10,7 @@ type Response struct {
 	Message string `json:"message"`
 	Data    any    `json:"data"`
 }
+//@name 通用响应
 
 func Success(c *gin.Context, data any) {
 	c.Set(CtxBizOK, true)

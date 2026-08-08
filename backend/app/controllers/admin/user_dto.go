@@ -14,9 +14,11 @@ type AdminUserRealnameSummary struct {
 	ReviewedAt      *int64 `json:"reviewed_at,omitempty"`
 	RejectReason    string `json:"reject_reason,omitempty"`
 }
+//@name 管理端用户实名认证摘要
 
 // AdminUserDetailResponse 管理端用户详情响应
 type AdminUserDetailResponse struct {
 	User     *services.AdminUserListItem `json:"user"`
 	Realname AdminUserRealnameSummary    `json:"realname"`
 }
+//@name 管理端用户详情响应

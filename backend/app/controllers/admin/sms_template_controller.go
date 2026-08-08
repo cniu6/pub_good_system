@@ -67,6 +67,7 @@ type SMSTemplateUpdateRequest struct {
 	Description string `json:"description"`
 	Status      *uint8 `json:"status"`
 }
+//@name 短信模板更新请求
 
 // Update 更新短信模板
 // @Summary 更新短信模板
@@ -128,6 +129,7 @@ type SMSPreviewRequest struct {
 	Content string                 `json:"content" binding:"required"`
 	Vars    map[string]interface{} `json:"vars"`
 }
+//@name 短信内容预览请求
 
 // Preview 预览短信模板（纯文本，替换示例变量）
 // @Summary 预览短信模板
@@ -221,6 +223,7 @@ type SMSSendTestRequest struct {
 	Phone string `json:"phone" binding:"required"`
 	Lang  string `json:"lang"`
 }
+//@name 短信发送测试请求
 
 // SendTest 短信发送测试（对齐邮件 email-send-test）
 // 无真实云配置时可走 console/已配置的 sms 插件；失败返回清晰错误，便于后续接真云。

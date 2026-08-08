@@ -39,12 +39,14 @@ type UpdateProfileRequest struct {
 	Language   string `json:"language"`
 	Country    string `json:"country"`
 }
+//@name 更新个人资料请求
 
 // ChangePasswordRequest 修改密码请求
 type ChangePasswordRequest struct {
 	OldPassword string `json:"old_password" binding:"required"`
 	NewPassword string `json:"new_password" binding:"required,min=8"`
 }
+//@name 修改密码请求
 
 // ProfileRealnameSummary 用户实名认证摘要
 type ProfileRealnameSummary struct {
@@ -58,6 +60,7 @@ type ProfileRealnameSummary struct {
 	ReviewedAt      *int64 `json:"reviewedAt,omitempty"`
 	RejectReason    string `json:"rejectReason,omitempty"`
 }
+//@name 用户实名认证摘要
 
 // ProfileResponse 用户资料响应
 type ProfileResponse struct {
@@ -90,6 +93,7 @@ type ProfileResponse struct {
 	CreateTime    *int64                 `json:"createTime"`
 	Realname      ProfileRealnameSummary `json:"realname"`
 }
+//@name 用户资料响应
 
 // ========================================
 // 控制器方法
@@ -317,6 +321,7 @@ type UpdateSettingsRequest struct {
 	Theme       string `json:"theme"`
 	NotifyEmail *bool  `json:"notify_email"`
 }
+//@name 更新用户设置请求
 
 // ========================================
 // 用户设置

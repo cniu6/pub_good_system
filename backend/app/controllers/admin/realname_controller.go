@@ -31,6 +31,7 @@ type ReviewRealnameRequest struct {
 	Status       uint8  `json:"status" binding:"required,min=1,max=2"`
 	RejectReason string `json:"reject_reason"`
 }
+//@name 实名认证审核请求
 
 // List 实名认证列表
 // @Summary 获取实名认证列表

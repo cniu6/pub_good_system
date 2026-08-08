@@ -45,6 +45,7 @@ type SettingDTO struct {
 	IsPublic    bool        `json:"is_public"`
 	IsEditable  bool        `json:"is_editable"`
 }
+//@name 系统设置 DTO
 
 // SettingsGroup 按分类分组的设置
 type SettingsGroup struct {
@@ -52,6 +53,7 @@ type SettingsGroup struct {
 	Label    string       `json:"label"`
 	Items    []SettingDTO `json:"items"`
 }
+//@name 设置分组
 
 // GetTypedValue 根据类型返回正确的值类型
 func (s *SystemSetting) GetTypedValue() interface{} {

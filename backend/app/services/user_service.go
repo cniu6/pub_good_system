@@ -44,6 +44,7 @@ type AdminUserListItem struct {
 	// IsOnline 当前是否在线（依据 LastSeenAt 与在线心跳容忍窗口判定，与专门的在线用户页口径一致）。
 	IsOnline bool `gorm:"-" json:"is_online"`
 }
+//@name 管理端用户列表项
 
 // UserListResult 用户列表返回结果
 type UserListResult struct {
@@ -229,6 +230,7 @@ type UserCreateRequest struct {
 	Status  *uint8 `json:"status"`
 	GroupID uint64 `json:"group_id"`
 }
+//@name 创建用户请求
 
 // Create 创建用户
 func (s *UserService) Create(req *UserCreateRequest) (*models.User, error) {
@@ -347,6 +349,7 @@ type UserUpdateRequest struct {
 	Status     *uint8  `json:"status"`
 	GroupID    *uint64 `json:"group_id"`
 }
+//@name 更新用户请求
 
 // Update 更新用户
 func (s *UserService) Update(req *UserUpdateRequest) error {

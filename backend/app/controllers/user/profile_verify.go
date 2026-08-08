@@ -18,27 +18,32 @@ type SendEmailCodeRequest struct {
 	NewEmail string `json:"new_email" binding:"required,email"`
 	Lang     string `json:"lang"`
 }
+//@name 发送邮箱验证码请求
 
 type VerifyEmailChangeRequest struct {
 	NewEmail string `json:"new_email" binding:"required,email"`
 	Code     string `json:"code" binding:"required"`
 }
+//@name 验证邮箱变更请求
 
 // SendPhoneCodeRequest 发送手机验证码请求
 type SendPhoneCodeRequest struct {
 	NewMobile string `json:"new_mobile" binding:"required"`
 }
+//@name 发送手机验证码请求
 
 type VerifyPhoneChangeRequest struct {
 	NewMobile string `json:"new_mobile" binding:"required"`
 	Code      string `json:"code" binding:"required"`
 }
+//@name 验证手机号变更请求
 
 // DeactivateAccountRequest 注销账号请求
 type DeactivateAccountRequest struct {
 	Password string `json:"password" binding:"required"`
 	Reason   string `json:"reason"`
 }
+//@name 注销账号请求
 
 // ========================================
 // 邮箱变更验证码流程
