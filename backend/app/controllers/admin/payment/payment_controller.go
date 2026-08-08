@@ -70,7 +70,7 @@ func (ctrl *PaymentController) ListOrders(c *gin.Context) {
 	orders, total, err := models.GetPaymentOrderList(userID, page, pageSize, status, keyword)
 	if err != nil {
 		log.Printf("[ADMIN][PAYMENT] list orders failed: %v", err)
-		utils.Fail(c, 500, "获取订单列表失败")
+		utils.Fail(c, 500, "Failed to get order list")
 		return
 	}
 
@@ -88,13 +88,13 @@ func (ctrl *PaymentController) ListOrders(c *gin.Context) {
 func (ctrl *PaymentController) OrderDetail(c *gin.Context) {
 	orderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效的订单ID")
+		utils.Fail(c, 400, "Invalid order ID")
 		return
 	}
 
 	order, err := models.GetPaymentOrderByID(orderID)
 	if err != nil {
-		utils.Fail(c, 404, "订单不存在")
+		utils.Fail(c, 404, "Order does not exist")
 		return
 	}
 
@@ -121,7 +121,7 @@ func (ctrl *PaymentController) OrderDetail(c *gin.Context) {
 func (ctrl *PaymentController) CompleteOrder(c *gin.Context) {
 	orderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效的订单ID")
+		utils.Fail(c, 400, "Invalid order ID")
 		return
 	}
 
@@ -138,11 +138,11 @@ func (ctrl *PaymentController) CompleteOrder(c *gin.Context) {
 			return
 		}
 		log.Printf("[ADMIN][PAYMENT] complete order failed order_id=%d: %v", orderID, err)
-		utils.Fail(c, 500, "补单失败，请稍后重试")
+		utils.Fail(c, 500, "Reconciliation failed, please retry later")
 		return
 	}
 
-	utils.SuccessMsg(c, "补单成功", nil)
+	utils.SuccessMsg(c, "Reconciliation successful", nil)
 }
 
 // ReconcileOrder 单笔主动对账
@@ -156,7 +156,7 @@ func (ctrl *PaymentController) CompleteOrder(c *gin.Context) {
 func (ctrl *PaymentController) ReconcileOrder(c *gin.Context) {
 	orderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效的订单ID")
+		utils.Fail(c, 400, "Invalid order ID")
 		return
 	}
 	order, changed, err := services.ReconcilePaymentOrderByID(orderID)
@@ -166,7 +166,7 @@ func (ctrl *PaymentController) ReconcileOrder(c *gin.Context) {
 			return
 		}
 		log.Printf("[ADMIN][PAYMENT] reconcile failed order_id=%d: %v", orderID, err)
-		utils.Fail(c, 500, "对账失败，请稍后重试")
+		utils.Fail(c, 500, "Reconciliation failed, please retry later")
 		return
 	}
 	utils.Success(c, gin.H{"changed": changed, "order": order})
@@ -201,7 +201,7 @@ func (ctrl *PaymentController) ListExceptions(c *gin.Context) {
 	list, total, err := models.ListPaymentExceptions(page, pageSize, statusPtr, exceptionType, orderNo, userID)
 	if err != nil {
 		log.Printf("[ADMIN][PAYMENT] list exceptions failed: %v", err)
-		utils.Fail(c, 500, "查询异常列表失败")
+		utils.Fail(c, 500, "Failed to query exception list")
 		return
 	}
 	utils.Success(c, gin.H{"list": list, "total": total, "page": page, "page_size": pageSize})
@@ -219,12 +219,12 @@ func (ctrl *PaymentController) ListExceptions(c *gin.Context) {
 func (ctrl *PaymentController) ResolveException(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效的异常ID")
+		utils.Fail(c, 400, "Invalid exception ID")
 		return
 	}
 	var req AdminResolveExceptionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Fail(c, 400, "参数错误")
+		utils.Fail(c, 400, "Invalid parameters")
 		return
 	}
 	req.Remark = utils.Clean_XSS(req.Remark)
@@ -239,19 +239,19 @@ func (ctrl *PaymentController) ResolveException(c *gin.Context) {
 	case "ignore":
 		status = models.PaymentExceptionStatusIgnored
 	default:
-		utils.Fail(c, 400, "action 仅支持 resolve/ignore")
+		utils.Fail(c, 400, "action only supports resolve/ignore")
 		return
 	}
 	adminID, exists := c.Get("userID")
 	if !exists {
-		utils.Fail(c, 401, "用户未登录")
+		utils.Fail(c, 401, "User not logged in")
 		return
 	}
 	if err := models.ResolvePaymentException(id, adminID.(uint64), status, req.Remark); err != nil {
 		utils.Fail(c, 400, "处理失败: "+err.Error())
 		return
 	}
-	utils.SuccessMsg(c, "已处理", nil)
+	utils.SuccessMsg(c, "Processed", nil)
 }
 
 // CancelOrder 取消订单
@@ -265,7 +265,7 @@ func (ctrl *PaymentController) ResolveException(c *gin.Context) {
 func (ctrl *PaymentController) CancelOrder(c *gin.Context) {
 	orderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效的订单ID")
+		utils.Fail(c, 400, "Invalid order ID")
 		return
 	}
 
@@ -275,11 +275,11 @@ func (ctrl *PaymentController) CancelOrder(c *gin.Context) {
 			return
 		}
 		log.Printf("[ADMIN][PAYMENT] cancel order failed order_id=%d: %v", orderID, err)
-		utils.Fail(c, 500, "取消订单失败，请稍后重试")
+		utils.Fail(c, 500, "Failed to cancel order, please retry later")
 		return
 	}
 
-	utils.SuccessMsg(c, "订单已取消", nil)
+	utils.SuccessMsg(c, "Order cancelled", nil)
 }
 
 // GetStats 支付统计
@@ -293,7 +293,7 @@ func (ctrl *PaymentController) GetStats(c *gin.Context) {
 	stats, err := models.GetPaymentStats()
 	if err != nil {
 		log.Printf("[ADMIN][PAYMENT] get stats failed: %v", err)
-		utils.Fail(c, 500, "获取统计数据失败")
+		utils.Fail(c, 500, "Failed to get statistics")
 		return
 	}
 
@@ -311,7 +311,7 @@ func (ctrl *PaymentController) GetStats(c *gin.Context) {
 func (ctrl *PaymentController) DeleteOrder(c *gin.Context) {
 	orderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效的订单ID")
+		utils.Fail(c, 400, "Invalid order ID")
 		return
 	}
 
@@ -321,11 +321,11 @@ func (ctrl *PaymentController) DeleteOrder(c *gin.Context) {
 			return
 		}
 		log.Printf("[ADMIN][PAYMENT] delete order failed order_id=%d: %v", orderID, err)
-		utils.Fail(c, 500, "删除订单失败，请稍后重试")
+		utils.Fail(c, 500, "Failed to delete order, please retry later")
 		return
 	}
 
-	utils.SuccessMsg(c, "订单已删除", nil)
+	utils.SuccessMsg(c, "Order deleted", nil)
 }
 
 // ========================================
@@ -351,7 +351,7 @@ func (ctrl *PaymentController) CreateGateway(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMsg(c, "支付通道创建成功", gw)
+	utils.SuccessMsg(c, "Payment gateway created successfully", gw)
 }
 
 // ListGateways 获取支付通道列表
@@ -373,7 +373,7 @@ func (ctrl *PaymentController) ListGateways(c *gin.Context) {
 	gateways, total, err := services.GetPayGatewayListForAdmin(page, pageSize, keyword)
 	if err != nil {
 		log.Printf("[ADMIN][PAYMENT] list gateways failed: %v", err)
-		utils.Fail(c, 500, "获取支付通道列表失败")
+		utils.Fail(c, 500, "Failed to get payment gateway list")
 		return
 	}
 
@@ -389,13 +389,13 @@ func (ctrl *PaymentController) ListGateways(c *gin.Context) {
 func (ctrl *PaymentController) GetGateway(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效的通道ID")
+		utils.Fail(c, 400, "Invalid gateway ID")
 		return
 	}
 
 	gw, err := services.GetPayGatewayDetailForAdmin(id)
 	if err != nil {
-		utils.Fail(c, 404, "支付通道不存在")
+		utils.Fail(c, 404, "Payment gateway does not exist")
 		return
 	}
 
@@ -411,7 +411,7 @@ func (ctrl *PaymentController) GetGateway(c *gin.Context) {
 func (ctrl *PaymentController) UpdateGateway(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效的通道ID")
+		utils.Fail(c, 400, "Invalid gateway ID")
 		return
 	}
 
@@ -427,7 +427,7 @@ func (ctrl *PaymentController) UpdateGateway(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMsg(c, "支付通道更新成功", gw)
+	utils.SuccessMsg(c, "Payment gateway updated successfully", gw)
 }
 
 // DeleteGateway 删除支付通道
@@ -439,7 +439,7 @@ func (ctrl *PaymentController) UpdateGateway(c *gin.Context) {
 func (ctrl *PaymentController) DeleteGateway(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效的通道ID")
+		utils.Fail(c, 400, "Invalid gateway ID")
 		return
 	}
 
@@ -448,7 +448,7 @@ func (ctrl *PaymentController) DeleteGateway(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMsg(c, "支付通道删除成功", nil)
+	utils.SuccessMsg(c, "Payment gateway deleted successfully", nil)
 }
 
 // ========================================

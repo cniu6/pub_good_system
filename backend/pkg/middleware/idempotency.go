@@ -37,32 +37,32 @@ func RequireIdempotency(scope string, ttl time.Duration) gin.HandlerFunc {
 
 		idemKey := strings.TrimSpace(c.GetHeader("X-Idempotency-Key"))
 		if idemKey == "" {
-			utils.Fail(c, 400, "缺少 X-Idempotency-Key")
+			utils.Fail(c, 400, "Missing X-Idempotency-Key")
 			c.Abort()
 			return
 		}
 		if len(idemKey) > 120 {
-			utils.Fail(c, 400, "X-Idempotency-Key 过长")
+			utils.Fail(c, 400, "X-Idempotency-Key too long")
 			c.Abort()
 			return
 		}
 
 		userIDAny, exists := c.Get("userID")
 		if !exists {
-			utils.Fail(c, 401, "用户未登录")
+			utils.Fail(c, 401, "User not logged in")
 			c.Abort()
 			return
 		}
 		userID, ok := userIDAny.(uint64)
 		if !ok || userID == 0 {
-			utils.Fail(c, 401, "用户未登录")
+			utils.Fail(c, 401, "User not logged in")
 			c.Abort()
 			return
 		}
 
 		bodyBytes, err := io.ReadAll(c.Request.Body)
 		if err != nil {
-			utils.Fail(c, 400, "读取请求体失败")
+			utils.Fail(c, 400, "Failed to read request body")
 			c.Abort()
 			return
 		}
@@ -84,11 +84,11 @@ func RequireIdempotency(scope string, ttl time.Duration) gin.HandlerFunc {
 			item, err := models.GetActiveIdempotencyKeyTx(tx, idemKey, userID, scope, now)
 			if err == nil && item != nil {
 				if item.RequestHash != requestHash {
-					utils.Fail(c, 409, "幂等键已被其他请求占用")
+					utils.Fail(c, 409, "Idempotency key is occupied by another request")
 				} else if item.Status == models.IdempotencyStatusCompleted {
-					utils.Fail(c, 409, "请勿重复提交")
+					utils.Fail(c, 409, "Please do not submit repeatedly")
 				} else {
-					utils.Fail(c, 409, "请求处理中，请稍后再试")
+					utils.Fail(c, 409, "Request is being processed, please retry later")
 				}
 				c.Abort()
 				return errAbortIdempotency
@@ -112,10 +112,10 @@ func RequireIdempotency(scope string, ttl time.Duration) gin.HandlerFunc {
 		if txErr != nil {
 			if db.IsDuplicateKeyError(txErr) {
 				log.Printf("[Idempotency] 唯一键冲突 key=%s user=%d scope=%s", idemKey, userID, scope)
-				utils.Fail(c, 409, "请勿重复提交")
+				utils.Fail(c, 409, "Please do not submit repeatedly")
 			} else {
 				log.Printf("[Idempotency] 校验事务失败 key=%s user=%d scope=%s: %v", idemKey, userID, scope, txErr)
-				utils.Fail(c, 500, "幂等校验失败")
+				utils.Fail(c, 500, "Idempotency check failed")
 			}
 			c.Abort()
 			return

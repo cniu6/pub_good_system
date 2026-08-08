@@ -146,7 +146,7 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 			Detail:        fmt.Sprintf(`{"err":%q}`, truncateForException(createErr.Error(), 200)),
 			OrderStatus:   models.PaymentStatusFailed,
 		})
-		return nil, errors.New("生成支付链接失败，请检查支付配置")
+		return nil, errors.New("Failed to generate payment link, please check payment configuration")
 	}
 	order.TradeNo = models.NormalizeTradeNo(tradeNoFromRemote)
 
@@ -171,7 +171,7 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 			OrderStatus:   models.PaymentStatusFailed,
 			TradeNo:       order.TradeNo,
 		})
-		return nil, errors.New("支付订单保存失败，请稍后重试")
+		return nil, errors.New("Failed to save payment order, please retry later")
 	}
 
 	log.Printf("[Payment] 订单创建成功: order_no=%s, user_id=%d, amount=%.2f, fee=%.2f, pay_amount=%.2f, gateway=%s",
@@ -213,7 +213,7 @@ func createPaymentOrderWithPendingLimitTx(userID uint64, order *models.PaymentOr
 
 		pendingCount, err := models.CountPendingOrdersByUserIDTx(tx, userID)
 		if err != nil {
-			return errors.New("检查待支付订单失败，请稍后重试")
+			return errors.New("Failed to check pending payment order, please retry later")
 		}
 		if pendingCount >= maxPendingOrdersPerUser {
 			return NewClientError("您有过多未支付订单，请先支付或等待过期后重试")
@@ -221,7 +221,7 @@ func createPaymentOrderWithPendingLimitTx(userID uint64, order *models.PaymentOr
 
 		if err := models.CreatePaymentOrderTx(tx, order); err != nil {
 			log.Printf("[Payment] 创建订单失败: %v", err)
-			return errors.New("创建订单失败，请稍后重试")
+			return errors.New("Failed to create order, please retry later")
 		}
 		return nil
 	})
@@ -231,7 +231,7 @@ func settleThirdPartyPaidOrderTx(tx *gorm.DB, orderNo, tradeNo, paymentType, mon
 	order, err := models.GetPaymentOrderForUpdate(tx, orderNo)
 	if err != nil {
 		log.Printf("[Payment] 订单不存在: source=%s, order_no=%s, err=%v", source, orderNo, err)
-		return nil, nil, false, errors.New("订单不存在")
+		return nil, nil, false, errors.New("Order does not exist")
 	}
 
 	if order.Status == models.PaymentStatusPaid {
@@ -269,7 +269,7 @@ func settleThirdPartyPaidOrderTx(tx *gorm.DB, orderNo, tradeNo, paymentType, mon
 		OrderStatus: models.PaymentStatusPaid,
 	}, utils.OpFull)
 	if err != nil {
-		return order, nil, false, fmt.Errorf("充值到账失败: %w", err)
+		return order, nil, false, fmt.Errorf("Recharge credit failed: %w", err)
 	}
 
 	// 迟到恢复：写入审计异常（同事务，已处理）
@@ -326,10 +326,10 @@ func IsPermanentPaymentNotifyError(err error) bool {
 	}
 	msg := err.Error()
 	permanentMsgs := []string{
-		"签名验证失败", "商户号不匹配", "交易号不匹配", "支付通道不匹配", "支付方式不匹配",
-		"回调支付类型不匹配", "回调金额与订单金额不一致", "回调金额不能为空", "回调金额格式非法",
-		"回调金额非法", "订单金额非法", "订单不存在", "支付通道不存在", "不支持的支付通道类型",
-		"回调参数不完整", "订单状态不允许处理回调",
+		"Signature verification failed", "Merchant ID mismatch", "Transaction number mismatch", "Payment gateway mismatch", "Payment method mismatch",
+		"Callback payment type mismatch", "Callback amount does not match order amount", "Callback amount cannot be empty", "Invalid callback amount format",
+		"Invalid callback amount", "Invalid order amount", "Order does not exist", "Payment gateway does not exist", "Unsupported payment gateway type",
+		"Incomplete callback parameters", "Order status does not allow callback processing",
 	}
 	for _, m := range permanentMsgs {
 		if strings.Contains(msg, m) {
@@ -360,13 +360,13 @@ func classifyNotifyExceptionType(err error) string {
 	}
 	msg := err.Error()
 	switch {
-	case strings.Contains(msg, "签名"):
+	case strings.Contains(msg, "signature") || strings.Contains(msg, "Signature"):
 		return models.PaymentExceptionSignFailed
-	case strings.Contains(msg, "金额"):
+	case strings.Contains(msg, "amount") || strings.Contains(msg, "Amount"):
 		return models.PaymentExceptionAmountMismatch
-	case strings.Contains(msg, "不匹配") || strings.Contains(msg, "绑定"):
+	case strings.Contains(msg, "mismatch") || strings.Contains(msg, "Mismatch") || strings.Contains(msg, "binding") || strings.Contains(msg, "Binding"):
 		return models.PaymentExceptionBindingMismatch
-	case strings.Contains(msg, "订单不存在"):
+	case strings.Contains(msg, "Order does not exist"):
 		return models.PaymentExceptionOrderMissing
 	default:
 		return models.PaymentExceptionPermanentRejected
@@ -509,26 +509,26 @@ func HandlePaymentNotify(params map[string]string) (bool, error) {
 func HandlePaymentReturn(params map[string]string) (*models.PaymentOrder, error) {
 	outTradeNo := params["out_trade_no"]
 	if outTradeNo == "" {
-		return nil, errors.New("缺少订单号参数")
+		return nil, errors.New("Missing order number parameter")
 	}
 
 	order, err := models.GetPaymentOrderByOrderNo(outTradeNo)
 	if err != nil {
-		return nil, errors.New("订单不存在")
+		return nil, errors.New("Order does not exist")
 	}
 
 	// 获取通道密钥验签
 	gateway, err := models.GetPayGatewayByID(order.GatewayID)
 	if err != nil {
-		return nil, errors.New("支付通道不存在")
+		return nil, errors.New("Payment gateway does not exist")
 	}
 
 	returnChannel, ok := GetPaymentChannel(gateway.Type)
 	if !ok {
-		return nil, errors.New("不支持的支付通道类型")
+		return nil, errors.New("Unsupported payment gateway type")
 	}
 	if !returnChannel.VerifyNotify(params, gateway.Key) {
-		return nil, errors.New("签名验证失败")
+		return nil, errors.New("Signature verification failed")
 	}
 
 	return order, nil
@@ -609,7 +609,7 @@ func ReconcilePaymentOrdersBatch(ctx context.Context, limit int) (*PaymentReconc
 // 返回事务内最新的订单对象、是否对账成功、错误。
 func reconcilePaymentOrder(order *models.PaymentOrder) (*models.PaymentOrder, bool, error) {
 	if order == nil {
-		return nil, false, errors.New("订单不存在")
+		return nil, false, errors.New("Order does not exist")
 	}
 	switch order.Status {
 	case models.PaymentStatusPending, models.PaymentStatusCanceled, models.PaymentStatusFailed:
@@ -633,7 +633,7 @@ func reconcilePaymentOrder(order *models.PaymentOrder) (*models.PaymentOrder, bo
 
 	gateway, err := models.GetPayGatewayByID(order.GatewayID)
 	if err != nil {
-		return order, false, fmt.Errorf("获取支付通道失败: %w", err)
+		return order, false, fmt.Errorf("Failed to get payment gateway: %w", err)
 	}
 
 	queryResult, err := channel.QueryOrder(gateway, orderNo, tradeNo)
@@ -641,7 +641,7 @@ func reconcilePaymentOrder(order *models.PaymentOrder) (*models.PaymentOrder, bo
 		return order, false, err
 	}
 	if queryResult == nil {
-		return order, false, errors.New("查询结果为空")
+		return order, false, errors.New("Query result is empty")
 	}
 	if queryResult.Code != 1 {
 		msg := strings.TrimSpace(queryResult.Msg)
@@ -800,7 +800,7 @@ func adminCompleteOrderExec(order *models.PaymentOrder, memo string, force bool)
 	return db.DB.Transaction(func(tx *gorm.DB) error {
 		lockedOrder, err := models.GetPaymentOrderForUpdate(tx, order.OrderNo)
 		if err != nil {
-			return fmt.Errorf("锁定订单失败: %w", err)
+			return fmt.Errorf("Failed to lock order: %w", err)
 		}
 		if lockedOrder.Status == models.PaymentStatusPaid {
 			return NewClientError("订单已支付，无需重复操作")
@@ -828,7 +828,7 @@ func adminCompleteOrderExec(order *models.PaymentOrder, memo string, force bool)
 			TradeNo:     "MANUAL",
 			OrderStatus: models.PaymentStatusPaid,
 		}, utils.OpFull); err != nil {
-			return fmt.Errorf("补单失败: %w", err)
+			return fmt.Errorf("Reconciliation failed: %w", err)
 		}
 
 		_ = models.CreatePaymentExceptionTx(tx, &models.PaymentException{
@@ -907,34 +907,34 @@ func validatePaymentNotifyBinding(order *models.PaymentOrder, gateway *models.Pa
 	tradeNo = models.NormalizeTradeNo(tradeNo)
 
 	if gateway != nil && strings.TrimSpace(gateway.PID) != "" && pid != "" && pid != strings.TrimSpace(gateway.PID) {
-		return errors.New("商户号不匹配")
+		return errors.New("Merchant ID mismatch")
 	}
 	// 网关已配置商户号时，回调必须带上且一致（避免空 pid 绕过）
 	if gateway != nil && strings.TrimSpace(gateway.PID) != "" && pid == "" {
-		return errors.New("商户号不匹配")
+		return errors.New("Merchant ID mismatch")
 	}
 
 	if order != nil {
 		if order.TradeNo != "" && tradeNo != "" && order.TradeNo != tradeNo {
-			return errors.New("交易号不匹配")
+			return errors.New("Transaction number mismatch")
 		}
 		if gateway != nil {
 			if order.GatewayID != 0 && gateway.ID != 0 && order.GatewayID != gateway.ID {
-				return errors.New("支付通道不匹配")
+				return errors.New("Payment gateway mismatch")
 			}
 			if order.PaymentChannel != "" && gateway.Type != "" &&
 				!strings.EqualFold(order.PaymentChannel, gateway.Type) {
-				return errors.New("支付通道类型不匹配")
+				return errors.New("Payment gateway type mismatch")
 			}
 			if order.PaymentType != "" && gateway.PayType != "" &&
 				!strings.EqualFold(order.PaymentType, gateway.PayType) {
-				return errors.New("支付方式不匹配")
+				return errors.New("Payment method mismatch")
 			}
 		}
 		// 标准支付类型（alipay/wxpay 等）必须与订单一致；数字型自定义 type 放行
 		if order.PaymentType != "" && callbackType != "" && !isNonStandardEpayCallbackType(callbackType) {
 			if !strings.EqualFold(callbackType, order.PaymentType) {
-				return errors.New("回调支付类型不匹配")
+				return errors.New("Callback payment type mismatch")
 			}
 		}
 	}
@@ -946,22 +946,22 @@ func validatePaymentNotifyBinding(order *models.PaymentOrder, gateway *models.Pa
 func validateCallbackMoney(expected float64, moneyStr string) error {
 	moneyStr = strings.TrimSpace(moneyStr)
 	if moneyStr == "" {
-		return errors.New("回调金额不能为空")
+		return errors.New("Callback amount cannot be empty")
 	}
 	callbackMoney, err := strconv.ParseFloat(moneyStr, 64)
 	if err != nil {
-		return errors.New("回调金额格式非法")
+		return errors.New("Invalid callback amount format")
 	}
 	expectedFen, err := utils.YuanToFen(expected)
 	if err != nil {
-		return errors.New("订单金额非法")
+		return errors.New("Invalid order amount")
 	}
 	callbackFen, err := utils.YuanToFen(callbackMoney)
 	if err != nil {
-		return errors.New("回调金额非法")
+		return errors.New("Invalid callback amount")
 	}
 	if expectedFen != callbackFen {
-		return errors.New("回调金额与订单金额不一致")
+		return errors.New("Callback amount does not match order amount")
 	}
 	return nil
 }

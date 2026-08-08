@@ -17,10 +17,10 @@ import (
 // ========================================
 
 // ErrInsufficientBalance 扣款金额超出用户余额（调用方可用 errors.Is 判断，避免脆弱的字符串匹配）
-var ErrInsufficientBalance = errors.New("扣款金额超出用户余额")
+var ErrInsufficientBalance = errors.New("Deduction amount exceeds user balance")
 
 // ErrCreditLimitExceeded 充值金额超出上限
-var ErrCreditLimitExceeded = errors.New("充值金额超出上限")
+var ErrCreditLimitExceeded = errors.New("Recharge amount exceeds limit")
 
 // ========================================
 // 余额操作模式
@@ -129,7 +129,7 @@ func ParseMemo(memo string, lang string) string {
 //   - OpFull:         修改余额 + 更新订单状态 + 添加变动记录
 func ExecuteBalanceOp(req *BalanceReq, opType BalanceOpType) (*BalanceResult, error) {
 	if req.UserID == 0 {
-		return nil, errors.New("用户ID不能为空")
+		return nil, errors.New("User ID cannot be empty")
 	}
 
 	var result *BalanceResult
@@ -149,11 +149,11 @@ func ExecuteBalanceOp(req *BalanceReq, opType BalanceOpType) (*BalanceResult, er
 // 内部计算全部按「分」整数进行，落库前再转回「元」，兼容现有 DECIMAL(10,2) 字段。
 func ExecuteBalanceOpTx(tx *gorm.DB, req *BalanceReq, opType BalanceOpType) (*BalanceResult, error) {
 	if req.UserID == 0 {
-		return nil, errors.New("用户ID不能为空")
+		return nil, errors.New("User ID cannot be empty")
 	}
 	// 拒绝 NaN/Inf，避免脏浮点写入余额字段或绕过上下限判断
 	if math.IsNaN(req.Amount) || math.IsInf(req.Amount, 0) {
-		return nil, errors.New("金额非法")
+		return nil, errors.New("Invalid amount")
 	}
 
 	// 变动金额先规范到「分」，后续加减只用 int64
@@ -174,11 +174,11 @@ func ExecuteBalanceOpTx(tx *gorm.DB, req *BalanceReq, opType BalanceOpType) (*Ba
 	if needBalance || needLog {
 		beforeMoneyYuan, err := models.GetUserMoneyForUpdate(tx, req.UserID)
 		if err != nil {
-			return nil, errors.New("用户不存在")
+			return nil, errors.New("User does not exist")
 		}
 		beforeFen, err := YuanToFen(beforeMoneyYuan)
 		if err != nil {
-			return nil, fmt.Errorf("用户余额非法: %w", err)
+			return nil, fmt.Errorf("Invalid user balance: %w", err)
 		}
 		afterFen := beforeFen + amountFen
 
@@ -198,7 +198,7 @@ func ExecuteBalanceOpTx(tx *gorm.DB, req *BalanceReq, opType BalanceOpType) (*Ba
 		// ---- 2. 修改余额（写回规范化后的元） ----
 		if needBalance {
 			if err := models.UpdateUserMoneyTx(tx, req.UserID, afterYuan); err != nil {
-				return nil, fmt.Errorf("更新用户余额失败: %w", err)
+				return nil, fmt.Errorf("Failed to update user balance: %w", err)
 			}
 			result.AfterMoney = afterYuan
 		} else {
@@ -210,7 +210,7 @@ func ExecuteBalanceOpTx(tx *gorm.DB, req *BalanceReq, opType BalanceOpType) (*Ba
 		if needLog {
 			logEntry, err := models.CreateUserMoneyLogTx(tx, req.UserID, amountYuan, result.BeforeMoney, result.AfterMoney, memo)
 			if err != nil {
-				return nil, fmt.Errorf("创建余额变动记录失败: %w", err)
+				return nil, fmt.Errorf("Failed to create balance change log: %w", err)
 			}
 			result.MoneyLog = logEntry
 		}
@@ -219,10 +219,10 @@ func ExecuteBalanceOpTx(tx *gorm.DB, req *BalanceReq, opType BalanceOpType) (*Ba
 	// ---- 4. 更新订单状态 ----
 	if needOrder {
 		if req.OrderNo == "" {
-			return nil, errors.New("订单号不能为空")
+			return nil, errors.New("Order number cannot be empty")
 		}
 		if err := models.UpdatePaymentOrderStatusTx(tx, req.OrderNo, req.OrderStatus, req.TradeNo); err != nil {
-			return nil, fmt.Errorf("更新订单状态失败: %w", err)
+			return nil, fmt.Errorf("Failed to update order status: %w", err)
 		}
 	}
 

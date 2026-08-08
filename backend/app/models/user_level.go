@@ -71,7 +71,7 @@ func GetUserLevelCap(level uint64) (*UserLevelCap, error) {
 // UpdateUserLevelCap 更新等级能力（按 level upsert 字段）
 func UpdateUserLevelCap(level uint64, name string, allowAPIKey, allowRecharge, allowWithdraw bool, menuFlags string) error {
 	if level == 0 {
-		return errors.New("无效等级")
+		return errors.New("Invalid level")
 	}
 	now := time.Now().Unix()
 	var existing UserLevelCap

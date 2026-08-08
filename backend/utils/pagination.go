@@ -28,7 +28,7 @@ func NormalizePaginationWithLimits(page, pageSize, defaultSize, maxSize int) (in
 }
 
 // ErrInvalidTimeRange 开始时间晚于结束时间
-var ErrInvalidTimeRange = errors.New("开始时间不能晚于结束时间")
+var ErrInvalidTimeRange = errors.New("Start time cannot be later than end time")
 
 // NormalizeTimeRange 统一「结束时间默认当前、开始时间默认结束时间往前 N 天」的时间窗口解析，
 // 附带 defaultDays 上限裁剪。多个日志类 controller（operation/api_access 等）各自复制了一份

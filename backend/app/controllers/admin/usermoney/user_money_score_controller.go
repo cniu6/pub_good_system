@@ -38,7 +38,7 @@ func NewUserMoneyScoreController() *UserMoneyScoreController {
 func (ctrl *UserMoneyScoreController) ChangeMoney(c *gin.Context) {
 	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "用户ID格式错误")
+		utils.Fail(c, 400, "Invalid user ID format")
 		return
 	}
 
@@ -51,7 +51,7 @@ func (ctrl *UserMoneyScoreController) ChangeMoney(c *gin.Context) {
 		return
 	}
 	if req.Money == nil {
-		utils.Fail(c, 400, "金额不能为空")
+		utils.Fail(c, 400, "Amount cannot be empty")
 		return
 	}
 
@@ -61,7 +61,7 @@ func (ctrl *UserMoneyScoreController) ChangeMoney(c *gin.Context) {
 		return
 	}
 
-	utils.Success(c, gin.H{"message": "余额变更成功", "log": logEntry})
+	utils.Success(c, gin.H{"message": "Balance changed successfully", "log": logEntry})
 }
 
 // SetMoney 直接设置用户余额
@@ -73,7 +73,7 @@ func (ctrl *UserMoneyScoreController) ChangeMoney(c *gin.Context) {
 func (ctrl *UserMoneyScoreController) SetMoney(c *gin.Context) {
 	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "用户ID格式错误")
+		utils.Fail(c, 400, "Invalid user ID format")
 		return
 	}
 
@@ -92,7 +92,7 @@ func (ctrl *UserMoneyScoreController) SetMoney(c *gin.Context) {
 		return
 	}
 
-	utils.Success(c, gin.H{"message": "余额设置成功", "log": logEntry})
+	utils.Success(c, gin.H{"message": "Balance set successfully", "log": logEntry})
 }
 
 // AddMoneyLog 仅添加余额变动日志（不修改余额）
@@ -104,7 +104,7 @@ func (ctrl *UserMoneyScoreController) SetMoney(c *gin.Context) {
 func (ctrl *UserMoneyScoreController) AddMoneyLog(c *gin.Context) {
 	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "用户ID格式错误")
+		utils.Fail(c, 400, "Invalid user ID format")
 		return
 	}
 
@@ -117,7 +117,7 @@ func (ctrl *UserMoneyScoreController) AddMoneyLog(c *gin.Context) {
 		return
 	}
 	if req.Money == nil {
-		utils.Fail(c, 400, "金额不能为空")
+		utils.Fail(c, 400, "Amount cannot be empty")
 		return
 	}
 
@@ -127,7 +127,7 @@ func (ctrl *UserMoneyScoreController) AddMoneyLog(c *gin.Context) {
 		return
 	}
 
-	utils.Success(c, gin.H{"message": "余额日志添加成功", "log": logEntry})
+	utils.Success(c, gin.H{"message": "Balance log added successfully", "log": logEntry})
 }
 
 // OperateMoney 统一余额操作（支持余额/日志/订单组合）
@@ -139,7 +139,7 @@ func (ctrl *UserMoneyScoreController) AddMoneyLog(c *gin.Context) {
 func (ctrl *UserMoneyScoreController) OperateMoney(c *gin.Context) {
 	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "用户ID格式错误")
+		utils.Fail(c, 400, "Invalid user ID format")
 		return
 	}
 
@@ -167,7 +167,7 @@ func (ctrl *UserMoneyScoreController) OperateMoney(c *gin.Context) {
 	}
 
 	if req.Operation != "order_only" && req.Money == nil {
-		utils.Fail(c, 400, "金额不能为空")
+		utils.Fail(c, 400, "Amount cannot be empty")
 		return
 	}
 
@@ -184,7 +184,7 @@ func (ctrl *UserMoneyScoreController) OperateMoney(c *gin.Context) {
 		return
 	}
 
-	utils.Success(c, gin.H{"message": "余额组合操作成功", "result": result})
+	utils.Success(c, gin.H{"message": "Balance combined operation successful", "result": result})
 }
 
 // MoneyLogList 获取余额变动日志列表（管理员可查看所有）
@@ -203,7 +203,7 @@ func (ctrl *UserMoneyScoreController) MoneyLogList(c *gin.Context) {
 	logs, total, err := services.GetUserMoneyLogList(userIDFilter, page, pageSize, keyword)
 	if err != nil {
 		log.Printf("[ADMIN][MONEY] list money logs failed: %v", err)
-		utils.Fail(c, 500, "获取余额日志失败")
+		utils.Fail(c, 500, "Failed to get balance logs")
 		return
 	}
 
@@ -219,13 +219,13 @@ func (ctrl *UserMoneyScoreController) MoneyLogList(c *gin.Context) {
 func (ctrl *UserMoneyScoreController) MoneyLogDetail(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "记录ID格式错误")
+		utils.Fail(c, 400, "Invalid record ID format")
 		return
 	}
 
 	logEntry, err := models.GetUserMoneyLogByID(id)
 	if err != nil {
-		utils.Fail(c, 404, "记录不存在")
+		utils.Fail(c, 404, "Record does not exist")
 		return
 	}
 
@@ -241,21 +241,21 @@ func (ctrl *UserMoneyScoreController) MoneyLogDetail(c *gin.Context) {
 func (ctrl *UserMoneyScoreController) MoneyLogDelete(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "记录ID格式错误")
+		utils.Fail(c, 400, "Invalid record ID format")
 		return
 	}
 
 	if err := models.DeleteUserMoneyLog(id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			utils.Fail(c, 404, "记录不存在")
+			utils.Fail(c, 404, "Record does not exist")
 			return
 		}
 		log.Printf("[ADMIN][MONEY] delete money log failed id=%d: %v", id, err)
-		utils.Fail(c, 500, "删除余额日志失败")
+		utils.Fail(c, 500, "Failed to delete balance log")
 		return
 	}
 
-	utils.Success(c, gin.H{"message": "删除成功"})
+	utils.Success(c, gin.H{"message": "Deleted successfully"})
 }
 
 // ========================================
@@ -271,7 +271,7 @@ func (ctrl *UserMoneyScoreController) MoneyLogDelete(c *gin.Context) {
 func (ctrl *UserMoneyScoreController) ChangeScore(c *gin.Context) {
 	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "用户ID格式错误")
+		utils.Fail(c, 400, "Invalid user ID format")
 		return
 	}
 
@@ -290,7 +290,7 @@ func (ctrl *UserMoneyScoreController) ChangeScore(c *gin.Context) {
 		return
 	}
 
-	utils.Success(c, gin.H{"message": "积分变更成功", "log": logEntry})
+	utils.Success(c, gin.H{"message": "Score changed successfully", "log": logEntry})
 }
 
 // SetScore 直接设置用户积分
@@ -302,7 +302,7 @@ func (ctrl *UserMoneyScoreController) ChangeScore(c *gin.Context) {
 func (ctrl *UserMoneyScoreController) SetScore(c *gin.Context) {
 	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "用户ID格式错误")
+		utils.Fail(c, 400, "Invalid user ID format")
 		return
 	}
 
@@ -321,7 +321,7 @@ func (ctrl *UserMoneyScoreController) SetScore(c *gin.Context) {
 		return
 	}
 
-	utils.Success(c, gin.H{"message": "积分设置成功", "log": logEntry})
+	utils.Success(c, gin.H{"message": "Score set successfully", "log": logEntry})
 }
 
 // AddScoreLog 仅添加积分变动日志（不修改积分）
@@ -333,7 +333,7 @@ func (ctrl *UserMoneyScoreController) SetScore(c *gin.Context) {
 func (ctrl *UserMoneyScoreController) AddScoreLog(c *gin.Context) {
 	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "用户ID格式错误")
+		utils.Fail(c, 400, "Invalid user ID format")
 		return
 	}
 
@@ -352,7 +352,7 @@ func (ctrl *UserMoneyScoreController) AddScoreLog(c *gin.Context) {
 		return
 	}
 
-	utils.Success(c, gin.H{"message": "积分日志添加成功", "log": logEntry})
+	utils.Success(c, gin.H{"message": "Score log added successfully", "log": logEntry})
 }
 
 // ScoreLogList 获取积分变动日志列表（管理员可查看所有）
@@ -371,7 +371,7 @@ func (ctrl *UserMoneyScoreController) ScoreLogList(c *gin.Context) {
 	logs, total, err := services.GetUserScoreLogList(userIDFilter, page, pageSize, keyword)
 	if err != nil {
 		log.Printf("[ADMIN][SCORE] list score logs failed: %v", err)
-		utils.Fail(c, 500, "获取积分日志失败")
+		utils.Fail(c, 500, "Failed to get score logs")
 		return
 	}
 
@@ -387,13 +387,13 @@ func (ctrl *UserMoneyScoreController) ScoreLogList(c *gin.Context) {
 func (ctrl *UserMoneyScoreController) ScoreLogDetail(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "记录ID格式错误")
+		utils.Fail(c, 400, "Invalid record ID format")
 		return
 	}
 
 	logEntry, err := models.GetUserScoreLogByID(id)
 	if err != nil {
-		utils.Fail(c, 404, "记录不存在")
+		utils.Fail(c, 404, "Record does not exist")
 		return
 	}
 
@@ -409,21 +409,21 @@ func (ctrl *UserMoneyScoreController) ScoreLogDetail(c *gin.Context) {
 func (ctrl *UserMoneyScoreController) ScoreLogDelete(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "记录ID格式错误")
+		utils.Fail(c, 400, "Invalid record ID format")
 		return
 	}
 
 	if err := models.DeleteUserScoreLog(id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			utils.Fail(c, 404, "记录不存在")
+			utils.Fail(c, 404, "Record does not exist")
 			return
 		}
 		log.Printf("[ADMIN][SCORE] delete score log failed id=%d: %v", id, err)
-		utils.Fail(c, 500, "删除积分日志失败")
+		utils.Fail(c, 500, "Failed to delete score log")
 		return
 	}
 
-	utils.Success(c, gin.H{"message": "删除成功"})
+	utils.Success(c, gin.H{"message": "Deleted successfully"})
 }
 
 // GenerateNos 生成订单号和交易号

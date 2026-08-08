@@ -133,7 +133,7 @@ func UpdateDefinitionFields(jobCode string, req UpdateJobRequest) error {
 		return err
 	}
 	if def == nil {
-		return fmt.Errorf("任务不存在")
+		return fmt.Errorf("Task does not exist")
 	}
 	if req.Name != nil {
 		if err := utils.ValidateRuneLen(*req.Name, "任务名称", utils.MaxJobNameLength); err != nil {
@@ -209,7 +209,7 @@ func SetEnabled(jobCode string, enabled bool) error {
 	}
 	n := r.RowsAffected
 	if n == 0 {
-		return fmt.Errorf("任务不存在")
+		return fmt.Errorf("Task does not exist")
 	}
 	ReloadCache()
 	return nil

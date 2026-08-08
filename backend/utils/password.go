@@ -9,10 +9,10 @@ import (
 )
 
 var (
-	errPasswordTooShort    = errors.New("密码长度至少需要8位")
-	errPasswordTooLong     = errors.New("密码长度不能超过72字节")
-	errPasswordNeedLetter  = errors.New("密码需至少包含一个字母")
-	errPasswordNeedNumber  = errors.New("密码需至少包含一个数字")
+	errPasswordTooShort    = errors.New("Password length must be at least 8 characters")
+	errPasswordTooLong     = errors.New("Password length cannot exceed 72 bytes")
+	errPasswordNeedLetter  = errors.New("Password must contain at least one letter")
+	errPasswordNeedNumber  = errors.New("Password must contain at least one digit")
 )
 
 // ValidatePasswordStrength 校验密码强度与 bcrypt 安全边界。

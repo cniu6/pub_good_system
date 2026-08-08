@@ -29,7 +29,7 @@ func piiMasterKey() ([]byte, error) {
 			raw = strings.TrimSpace(os.Getenv("JWT_SECRET"))
 		}
 		if raw == "" {
-			piiKeyErr = errors.New("未配置 PII_ENCRYPT_KEY/JWT_SECRET，无法加密 PII")
+			piiKeyErr = errors.New("PII_ENCRYPT_KEY/JWT_SECRET not configured, cannot encrypt PII")
 			return
 		}
 		sum := sha256.Sum256([]byte(raw))
@@ -87,7 +87,7 @@ func DecryptPII(stored string) (string, error) {
 		return "", err
 	}
 	if len(raw) < gcm.NonceSize() {
-		return "", errors.New("密文过短")
+		return "", errors.New("Ciphertext too short")
 	}
 	nonce, ciphertext := raw[:gcm.NonceSize()], raw[gcm.NonceSize():]
 	plain, err := gcm.Open(nil, nonce, ciphertext, nil)

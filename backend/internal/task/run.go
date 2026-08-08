@@ -208,7 +208,7 @@ func MaybeRenumberRunIDsIfNearLimit() (did bool, newCount int64, err error) {
 	_ = db.DB.Exec(`DROP TABLE IF EXISTS ` + old).Error
 
 	if err := db.DB.Exec(`CREATE TABLE ` + tmp + ` LIKE auto_job_runs`).Error; err != nil {
-		return false, 0, fmt.Errorf("创建重编号临时表失败: %w", err)
+		return false, 0, fmt.Errorf("Failed to create renumber temporary table: %w", err)
 	}
 	res := db.DB.Exec(`
 		INSERT INTO ` + tmp + ` (
@@ -222,13 +222,13 @@ func MaybeRenumberRunIDsIfNearLimit() (did bool, newCount int64, err error) {
 		ORDER BY started_at ASC, id ASC`)
 	if res.Error != nil {
 		_ = db.DB.Exec(`DROP TABLE IF EXISTS ` + tmp).Error
-		return false, 0, fmt.Errorf("重编号拷贝失败: %w", res.Error)
+		return false, 0, fmt.Errorf("Renumber copy failed: %w", res.Error)
 	}
 	copied := res.RowsAffected
 
 	if err := db.DB.Exec(`RENAME TABLE auto_job_runs TO ` + old + `, ` + tmp + ` TO auto_job_runs`).Error; err != nil {
 		_ = db.DB.Exec(`DROP TABLE IF EXISTS ` + tmp).Error
-		return false, 0, fmt.Errorf("重编号换表失败: %w", err)
+		return false, 0, fmt.Errorf("Renumber table swap failed: %w", err)
 	}
 	_ = db.DB.Exec(`DROP TABLE IF EXISTS ` + old).Error
 
@@ -275,7 +275,7 @@ func CleanRuns(req CleanRunsRequest) (int64, error) {
 		where += ` AND status IN (?,?,?)`
 		args = append(args, StatusSuccess, StatusFailed, StatusTimeout)
 	default:
-		return 0, fmt.Errorf("scope 仅支持 success|failed|all")
+		return 0, fmt.Errorf("scope only supports success|failed|all")
 	}
 	if req.JobCode != "" {
 		where += ` AND job_code=?`

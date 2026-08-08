@@ -36,7 +36,7 @@ func ConfigFromGateway(gateway *models.PayGateway) *Config {
 // BuildSubmitURL 构造易支付跳转支付 URL（submit.php）
 func BuildSubmitURL(config *Config, order *models.PaymentOrder, notifyURL, returnURL string) (string, error) {
 	if config.ApiURL == "" || config.PID == "" || config.Key == "" {
-		return "", fmt.Errorf("易支付配置不完整")
+		return "", fmt.Errorf("Epay configuration incomplete")
 	}
 
 	params := map[string]string{
@@ -54,7 +54,7 @@ func BuildSubmitURL(config *Config, order *models.PaymentOrder, notifyURL, retur
 
 	u, err := url.Parse(config.ApiURL + "/submit.php")
 	if err != nil {
-		return "", fmt.Errorf("解析网关地址失败: %w", err)
+		return "", fmt.Errorf("Failed to parse gateway address: %w", err)
 	}
 
 	q := u.Query()
@@ -93,13 +93,13 @@ type queryResponseRaw struct {
 // QueryOrder 向易支付平台查询订单状态
 func QueryOrder(config *Config, orderNo, tradeNo string) (*QueryResponse, error) {
 	if config.ApiURL == "" || config.PID == "" || config.Key == "" {
-		return nil, fmt.Errorf("易支付配置不完整")
+		return nil, fmt.Errorf("Epay configuration incomplete")
 	}
 
 	orderNo = strings.TrimSpace(orderNo)
 	tradeNo = models.NormalizeTradeNo(tradeNo)
 	if orderNo == "" && tradeNo == "" {
-		return nil, fmt.Errorf("缺少查询订单号")
+		return nil, fmt.Errorf("Missing query order number")
 	}
 
 	queryCandidates := make([]map[string]string, 0, 2)
@@ -141,7 +141,7 @@ func QueryOrder(config *Config, orderNo, tradeNo string) (*QueryResponse, error)
 func queryOrderOnce(config *Config, params map[string]string) (*QueryResponse, error) {
 	u, err := url.Parse(config.ApiURL + "/api.php")
 	if err != nil {
-		return nil, fmt.Errorf("解析网关地址失败: %w", err)
+		return nil, fmt.Errorf("Failed to parse gateway address: %w", err)
 	}
 	q := u.Query()
 	for k, v := range params {
@@ -152,24 +152,24 @@ func queryOrderOnce(config *Config, params map[string]string) (*QueryResponse, e
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(u.String())
 	if err != nil {
-		return nil, fmt.Errorf("查询易支付订单失败: %w", err)
+		return nil, fmt.Errorf("Failed to query Epay order: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("读取响应失败: %w", err)
+		return nil, fmt.Errorf("Failed to read response: %w", err)
 	}
 
 	bodyStr := strings.TrimSpace(string(body))
 	if strings.HasPrefix(bodyStr, "<") {
-		return nil, fmt.Errorf("查询接口返回HTML页面而非JSON，可能是API地址配置错误")
+		return nil, fmt.Errorf("Query interface returned HTML instead of JSON, API URL may be misconfigured")
 	}
 
 	var raw queryResponseRaw
 	if err := json.Unmarshal(body, &raw); err != nil {
 		log.Printf("[Epay] 查询响应解析失败: %s", string(body))
-		return nil, fmt.Errorf("解析查询响应失败: %w", err)
+		return nil, fmt.Errorf("Failed to parse query response: %w", err)
 	}
 
 	return &QueryResponse{
@@ -245,7 +245,7 @@ type APIPayResponse struct {
 // APIPay 通过 mapi.php 发起支付，返回支付链接与交易号
 func APIPay(config *Config, order *models.PaymentOrder, notifyURL, returnURL string) (string, string, error) {
 	if config.ApiURL == "" || config.PID == "" || config.Key == "" {
-		return "", "", fmt.Errorf("易支付配置不完整")
+		return "", "", fmt.Errorf("Epay configuration incomplete")
 	}
 
 	params := map[string]string{
@@ -271,37 +271,37 @@ func APIPay(config *Config, order *models.PaymentOrder, notifyURL, returnURL str
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.PostForm(mapiURL, formData)
 	if err != nil {
-		return "", "", fmt.Errorf("请求支付接口失败: %v", err)
+		return "", "", fmt.Errorf("Payment interface request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return "", "", fmt.Errorf("支付接口返回错误状态码: %d", resp.StatusCode)
+		return "", "", fmt.Errorf("Payment interface returned error status code: %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", "", fmt.Errorf("读取响应内容失败: %v", err)
+		return "", "", fmt.Errorf("Failed to read response content: %v", err)
 	}
 
 	if len(body) == 0 {
-		return "", "", fmt.Errorf("支付接口返回空响应")
+		return "", "", fmt.Errorf("Payment interface returned empty response")
 	}
 
 	bodyStr := string(body)
 	if strings.HasPrefix(strings.TrimSpace(bodyStr), "<") {
-		return "", "", fmt.Errorf("支付接口返回HTML页面而非JSON，可能是API地址配置错误")
+		return "", "", fmt.Errorf("Payment interface returned HTML instead of JSON, API URL may be misconfigured")
 	}
 
 	log.Printf("[Epay] APIPay 响应: %s", bodyStr)
 
 	var payResp APIPayResponse
 	if err := json.Unmarshal(body, &payResp); err != nil {
-		return "", "", fmt.Errorf("解析支付响应失败: %v, 响应内容: %s", err, bodyStr)
+		return "", "", fmt.Errorf("Failed to parse payment response: %v, response content: %s", err, bodyStr)
 	}
 
 	if payResp.Code != 1 {
-		return "", "", fmt.Errorf("发起支付失败: %s", payResp.Msg)
+		return "", "", fmt.Errorf("Payment initiation failed: %s", payResp.Msg)
 	}
 
 	normalizedTradeNo := models.NormalizeTradeNo(payResp.TradeNo)
@@ -321,7 +321,7 @@ func APIPay(config *Config, order *models.PaymentOrder, notifyURL, returnURL str
 		return fmt.Sprintf("%s?trade_no=%s", baseURL, normalizedTradeNo), normalizedTradeNo, nil
 	}
 
-	return "", normalizedTradeNo, fmt.Errorf("支付接口未返回可用的支付链接")
+	return "", normalizedTradeNo, fmt.Errorf("Payment interface did not return a usable payment link")
 }
 
 // ValidatePayType 验证支付方式是否在配置允许列表中

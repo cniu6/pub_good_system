@@ -25,7 +25,7 @@ func (ctrl *UserLevelController) List(c *gin.Context) {
 	list, err := models.ListUserLevelCaps()
 	if err != nil {
 		log.Printf("[ADMIN][UserLevel] list failed: %v", err)
-		utils.Fail(c, 500, "获取用户等级失败")
+		utils.Fail(c, 500, "Failed to get user levels")
 		return
 	}
 	utils.Success(c, gin.H{"list": list})
@@ -53,7 +53,7 @@ func (ctrl *UserLevelController) Update(c *gin.Context) {
 		return
 	}
 	if req.Level == 0 {
-		utils.Fail(c, 400, "无效等级")
+		utils.Fail(c, 400, "Invalid level")
 		return
 	}
 	allowAPIKey := true
@@ -74,7 +74,7 @@ func (ctrl *UserLevelController) Update(c *gin.Context) {
 	}
 	if err := models.UpdateUserLevelCap(req.Level, req.Name, allowAPIKey, allowRecharge, allowWithdraw, menuFlags); err != nil {
 		log.Printf("[ADMIN][UserLevel] update failed level=%d: %v", req.Level, err)
-		utils.Fail(c, 500, "更新失败")
+		utils.Fail(c, 500, "Update failed")
 		return
 	}
 	cap, _ := models.GetUserLevelCap(req.Level)

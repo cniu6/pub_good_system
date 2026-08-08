@@ -16,9 +16,9 @@ var OnConfigSaved func()
 
 var (
 	// ErrSchedulerDisabled 全局自动任务开关关闭（调度触发被忽略，属正常）
-	ErrSchedulerDisabled = errors.New("全局自动任务已关闭")
+	ErrSchedulerDisabled = errors.New("Global auto jobs are disabled")
 	// ErrJobBusy 任务已在本进程执行中（调度重复派发时忽略，属正常）
-	ErrJobBusy = errors.New("任务正在执行中")
+	ErrJobBusy = errors.New("Task is running")
 )
 
 var (
@@ -285,10 +285,10 @@ func Trigger(jobCode string, opts RunOptions) (*JobRun, error) {
 		return nil, err
 	}
 	if def == nil {
-		return nil, fmt.Errorf("任务不存在: %s", jobCode)
+		return nil, fmt.Errorf("Task does not exist: %s", jobCode)
 	}
 	if opts.Trigger == TriggerSchedule && def.Enabled != 1 {
-		return nil, fmt.Errorf("任务未启用")
+		return nil, fmt.Errorf("Task not enabled")
 	}
 
 	mu := jobMutex(jobCode)
@@ -316,7 +316,7 @@ func Trigger(jobCode string, opts RunOptions) (*JobRun, error) {
 	if !ok {
 		run, _ := persistFailed(def, opts, startedAt, "handler 未注册", "handler not found: "+def.HandlerKey)
 		maybePrune(cfg)
-		return run, fmt.Errorf("handler 未注册: %s", def.HandlerKey)
+		return run, fmt.Errorf("handler not registered: %s", def.HandlerKey)
 	}
 
 	timeout := def.TimeoutSec

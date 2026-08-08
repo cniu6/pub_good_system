@@ -70,7 +70,7 @@ func ValidateRuneLen(s, fieldName string, max int) error {
 		return nil
 	}
 	if utf8.RuneCountInString(s) > max {
-		return fmt.Errorf("%s不能超过%d个字符", fieldName, max)
+		return fmt.Errorf("%s cannot exceed %d characters", fieldName, max)
 	}
 	return nil
 }

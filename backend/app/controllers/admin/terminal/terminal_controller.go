@@ -102,13 +102,13 @@ func buildShellCommand(ctx context.Context, cmdLine string) *exec.Cmd {
 func runShellCommand(cmdLine string) (string, int, error) {
 	cmdLine = strings.TrimSpace(cmdLine)
 	if cmdLine == "" {
-		return "", 400, fmt.Errorf("命令不能为空")
+		return "", 400, fmt.Errorf("Command cannot be empty")
 	}
 	if len(cmdLine) > 4000 {
-		return "", 400, fmt.Errorf("命令过长")
+		return "", 400, fmt.Errorf("Command too long")
 	}
 	if isDangerousCmd(cmdLine) {
-		return "", 400, fmt.Errorf("禁止执行危险命令")
+		return "", 400, fmt.Errorf("Dangerous commands are prohibited")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), terminalTimeout)
@@ -127,7 +127,7 @@ func runShellCommand(cmdLine string) (string, int, error) {
 		out += "\n…[output truncated at 256KB]"
 	}
 	if ctx.Err() == context.DeadlineExceeded {
-		return out, 408, fmt.Errorf("执行超时（15s）")
+		return out, 408, fmt.Errorf("Execution timeout (15s)")
 	}
 	if err != nil {
 		// 仍返回输出，便于前端展示 stderr

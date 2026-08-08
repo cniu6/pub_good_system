@@ -218,7 +218,7 @@ func GetDB() *gorm.DB {
 // SQLDB 返回底层 database/sql 连接（Ping/Stats 等用）。
 func SQLDB() (*sql.DB, error) {
 	if DB == nil {
-		return nil, fmt.Errorf("数据库未初始化")
+		return nil, fmt.Errorf("Database not initialized")
 	}
 	return DB.DB()
 }

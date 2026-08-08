@@ -139,7 +139,7 @@ func GetPaymentExceptionByID(id uint64) (*PaymentException, error) {
 // ResolvePaymentException 人工处理/忽略异常
 func ResolvePaymentException(id, adminID uint64, status int, remark string) error {
 	if status != PaymentExceptionStatusResolved && status != PaymentExceptionStatusIgnored {
-		return fmt.Errorf("非法处理状态")
+		return fmt.Errorf("Invalid processing status")
 	}
 	now := time.Now().Unix()
 	return db.DB.Model(&PaymentException{}).

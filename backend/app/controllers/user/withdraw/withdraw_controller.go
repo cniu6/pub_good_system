@@ -40,7 +40,7 @@ type CreateWithdrawBody struct {
 func (ctrl *WithdrawController) Create(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		utils.Fail(c, 401, "用户未登录")
+		utils.Fail(c, 401, "User not logged in")
 		return
 	}
 	uid := userID.(uint64)
@@ -76,10 +76,10 @@ func (ctrl *WithdrawController) Create(c *gin.Context) {
 			return
 		}
 		log.Printf("[WITHDRAW] create request failed for user_id=%d: %v", uid, err)
-		utils.Fail(c, 500, "提现申请提交失败，请稍后重试")
+		utils.Fail(c, 500, "Failed to submit withdrawal application, please retry later")
 		return
 	}
-	utils.SuccessMsg(c, "提现申请已提交，等待管理员审核", item)
+	utils.SuccessMsg(c, "Withdrawal application submitted, awaiting admin review", item)
 }
 
 // List 我的提现列表
@@ -91,7 +91,7 @@ func (ctrl *WithdrawController) Create(c *gin.Context) {
 func (ctrl *WithdrawController) List(c *gin.Context) {
 	uid, ok := utils.GetUserID(c)
 	if !ok {
-		utils.Fail(c, 401, "用户未登录")
+		utils.Fail(c, 401, "User not logged in")
 		return
 	}
 
@@ -114,7 +114,7 @@ func (ctrl *WithdrawController) List(c *gin.Context) {
 		Status:   status,
 	})
 	if err != nil {
-		utils.Fail(c, 500, "获取提现记录失败")
+		utils.Fail(c, 500, "Failed to get withdrawal record")
 		return
 	}
 	utils.Success(c, result)
@@ -129,23 +129,23 @@ func (ctrl *WithdrawController) List(c *gin.Context) {
 func (ctrl *WithdrawController) Detail(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		utils.Fail(c, 401, "用户未登录")
+		utils.Fail(c, 401, "User not logged in")
 		return
 	}
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效的ID")
+		utils.Fail(c, 400, "Invalid ID")
 		return
 	}
 
 	item, err := ctrl.withdrawService.GetByID(id)
 	if err != nil {
-		utils.Fail(c, 404, "提现记录不存在")
+		utils.Fail(c, 404, "Withdrawal record does not exist")
 		return
 	}
 	if item.UserID != userID.(uint64) {
-		utils.Fail(c, 403, "无权查看该提现记录")
+		utils.Fail(c, 403, "No permission to view this withdrawal record")
 		return
 	}
 	utils.Success(c, item)

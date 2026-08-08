@@ -188,7 +188,7 @@ func RateLimitMiddlewareWithConfig(config RateLimitConfig) gin.HandlerFunc {
 		key := config.KeyFunc(c)
 
 		if !limiter.Allow(key) {
-			utils.Fail(c, 429, "请求过于频繁，请稍后再试")
+			utils.Fail(c, 429, "Requests too frequent, please retry later")
 			c.Abort()
 			return
 		}

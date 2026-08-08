@@ -81,7 +81,7 @@ func (ctrl *APILogController) List(c *gin.Context) {
 
 	var query models.APIAccessLogQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
-		utils.Fail(c, 400, "参数错误")
+		utils.Fail(c, 400, "Invalid parameters")
 		return
 	}
 
@@ -95,13 +95,13 @@ func (ctrl *APILogController) List(c *gin.Context) {
 	var rangeErr error
 	query.StartTime, query.EndTime, rangeErr = utils.NormalizeTimeRange(query.StartTime, query.EndTime, defaultQueryDays, 365)
 	if rangeErr != nil {
-		utils.Fail(c, 400, "参数错误")
+		utils.Fail(c, 400, "Invalid parameters")
 		return
 	}
 
 	list, total, err := models.GetAPIAccessLogList(&query)
 	if err != nil {
-		utils.Fail(c, 500, "查询失败")
+		utils.Fail(c, 500, "Query failed")
 		return
 	}
 
@@ -131,7 +131,7 @@ func (ctrl *APILogController) Detail(c *gin.Context) {
 		item, err = models.GetAPIAccessLogByRequestID(param)
 	}
 	if err != nil {
-		utils.Fail(c, 404, "记录不存在")
+		utils.Fail(c, 404, "Record does not exist")
 		return
 	}
 
@@ -147,7 +147,7 @@ func (ctrl *APILogController) Detail(c *gin.Context) {
 func (ctrl *APILogController) Stats(c *gin.Context) {
 	stats, err := getCachedAPILogStats()
 	if err != nil {
-		utils.Fail(c, 500, "统计失败")
+		utils.Fail(c, 500, "Statistics failed")
 		return
 	}
 	utils.Success(c, stats)
@@ -164,13 +164,13 @@ func (ctrl *APILogController) Clean(c *gin.Context) {
 		BeforeTime int64 `json:"before_time" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Fail(c, 400, "参数错误")
+		utils.Fail(c, 400, "Invalid parameters")
 		return
 	}
 
 	affected, err := models.DeleteAPIAccessLogsBefore(req.BeforeTime)
 	if err != nil {
-		utils.Fail(c, 500, "清理失败")
+		utils.Fail(c, 500, "Cleanup failed")
 		return
 	}
 

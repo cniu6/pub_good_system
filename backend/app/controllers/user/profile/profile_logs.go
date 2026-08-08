@@ -85,7 +85,7 @@ func (ctrl *ProfileController) GetMoneyLogs(c *gin.Context) {
 	logs, total, err := services.GetUserMoneyLogList(uid, page, pageSize, keyword)
 	if err != nil {
 		log.Printf("[PROFILE] load money logs failed for user_id=%d: %v", uid, err)
-		utils.Fail(c, 500, "获取余额日志失败")
+		utils.Fail(c, 500, "Failed to get balance logs")
 		return
 	}
 
@@ -117,7 +117,7 @@ func (ctrl *ProfileController) GetScoreLogs(c *gin.Context) {
 	logs, total, err := services.GetUserScoreLogList(uid, page, pageSize, keyword)
 	if err != nil {
 		log.Printf("[PROFILE] load score logs failed for user_id=%d: %v", uid, err)
-		utils.Fail(c, 500, "获取积分日志失败")
+		utils.Fail(c, 500, "Failed to get score logs")
 		return
 	}
 

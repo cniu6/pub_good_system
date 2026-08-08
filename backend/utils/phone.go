@@ -15,10 +15,10 @@ var (
 )
 
 // ErrInvalidMobileCN 仅允许中国大陆手机号时的错误
-var ErrInvalidMobileCN = errors.New("仅支持中国大陆手机号（+86）")
+var ErrInvalidMobileCN = errors.New("Only mainland China phone numbers (+86) are supported")
 
 // ErrInvalidMobile 国际模式下格式非法
-var ErrInvalidMobile = errors.New("手机号格式不正确")
+var ErrInvalidMobile = errors.New("Invalid phone number format")
 
 // NormalizePhoneInput 去掉空格、横线、括号等常见分隔符，保留开头的 +
 func NormalizePhoneInput(raw string) string {

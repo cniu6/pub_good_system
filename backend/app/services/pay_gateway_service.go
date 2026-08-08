@@ -65,16 +65,16 @@ type PayGatewayUpdateRequest struct {
 // CreatePayGateway 创建支付通道
 func CreatePayGateway(req *PayGatewayCreateRequest) (*models.PayGateway, error) {
 	if req.Name == "" {
-		return nil, errors.New("通道名称不能为空")
+		return nil, errors.New("Gateway name cannot be empty")
 	}
 	if req.PayType == "" {
-		return nil, errors.New("支付类型不能为空")
+		return nil, errors.New("Payment type cannot be empty")
 	}
 	if req.MaxAmount > 0 && req.MinAmount > req.MaxAmount {
-		return nil, errors.New("最小金额不能大于最大金额")
+		return nil, errors.New("Minimum amount cannot exceed maximum amount")
 	}
 	if req.FeeRate < 0 || req.FeeRate > 100 {
-		return nil, errors.New("手续费率必须在 0-100 之间")
+		return nil, errors.New("Fee rate must be between 0 and 100")
 	}
 
 	gw := &models.PayGateway{
@@ -108,7 +108,7 @@ func CreatePayGateway(req *PayGatewayCreateRequest) (*models.PayGateway, error) 
 func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGateway, error) {
 	gw, err := models.GetPayGatewayByID(id)
 	if err != nil {
-		return nil, errors.New("支付通道不存在")
+		return nil, errors.New("Payment gateway does not exist")
 	}
 
 	pendingCount, err := models.CountPendingOrdersByGatewayID(id)
@@ -163,7 +163,7 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 	}
 	if req.FeeRate != nil {
 		if *req.FeeRate < 0 || *req.FeeRate > 100 {
-			return nil, errors.New("手续费率必须在 0-100 之间")
+			return nil, errors.New("Fee rate must be between 0 and 100")
 		}
 		gw.FeeRate = *req.FeeRate
 	}
@@ -179,7 +179,7 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 
 	// 验证金额
 	if gw.MaxAmount > 0 && gw.MinAmount > gw.MaxAmount {
-		return nil, errors.New("最小金额不能大于最大金额")
+		return nil, errors.New("Minimum amount cannot exceed maximum amount")
 	}
 
 	if err := models.UpdatePayGateway(gw); err != nil {
@@ -194,14 +194,14 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 func DeletePayGateway(id uint64) error {
 	_, err := models.GetPayGatewayByID(id)
 	if err != nil {
-		return errors.New("支付通道不存在")
+		return errors.New("Payment gateway does not exist")
 	}
 	pendingCount, err := models.CountPendingOrdersByGatewayID(id)
 	if err != nil {
 		return errors.New("检查在途订单失败: " + err.Error())
 	}
 	if pendingCount > 0 {
-		return errors.New("存在待支付订单，不能删除该支付通道")
+		return errors.New("There are pending orders, cannot delete this payment gateway")
 	}
 	return models.DeletePayGateway(id)
 }

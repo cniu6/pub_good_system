@@ -187,7 +187,7 @@ func handleReconcilePaymentOrders(ctx context.Context, job *JobDefinition) (*Han
 		return nil, err
 	}
 	if PaymentReconcileBatchFn == nil {
-		return nil, fmt.Errorf("支付对账回调未注入")
+		return nil, fmt.Errorf("Payment reconciliation callback not injected")
 	}
 	detail, err := PaymentReconcileBatchFn(ctx, 50)
 	if err != nil {

@@ -354,7 +354,7 @@ func (ctrl *SettingsController) UpdateMeta(c *gin.Context) {
 	}
 	// 敏感配置禁止公开：避免 smtp_password / sms_secret_key 等经 /public/settings 外泄；类型选了 password 也一并拦截
 	if effectiveIsPublic && (isSensitiveSettingKey(key) || effectiveType == "password") {
-		utils.Fail(c, 400, "敏感配置不允许设为公开")
+		utils.Fail(c, 400, "Sensitive settings cannot be set to public")
 		return
 	}
 
@@ -518,7 +518,7 @@ func (ctrl *SettingsController) Create(c *gin.Context) {
 	}
 	// 新建时同样禁止敏感 key 公开；自定义 key 名命中敏感名单、或类型选了 password 也拦截
 	if isPublic && (isSensitiveSettingKey(req.Key) || req.Type == "password") {
-		utils.Fail(c, 400, "敏感配置不允许设为公开")
+		utils.Fail(c, 400, "Sensitive settings cannot be set to public")
 		return
 	}
 

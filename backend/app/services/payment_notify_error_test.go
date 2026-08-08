@@ -7,25 +7,25 @@ import (
 
 func TestIsPermanentPaymentNotifyError(t *testing.T) {
 	t.Run("PaymentNotifyError permanent", func(t *testing.T) {
-		err := newPaymentNotifyError(true, "签名验证失败")
+		err := newPaymentNotifyError(true, "Signature verification failed")
 		if !IsPermanentPaymentNotifyError(err) {
 			t.Fatal("expected permanent")
 		}
 	})
 	t.Run("PaymentNotifyError retryable", func(t *testing.T) {
-		err := newPaymentNotifyError(false, "临时故障")
+		err := newPaymentNotifyError(false, "Temporary failure")
 		if IsPermanentPaymentNotifyError(err) {
 			t.Fatal("expected retryable")
 		}
 	})
 	t.Run("wrapped permanent string", func(t *testing.T) {
-		err := errors.New("回调金额与订单金额不一致")
+		err := errors.New("Callback amount does not match order amount")
 		if !IsPermanentPaymentNotifyError(err) {
 			t.Fatal("expected amount mismatch permanent")
 		}
 	})
 	t.Run("db error retryable", func(t *testing.T) {
-		err := errors.New("开启事务失败: connection reset")
+		err := errors.New("Failed to start transaction: connection reset")
 		if IsPermanentPaymentNotifyError(err) {
 			t.Fatal("db errors should be retryable")
 		}
@@ -42,11 +42,11 @@ func TestClassifyNotifyExceptionType(t *testing.T) {
 		msg  string
 		want string
 	}{
-		{"签名验证失败", "sign_failed"},
-		{"回调金额与订单金额不一致", "amount_mismatch"},
-		{"商户号不匹配", "binding_mismatch"},
-		{"订单不存在", "order_missing"},
-		{"其他", "permanent_rejected"},
+		{"Signature verification failed", "sign_failed"},
+		{"Callback amount does not match order amount", "amount_mismatch"},
+		{"Merchant ID mismatch", "binding_mismatch"},
+		{"Order does not exist", "order_missing"},
+		{"Other", "permanent_rejected"},
 	}
 	for _, c := range cases {
 		got := classifyNotifyExceptionType(errors.New(c.msg))

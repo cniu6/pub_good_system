@@ -65,11 +65,11 @@ func SetUserMoney(userID uint64, newMoney float64, memo string) (*models.UserMon
 	}
 
 	if newMoney < 0 {
-		return nil, errors.New("余额不能为负数")
+		return nil, errors.New("Balance cannot be negative")
 	}
 	// 拒绝非法浮点，避免管理员误传 NaN/Inf 污染余额
 	if math.IsNaN(newMoney) || math.IsInf(newMoney, 0) {
-		return nil, errors.New("金额非法")
+		return nil, errors.New("Invalid amount")
 	}
 
 	newFen, err := utils.YuanToFen(newMoney)
@@ -77,7 +77,7 @@ func SetUserMoney(userID uint64, newMoney float64, memo string) (*models.UserMon
 		return nil, err
 	}
 	if newFen > utils.MoneyMaxFen {
-		return nil, errors.New("余额超出上限")
+		return nil, errors.New("Balance exceeds limit")
 	}
 	newMoney = utils.FenToYuan(newFen)
 
@@ -85,11 +85,11 @@ func SetUserMoney(userID uint64, newMoney float64, memo string) (*models.UserMon
 	err = db.DB.Transaction(func(tx *gorm.DB) error {
 		beforeMoney, err := models.GetUserMoneyForUpdate(tx, userID)
 		if err != nil {
-			return errors.New("用户不存在")
+			return errors.New("User does not exist")
 		}
 		beforeFen, err := utils.YuanToFen(beforeMoney)
 		if err != nil {
-			return errors.New("用户余额非法")
+			return errors.New("Invalid user balance")
 		}
 		amount := utils.FenToYuan(newFen - beforeFen)
 		result, err := utils.ExecuteBalanceOpTx(tx, &utils.BalanceReq{
@@ -136,7 +136,7 @@ func AddUserMoneyLogOnly(userID uint64, amount float64, memo string) (*models.Us
 // OperateUserMoney 统一余额操作入口（支持余额/日志/订单的交集与并集）
 func OperateUserMoney(userID uint64, req MoneyOperationRequest) (*utils.BalanceResult, error) {
 	if userID == 0 {
-		return nil, errors.New("用户ID不能为空")
+		return nil, errors.New("User ID cannot be empty")
 	}
 
 	opType, needOrder, err := mapMoneyOperationType(req.Operation)
@@ -151,7 +151,7 @@ func OperateUserMoney(userID uint64, req MoneyOperationRequest) (*utils.BalanceR
 			return nil, fenErr
 		}
 		if fen == 0 {
-			return nil, errors.New("涉及余额或日志操作时，金额不能为0")
+			return nil, errors.New("Amount cannot be 0 when balance or log operations are involved")
 		}
 	}
 
@@ -175,7 +175,7 @@ func OperateUserMoney(userID uint64, req MoneyOperationRequest) (*utils.BalanceR
 		return utils.ExecuteBalanceOp(balanceReq, opType)
 	}
 	if req.OrderNo == "" {
-		return nil, errors.New("订单号不能为空")
+		return nil, errors.New("Order number cannot be empty")
 	}
 
 	// 订单已存在：锁单后在同一事务内判断是否已处于目标状态，防止重复调用（重试/重复提交）时余额被再次加减；
@@ -184,20 +184,20 @@ func OperateUserMoney(userID uint64, req MoneyOperationRequest) (*utils.BalanceR
 	order, err := models.GetPaymentOrderByOrderNo(req.OrderNo)
 	if err == nil {
 		if order.UserID != userID {
-			return nil, errors.New("订单不属于当前用户")
+			return nil, errors.New("Order does not belong to current user")
 		}
 
 		var result *utils.BalanceResult
 		err := db.DB.Transaction(func(tx *gorm.DB) error {
 			locked, lockErr := models.GetPaymentOrderForUpdate(tx, req.OrderNo)
 			if lockErr != nil {
-				return errors.New("订单不存在")
+				return errors.New("Order does not exist")
 			}
 			if locked.UserID != userID {
-				return errors.New("订单不属于当前用户")
+				return errors.New("Order does not belong to current user")
 			}
 			if touchesBalance && locked.Status == req.OrderStatus {
-				return errors.New("订单已处于目标状态，为避免重复变更余额已拒绝本次操作")
+				return errors.New("Order is already in target status, balance change rejected to avoid duplicate update")
 			}
 			var innerErr error
 			result, innerErr = utils.ExecuteBalanceOpTx(tx, balanceReq, opType)
@@ -216,10 +216,10 @@ func OperateUserMoney(userID uint64, req MoneyOperationRequest) (*utils.BalanceR
 		}
 		locked, lockErr := models.GetPaymentOrderForUpdate(tx, req.OrderNo)
 		if lockErr != nil {
-			return errors.New("订单不存在")
+			return errors.New("Order does not exist")
 		}
 		if locked.UserID != userID {
-			return errors.New("订单不属于当前用户")
+			return errors.New("Order does not belong to current user")
 		}
 		var innerErr error
 		operateResult, innerErr = utils.ExecuteBalanceOpTx(tx, balanceReq, opType)
@@ -288,7 +288,7 @@ func mapMoneyOperationType(operation string) (utils.BalanceOpType, bool, error) 
 	case "log_order":
 		return utils.OpOrderAndLog, true, nil
 	default:
-		return 0, false, errors.New("不支持的余额操作类型")
+		return 0, false, errors.New("Unsupported balance operation type")
 	}
 }
 
@@ -309,14 +309,14 @@ func ChangeUserScore(userID uint64, amount int64, memo string) (*models.UserScor
 	err := db.DB.Transaction(func(tx *gorm.DB) error {
 		beforeScore, err := models.GetUserScoreForUpdate(tx, userID)
 		if err != nil {
-			return errors.New("用户不存在")
+			return errors.New("User does not exist")
 		}
 		afterScore := beforeScore + amount
 		if amount < 0 && afterScore < 0 {
-			return errors.New("扣减积分超出用户积分余额")
+			return errors.New("Score deduction exceeds user score balance")
 		}
 		if amount > 0 && afterScore > 999999999999 {
-			return errors.New("增加积分超出上限")
+			return errors.New("Score increase exceeds limit")
 		}
 		if err := models.UpdateUserScoreTx(tx, userID, afterScore); err != nil {
 			return errors.New("更新用户积分失败: " + err.Error())
@@ -343,17 +343,17 @@ func SetUserScore(userID uint64, newScore int64, memo string) (*models.UserScore
 	}
 
 	if newScore < 0 {
-		return nil, errors.New("积分不能为负数")
+		return nil, errors.New("Score cannot be negative")
 	}
 	if newScore > 999999999999 {
-		return nil, errors.New("积分超出上限")
+		return nil, errors.New("Score exceeds limit")
 	}
 
 	var logEntry *models.UserScoreLog
 	err := db.DB.Transaction(func(tx *gorm.DB) error {
 		beforeScore, err := models.GetUserScoreForUpdate(tx, userID)
 		if err != nil {
-			return errors.New("用户不存在")
+			return errors.New("User does not exist")
 		}
 		amount := newScore - beforeScore
 		if err := models.UpdateUserScoreTx(tx, userID, newScore); err != nil {
@@ -390,14 +390,14 @@ func AddUserScoreLogOnly(userID uint64, amount int64, memo string) (*models.User
 	err := db.DB.Transaction(func(tx *gorm.DB) error {
 		beforeScore, err := models.GetUserScoreForUpdate(tx, userID)
 		if err != nil {
-			return errors.New("用户不存在")
+			return errors.New("User does not exist")
 		}
 		afterScore := beforeScore + amount
 		if amount < 0 && afterScore < 0 {
-			return errors.New("扣减积分超出用户积分余额")
+			return errors.New("Score deduction exceeds user score balance")
 		}
 		if amount > 0 && afterScore > 999999999999 {
-			return errors.New("增加积分超出上限")
+			return errors.New("Score increase exceeds limit")
 		}
 		var createErr error
 		logEntry, createErr = models.CreateUserScoreLogTx(tx, userID, amount, beforeScore, afterScore, memo)

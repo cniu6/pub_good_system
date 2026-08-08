@@ -222,11 +222,11 @@ func (ctrl *ProfileController) UpdateProfile(c *gin.Context) {
 
 	// URL 字段校验：仅允许 http/https 协议
 	if req.Avatar != "" && !utils.ValidateURL(req.Avatar) {
-		utils.Fail(c, 400, "头像 URL 仅支持 http/https 协议")
+		utils.Fail(c, 400, "Avatar URL only supports http/https protocol")
 		return
 	}
 	if req.BackGround != "" && !utils.ValidateURL(req.BackGround) {
-		utils.Fail(c, 400, "背景图 URL 仅支持 http/https 协议")
+		utils.Fail(c, 400, "Background image URL only supports http/https protocol")
 		return
 	}
 
@@ -236,15 +236,15 @@ func (ctrl *ProfileController) UpdateProfile(c *gin.Context) {
 		return
 	}
 	if len(req.Avatar) > 500 {
-		utils.Fail(c, 400, "头像URL长度不能超过500个字符")
+		utils.Fail(c, 400, "Avatar URL length cannot exceed 500 characters")
 		return
 	}
 	if len(req.BackGround) > 500 {
-		utils.Fail(c, 400, "背景图URL长度不能超过500个字符")
+		utils.Fail(c, 400, "Background image URL length cannot exceed 500 characters")
 		return
 	}
 	if len(req.Motto) > 200 {
-		utils.Fail(c, 400, "个性签名长度不能超过200个字符")
+		utils.Fail(c, 400, "Signature length cannot exceed 200 characters")
 		return
 	}
 
@@ -491,11 +491,11 @@ func (ctrl *ProfileController) UpdateAvatar(c *gin.Context) {
 
 	// URL 校验
 	if !utils.ValidateURL(req.Avatar) {
-		utils.Fail(c, 400, "头像 URL 仅支持 http/https 协议")
+		utils.Fail(c, 400, "Avatar URL only supports http/https protocol")
 		return
 	}
 	if len(req.Avatar) > 500 {
-		utils.Fail(c, 400, "头像URL长度不能超过500个字符")
+		utils.Fail(c, 400, "Avatar URL length cannot exceed 500 characters")
 		return
 	}
 

@@ -64,7 +64,7 @@ func (ctrl *WithdrawController) List(c *gin.Context) {
 	})
 	if err != nil {
 		log.Printf("[ADMIN][WITHDRAW] list failed: %v", err)
-		utils.Fail(c, 500, "获取提现列表失败")
+		utils.Fail(c, 500, "Failed to get withdrawal list")
 		return
 	}
 	utils.Success(c, result)
@@ -99,7 +99,7 @@ func (ctrl *WithdrawController) Stats(c *gin.Context) {
 	})
 	if err != nil {
 		log.Printf("[ADMIN][WITHDRAW] stats failed: %v", err)
-		utils.Fail(c, 500, "获取提现统计失败")
+		utils.Fail(c, 500, "Failed to get withdrawal statistics")
 		return
 	}
 	utils.Success(c, result)
@@ -114,17 +114,17 @@ func (ctrl *WithdrawController) Stats(c *gin.Context) {
 func (ctrl *WithdrawController) Detail(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效的ID")
+		utils.Fail(c, 400, "Invalid ID")
 		return
 	}
 	item, err := ctrl.withdrawService.GetByID(id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			utils.Fail(c, 404, "提现记录不存在")
+			utils.Fail(c, 404, "Withdrawal record does not exist")
 			return
 		}
 		log.Printf("[ADMIN][WITHDRAW] detail failed id=%d: %v", id, err)
-		utils.Fail(c, 500, "获取提现详情失败")
+		utils.Fail(c, 500, "Failed to get withdrawal detail")
 		return
 	}
 	utils.Success(c, item)
@@ -140,7 +140,7 @@ func (ctrl *WithdrawController) LegacyRisk(c *gin.Context) {
 	list, err := models.ListWithdrawLegacyBalanceRisk(50)
 	if err != nil {
 		log.Printf("[ADMIN][WITHDRAW] legacy risk query failed: %v", err)
-		utils.Fail(c, 500, "查询历史风险单失败")
+		utils.Fail(c, 500, "Failed to query historical risk orders")
 		return
 	}
 	utils.Success(c, gin.H{
@@ -159,13 +159,13 @@ func (ctrl *WithdrawController) LegacyRisk(c *gin.Context) {
 func (ctrl *WithdrawController) Review(c *gin.Context) {
 	adminID, exists := c.Get("userID")
 	if !exists {
-		utils.Fail(c, 401, "用户未登录")
+		utils.Fail(c, 401, "User not logged in")
 		return
 	}
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效的ID")
+		utils.Fail(c, 400, "Invalid ID")
 		return
 	}
 
@@ -186,10 +186,10 @@ func (ctrl *WithdrawController) Review(c *gin.Context) {
 			return
 		}
 		log.Printf("[ADMIN][WITHDRAW] review failed admin_id=%d request_id=%d: %v", adminID.(uint64), id, err)
-		utils.Fail(c, 500, "提现审核失败，请稍后重试")
+		utils.Fail(c, 500, "Withdrawal review failed, please retry later")
 		return
 	}
-	utils.SuccessMsg(c, "审核完成", nil)
+	utils.SuccessMsg(c, "Review completed", nil)
 }
 
 // MarkPaid 标记提现已人工打款
@@ -201,13 +201,13 @@ func (ctrl *WithdrawController) Review(c *gin.Context) {
 func (ctrl *WithdrawController) MarkPaid(c *gin.Context) {
 	adminID, exists := c.Get("userID")
 	if !exists {
-		utils.Fail(c, 401, "用户未登录")
+		utils.Fail(c, 401, "User not logged in")
 		return
 	}
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效的ID")
+		utils.Fail(c, 400, "Invalid ID")
 		return
 	}
 
@@ -227,10 +227,10 @@ func (ctrl *WithdrawController) MarkPaid(c *gin.Context) {
 			return
 		}
 		log.Printf("[ADMIN][WITHDRAW] mark paid failed admin_id=%d request_id=%d: %v", adminID.(uint64), id, err)
-		utils.Fail(c, 500, "提现打款处理失败，请稍后重试")
+		utils.Fail(c, 500, "Withdrawal payment processing failed, please retry later")
 		return
 	}
-	utils.SuccessMsg(c, "已标记为人工打款完成", nil)
+	utils.SuccessMsg(c, "Marked as manually paid", nil)
 }
 
 func (ctrl *WithdrawController) RegisterRoutes(group *gin.RouterGroup) {

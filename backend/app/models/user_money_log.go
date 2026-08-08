@@ -136,7 +136,7 @@ func UpdateUserMoneyTx(tx *gorm.DB, userID uint64, newMoney float64) error {
 // normalizeMoneyYuan 余额落库前统一规范到分精度（避免 float 脏值写入 DECIMAL）
 func normalizeMoneyYuan(yuan float64) (float64, error) {
 	if math.IsNaN(yuan) || math.IsInf(yuan, 0) {
-		return 0, fmt.Errorf("金额非法")
+		return 0, fmt.Errorf("Invalid amount")
 	}
 	fen := int64(math.Round(yuan * 100))
 	return float64(fen) / 100.0, nil

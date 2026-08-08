@@ -166,7 +166,7 @@ func CreateUserSession(userID uint64, authGuard, tokenHash, refreshTokenHash, ip
 		}
 		// 并发登录时另一事务可能刚插入同一唯一键；重新开启事务后撤销其会话再创建本次会话。
 	}
-	return fmt.Errorf("创建浏览器会话冲突，请重试")
+	return fmt.Errorf("Browser session conflict, please retry")
 }
 
 // revokeActiveSessionsWhere 按条件撤销活跃会话，返回被撤销的 ID 列表。

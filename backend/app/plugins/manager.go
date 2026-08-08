@@ -49,7 +49,7 @@ func (m *Manager) LoadAll() error {
 	defer m.mu.Unlock()
 
 	if m.initialized {
-		return fmt.Errorf("插件已经初始化")
+		return fmt.Errorf("Plugin already initialized")
 	}
 
 	if err := m.resolveDependencies(); err != nil {
@@ -63,19 +63,19 @@ func (m *Manager) LoadAll() error {
 
 		config := m.pluginConfig(name)
 		if err := p.Configure(config); err != nil {
-			m.errors[name] = fmt.Errorf("配置失败: %v", err)
+			m.errors[name] = fmt.Errorf("Configuration failed: %v", err)
 			log.Printf("[Plugin] %s 配置失败: %v", name, err)
 			continue
 		}
 
 		if err := p.Init(); err != nil {
-			m.errors[name] = fmt.Errorf("初始化失败: %v", err)
+			m.errors[name] = fmt.Errorf("Initialization failed: %v", err)
 			log.Printf("[Plugin] %s 初始化失败: %v", name, err)
 			continue
 		}
 
 		if err := p.Migrate(); err != nil {
-			m.errors[name] = fmt.Errorf("迁移失败: %v", err)
+			m.errors[name] = fmt.Errorf("Migration failed: %v", err)
 			log.Printf("[Plugin] %s 迁移失败: %v", name, err)
 			continue
 		}
@@ -136,7 +136,7 @@ func (m *Manager) resolveDependencies() error {
 	for name, p := range m.plugins {
 		for _, dep := range p.Dependencies() {
 			if _, ok := m.plugins[dep]; !ok {
-				return fmt.Errorf("插件 %s 依赖的 %s 不存在", name, dep)
+				return fmt.Errorf("Dependency %s of plugin %s does not exist", name, dep)
 			}
 		}
 	}
@@ -160,7 +160,7 @@ func (m *Manager) checkCycle(name string, visited, visiting map[string]bool) err
 	}
 
 	if visiting[name] {
-		return fmt.Errorf("检测到循环依赖: %s", name)
+		return fmt.Errorf("Circular dependency detected: %s", name)
 	}
 
 	visiting[name] = true

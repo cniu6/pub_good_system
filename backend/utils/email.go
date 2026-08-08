@@ -113,7 +113,7 @@ func SendEmail(msg EmailMessage) error {
 		}
 	}
 
-	return fmt.Errorf("发送邮件失败（已重试3次）: %w", err)
+	return fmt.Errorf("Failed to send email (retried 3 times): %w", err)
 }
 
 // sendEmailWithBestTLS 按配置选择加密方式，并对常见端口误配自动回退。
@@ -226,13 +226,13 @@ func sendEmailPlain(host, port, from, to, message string, auth smtp.Auth, smtpUs
 	log.Printf("[Email] 连接 %s (plain SMTP)...", addr)
 	conn, err := dialSMTPConn(config.GlobalConfig, addr)
 	if err != nil {
-		return fmt.Errorf("SMTP连接失败: %w", err)
+		return fmt.Errorf("SMTP connection failed: %w", err)
 	}
 	defer conn.Close()
 
 	client, err := smtp.NewClient(conn, host)
 	if err != nil {
-		return fmt.Errorf("SMTP客户端创建失败: %w", err)
+		return fmt.Errorf("SMTP client creation failed: %w", err)
 	}
 	defer client.Close()
 
@@ -247,7 +247,7 @@ func sendSMTPMessage(client *smtp.Client, from, to, message string, auth smtp.Au
 			// PlainAuth 失败时回退到 LOGIN 认证
 			loginA := LoginAuth(smtpUser, smtpPass)
 			if err = client.Auth(loginA); err != nil {
-				return fmt.Errorf("认证失败: %w", err)
+				return fmt.Errorf("Authentication failed: %w", err)
 			}
 		}
 		log.Printf("[Email] 认证成功")
@@ -256,27 +256,27 @@ func sendSMTPMessage(client *smtp.Client, from, to, message string, auth smtp.Au
 	}
 
 	if err := client.Mail(from); err != nil {
-		return fmt.Errorf("MAIL FROM 失败: %w", err)
+		return fmt.Errorf("MAIL FROM failed: %w", err)
 	}
 
 	if err := client.Rcpt(to); err != nil {
-		return fmt.Errorf("RCPT TO 失败: %w", err)
+		return fmt.Errorf("RCPT TO failed: %w", err)
 	}
 
 	log.Printf("[Email] 开始写入邮件数据 (%d bytes)...", len(message))
 	w, err := client.Data()
 	if err != nil {
-		return fmt.Errorf("DATA命令失败: %w", err)
+		return fmt.Errorf("DATA command failed: %w", err)
 	}
 
 	_, err = w.Write([]byte(message))
 	if err != nil {
-		return fmt.Errorf("写入邮件内容失败: %w", err)
+		return fmt.Errorf("Failed to write email content: %w", err)
 	}
 
 	err = w.Close()
 	if err != nil {
-		return fmt.Errorf("完成数据传输失败: %w", err)
+		return fmt.Errorf("Failed to complete data transfer: %w", err)
 	}
 
 	log.Printf("[Email] 邮件发送成功")
@@ -292,13 +292,13 @@ func sendEmailStartTLS(host, port, from, to, message string, auth smtp.Auth, smt
 	log.Printf("[Email] 连接 %s (STARTTLS)...", addr)
 	conn, err := dialSMTPConn(config.GlobalConfig, addr)
 	if err != nil {
-		return fmt.Errorf("SMTP连接失败: %w", err)
+		return fmt.Errorf("SMTP connection failed: %w", err)
 	}
 	defer conn.Close()
 
 	client, err := smtp.NewClient(conn, host)
 	if err != nil {
-		return fmt.Errorf("SMTP客户端创建失败: %w", err)
+		return fmt.Errorf("SMTP client creation failed: %w", err)
 	}
 	defer client.Close()
 
@@ -307,7 +307,7 @@ func sendEmailStartTLS(host, port, from, to, message string, auth smtp.Auth, smt
 	}
 
 	if err = client.StartTLS(tlsconfig); err != nil {
-		return fmt.Errorf("STARTTLS失败: %w", err)
+		return fmt.Errorf("STARTTLS failed: %w", err)
 	}
 
 	return sendSMTPMessage(client, from, to, message, auth, smtpUser, smtpPass)
@@ -350,7 +350,7 @@ func sendEmailSSL(host, port, from, to, message string, auth smtp.Auth, smtpUser
 	log.Printf("[Email] 连接 %s (TLS)...", addr)
 	conn, err := dialSMTPTLSConn(config.GlobalConfig, addr, tlsconfig)
 	if err != nil {
-		return fmt.Errorf("TLS连接失败: %w", err)
+		return fmt.Errorf("TLS connection failed: %w", err)
 	}
 	closeConn := true
 	defer func() {
@@ -361,7 +361,7 @@ func sendEmailSSL(host, port, from, to, message string, auth smtp.Auth, smtpUser
 
 	client, err := smtp.NewClient(conn, host)
 	if err != nil {
-		return fmt.Errorf("SMTP客户端创建失败: %w", err)
+		return fmt.Errorf("SMTP client creation failed: %w", err)
 	}
 	closeConn = false
 	defer client.Close()

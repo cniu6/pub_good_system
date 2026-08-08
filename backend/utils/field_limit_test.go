@@ -28,7 +28,7 @@ func TestValidateRuneLenRejectsOverLong(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "不能超过64个字符") {
+	if !strings.Contains(err.Error(), "cannot exceed 64 characters") {
 		t.Fatalf("unexpected message: %v", err)
 	}
 }

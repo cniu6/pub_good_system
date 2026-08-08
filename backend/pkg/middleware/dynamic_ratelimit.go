@@ -194,7 +194,7 @@ func DynamicGlobalRateLimitMiddleware() gin.HandlerFunc {
 
 		if !limiter.Allow(DefaultKeyFunc(c)) {
 			atomic.AddInt64(&state.blockedCount, 1)
-			utils.Fail(c, 429, "请求过于频繁，请稍后再试")
+			utils.Fail(c, 429, "Requests too frequent, please retry later")
 			c.Abort()
 			return
 		}
@@ -215,7 +215,7 @@ func DynamicAdminRateLimitMiddleware() gin.HandlerFunc {
 
 		if !limiter.Allow(defaultAdminRateLimitKey(c)) {
 			atomic.AddInt64(&state.blockedCount, 1)
-			utils.Fail(c, 429, "管理员接口请求过于频繁，请稍后再试")
+			utils.Fail(c, 429, "Admin interface requests too frequent, please retry later")
 			c.Abort()
 			return
 		}

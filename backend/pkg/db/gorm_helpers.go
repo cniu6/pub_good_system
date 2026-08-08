@@ -35,7 +35,7 @@ func MapGormNotFound(err error) error {
 // 适用于「经常不存在」的查询（如登录查实名），避免控制台被正常空结果刷屏。
 func FindOne(q *gorm.DB, dest interface{}) error {
 	if q == nil {
-		return fmt.Errorf("数据库未初始化")
+		return fmt.Errorf("Database not initialized")
 	}
 	res := q.Limit(1).Find(dest)
 	if res.Error != nil {
@@ -50,7 +50,7 @@ func FindOne(q *gorm.DB, dest interface{}) error {
 // WithTx 在事务中执行 fn（封装 GORM Transaction）。
 func WithTx(fn func(tx *gorm.DB) error) error {
 	if DB == nil {
-		return fmt.Errorf("数据库未初始化")
+		return fmt.Errorf("Database not initialized")
 	}
 	return DB.Transaction(fn)
 }

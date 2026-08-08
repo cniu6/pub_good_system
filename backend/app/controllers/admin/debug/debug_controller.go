@@ -307,7 +307,7 @@ func extractWaitDuration(state string) (time.Duration, bool) {
 // ensureAdminDebugAllowed 校验 debug/pprof 是否允许访问：生产永久关闭，非生产看 ENABLE_ADMIN_DEBUG。
 func ensureAdminDebugAllowed(c *gin.Context) bool {
 	if !config.IsAdminDebugOpsEnabled() {
-		utils.Fail(c, 403, "调试接口已禁用（生产或 ENABLE_ADMIN_DEBUG=false）")
+		utils.Fail(c, 403, "Debug interface disabled (production or ENABLE_ADMIN_DEBUG=false)")
 		return false
 	}
 	return true

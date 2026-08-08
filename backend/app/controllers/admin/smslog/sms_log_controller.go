@@ -38,7 +38,7 @@ func (ctrl *SMSLogController) List(c *gin.Context) {
 
 	var q models.SMSLogQuery
 	if err := c.ShouldBindQuery(&q); err != nil {
-		utils.Fail(c, 400, "参数错误")
+		utils.Fail(c, 400, "Invalid parameters")
 		return
 	}
 
@@ -50,7 +50,7 @@ func (ctrl *SMSLogController) List(c *gin.Context) {
 
 	logs, total, err := models.GetSMSLogList(&q)
 	if err != nil {
-		utils.Fail(c, 500, "查询失败")
+		utils.Fail(c, 500, "Query failed")
 		return
 	}
 
@@ -75,13 +75,13 @@ func (ctrl *SMSLogController) List(c *gin.Context) {
 func (ctrl *SMSLogController) Detail(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效的 ID")
+		utils.Fail(c, 400, "Invalid ID")
 		return
 	}
 
 	log, err := models.GetSMSLogByID(id)
 	if err != nil {
-		utils.Fail(c, 404, "记录不存在")
+		utils.Fail(c, 404, "Record does not exist")
 		return
 	}
 
@@ -103,13 +103,13 @@ func (ctrl *SMSLogController) Clean(c *gin.Context) {
 		Before string `json:"before" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Fail(c, 400, "参数错误：请提供 before 日期")
+		utils.Fail(c, 400, "Invalid parameters: please provide before date")
 		return
 	}
 
 	affected, err := models.DeleteSMSLogsBefore(req.Before)
 	if err != nil {
-		utils.Fail(c, 500, "清理失败")
+		utils.Fail(c, 500, "Cleanup failed")
 		return
 	}
 
@@ -130,7 +130,7 @@ func (ctrl *SMSLogController) Clean(c *gin.Context) {
 func (ctrl *SMSLogController) Stats(c *gin.Context) {
 	stats, err := models.GetSMSLogStatsDetail()
 	if err != nil {
-		utils.Fail(c, 500, "统计失败")
+		utils.Fail(c, 500, "Statistics failed")
 		return
 	}
 	utils.Success(c, stats)
@@ -148,7 +148,7 @@ func (ctrl *SMSLogController) Stats(c *gin.Context) {
 func (ctrl *SMSLogController) TemplateNames(c *gin.Context) {
 	names, err := models.GetSMSTemplateNames()
 	if err != nil {
-		utils.Fail(c, 500, "查询失败")
+		utils.Fail(c, 500, "Query failed")
 		return
 	}
 

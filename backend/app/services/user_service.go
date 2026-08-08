@@ -594,7 +594,7 @@ func ensureAdminPrivilegeSafe(target *models.User, newRole string, newStatus *ui
 
 	count, err := countActiveAdmins()
 	if err != nil {
-		return fmt.Errorf("检查管理员数量失败: %w", err)
+		return fmt.Errorf("Failed to check admin count: %w", err)
 	}
 	if count <= 1 {
 		return NewClientError("不能删除、禁用或降级最后一个启用中的管理员")
@@ -609,7 +609,7 @@ func ensureAdminPrivilegeSafe(target *models.User, newRole string, newStatus *ui
 func (s *UserService) BatchDelete(user_ids []uint64) error {
 	for _, uid := range user_ids {
 		if err := s.Delete(uid); err != nil {
-			return fmt.Errorf("删除用户 %d 失败: %w", uid, err)
+			return fmt.Errorf("Failed to delete user %d: %w", uid, err)
 		}
 	}
 	return nil
@@ -623,7 +623,7 @@ func (s *UserService) BatchDelete(user_ids []uint64) error {
 func (s *UserService) BatchUpdateStatus(user_ids []uint64, status uint8) error {
 	for _, uid := range user_ids {
 		if err := s.UpdateStatus(uid, status); err != nil {
-			return fmt.Errorf("更新用户 %d 状态失败: %w", uid, err)
+			return fmt.Errorf("Failed to update user %d status: %w", uid, err)
 		}
 	}
 	return nil

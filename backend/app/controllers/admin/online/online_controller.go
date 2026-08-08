@@ -23,7 +23,7 @@ func requirePresenceEnabled(c *gin.Context) bool {
 	if services.GetGlobalPresenceEnabled() {
 		return true
 	}
-	utils.Fail(c, 403, "在线状态功能未启用")
+	utils.Fail(c, 403, "Online status feature not enabled")
 	return false
 }
 

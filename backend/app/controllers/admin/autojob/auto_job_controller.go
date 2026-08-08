@@ -75,7 +75,7 @@ func (ctrl *AutoJobController) GetConfig(c *gin.Context) {
 func (ctrl *AutoJobController) PutConfig(c *gin.Context) {
 	var req task.GlobalConfig
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Fail(c, 400, "参数错误")
+		utils.Fail(c, 400, "Invalid parameters")
 		return
 	}
 	if req.RunMaxCount <= 0 {
@@ -135,7 +135,7 @@ func (ctrl *AutoJobController) ListJobs(c *gin.Context) {
 	}
 	list, err := task.ListDefinitions(keyword, category, enabledPtr)
 	if err != nil {
-		utils.Fail(c, 500, "查询失败")
+		utils.Fail(c, 500, "Query failed")
 		return
 	}
 	utils.Success(c, gin.H{"list": list, "total": len(list)})
@@ -151,11 +151,11 @@ func (ctrl *AutoJobController) JobDetail(c *gin.Context) {
 	code := strings.TrimSpace(c.Param("job_code"))
 	def, err := task.GetDefinition(code)
 	if err != nil {
-		utils.Fail(c, 500, "查询失败")
+		utils.Fail(c, 500, "Query failed")
 		return
 	}
 	if def == nil {
-		utils.Fail(c, 404, "任务不存在")
+		utils.Fail(c, 404, "Task does not exist")
 		return
 	}
 	utils.Success(c, def)
@@ -171,7 +171,7 @@ func (ctrl *AutoJobController) UpdateJob(c *gin.Context) {
 	code := strings.TrimSpace(c.Param("job_code"))
 	var req task.UpdateJobRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Fail(c, 400, "参数错误")
+		utils.Fail(c, 400, "Invalid parameters")
 		return
 	}
 	if err := task.UpdateDefinitionFields(code, req); err != nil {
@@ -204,7 +204,7 @@ func (ctrl *AutoJobController) RunJob(c *gin.Context) {
 	// 失败也返回 run 详情；对外用固定文案，内部错误写入 run.ErrorText / 日志
 	if err != nil {
 		log.Printf("[ADMIN][AUTOJOB] run failed job=%s: %v", code, err)
-		utils.SuccessMsg(c, "任务执行失败", run)
+		utils.SuccessMsg(c, "Task execution failed", run)
 		return
 	}
 	utils.Success(c, run)
@@ -249,7 +249,7 @@ func (ctrl *AutoJobController) DisableJob(c *gin.Context) {
 func (ctrl *AutoJobController) ListRunning(c *gin.Context) {
 	list, err := task.ListRunningDefinitions()
 	if err != nil {
-		utils.Fail(c, 500, "查询失败")
+		utils.Fail(c, 500, "Query failed")
 		return
 	}
 	utils.Success(c, gin.H{"list": list, "total": len(list)})
@@ -274,7 +274,7 @@ func (ctrl *AutoJobController) ListRuns(c *gin.Context) {
 	endAt, _ := strconv.ParseInt(c.Query("end_time"), 10, 64)
 	list, total, err := task.ListRuns(page, pageSize, keyword, status, category, jobCode, startAt, endAt)
 	if err != nil {
-		utils.Fail(c, 500, "查询失败")
+		utils.Fail(c, 500, "Query failed")
 		return
 	}
 	utils.Success(c, gin.H{
@@ -294,16 +294,16 @@ func (ctrl *AutoJobController) ListRuns(c *gin.Context) {
 func (ctrl *AutoJobController) RunDetail(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效 ID")
+		utils.Fail(c, 400, "Invalid ID")
 		return
 	}
 	run, err := task.GetRun(id)
 	if err != nil {
-		utils.Fail(c, 500, "查询失败")
+		utils.Fail(c, 500, "Query failed")
 		return
 	}
 	if run == nil {
-		utils.Fail(c, 404, "记录不存在")
+		utils.Fail(c, 404, "Record does not exist")
 		return
 	}
 	utils.Success(c, run)
@@ -318,7 +318,7 @@ func (ctrl *AutoJobController) RunDetail(c *gin.Context) {
 func (ctrl *AutoJobController) CleanRuns(c *gin.Context) {
 	var req task.CleanRunsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Fail(c, 400, "参数错误")
+		utils.Fail(c, 400, "Invalid parameters")
 		return
 	}
 	aff, err := task.CleanRuns(req)
@@ -338,7 +338,7 @@ func (ctrl *AutoJobController) CleanRuns(c *gin.Context) {
 func (ctrl *AutoJobController) MarkKeep(c *gin.Context) {
 	var req task.MarkKeepRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Fail(c, 400, "参数错误")
+		utils.Fail(c, 400, "Invalid parameters")
 		return
 	}
 	aff, err := task.MarkKeepForever(req.IDs, req.KeepForever)

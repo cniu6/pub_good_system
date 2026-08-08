@@ -132,7 +132,7 @@ func (s *EmailService) SendTemplateEmailWithUser(userID uint64, to, template_nam
 func (s *EmailService) RenderTemplateMail(templateName, lang string, vars map[string]string) (subject string, content string, err error) {
 	tpl, err := models.GetEmailTemplate(templateName, lang)
 	if err != nil {
-		return "", "", fmt.Errorf("模板不存在: %s (%s)", templateName, lang)
+		return "", "", fmt.Errorf("Template does not exist: %s (%s)", templateName, lang)
 	}
 
 	allVars := s.buildDefaultVars(vars)
@@ -358,20 +358,20 @@ func (s *EmailService) UpdateTemplateContent(name, lang, content string) error {
 func (s *EmailService) ValidateEmailConfig() error {
 	cfg := config.GlobalConfig
 	if cfg == nil {
-		return fmt.Errorf("邮件配置未初始化")
+		return fmt.Errorf("Email configuration not initialized")
 	}
 
 	if cfg.SMTPHost == "" {
-		return fmt.Errorf("SMTP主机未配置")
+		return fmt.Errorf("SMTP host not configured")
 	}
 	if cfg.SMTPPort == "" {
-		return fmt.Errorf("SMTP端口未配置")
+		return fmt.Errorf("SMTP port not configured")
 	}
 	if (cfg.SMTPUser == "") != (cfg.SMTPPass == "") {
-		return fmt.Errorf("SMTP用户名和密码必须同时配置或同时留空")
+		return fmt.Errorf("SMTP username and password must be configured together or left empty together")
 	}
 	if cfg.SystemEmail == "" && cfg.SMTPUser == "" {
-		return fmt.Errorf("发件人邮箱未配置")
+		return fmt.Errorf("Sender email not configured")
 	}
 
 	return nil

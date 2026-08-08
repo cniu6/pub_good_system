@@ -36,7 +36,7 @@ var serverMonitorStartedAt = time.Now()
 // @Router /v1/admin/settings/restart-backend [post]
 func (ctrl *SettingsController) RestartBackend(c *gin.Context) {
 	if !config.IsAdminDebugOpsEnabled() {
-		utils.Fail(c, 403, "当前环境已禁用后端重启能力")
+		utils.Fail(c, 403, "Backend restart is disabled in current environment")
 		return
 	}
 

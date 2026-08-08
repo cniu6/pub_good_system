@@ -74,12 +74,12 @@ func (ctrl *SystemController) GetCleanupStatus(c *gin.Context) {
 func (ctrl *SystemController) CreatePresenceTicket(c *gin.Context) {
 	// 总开关关闭时直接拒绝，前端也不应再请求 ws-ticket
 	if !services.GetGlobalPresenceEnabled() {
-		utils.Fail(c, 403, "在线状态功能未启用")
+		utils.Fail(c, 403, "Online status feature not enabled")
 		return
 	}
 	userIDVal, ok := c.Get("userID")
 	if !ok {
-		utils.Fail(c, 401, "未登录")
+		utils.Fail(c, 401, "Not logged in")
 		return
 	}
 	userID, _ := userIDVal.(uint64)
@@ -92,22 +92,22 @@ func (ctrl *SystemController) CreatePresenceTicket(c *gin.Context) {
 	auth := strings.TrimSpace(c.GetHeader("Authorization"))
 	parts := strings.SplitN(auth, " ", 2)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || strings.TrimSpace(parts[1]) == "" {
-		utils.Fail(c, 401, "需要 Bearer Token")
+		utils.Fail(c, 401, "Bearer Token required")
 		return
 	}
 	sess, err := models.GetActiveSessionByTokenHash(utils.HashToken(strings.TrimSpace(parts[1])))
 	if err != nil || sess == nil || sess.UserID != userID || sess.AuthGuard != guard {
-		utils.Fail(c, 401, "会话无效")
+		utils.Fail(c, 401, "Session invalid")
 		return
 	}
 	if !presence.AllowWSTicketIssue(userID, guard) {
-		utils.Fail(c, 429, "WebSocket 连接请求过于频繁，请稍后重试")
+		utils.Fail(c, 429, "WebSocket connection requests too frequent, please retry later")
 		return
 	}
 
 	ticket, exp, err := presence.IssueWSTicket(userID, guard, sess.ID)
 	if err != nil {
-		utils.Fail(c, 500, "签发票据失败")
+		utils.Fail(c, 500, "Signing ticket failed")
 		return
 	}
 	utils.Success(c, gin.H{

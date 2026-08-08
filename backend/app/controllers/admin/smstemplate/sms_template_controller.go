@@ -244,7 +244,7 @@ func (ctrl *SMSTemplateController) SendTest(c *gin.Context) {
 
 	phone := strings.TrimSpace(req.Phone)
 	if phone == "" {
-		utils.Fail(c, 400, "手机号不能为空")
+		utils.Fail(c, 400, "Phone number cannot be empty")
 		return
 	}
 	normalized, err := utils.NormalizeAndValidateMobile(phone, services.GetGlobalMobileCNOnly())
@@ -254,23 +254,23 @@ func (ctrl *SMSTemplateController) SendTest(c *gin.Context) {
 	}
 
 	if services.GlobalSMSService == nil {
-		utils.Fail(c, 500, "短信服务未初始化")
+		utils.Fail(c, 500, "SMS service not initialized")
 		return
 	}
 	providerName := services.GlobalSMSService.GetProviderName()
 	if providerName == "none" {
-		utils.Fail(c, 500, "未配置短信服务商")
+		utils.Fail(c, 500, "SMS provider not configured")
 		return
 	}
 	// 生产环境不允许仅靠 console；本地开发允许 console 打日志验证链路
 	if providerName != "console" && !services.GlobalSMSService.IsConfigured() {
-		utils.Fail(c, 500, "短信服务商未完成配置（请检查 AccessKey / 签名 / 模板 Code 等）")
+		utils.Fail(c, 500, "SMS provider configuration incomplete (check AccessKey / signature / template Code etc.)")
 		return
 	}
 	if providerName == "console" && !config.IsProductionMode() {
 		// 本地 console 可测
 	} else if providerName == "console" {
-		utils.Fail(c, 500, "生产环境不可使用 console 短信通道，请配置云厂商或 custom")
+		utils.Fail(c, 500, "Console SMS channel cannot be used in production, please configure cloud provider or custom")
 		return
 	}
 

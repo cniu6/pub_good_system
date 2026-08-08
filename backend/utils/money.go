@@ -20,11 +20,11 @@ const (
 // YuanToFen 元 → 分（四舍五入到分）。非法浮点返回错误。
 func YuanToFen(yuan float64) (int64, error) {
 	if math.IsNaN(yuan) || math.IsInf(yuan, 0) {
-		return 0, errors.New("金额非法")
+		return 0, errors.New("Invalid amount")
 	}
 	// 先限制在合理范围，避免 *100 溢出 int64
 	if yuan > float64(MoneyMaxFen)/float64(MoneyFenPerYuan) || yuan < -float64(MoneyMaxFen)/float64(MoneyFenPerYuan) {
-		return 0, errors.New("金额超出上限")
+		return 0, errors.New("Amount exceeds limit")
 	}
 	return int64(math.Round(yuan * float64(MoneyFenPerYuan))), nil
 }

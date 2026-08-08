@@ -125,13 +125,13 @@ func (s *RealnameService) Submit(userID uint64, req *RealnameSubmitRequest) erro
 		}
 		if existing != nil && existing.Status == RealnameStatusRejected {
 			if err := models.SoftDeleteRealnameVerificationTx(tx, existing.ID); err != nil {
-				return errors.New("处理旧记录失败，请重试")
+				return errors.New("Failed to process old records, please retry")
 			}
 		}
 
 		dupCount, err := models.CountOtherUsersByCertificateNoTx(tx, verification.CertificateNo, userID)
 		if err != nil {
-			return errors.New("查重失败，请重试")
+			return errors.New("Duplicate check failed, please retry")
 		}
 		if dupCount > 0 {
 			return NewClientError("该证件号已被其他账号实名认证，请核对后重试")

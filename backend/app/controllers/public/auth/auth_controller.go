@@ -224,7 +224,7 @@ func (ctrl *AuthController) login(c *gin.Context, forcedGuard string) {
 		// 密码已验证通过、Token 已签发，但会话落库失败：这是需要排查的后端问题，
 		// 无论生产/非生产环境都必须记录日志（此前仅非生产环境打日志，生产环境会静默丢失该错误）。
 		log.Printf("[AUTH] create login session failed: user_id=%d, auth_guard=%s, err=%v", result.ID, authGuard, err)
-		utils.Fail(c, 500, "登录会话创建失败，请重新登录重试")
+		utils.Fail(c, 500, "Login session creation failed, please log in again")
 		return
 	}
 

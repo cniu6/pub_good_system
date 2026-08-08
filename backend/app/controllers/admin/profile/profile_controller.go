@@ -41,7 +41,7 @@ func (ctrl *ProfileController) Me(c *gin.Context) {
 	}
 	user, err := models.GetUserByID(uid)
 	if err != nil || user == nil {
-		utils.Fail(c, 404, "用户不存在")
+		utils.Fail(c, 404, "User does not exist")
 		return
 	}
 	utils.Success(c, gin.H{
@@ -74,14 +74,14 @@ func (ctrl *ProfileController) ChangePassword(c *gin.Context) {
 		return
 	}
 	if len(req.NewPassword) < 6 {
-		utils.Fail(c, 400, "新密码至少 6 位")
+		utils.Fail(c, 400, "New password must be at least 6 characters")
 		return
 	}
 	if err := ctrl.authSvc.ChangePassword(uid, req.OldPassword, req.NewPassword); err != nil {
 		utils.Fail(c, 400, err.Error())
 		return
 	}
-	utils.SuccessMsg(c, "密码已修改，请重新登录", nil)
+	utils.SuccessMsg(c, "Password changed, please log in again", nil)
 }
 
 // RegisterRoutes 注册个人设置路由

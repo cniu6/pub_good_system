@@ -263,7 +263,7 @@ func (ctrl *EmailTemplateController) SendTest(c *gin.Context) {
 		// 使用模板发送
 		tpl, err := models.GetEmailTemplateByID(req.TemplateID)
 		if err != nil {
-			utils.Fail(c, 404, "模板不存在")
+			utils.Fail(c, 404, "Template does not exist")
 			return
 		}
 
@@ -305,7 +305,7 @@ func (ctrl *EmailTemplateController) SendTest(c *gin.Context) {
 		return
 	}
 
-	utils.Success(c, gin.H{"message": "测试邮件已发送"})
+	utils.Success(c, gin.H{"message": "Test email sent"})
 }
 
 func parseEmailTemplateID(c *gin.Context) (uint64, error) {

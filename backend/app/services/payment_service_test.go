@@ -8,14 +8,14 @@ import (
 func TestValidatePaymentNotifyBinding(t *testing.T) {
 	t.Run("网关PID不匹配", func(t *testing.T) {
 		err := validatePaymentNotifyBinding(nil, &models.PayGateway{PID: "1001"}, "1002", "", "TN123")
-		if err == nil || err.Error() != "商户号不匹配" {
+		if err == nil || err.Error() != "Merchant ID mismatch" {
 			t.Fatalf("expected pid mismatch error, got %v", err)
 		}
 	})
 
 	t.Run("订单交易号不匹配", func(t *testing.T) {
 		err := validatePaymentNotifyBinding(&models.PaymentOrder{TradeNo: "TN123"}, nil, "", "", "TN999")
-		if err == nil || err.Error() != "交易号不匹配" {
+		if err == nil || err.Error() != "Transaction number mismatch" {
 			t.Fatalf("expected trade_no mismatch error, got %v", err)
 		}
 	})
@@ -46,12 +46,12 @@ func TestValidatePaymentNotifyBinding(t *testing.T) {
 			"alipay",
 			"",
 		)
-		if err == nil || err.Error() != "支付通道不匹配" {
+		if err == nil || err.Error() != "Payment gateway mismatch" {
 			t.Fatalf("expected gateway id mismatch, got %v", err)
 		}
 	})
 
-	t.Run("支付方式不匹配必须拒绝", func(t *testing.T) {
+	t.Run("Payment method mismatch必须拒绝", func(t *testing.T) {
 		err := validatePaymentNotifyBinding(
 			&models.PaymentOrder{GatewayID: 1, PaymentChannel: "epay", PaymentType: "alipay"},
 			&models.PayGateway{ID: 1, Type: "epay", PayType: "wxpay", PID: "1001"},
@@ -59,7 +59,7 @@ func TestValidatePaymentNotifyBinding(t *testing.T) {
 			"",
 			"",
 		)
-		if err == nil || err.Error() != "支付方式不匹配" {
+		if err == nil || err.Error() != "Payment method mismatch" {
 			t.Fatalf("expected pay type mismatch, got %v", err)
 		}
 	})
@@ -72,7 +72,7 @@ func TestValidatePaymentNotifyBinding(t *testing.T) {
 			"wxpay",
 			"",
 		)
-		if err == nil || err.Error() != "回调支付类型不匹配" {
+		if err == nil || err.Error() != "Callback payment type mismatch" {
 			t.Fatalf("expected callback type mismatch, got %v", err)
 		}
 	})
@@ -89,21 +89,21 @@ func TestValidatePaymentNotifyBinding(t *testing.T) {
 func TestValidateCallbackMoney(t *testing.T) {
 	t.Run("空金额必须拒绝", func(t *testing.T) {
 		err := validateCallbackMoney(10, "")
-		if err == nil || err.Error() != "回调金额不能为空" {
+		if err == nil || err.Error() != "Callback amount cannot be empty" {
 			t.Fatalf("expected empty amount error, got %v", err)
 		}
 	})
 
 	t.Run("空白金额必须拒绝", func(t *testing.T) {
 		err := validateCallbackMoney(10, "   ")
-		if err == nil || err.Error() != "回调金额不能为空" {
+		if err == nil || err.Error() != "Callback amount cannot be empty" {
 			t.Fatalf("expected whitespace amount error, got %v", err)
 		}
 	})
 
 	t.Run("非法金额格式拒绝", func(t *testing.T) {
 		err := validateCallbackMoney(10, "not-a-number")
-		if err == nil || err.Error() != "回调金额格式非法" {
+		if err == nil || err.Error() != "Invalid callback amount format" {
 			t.Fatalf("expected invalid amount error, got %v", err)
 		}
 	})
@@ -127,7 +127,7 @@ func TestValidateCallbackMoney(t *testing.T) {
 	t.Run("差1分及以上应拒绝", func(t *testing.T) {
 		for _, money := range []string{"10.01", "10.02", "10.005", "9.99"} {
 			err := validateCallbackMoney(10, money)
-			if err == nil || err.Error() != "回调金额与订单金额不一致" {
+			if err == nil || err.Error() != "Callback amount does not match order amount" {
 				t.Fatalf("money=%s should reject, got %v", money, err)
 			}
 		}

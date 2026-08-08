@@ -104,7 +104,7 @@ func ImportPresets(mode string) (map[string]interface{}, error) {
 		mode = "skip"
 	}
 	if mode != "skip" && mode != "update" {
-		return nil, fmt.Errorf("mode 仅支持 skip/update")
+		return nil, fmt.Errorf("mode only supports skip/update")
 	}
 	presets := DefaultPresets()
 	now := nowUnix()

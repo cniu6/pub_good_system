@@ -186,7 +186,7 @@ func UpdatePaymentOrderStatusTx(tx *gorm.DB, orderNo string, status int, tradeNo
 		return db.MapGormNotFound(err)
 	}
 	if !canTransitionPaymentStatus(current.Status, status) {
-		return fmt.Errorf("非法订单状态流转: %d -> %d", current.Status, status)
+		return fmt.Errorf("Invalid order status transition: %d -> %d", current.Status, status)
 	}
 
 	tradeNo = NormalizeTradeNo(tradeNo)

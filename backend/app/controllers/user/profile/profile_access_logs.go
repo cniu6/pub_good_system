@@ -13,7 +13,7 @@ import (
 func currentUserID(c *gin.Context) (uint64, bool) {
 	uid, ok := utils.GetUserID(c)
 	if !ok || uid == 0 {
-		utils.Fail(c, 401, "用户未登录")
+		utils.Fail(c, 401, "User not logged in")
 		return 0, false
 	}
 	return uid, true
@@ -31,7 +31,7 @@ func (ctrl *ProfileController) ListMyOperationLogs(c *gin.Context) {
 		return
 	}
 	if !services.GetGlobalOperationLogRuntimeConfig().UserVisible {
-		utils.Fail(c, 403, "未开放用户操作日志")
+		utils.Fail(c, 403, "User operation logs not open")
 		return
 	}
 	utils.SanitizeQueryParams(c)
@@ -52,13 +52,13 @@ func (ctrl *ProfileController) ListMyOperationLogs(c *gin.Context) {
 	var rangeErr error
 	query.StartTime, query.EndTime, rangeErr = utils.NormalizeTimeRange(query.StartTime, query.EndTime, defaultQueryDays, 365)
 	if rangeErr != nil {
-		utils.Fail(c, 400, "参数错误")
+		utils.Fail(c, 400, "Invalid parameters")
 		return
 	}
 
 	logs, total, err := models.GetOperationLogList(&query)
 	if err != nil {
-		utils.Fail(c, 500, "查询失败")
+		utils.Fail(c, 500, "Query failed")
 		return
 	}
 	// 列表不给用户看请求/响应体
@@ -88,22 +88,22 @@ func (ctrl *ProfileController) GetMyOperationLogDetail(c *gin.Context) {
 	}
 	opCfg := services.GetGlobalOperationLogRuntimeConfig()
 	if !opCfg.UserVisible {
-		utils.Fail(c, 403, "未开放用户操作日志")
+		utils.Fail(c, 403, "User operation logs not open")
 		return
 	}
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.Fail(c, 400, "无效的 ID")
+		utils.Fail(c, 400, "Invalid ID")
 		return
 	}
 	item, err := models.GetOperationLogByID(id)
 	if err != nil || item == nil {
-		utils.Fail(c, 404, "记录不存在")
+		utils.Fail(c, 404, "Record does not exist")
 		return
 	}
 	// 归属校验：只能看自己的
 	if item.UserID != uid {
-		utils.Fail(c, 403, "无权查看该记录")
+		utils.Fail(c, 403, "No permission to view this record")
 		return
 	}
 	// 默认不展示请求/响应体，避免把失败堆栈等内部细节暴露给用户
@@ -127,7 +127,7 @@ func (ctrl *ProfileController) ListMyAPILogs(c *gin.Context) {
 	}
 	apiCfg := services.GetGlobalAPILogRuntimeConfig()
 	if !apiCfg.UserVisible {
-		utils.Fail(c, 403, "未开放用户 API 日志")
+		utils.Fail(c, 403, "User API logs not open")
 		return
 	}
 	utils.SanitizeQueryParams(c)
@@ -149,13 +149,13 @@ func (ctrl *ProfileController) ListMyAPILogs(c *gin.Context) {
 	var rangeErr error
 	query.StartTime, query.EndTime, rangeErr = utils.NormalizeTimeRange(query.StartTime, query.EndTime, defaultQueryDays, 365)
 	if rangeErr != nil {
-		utils.Fail(c, 400, "参数错误")
+		utils.Fail(c, 400, "Invalid parameters")
 		return
 	}
 
 	list, total, err := models.GetAPIAccessLogList(&query)
 	if err != nil {
-		utils.Fail(c, 500, "查询失败")
+		utils.Fail(c, 500, "Query failed")
 		return
 	}
 
@@ -179,12 +179,12 @@ func (ctrl *ProfileController) GetMyAPILogStats(c *gin.Context) {
 		return
 	}
 	if !services.GetGlobalAPILogRuntimeConfig().UserVisible {
-		utils.Fail(c, 403, "未开放用户 API 日志")
+		utils.Fail(c, 403, "User API logs not open")
 		return
 	}
 	stats, err := models.GetAPIAccessLogStatsByUserID(uid)
 	if err != nil {
-		utils.Fail(c, 500, "统计失败")
+		utils.Fail(c, 500, "Statistics failed")
 		return
 	}
 	utils.Success(c, stats)
@@ -202,7 +202,7 @@ func (ctrl *ProfileController) GetMyAPILogDetail(c *gin.Context) {
 		return
 	}
 	if !services.GetGlobalAPILogRuntimeConfig().UserVisible {
-		utils.Fail(c, 403, "未开放用户 API 日志")
+		utils.Fail(c, 403, "User API logs not open")
 		return
 	}
 	param := c.Param("id")
@@ -216,16 +216,16 @@ func (ctrl *ProfileController) GetMyAPILogDetail(c *gin.Context) {
 		item, err = models.GetAPIAccessLogByRequestID(param)
 	}
 	if err != nil || item == nil {
-		utils.Fail(c, 404, "记录不存在")
+		utils.Fail(c, 404, "Record does not exist")
 		return
 	}
 	if item.UserID != uid {
-		utils.Fail(c, 403, "无权查看该记录")
+		utils.Fail(c, 403, "No permission to view this record")
 		return
 	}
 	// 仅允许查看本人 API Key 调用；JWT/未鉴权一律拒绝
 	if item.AuthMethod != "apikey" {
-		utils.Fail(c, 403, "无权查看该记录")
+		utils.Fail(c, 403, "No permission to view this record")
 		return
 	}
 	utils.Success(c, item)

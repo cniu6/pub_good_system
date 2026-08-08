@@ -109,7 +109,7 @@ func (ctrl *DBConsoleController) Info(c *gin.Context) {
 // listTableNames 按驱动列出当前库表名
 func listTableNames() ([]string, error) {
 	if db.DB == nil {
-		return nil, fmt.Errorf("数据库未初始化")
+		return nil, fmt.Errorf("Database not initialized")
 	}
 	var names []string
 	switch {
@@ -178,7 +178,7 @@ func (ctrl *DBConsoleController) Tables(c *gin.Context) {
 	names, err := listTableNames()
 	if err != nil {
 		log.Printf("[ADMIN][DB] list tables failed: %v", err)
-		utils.Fail(c, 500, "获取表列表失败")
+		utils.Fail(c, 500, "Failed to get table list")
 		return
 	}
 	writeDBConsoleAudit(c, "tables", "", fmt.Sprintf("count=%d", len(names)), 200)
@@ -194,16 +194,16 @@ func (ctrl *DBConsoleController) Tables(c *gin.Context) {
 func (ctrl *DBConsoleController) TableRows(c *gin.Context) {
 	name := strings.TrimSpace(c.Param("name"))
 	if !tableNameRe.MatchString(name) {
-		utils.Fail(c, 400, "非法表名")
+		utils.Fail(c, 400, "Invalid table name")
 		return
 	}
 	names, err := listTableNames()
 	if err != nil {
-		utils.Fail(c, 500, "获取表列表失败")
+		utils.Fail(c, 500, "Failed to get table list")
 		return
 	}
 	if !tableExistsInList(name, names) {
-		utils.Fail(c, 404, "表不存在")
+		utils.Fail(c, 404, "Table does not exist")
 		return
 	}
 
@@ -225,7 +225,7 @@ func (ctrl *DBConsoleController) TableRows(c *gin.Context) {
 	var total int64
 	if err := db.DB.Raw("SELECT COUNT(*) FROM " + quoted).Scan(&total).Error; err != nil {
 		log.Printf("[ADMIN][DB] count rows table=%s: %v", name, err)
-		utils.Fail(c, 500, "查询失败")
+		utils.Fail(c, 500, "Query failed")
 		return
 	}
 
@@ -234,14 +234,14 @@ func (ctrl *DBConsoleController) TableRows(c *gin.Context) {
 	rows, err := db.DB.WithContext(ctx).Raw(fmt.Sprintf("SELECT * FROM %s LIMIT ? OFFSET ?", quoted), pageSize, offset).Rows()
 	if err != nil {
 		log.Printf("[ADMIN][DB] preview rows table=%s: %v", name, err)
-		utils.Fail(c, 500, "查询失败")
+		utils.Fail(c, 500, "Query failed")
 		return
 	}
 	defer rows.Close()
 
 	cols, data, err := scanRowsLimited(rows, 100)
 	if err != nil {
-		utils.Fail(c, 500, "读取结果失败")
+		utils.Fail(c, 500, "Failed to read result")
 		return
 	}
 	writeDBConsoleAudit(c, "table_rows", name, fmt.Sprintf("rows=%d", len(data)), 200)
@@ -289,14 +289,14 @@ type dbTableMeta struct {
 
 func validateDBConsoleTable(name string) error {
 	if !tableNameRe.MatchString(name) {
-		return fmt.Errorf("非法表名")
+		return fmt.Errorf("Invalid table name")
 	}
 	names, err := listTableNames()
 	if err != nil {
 		return err
 	}
 	if !tableExistsInList(name, names) {
-		return fmt.Errorf("表不存在")
+		return fmt.Errorf("Table does not exist")
 	}
 	return nil
 }
@@ -454,7 +454,7 @@ func (ctrl *DBConsoleController) TableMeta(c *gin.Context) {
 			utils.Fail(c, 400, err.Error())
 		} else {
 			log.Printf("[ADMIN][DB] get meta table=%s: %v", name, err)
-			utils.Fail(c, 500, "读取表结构失败")
+			utils.Fail(c, 500, "Failed to read table structure")
 		}
 		return
 	}
@@ -485,7 +485,7 @@ func buildDDL(name string, meta *dbTableMeta) (string, error) {
 				return text, nil
 			}
 		}
-		return "", fmt.Errorf("未返回建表语句")
+		return "", fmt.Errorf("Table creation statement not returned")
 	default:
 		lines := make([]string, 0, len(meta.Columns)+1)
 		primaryColumns := make([]string, 0)
@@ -534,13 +534,13 @@ func (ctrl *DBConsoleController) TableDDL(c *gin.Context) {
 	name := strings.TrimSpace(c.Param("name"))
 	meta, err := buildTableMeta(name)
 	if err != nil {
-		utils.Fail(c, 400, "读取表结构失败")
+		utils.Fail(c, 400, "Failed to read table structure")
 		return
 	}
 	ddl, err := buildDDL(name, meta)
 	if err != nil {
 		log.Printf("[ADMIN][DB] get ddl table=%s: %v", name, err)
-		utils.Fail(c, 500, "生成 DDL 失败")
+		utils.Fail(c, 500, "DDL generation failed")
 		return
 	}
 	writeDBConsoleAudit(c, "table_ddl", name, "ok", 200)
@@ -633,13 +633,13 @@ func requireDBConsoleWrite(c *gin.Context, action, requestBody string) bool {
 		return true
 	}
 	writeDBConsoleAudit(c, action+"_blocked", requestBody, "write disabled", 403)
-	utils.Fail(c, 403, "当前环境的数据库控制台仅支持只读操作")
+	utils.Fail(c, 403, "Database console in current environment only supports read-only operations")
 	return false
 }
 
 func validateRowValues(meta *dbTableMeta, values map[string]interface{}, allowPrimaryKey bool) (map[string]string, error) {
 	if len(values) == 0 {
-		return nil, fmt.Errorf("至少填写一个字段")
+		return nil, fmt.Errorf("Please fill in at least one field")
 	}
 	columns := make(map[string]dbColumnMeta, len(meta.Columns))
 	for _, column := range meta.Columns {
@@ -649,13 +649,13 @@ func validateRowValues(meta *dbTableMeta, values map[string]interface{}, allowPr
 	for name := range values {
 		column, ok := columns[strings.ToLower(strings.TrimSpace(name))]
 		if !ok {
-			return nil, fmt.Errorf("字段 %s 不存在", name)
+			return nil, fmt.Errorf("Field %s does not exist", name)
 		}
 		if sensitiveColumnRe.MatchString(column.Name) {
-			return nil, fmt.Errorf("敏感字段 %s 不支持通过控制台写入", column.Name)
+			return nil, fmt.Errorf("Sensitive field %s does not support console writes", column.Name)
 		}
 		if column.PrimaryKey && !allowPrimaryKey {
-			return nil, fmt.Errorf("主键字段不支持修改")
+			return nil, fmt.Errorf("Primary key fields do not support modification")
 		}
 		resolved[name] = column.Name
 	}
@@ -670,7 +670,7 @@ func resolvePrimaryKey(meta *dbTableMeta, values map[string]interface{}) ([]stri
 		}
 	}
 	if len(primaryColumns) == 0 {
-		return nil, nil, fmt.Errorf("该表没有主键，不能执行行级修改")
+		return nil, nil, fmt.Errorf("This table has no primary key, cannot perform row-level modification")
 	}
 	valuesByLowerName := make(map[string]interface{}, len(values))
 	for name, value := range values {
@@ -680,7 +680,7 @@ func resolvePrimaryKey(meta *dbTableMeta, values map[string]interface{}) ([]stri
 	for _, column := range primaryColumns {
 		value, ok := valuesByLowerName[strings.ToLower(column)]
 		if !ok || value == nil {
-			return nil, nil, fmt.Errorf("缺少主键字段 %s", column)
+			return nil, nil, fmt.Errorf("Missing primary key field %s", column)
 		}
 		args = append(args, value)
 	}
@@ -700,7 +700,7 @@ func executeDBConsoleWrite(ctx context.Context, query string, args ...interface{
 		return 0, result.Error
 	}
 	if result.RowsAffected > maxDBConsoleRowsAffected {
-		return 0, fmt.Errorf("影响行数超过上限 %d，已回滚", maxDBConsoleRowsAffected)
+		return 0, fmt.Errorf("Affected rows exceeded limit %d, rolled back", maxDBConsoleRowsAffected)
 	}
 	if err := tx.Commit().Error; err != nil {
 		return 0, err
@@ -726,7 +726,7 @@ func (ctrl *DBConsoleController) CreateTableRow(c *gin.Context) {
 	name := strings.TrimSpace(c.Param("name"))
 	var req dbRowCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Fail(c, 400, "参数错误")
+		utils.Fail(c, 400, "Invalid parameters")
 		return
 	}
 	requestBody := marshalAuditPayload(req)
@@ -735,7 +735,7 @@ func (ctrl *DBConsoleController) CreateTableRow(c *gin.Context) {
 	}
 	meta, err := buildTableMeta(name)
 	if err != nil {
-		utils.Fail(c, 400, "读取表结构失败")
+		utils.Fail(c, 400, "Failed to read table structure")
 		return
 	}
 	resolved, err := validateRowValues(meta, req.Values, true)
@@ -779,7 +779,7 @@ func (ctrl *DBConsoleController) UpdateTableRow(c *gin.Context) {
 	name := strings.TrimSpace(c.Param("name"))
 	var req dbRowUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Fail(c, 400, "参数错误")
+		utils.Fail(c, 400, "Invalid parameters")
 		return
 	}
 	requestBody := marshalAuditPayload(req)
@@ -788,7 +788,7 @@ func (ctrl *DBConsoleController) UpdateTableRow(c *gin.Context) {
 	}
 	meta, err := buildTableMeta(name)
 	if err != nil {
-		utils.Fail(c, 400, "读取表结构失败")
+		utils.Fail(c, 400, "Failed to read table structure")
 		return
 	}
 	resolved, err := validateRowValues(meta, req.Values, false)
@@ -840,7 +840,7 @@ func (ctrl *DBConsoleController) DeleteTableRow(c *gin.Context) {
 	name := strings.TrimSpace(c.Param("name"))
 	var req dbRowDeleteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Fail(c, 400, "参数错误")
+		utils.Fail(c, 400, "Invalid parameters")
 		return
 	}
 	requestBody := marshalAuditPayload(req)
@@ -849,7 +849,7 @@ func (ctrl *DBConsoleController) DeleteTableRow(c *gin.Context) {
 	}
 	meta, err := buildTableMeta(name)
 	if err != nil {
-		utils.Fail(c, 400, "读取表结构失败")
+		utils.Fail(c, 400, "Failed to read table structure")
 		return
 	}
 	primaryColumns, args, err := resolvePrimaryKey(meta, req.PrimaryKey)
@@ -975,26 +975,26 @@ func isAllowedWriteSQL(sqlText string) bool {
 func (ctrl *DBConsoleController) Backup(c *gin.Context) {
 	if config.IsProductionMode() {
 		writeDBConsoleAudit(c, "backup_blocked", "", "production read-only", 403)
-		utils.Fail(c, 403, "生产环境禁止下载数据库备份")
+		utils.Fail(c, 403, "Downloading database backups is prohibited in production")
 		return
 	}
 	if !db.IsSQLite() {
-		utils.Fail(c, 400, "暂仅支持 SQLite 文件备份")
+		utils.Fail(c, 400, "Only SQLite file backup is currently supported")
 		return
 	}
 	cfg := config.GlobalConfig
 	if cfg == nil {
-		utils.Fail(c, 500, "配置未就绪")
+		utils.Fail(c, 500, "Configuration not ready")
 		return
 	}
 	path := extractSQLitePathFromDSN(cfg.DBDSN)
 	if path == "" {
-		utils.Fail(c, 400, "无法解析 SQLite 文件路径")
+		utils.Fail(c, 400, "Cannot parse SQLite file path")
 		return
 	}
 	fi, err := os.Stat(path)
 	if err != nil || fi.IsDir() {
-		utils.Fail(c, 404, "数据库文件不存在")
+		utils.Fail(c, 404, "Database file does not exist")
 		return
 	}
 	writeDBConsoleAudit(c, "backup", path, "ok", 200)
@@ -1043,7 +1043,7 @@ func (ctrl *DBConsoleController) execSQLEntry(c *gin.Context) {
 func (ctrl *DBConsoleController) execSQLFromCtx(c *gin.Context) {
 	v, ok := c.Get("_db_sql_req")
 	if !ok {
-		utils.Fail(c, 400, "参数错误")
+		utils.Fail(c, 400, "Invalid parameters")
 		return
 	}
 	req := v.(execSQLRequest)
@@ -1054,11 +1054,11 @@ func (ctrl *DBConsoleController) execSQLFromCtx(c *gin.Context) {
 func (ctrl *DBConsoleController) execSQLParsed(c *gin.Context, req execSQLRequest) {
 	sqlText := strings.TrimSpace(req.SQL)
 	if sqlText == "" {
-		utils.Fail(c, 400, "SQL 不能为空")
+		utils.Fail(c, 400, "SQL cannot be empty")
 		return
 	}
 	if len(sqlText) > 20000 {
-		utils.Fail(c, 400, "SQL 过长")
+		utils.Fail(c, 400, "SQL too long")
 		return
 	}
 
@@ -1068,23 +1068,23 @@ func (ctrl *DBConsoleController) execSQLParsed(c *gin.Context, req execSQLReques
 		}
 		if !isSingleSQLStatement(sqlText) {
 			writeDBConsoleAudit(c, "sql_blocked", sqlText, "multiple statements", 400)
-			utils.Fail(c, 400, "写操作仅允许单条 SQL 语句")
+			utils.Fail(c, 400, "Write operations only allow a single SQL statement")
 			return
 		}
 		if containsDangerousSQL(sqlText) {
 			writeDBConsoleAudit(c, "sql_blocked", sqlText, "dangerous keyword", 400)
-			utils.Fail(c, 400, "禁止执行危险语句")
+			utils.Fail(c, 400, "Dangerous statements are prohibited")
 			return
 		}
 		if !isAllowedWriteSQL(sqlText) {
 			writeDBConsoleAudit(c, "sql_blocked", sqlText, "write statement not allowed", 400)
-			utils.Fail(c, 400, "写操作仅允许带 WHERE 条件的 UPDATE/DELETE 或 INSERT")
+			utils.Fail(c, 400, "Write operations only allow UPDATE/DELETE with WHERE or INSERT")
 			return
 		}
 	} else {
 		if !isReadOnlySQL(sqlText) {
 			writeDBConsoleAudit(c, "sql_blocked", sqlText, "read-only mode", 400)
-			utils.Fail(c, 400, "只读模式仅允许 SELECT/SHOW/EXPLAIN")
+			utils.Fail(c, 400, "Read-only mode only allows SELECT/SHOW/EXPLAIN")
 			return
 		}
 	}
@@ -1099,7 +1099,7 @@ func (ctrl *DBConsoleController) execSQLParsed(c *gin.Context, req execSQLReques
 			// 原始 SQL 错误只进审计/服务端日志，避免把库内部细节回给客户端
 			writeDBConsoleAudit(c, "sql_error", sqlText, err.Error(), 400)
 			log.Printf("[DBConsole] sql write failed: %v", err)
-			utils.Fail(c, 400, "执行失败")
+			utils.Fail(c, 400, "Execution failed")
 			return
 		}
 		writeDBConsoleAudit(c, "sql_exec", sqlText, fmt.Sprintf("rows_affected=%d", affected), 200)
@@ -1116,7 +1116,7 @@ func (ctrl *DBConsoleController) execSQLParsed(c *gin.Context, req execSQLReques
 	if err != nil {
 		writeDBConsoleAudit(c, "sql_error", sqlText, err.Error(), 400)
 		log.Printf("[DBConsole] sql query failed: %v", err)
-		utils.Fail(c, 400, "执行失败")
+		utils.Fail(c, 400, "Execution failed")
 		return
 	}
 	writeDBConsoleAudit(c, "sql_query", utils.TruncateString(sqlText, 2000), fmt.Sprintf("rows=%d", len(data)), 200)
