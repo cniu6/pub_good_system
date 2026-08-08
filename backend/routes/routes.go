@@ -93,7 +93,7 @@ func initControllers() {
 func SetupRoutes(router *gin.Engine) {
 	initControllers()
 
-	// Scalar 文档：注解仍写 /api/v1/admin/*；返回 openapi.json 时按 ADMIN_API_PATH 改写
+	// Scalar API 文档：注解仍写 /api/v1/admin/*；返回 openapi.json 时按 ADMIN_API_PATH 改写
 	if cfg := config.GlobalConfig; cfg != nil && cfg.EnableSwagger {
 		mountScalar(router)
 	}
@@ -129,7 +129,7 @@ func mountScalar(router *gin.Engine) {
 	// 托管 Scalar 本地前端静态资源
 	router.Static("/scalar-static", "./backend/static/scalar/dist/browser")
 
-	// Scalar 文档主页面：直接返回内嵌 Scalar 的 HTML，指定 spec URL 为同源 openapi.json
+	// Scalar API 文档主页面：直接返回内嵌 Scalar 的 HTML，指定 spec URL 为同源 openapi.json
 	router.GET("/scalar", func(c *gin.Context) {
 		c.Header("Content-Type", "text/html; charset=utf-8")
 		c.String(http.StatusOK, scalarReferenceHTML())

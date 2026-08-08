@@ -122,7 +122,7 @@ func init() {
 
 WebSocket 心跳上报在线状态；管理端「在线用户」可查看/踢下线。见 [doc/在线会话与Presence.md](doc/在线会话与Presence.md)。
 
-### Scalar 文档
+### Scalar API 文档
 
 启动时（dev）可自动检测代码变化并重新生成，自动包含插件 API。访问：`http://localhost:{PORT}/scalar/index.html`。  
 管理端注解路径仍为 `/api/v1/admin/*`；若配置了自定义 `ADMIN_API_PATH`，`openapi.json` **运行时改写**为实际前缀。

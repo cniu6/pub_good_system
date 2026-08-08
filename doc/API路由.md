@@ -35,7 +35,7 @@
 3. [中间件使用](#中间件使用)
 4. [控制器编写](#控制器编写)
 5. [路由分组](#路由分组)
-6. [Scalar 文档](#scalar-文档)
+6. [Scalar API 文档](#scalar-文档)
 7. [常见模式](#常见模式)
 
 ---
@@ -97,7 +97,7 @@ func SetupRoutes(router *gin.Engine) {
     authCtrl := &controllers.AuthController{}
     systemCtrl := &controllers.SystemController{}
     
-    // Scalar 文档路由
+    // Scalar API 文档路由
     if config.GlobalConfig.EnableScalar {
         router.GET("/scalar/*any", ginScalar.WrapHandler(scalarFiles.Handler))
     }
@@ -491,7 +491,7 @@ func SetupRoutes(router *gin.Engine) {
 
 ---
 
-## Scalar 文档
+## Scalar API 文档
 
 ### 添加 Scalar 注释
 
@@ -528,7 +528,7 @@ func (ctrl *UserController) GetProfile(c *gin.Context) {
 }
 ```
 
-### 更新 Scalar 文档
+### 更新 Scalar API 文档
 
 ```bash
 # 在项目根目录执行

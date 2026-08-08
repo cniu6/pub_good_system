@@ -52,7 +52,7 @@ func Start(opts Options) {
 	log.Printf("[Server] 服务启动，端口: %s，BuildMode=%s", port, opts.BuildMode)
 	if opts.BuildMode == "none" {
 		log.Printf("[Server] 服务启动成功，端口: %s，BuildMode=%s", port, opts.BuildMode)
-		log.Printf("[Server] Scalar 文档: http://localhost:%s/scalar", port)
+		log.Printf("[Server] Scalar API 文档: http://localhost:%s/scalar", port)
 	}
 	log.Printf("[Server] 已加载插件数量: %d", pluginMgr.Count())
 	log.Printf("===================================================")
