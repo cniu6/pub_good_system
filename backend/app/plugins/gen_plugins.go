@@ -57,8 +57,8 @@ func main() {
 		}
 
 		name := entry.Name()
-		// 跳过隐藏目录、下划线目录，以及 demo（需 -tags demo，由 main_demo_plugins.go 单独引入）
-		if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "demo" {
+		// 跳过隐藏目录、下划线目录
+		if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") {
 			continue
 		}
 
@@ -122,7 +122,7 @@ func main() {
 	fmt.Printf("[Plugin] 已更新 main.go，共 %d 个插件\n", len(plugins))
 }
 
-// hasNonDefaultBuildTag 检测 plugin.go 是否带有限制性 build tag（如 demo / ignore）。
+// hasNonDefaultBuildTag 检测 plugin.go 是否带有限制性 build tag（如 ignore）。
 // 这类插件不应写入默认 main.go 的 blank import。
 func hasNonDefaultBuildTag(src string) bool {
 	for _, line := range strings.Split(src, "\n") {

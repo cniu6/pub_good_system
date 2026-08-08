@@ -15,6 +15,20 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/admin/announcements": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-公告"
+                ],
+                "summary": "管理端公告列表",
+                "responses": {}
+            }
+        },
         "/api/v1/admin/email-logs": {
             "get": {
                 "security": [
@@ -139,7 +153,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "获取邮件发送总数、成功数、失败数",
+                "description": "获取邮件发送总数、今日、成功数、失败数、热门模板（读独立聚合表）",
                 "consumes": [
                     "application/json"
                 ],
@@ -543,6 +557,132 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/admin/logs/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取操作日志总请求数、今日、4xx、5xx、热门模块等",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-操作日志"
+                ],
+                "summary": "操作日志统计",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/logs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取操作日志详情",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-操作日志"
+                ],
+                "summary": "获取操作日志详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "日志 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/payment/exceptions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理端-支付"
+                ],
+                "summary": "管理端-支付异常列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/payment/exceptions/{id}/resolve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理端-支付"
+                ],
+                "summary": "管理端-处理支付异常",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "异常ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/admin/payment/orders": {
             "get": {
                 "security": [
@@ -731,6 +871,39 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/app_controllers_admin.AdminCompleteOrderRequest"
                         }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/payment/orders/{id}/reconcile": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "管理端-支付"
+                ],
+                "summary": "管理端-支付订单对账",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "订单ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -1350,7 +1523,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "获取短信发送总数、成功数、失败数",
+                "description": "获取短信发送总数、今日、成功数、失败数、热门模板（读独立聚合表）",
                 "consumes": [
                     "application/json"
                 ],
@@ -1421,6 +1594,201 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "description": "日志ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/sms-send-test": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-短信模板"
+                ],
+                "summary": "短信发送测试",
+                "parameters": [
+                    {
+                        "description": "测试手机号",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app_controllers_admin.SMSSendTestRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/sms-templates": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-短信模板"
+                ],
+                "summary": "获取短信模板列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/sms-templates/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-短信模板"
+                ],
+                "summary": "获取短信模板详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "模板ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-短信模板"
+                ],
+                "summary": "更新短信模板",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "模板ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新信息",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app_controllers_admin.SMSTemplateUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/sms-templates/{id}/preview": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-短信模板"
+                ],
+                "summary": "预览短信模板",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "模板ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "预览参数",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app_controllers_admin.SMSPreviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/sms-templates/{id}/reset": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-短信模板"
+                ],
+                "summary": "重置短信模板",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "模板ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -1753,7 +2121,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "管理员可以生成任意用户的 JWT token 进行调试",
+                "description": "管理员可代登任意启用用户；目标为管理员时可指定 auth_guard=admin|user 进入对应端",
                 "consumes": [
                     "application/json"
                 ],
@@ -1918,9 +2286,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/demo/echo": {
+        "/api/v1/public/admin/login": {
             "post": {
-                "description": "回显请求数据",
+                "description": "管理端专用登录，服务端强制 authGuard=admin",
                 "consumes": [
                     "application/json"
                 ],
@@ -1928,18 +2296,17 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Plugin-Demo"
+                    "Public-认证"
                 ],
-                "summary": "Demo插件Echo",
+                "summary": "管理员登录",
                 "parameters": [
                     {
-                        "description": "请求数据",
-                        "name": "body",
+                        "description": "登录信息（忽略 authGuard）",
+                        "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/app_controllers_public.LoginRequest"
                         }
                     }
                 ],
@@ -1949,49 +2316,21 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/utils.Response"
                         }
-                    }
-                }
-            }
-        },
-        "/api/v1/demo/hello": {
-            "get": {
-                "description": "示例插件的Hello接口",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Plugin-Demo"
-                ],
-                "summary": "Demo插件Hello",
-                "responses": {
-                    "200": {
-                        "description": "OK",
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/utils.Response"
                         }
-                    }
-                }
-            }
-        },
-        "/api/v1/demo/info": {
-            "get": {
-                "description": "获取Demo插件的详细信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Plugin-Demo"
-                ],
-                "summary": "Demo插件信息",
-                "responses": {
-                    "200": {
-                        "description": "OK",
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/utils.Response"
                         }
@@ -2060,6 +2399,77 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/public/geo/dial-countries": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Public-配置"
+                ],
+                "summary": "国家区号列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/app_controllers_public.DialCountriesResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/public/geo/phone-country": {
+            "get": {
+                "description": "优先级：仅大陆强制CN → CDN国家头 →（可选）IP查询 → 语言 → 美国+1保底。query.lang 建议传前端当前语言（zhCN/enUS）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Public-配置"
+                ],
+                "summary": "探测手机号默认国家",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "当前界面语言，如 zhCN / enUS / zh-CN",
+                        "name": "lang",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/app_controllers_public.PhoneCountryResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -2265,6 +2675,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/public/session/force-logout": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Public-会话"
+                ],
+                "summary": "强制退出登录（容忍 token 已过期）",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/system/cleanup-status": {
             "get": {
                 "description": "返回验证码清理任务的运行状态、间隔、上次/下次执行时间",
@@ -2275,6 +2707,26 @@ const docTemplate = `{
                     "系统管理"
                 ],
                 "summary": "获取清理任务状态",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/system/ws-ticket": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统管理"
+                ],
+                "summary": "获取 Presence WS 票据",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -3218,6 +3670,10 @@ const docTemplate = `{
         "app_controllers_admin.AdminCompleteOrderRequest": {
             "type": "object",
             "properties": {
+                "force": {
+                    "description": "强制补单（canceled/failed 高危路径，须填 memo）",
+                    "type": "boolean"
+                },
                 "memo": {
                     "type": "string"
                 }
@@ -3230,7 +3686,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/app_controllers_admin.AdminUserRealnameSummary"
                 },
                 "user": {
-                    "$ref": "#/definitions/fst_backend_app_models.User"
+                    "$ref": "#/definitions/fst_backend_app_services.AdminUserListItem"
                 }
             }
         },
@@ -3394,6 +3850,55 @@ const docTemplate = `{
                 }
             }
         },
+        "app_controllers_admin.SMSPreviewRequest": {
+            "type": "object",
+            "required": [
+                "content"
+            ],
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "vars": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
+        "app_controllers_admin.SMSSendTestRequest": {
+            "type": "object",
+            "required": [
+                "phone"
+            ],
+            "properties": {
+                "lang": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_admin.SMSTemplateUpdateRequest": {
+            "type": "object",
+            "required": [
+                "content"
+            ],
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "sign_name": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "integer"
+                }
+            }
+        },
         "app_controllers_admin.SettingsListResponse": {
             "type": "object",
             "properties": {
@@ -3445,11 +3950,21 @@ const docTemplate = `{
         "app_controllers_public.AppConfigResponse": {
             "type": "object",
             "properties": {
+                "admin_api_path": {
+                    "description": "管理端 REST API 在 /api/v1 下的前缀（来自 env ADMIN_API_PATH，默认 /admin）",
+                    "type": "string"
+                },
                 "allow_delete_account": {
                     "type": "boolean"
                 },
                 "allow_register": {
                     "description": "功能开关",
+                    "type": "boolean"
+                },
+                "allow_user_login": {
+                    "type": "boolean"
+                },
+                "announcement_enabled": {
                     "type": "boolean"
                 },
                 "copyright": {
@@ -3473,6 +3988,21 @@ const docTemplate = `{
                 "icp": {
                     "type": "string"
                 },
+                "mobile_cn_only": {
+                    "type": "boolean"
+                },
+                "mobile_ip_country_detect": {
+                    "description": "MobileIPCountryDetect 仅在关闭「仅大陆号」时生效：按 IP/CDN 预选区号",
+                    "type": "boolean"
+                },
+                "online_report_interval_seconds": {
+                    "description": "在线心跳上报周期（秒），前端 Presence 心跳按此间隔发送",
+                    "type": "integer"
+                },
+                "presence_enabled": {
+                    "description": "Presence / 在线心跳总开关（默认 false）",
+                    "type": "boolean"
+                },
                 "realname_enabled": {
                     "description": "实名认证配置",
                     "type": "boolean"
@@ -3493,8 +4023,41 @@ const docTemplate = `{
                 "sms_verify_enabled": {
                     "type": "boolean"
                 },
+                "user_api_log_visible": {
+                    "type": "boolean"
+                },
+                "user_operation_log_visible": {
+                    "type": "boolean"
+                },
                 "version": {
                     "type": "string"
+                },
+                "withdraw_account_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "withdraw_enabled": {
+                    "description": "提现配置",
+                    "type": "boolean"
+                },
+                "withdraw_min_amount": {
+                    "type": "number"
+                },
+                "withdraw_notify_text": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_public.DialCountriesResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/utils.DialCountry"
+                    }
                 }
             }
         },
@@ -3507,6 +4070,9 @@ const docTemplate = `{
                 "authGuard": {
                     "type": "string"
                 },
+                "clientType": {
+                    "type": "string"
+                },
                 "password": {
                     "type": "string"
                 },
@@ -3514,6 +4080,33 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "app_controllers_public.PhoneCountryResponse": {
+            "type": "object",
+            "properties": {
+                "country_code": {
+                    "type": "string"
+                },
+                "dial_code": {
+                    "type": "string"
+                },
+                "ip_detect_enabled": {
+                    "type": "boolean"
+                },
+                "mobile_cn_only": {
+                    "type": "boolean"
+                },
+                "name_en": {
+                    "type": "string"
+                },
+                "name_zh": {
+                    "type": "string"
+                },
+                "source": {
+                    "description": "cn_only | header | ip | lang | default",
                     "type": "string"
                 }
             }
@@ -3549,7 +4142,8 @@ const docTemplate = `{
                     "maxLength": 255
                 },
                 "password": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 8
                 },
                 "username": {
                     "type": "string"
@@ -3585,7 +4179,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "new_password": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 8
                 }
             }
         },
@@ -3612,7 +4207,7 @@ const docTemplate = `{
             "properties": {
                 "new_password": {
                     "type": "string",
-                    "minLength": 6
+                    "minLength": 8
                 },
                 "old_password": {
                     "type": "string"
@@ -3946,10 +4541,14 @@ const docTemplate = `{
                 }
             }
         },
-        "fst_backend_app_models.User": {
+        "fst_backend_app_services.AdminUserListItem": {
             "type": "object",
             "properties": {
+                "admin_remark": {
+                    "type": "string"
+                },
                 "apikey": {
+                    "description": "ApikeyMasked 管理端列表/详情展示用：仅末4位，不下发明文",
                     "type": "string"
                 },
                 "avatar": {
@@ -3957,6 +4556,9 @@ const docTemplate = `{
                 },
                 "back_ground": {
                     "type": "string"
+                },
+                "balance_paid_ratio": {
+                    "type": "number"
                 },
                 "birthday": {
                     "type": "integer"
@@ -3979,6 +4581,10 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "is_online": {
+                    "description": "IsOnline 当前是否在线（依据 LastSeenAt 与在线心跳容忍窗口判定，与专门的在线用户页口径一致）。",
+                    "type": "boolean"
+                },
                 "join_ip": {
                     "type": "string"
                 },
@@ -3986,13 +4592,16 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "language": {
-                    "description": "Requested additions",
                     "type": "string"
                 },
                 "last_login_ip": {
                     "type": "string"
                 },
                 "last_login_time": {
+                    "type": "integer"
+                },
+                "last_seen_at": {
+                    "description": "LastSeenAt 最近一次会话心跳时间（跨全部设备取最大值），来自 user_sessions；无会话记录时为 0。\n仅供列表展示「上次在线」参考，不代表当前是否在线。",
                     "type": "integer"
                 },
                 "level": {
@@ -4009,6 +4618,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "money": {
+                    "description": "余额（元，DECIMAL；业务加减一律经 utils 按「分」整数计算）",
                     "type": "number"
                 },
                 "motto": {
@@ -4016,6 +4626,9 @@ const docTemplate = `{
                 },
                 "nickname": {
                     "type": "string"
+                },
+                "realname_status": {
+                    "type": "integer"
                 },
                 "role": {
                     "description": "'user' or 'admin'",
@@ -4027,13 +4640,14 @@ const docTemplate = `{
                 "status": {
                     "type": "integer"
                 },
-                "token": {
-                    "type": "string"
+                "total_paid_amount": {
+                    "type": "number"
                 },
                 "update_time": {
                     "type": "integer"
                 },
                 "username": {
+                    "description": "MySQL：string 未指定 size 时 GORM 会迁成 longtext，无法建唯一索引（Error 1170）",
                     "type": "string"
                 }
             }
@@ -4046,10 +4660,22 @@ const docTemplate = `{
                 "username"
             ],
             "properties": {
+                "admin_remark": {
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string"
+                },
                 "email": {
                     "type": "string"
                 },
                 "group_id": {
+                    "type": "integer"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "level": {
                     "type": "integer"
                 },
                 "mobile": {
@@ -4065,6 +4691,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
+                    "description": "Status 用指针区分「未传」与「显式禁用」：未传默认启用；显式 0 才创建为禁用账号",
                     "type": "integer"
                 },
                 "username": {
@@ -4075,6 +4702,9 @@ const docTemplate = `{
         "fst_backend_app_services.UserUpdateRequest": {
             "type": "object",
             "properties": {
+                "admin_remark": {
+                    "type": "string"
+                },
                 "avatar": {
                     "type": "string"
                 },
@@ -4103,6 +4733,9 @@ const docTemplate = `{
                 "language": {
                     "type": "string"
                 },
+                "level": {
+                    "type": "integer"
+                },
                 "mobile": {
                     "type": "string"
                 },
@@ -4117,6 +4750,25 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "integer"
+                }
+            }
+        },
+        "utils.DialCountry": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "description": "CN / US",
+                    "type": "string"
+                },
+                "dial_code": {
+                    "description": "86 / 1（不含 +）",
+                    "type": "string"
+                },
+                "name_en": {
+                    "type": "string"
+                },
+                "name_zh": {
+                    "type": "string"
                 }
             }
         },
@@ -4160,4 +4812,3 @@ var SwaggerInfo = &swag.Spec{
 func init() {
 	swag.Register(SwaggerInfo.InstanceName(), SwaggerInfo)
 }
-

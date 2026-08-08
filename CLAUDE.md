@@ -74,7 +74,7 @@ HTTP → controllers → services → models → DB
 
 ### 插件系统（全自动）
 
-在 `backend/app/plugins/<name>/` 实现 Plugin 接口，`init()` 中 `pluginregistry.Register(...)`。根 main.go / main_embedded.go 的 `@plugins-start` ~ `@plugins-end` blank import 区域由 `gen_plugins.go` 自动扫描更新，勿手改。生命周期：`Configure → Init → Migrate → RegisterRoutes → Shutdown`；demo 插件需 `-tags demo`。
+在 `backend/app/plugins/<name>/` 实现 Plugin 接口，`init()` 中 `pluginregistry.Register(...)`。根 main.go / main_embedded.go 的 `@plugins-start` ~ `@plugins-end` blank import 区域由 `gen_plugins.go` 自动扫描更新，勿手改。生命周期：`Configure → Init → Migrate → RegisterRoutes → Shutdown`。
 
 当前业务插件：
 
@@ -82,7 +82,6 @@ HTTP → controllers → services → models → DB
 |------|--------|------|------|
 | `sms` | 10 | `/api/v1/{ADMIN}/sms-send-test` | 短信发送测试 + 模板管理 |
 | `pay_balance` | 50 | `/api/v1/user/payment/balance` | 余额充值支付通道 |
-| `demo` | — | `/api/v1/demo/*` | 示例插件，需 `-tags demo` |
 
 ### 配置（关键约定）
 
