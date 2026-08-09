@@ -168,20 +168,32 @@ func ListPaymentOrdersForReconcile(limit int, canceledLookbackSec int64) ([]Paym
 	pendingWindowEnd := now + 30*60
 	pendingCreatedBefore := now - 120
 
-	var orders []PaymentOrder
-	err := db.DB.Where(
+	// 先查出需要跳过的 order_no（改为两段查询，避免 payment_orders 与 payment_exceptions
+	// 表的 order_no 排序规则不一致导致 MySQL "Illegal mix of collations" 错误）。
+	var excludeOrderNos []string
+	err := db.DB.Model(&PaymentException{}).
+		Where("exception_type IN (?, ?) AND order_no <> '' AND create_time >= ?",
+			PaymentExceptionOrderMissing, PaymentExceptionPermanentRejected, cutoff).
+		Pluck("order_no", &excludeOrderNos).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 没有要排除的异常单时，直接走原来的条件，避免 SQL 里出现空 IN。
+	query := db.DB.Where(
 		`gateway_id > 0 AND (
 			(status = ? AND (expire_at = 0 OR expire_at <= ? OR create_time <= ?))
 			OR (status = ? AND update_time >= ?)
-		) AND order_no NOT IN (
-			SELECT order_no FROM payment_exceptions
-			WHERE exception_type IN (?, ?) AND order_no <> ''
 		)`,
 		PaymentStatusPending, pendingWindowEnd, pendingCreatedBefore,
 		PaymentStatusCanceled, cutoff,
-		PaymentExceptionOrderMissing, PaymentExceptionPermanentRejected,
-	).Order("update_time ASC").Limit(limit).Find(&orders).Error
-	if err != nil {
+	)
+	if len(excludeOrderNos) > 0 {
+		query = query.Where("order_no NOT IN ?", excludeOrderNos)
+	}
+
+	var orders []PaymentOrder
+	if err := query.Order("update_time ASC").Limit(limit).Find(&orders).Error; err != nil {
 		return nil, err
 	}
 	normalizePaymentOrders(orders)
