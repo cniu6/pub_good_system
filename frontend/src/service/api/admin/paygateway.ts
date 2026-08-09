@@ -8,17 +8,60 @@ function baseUrl() {
   return `${getAdminApiBase()}/payment/gateways`
 }
 
+/** 配置字段 schema */
+export interface ChannelConfigField {
+  name: string
+  label: string
+  type: 'input' | 'textarea' | 'select'
+  required: boolean
+  secret: boolean
+  placeholder: string
+}
+
+/** 签名算法元数据 */
+export interface ChannelSignTypeMeta {
+  value: string
+  name: string
+}
+
+/** 通道版本元数据 */
+export interface ChannelVersionMeta {
+  version: string
+  name: string
+  signTypes: ChannelSignTypeMeta[]
+  configFields: ChannelConfigField[]
+}
+
+/** 支付方式元数据 */
+export interface ChannelPayTypeMeta {
+  value: string
+  name: string
+}
+
+/** 通道类型元数据 */
+export interface ChannelMeta {
+  type: string
+  name: string
+  currency: string
+  versions: ChannelVersionMeta[]
+}
+
 /** 支付通道 */
 export interface PayGateway {
   id: number
   name: string
   type: string
   pay_type: string
+  sign_type: string
+  version: string
+  device: string
+  currency: string
   description: string
   status: number
   api_url: string
   pid: string
   key: string
+  ext_config: string
   logo_url: string
   sort_order: number
   min_amount: number
@@ -27,6 +70,10 @@ export interface PayGateway {
   fee_mode: string
   min_level: number
   notify_url: string
+  expire_minutes: number
+  active_query_enabled: number
+  query_interval_seconds: number
+  query_batch_size: number
   create_time: number
   update_time: number
 }
@@ -35,11 +82,16 @@ export interface PayGatewayCreateRequest {
   name: string
   type: string
   pay_type: string
+  sign_type?: string
+  version?: string
+  device?: string
+  currency?: string
   description?: string
   status: number
   api_url?: string
   pid?: string
   key?: string
+  ext_config?: string
   logo_url?: string
   sort_order?: number
   min_amount?: number
@@ -48,6 +100,10 @@ export interface PayGatewayCreateRequest {
   fee_mode?: string
   min_level?: number
   notify_url?: string
+  expire_minutes?: number
+  active_query_enabled?: number
+  query_interval_seconds?: number
+  query_batch_size?: number
 }
 
 export type PayGatewayUpdateRequest = Partial<PayGatewayCreateRequest>
@@ -75,4 +131,9 @@ export function updatePayGateway(id: number, data: PayGatewayUpdateRequest) {
 /** 删除支付通道 */
 export function deletePayGateway(id: number) {
   return request.Delete<Service.ResponseResult<null>>(`${baseUrl()}/${id}`)
+}
+
+/** 获取已注册支付通道元数据（版本、签名算法、配置字段） */
+export function fetchPaymentChannelMetas() {
+  return request.Get<Service.ResponseResult<ChannelMeta[]>>(`${getAdminApiBase()}/payment/channels/metas`)
 }

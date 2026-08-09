@@ -3,63 +3,68 @@ package services
 import (
 	"errors"
 	"fst/backend/app/models"
+	"fst/backend/pkg/payment"
 	"fst/backend/utils"
 	"log"
 	"math"
-	"strings"
 )
-
-// payGatewayMaskedValue 支付通道商户密钥对管理端列表/详情的掩码占位值。
-// 与 settings_helpers.go 的敏感设置掩码保持同一约定：非空原值 -> 固定占位串；
-// 更新时前端若原样传回该占位值，视为"未修改密钥"，不覆盖数据库中的真实密钥。
-const payGatewayMaskedValue = "********"
-
-// maskPayGatewayForAdmin 对管理端返回的支付通道做密钥掩码，避免商户密钥通过列表/详情/创建/更新接口明文泄露。
-func maskPayGatewayForAdmin(gw models.PayGateway) models.PayGateway {
-	if strings.TrimSpace(gw.Key) != "" {
-		gw.Key = payGatewayMaskedValue
-	}
-	return gw
-}
 
 // PayGatewayCreateRequest 创建支付通道请求
 type PayGatewayCreateRequest struct {
-	Name        string  `json:"name" binding:"required,max=100"`
-	Type        string  `json:"type" binding:"required,max=50"`
-	PayType     string  `json:"pay_type" binding:"required,max=50"`
-	Description string  `json:"description" binding:"omitempty,max=500"`
-	Status      int     `json:"status"`
-	ApiURL      string  `json:"api_url" binding:"omitempty"`
-	PID         string  `json:"pid" binding:"omitempty"`
-	Key         string  `json:"key" binding:"omitempty"`
-	LogoURL     string  `json:"logo_url" binding:"omitempty"`
-	SortOrder   int     `json:"sort_order"`
-	MinAmount   float64 `json:"min_amount"`
-	MaxAmount   float64 `json:"max_amount"`
-	FeeRate     int     `json:"fee_rate"`
-	FeeMode     string  `json:"fee_mode" binding:"omitempty,max=50"`
-	MinLevel    int     `json:"min_level"`
-	NotifyURL   string  `json:"notify_url" binding:"omitempty"`
+	Name                 string  `json:"name" binding:"required,max=100"`
+	Type                 string  `json:"type" binding:"required,max=50"`
+	PayType              string  `json:"pay_type" binding:"required,max=50"`
+	SignType             string  `json:"sign_type" binding:"omitempty,max=50"`
+	Version              string  `json:"version" binding:"omitempty,max=50"`
+	Device               string  `json:"device" binding:"omitempty,max=50"`
+	Currency             string  `json:"currency" binding:"omitempty,max=10"`
+	Description          string  `json:"description" binding:"omitempty,max=500"`
+	Status               int     `json:"status"`
+	ApiURL               string  `json:"api_url" binding:"omitempty"`
+	PID                  string  `json:"pid" binding:"omitempty"`
+	Key                  string  `json:"key" binding:"omitempty"`
+	ExtConfig            string  `json:"ext_config" binding:"omitempty"`
+	LogoURL              string  `json:"logo_url" binding:"omitempty"`
+	SortOrder            int     `json:"sort_order"`
+	MinAmount            float64 `json:"min_amount"`
+	MaxAmount            float64 `json:"max_amount"`
+	FeeRate              int     `json:"fee_rate"`
+	FeeMode              string  `json:"fee_mode" binding:"omitempty,max=50"`
+	MinLevel             int     `json:"min_level"`
+	NotifyURL            string  `json:"notify_url" binding:"omitempty"`
+	ExpireMinutes        int     `json:"expire_minutes"`
+	ActiveQueryEnabled   int     `json:"active_query_enabled"`
+	QueryIntervalSeconds int     `json:"query_interval_seconds"`
+	QueryBatchSize       int     `json:"query_batch_size"`
 }
 
 // PayGatewayUpdateRequest 更新支付通道请求
 type PayGatewayUpdateRequest struct {
-	Name        *string  `json:"name" binding:"omitempty,max=100"`
-	Type        *string  `json:"type" binding:"omitempty,max=50"`
-	PayType     *string  `json:"pay_type" binding:"omitempty,max=50"`
-	Description *string  `json:"description" binding:"omitempty,max=500"`
-	Status      *int     `json:"status"`
-	ApiURL      *string  `json:"api_url" binding:"omitempty"`
-	PID         *string  `json:"pid" binding:"omitempty"`
-	Key         *string  `json:"key" binding:"omitempty"`
-	LogoURL     *string  `json:"logo_url" binding:"omitempty"`
-	SortOrder   *int     `json:"sort_order"`
-	MinAmount   *float64 `json:"min_amount"`
-	MaxAmount   *float64 `json:"max_amount"`
-	FeeRate     *int     `json:"fee_rate"`
-	FeeMode     *string  `json:"fee_mode" binding:"omitempty,max=50"`
-	MinLevel    *int     `json:"min_level"`
-	NotifyURL   *string  `json:"notify_url" binding:"omitempty"`
+	Name                 *string  `json:"name" binding:"omitempty,max=100"`
+	Type                 *string  `json:"type" binding:"omitempty,max=50"`
+	PayType              *string  `json:"pay_type" binding:"omitempty,max=50"`
+	SignType             *string  `json:"sign_type" binding:"omitempty,max=50"`
+	Version              *string  `json:"version" binding:"omitempty,max=50"`
+	Device               *string  `json:"device" binding:"omitempty,max=50"`
+	Currency             *string  `json:"currency" binding:"omitempty,max=10"`
+	Description          *string  `json:"description" binding:"omitempty,max=500"`
+	Status               *int     `json:"status"`
+	ApiURL               *string  `json:"api_url" binding:"omitempty"`
+	PID                  *string  `json:"pid" binding:"omitempty"`
+	Key                  *string  `json:"key" binding:"omitempty"`
+	ExtConfig            *string  `json:"ext_config" binding:"omitempty"`
+	LogoURL              *string  `json:"logo_url" binding:"omitempty"`
+	SortOrder            *int     `json:"sort_order"`
+	MinAmount            *float64 `json:"min_amount"`
+	MaxAmount            *float64 `json:"max_amount"`
+	FeeRate              *int     `json:"fee_rate"`
+	FeeMode              *string  `json:"fee_mode" binding:"omitempty,max=50"`
+	MinLevel             *int     `json:"min_level"`
+	NotifyURL            *string  `json:"notify_url" binding:"omitempty"`
+	ExpireMinutes        *int     `json:"expire_minutes"`
+	ActiveQueryEnabled   *int     `json:"active_query_enabled"`
+	QueryIntervalSeconds *int     `json:"query_interval_seconds"`
+	QueryBatchSize       *int     `json:"query_batch_size"`
 }
 
 // CreatePayGateway 创建支付通道
@@ -77,31 +82,55 @@ func CreatePayGateway(req *PayGatewayCreateRequest) (*models.PayGateway, error) 
 		return nil, errors.New("Fee rate must be between 0 and 100")
 	}
 
+	if req.SignType == "" {
+		req.SignType = "MD5"
+	}
+	if req.Currency == "" {
+		req.Currency = "CNY"
+	}
+	if req.ExpireMinutes <= 0 {
+		req.ExpireMinutes = getOrderExpireMinutes()
+	}
+	if req.QueryIntervalSeconds <= 0 {
+		req.QueryIntervalSeconds = 120
+	}
+	if req.QueryBatchSize <= 0 {
+		req.QueryBatchSize = 50
+	}
+
 	gw := &models.PayGateway{
-		Name:        req.Name,
-		Type:        req.Type,
-		PayType:     req.PayType,
-		Description: req.Description,
-		Status:      req.Status,
-		ApiURL:      req.ApiURL,
-		PID:         req.PID,
-		Key:         req.Key,
-		LogoURL:     req.LogoURL,
-		SortOrder:   req.SortOrder,
-		MinAmount:   req.MinAmount,
-		MaxAmount:   req.MaxAmount,
-		FeeRate:     req.FeeRate,
-		FeeMode:     req.FeeMode,
-		MinLevel:    req.MinLevel,
-		NotifyURL:   req.NotifyURL,
+		Name:                 req.Name,
+		Type:                 req.Type,
+		PayType:              req.PayType,
+		SignType:             req.SignType,
+		Version:              req.Version,
+		Device:               req.Device,
+		Currency:             req.Currency,
+		Description:          req.Description,
+		Status:               req.Status,
+		ApiURL:               req.ApiURL,
+		PID:                  req.PID,
+		Key:                  req.Key,
+		ExtConfig:            req.ExtConfig,
+		LogoURL:              req.LogoURL,
+		SortOrder:            req.SortOrder,
+		MinAmount:            req.MinAmount,
+		MaxAmount:            req.MaxAmount,
+		FeeRate:              req.FeeRate,
+		FeeMode:              req.FeeMode,
+		MinLevel:             req.MinLevel,
+		NotifyURL:            req.NotifyURL,
+		ExpireMinutes:        req.ExpireMinutes,
+		ActiveQueryEnabled:   req.ActiveQueryEnabled,
+		QueryIntervalSeconds: req.QueryIntervalSeconds,
+		QueryBatchSize:       req.QueryBatchSize,
 	}
 
 	if err := models.CreatePayGateway(gw); err != nil {
 		return nil, errors.New("创建支付通道失败: " + err.Error())
 	}
 
-	masked := maskPayGatewayForAdmin(*gw)
-	return &masked, nil
+	return gw, nil
 }
 
 // UpdatePayGateway 更新支付通道
@@ -118,8 +147,9 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 	// 允许在存在待支付订单时修改 PID/密钥：运维纠错（密钥填错）时不能被卡死。
 	// 风险：旧待支付单的回调验签可能失败，需管理员自行处理（取消旧单或补单）。
 	if pendingCount > 0 {
-		keyChanged := req.Key != nil && *req.Key != payGatewayMaskedValue && *req.Key != gw.Key
-		if (req.PID != nil && *req.PID != gw.PID) || keyChanged {
+		keyChanged := req.Key != nil && *req.Key != gw.Key
+		extChanged := req.ExtConfig != nil && *req.ExtConfig != gw.ExtConfig
+		if (req.PID != nil && *req.PID != gw.PID) || keyChanged || extChanged {
 			log.Printf("[PayGateway] 存在 %d 笔待支付订单，仍修改通道敏感配置: gateway_id=%d", pendingCount, id)
 		}
 	}
@@ -133,6 +163,18 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 	if req.PayType != nil {
 		gw.PayType = *req.PayType
 	}
+	if req.SignType != nil {
+		gw.SignType = *req.SignType
+	}
+	if req.Version != nil {
+		gw.Version = *req.Version
+	}
+	if req.Device != nil {
+		gw.Device = *req.Device
+	}
+	if req.Currency != nil {
+		gw.Currency = *req.Currency
+	}
 	if req.Description != nil {
 		gw.Description = *req.Description
 	}
@@ -145,9 +187,11 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 	if req.PID != nil {
 		gw.PID = *req.PID
 	}
-	if req.Key != nil && *req.Key != payGatewayMaskedValue {
-		// 前端回传的密钥若等于掩码占位值，说明管理员未修改密钥输入框，保留数据库中原有密钥
+	if req.Key != nil {
 		gw.Key = *req.Key
+	}
+	if req.ExtConfig != nil {
+		gw.ExtConfig = *req.ExtConfig
 	}
 	if req.LogoURL != nil {
 		gw.LogoURL = *req.LogoURL
@@ -176,6 +220,18 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 	if req.NotifyURL != nil {
 		gw.NotifyURL = *req.NotifyURL
 	}
+	if req.ExpireMinutes != nil {
+		gw.ExpireMinutes = *req.ExpireMinutes
+	}
+	if req.ActiveQueryEnabled != nil {
+		gw.ActiveQueryEnabled = *req.ActiveQueryEnabled
+	}
+	if req.QueryIntervalSeconds != nil {
+		gw.QueryIntervalSeconds = *req.QueryIntervalSeconds
+	}
+	if req.QueryBatchSize != nil {
+		gw.QueryBatchSize = *req.QueryBatchSize
+	}
 
 	// 验证金额
 	if gw.MaxAmount > 0 && gw.MinAmount > gw.MaxAmount {
@@ -186,8 +242,7 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 		return nil, errors.New("更新支付通道失败: " + err.Error())
 	}
 
-	masked := maskPayGatewayForAdmin(*gw)
-	return &masked, nil
+	return gw, nil
 }
 
 // DeletePayGateway 删除支付通道
@@ -206,26 +261,14 @@ func DeletePayGateway(id uint64) error {
 	return models.DeletePayGateway(id)
 }
 
-// GetPayGatewayListForAdmin 管理端获取支付通道列表（商户密钥已掩码，不回传明文）
+// GetPayGatewayListForAdmin 管理端获取支付通道列表（运营密钥明文返回，不掩码）
 func GetPayGatewayListForAdmin(page, pageSize int, keyword string) ([]models.PayGateway, int64, error) {
-	gateways, total, err := models.GetPayGatewayList(page, pageSize, keyword, false)
-	if err != nil {
-		return nil, 0, err
-	}
-	for i := range gateways {
-		gateways[i] = maskPayGatewayForAdmin(gateways[i])
-	}
-	return gateways, total, nil
+	return models.GetPayGatewayList(page, pageSize, keyword, false)
 }
 
-// GetPayGatewayDetailForAdmin 管理端获取支付通道详情（商户密钥已掩码，不回传明文）
+// GetPayGatewayDetailForAdmin 管理端获取支付通道详情（运营密钥明文返回）
 func GetPayGatewayDetailForAdmin(id uint64) (*models.PayGateway, error) {
-	gw, err := models.GetPayGatewayByID(id)
-	if err != nil {
-		return nil, err
-	}
-	masked := maskPayGatewayForAdmin(*gw)
-	return &masked, nil
+	return models.GetPayGatewayByID(id)
 }
 
 // GetPayGatewayListForUser 用户端获取支付通道列表（隐藏敏感信息）
@@ -243,6 +286,7 @@ func GetPayGatewayListForUser() ([]models.PayGateway, error) {
 	for i := range gateways {
 		gateways[i].ApiURL = ""
 		gateways[i].Key = ""
+		gateways[i].ExtConfig = ""
 		gateways[i].PID = ""
 		gateways[i].NotifyURL = ""
 	}
@@ -250,12 +294,35 @@ func GetPayGatewayListForUser() ([]models.PayGateway, error) {
 	return gateways, nil
 }
 
-// CalculateFee 计算手续费（内部按「分」整数算，避免 float 误差）
-// 返回: 手续费金额, 实际支付金额（用户掏的钱）, 到账金额 —— 均为规范化后的「元」
+// ListPaymentChannelMetas 返回已注册支付通道元数据，供管理端动态渲染表单
+type PaymentChannelMetaView struct {
+	Type     string                       `json:"type"`
+	Name     string                       `json:"name"`
+	Currency string                       `json:"currency"`
+	Versions []payment.ChannelVersionMeta `json:"versions"`
+}
+
+// ListPaymentChannelMetas 列出已注册通道类型及其版本/配置字段
+func ListPaymentChannelMetas() []PaymentChannelMetaView {
+	metas := payment.ListChannelMetas()
+	out := make([]PaymentChannelMetaView, 0, len(metas))
+	for _, m := range metas {
+		out = append(out, PaymentChannelMetaView{
+			Type:     m.Type,
+			Name:     m.Name,
+			Currency: m.Currency,
+			Versions: m.Versions,
+		})
+	}
+	return out
+}
+
+// CalculateFee 计算手续费与到账金额
+// feeRate: 百分比（1 = 1%），内部按「分」整数算避免 float 误差
+// feeMode: add 用户多付 / include 手续费从金额中扣除
 func CalculateFee(amount float64, feeRate int, feeMode string) (fee float64, payAmount float64, creditAmount float64) {
 	amountFen, err := utils.YuanToFen(amount)
 	if err != nil || amountFen <= 0 {
-		// 非法或非正金额：原样返回，由上层校验拦截
 		return 0, amount, amount
 	}
 	if feeRate <= 0 {
@@ -263,7 +330,6 @@ func CalculateFee(amount float64, feeRate int, feeMode string) (fee float64, pay
 		return 0, yuan, yuan
 	}
 
-	// feeFen = Round(amountFen * feeRate / 100)，feeRate 表示百分比（1 = 1%）
 	feeFen := int64(math.Round(float64(amountFen) * float64(feeRate) / 100.0))
 	if feeFen < 0 {
 		feeFen = 0
@@ -271,11 +337,9 @@ func CalculateFee(amount float64, feeRate int, feeMode string) (fee float64, pay
 
 	var payFen, creditFen int64
 	if feeMode == models.FeeModAdd {
-		// 加收模式：用户多付手续费，到账金额 = 充值金额
 		payFen = amountFen + feeFen
 		creditFen = amountFen
 	} else {
-		// 包含模式（默认）：到账金额 = 充值金额 - 手续费
 		payFen = amountFen
 		creditFen = amountFen - feeFen
 		if creditFen < 0 {
@@ -285,4 +349,3 @@ func CalculateFee(amount float64, feeRate int, feeMode string) (fee float64, pay
 
 	return utils.FenToYuan(feeFen), utils.FenToYuan(payFen), utils.FenToYuan(creditFen)
 }
-

@@ -2,7 +2,9 @@ package pay_balance
 
 import (
 	"fst/backend/app/plugins"
+	_ "fst/backend/app/plugins/pay_balance/alipay"
 	"fst/backend/app/plugins/pay_balance/epay"
+	_ "fst/backend/app/plugins/pay_balance/wechat"
 	"fst/backend/app/services"
 	"fst/backend/pkg/pluginregistry"
 	"log"

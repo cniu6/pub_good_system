@@ -8,6 +8,7 @@ package payment
 import (
 	"context"
 	"crypto"
+	"crypto/hmac"
 	"crypto/md5"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -54,6 +55,7 @@ type CreatePayRequest struct {
 	ApiURL    string            // 网关地址
 	PayType   string            // 支付方式
 	SignType  string            // 签名算法：MD5 / RSA
+	Version   string            // 通道版本，如 v1 / v2 / v3
 	Device    string            // 设备类型，如 pc / mobile
 	OrderNo   string            // 系统订单号
 	Subject   string            // 订单标题
@@ -77,6 +79,7 @@ type QueryOrderRequest struct {
 	PID            string            // 商户ID
 	ExtConfig      map[string]string // 扩展配置
 	SignType       string            // 签名算法
+	Version        string            // 通道版本
 	ApiURL         string            // 网关地址
 	OrderNo        string            // 系统订单号
 	TradeNo        string            // 第三方交易号
@@ -248,6 +251,18 @@ func RSASign(data, privateKeyPEM string) (string, error) {
 		return "", err
 	}
 	return base64.StdEncoding.EncodeToString(signature), nil
+}
+
+// HMACWithSHA256 使用 HMAC-SHA256 签名
+func HMACWithSHA256(data, key string) string {
+	h := hmac.New(sha256.New, []byte(key))
+	h.Write([]byte(data))
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// VerifyHMACWithSHA256 验证 HMAC-SHA256 签名
+func VerifyHMACWithSHA256(data, sign, key string) bool {
+	return hmac.Equal([]byte(sign), []byte(HMACWithSHA256(data, key)))
 }
 
 // RSAVerify 使用平台 RSA 公钥验证 SHA256WithRSA 签名

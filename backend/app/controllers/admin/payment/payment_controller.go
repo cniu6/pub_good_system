@@ -456,6 +456,16 @@ func (ctrl *PaymentController) DeleteGateway(c *gin.Context) {
 // ========================================
 
 // RegisterPaymentRoutes 注册管理端支付路由
+// ListChannelMetas 返回已注册支付通道的元数据（版本、签名算法、配置字段），供管理端动态渲染表单
+// @Summary 支付通道类型元数据
+// @Tags Admin-支付
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Router /v1/admin/payment/channels/metas [get]
+func (ctrl *PaymentController) ListChannelMetas(c *gin.Context) {
+	utils.Success(c, services.ListPaymentChannelMetas())
+}
+
 func (ctrl *PaymentController) RegisterPaymentRoutes(group *gin.RouterGroup) {
 	payment := group.Group("/payment")
 	payment.Use(middleware.SimpleLogMiddleware("支付管理"))
@@ -474,6 +484,7 @@ func (ctrl *PaymentController) RegisterPaymentRoutes(group *gin.RouterGroup) {
 		payment.POST("/exceptions/:id/resolve", middleware.RequireIdempotency("admin_payment_exception_resolve", 10*time.Minute), ctrl.ResolveException)
 
 		// 支付通道管理
+		payment.GET("/channels/metas", ctrl.ListChannelMetas)
 		payment.POST("/gateways", ctrl.CreateGateway)
 		payment.GET("/gateways", ctrl.ListGateways)
 		payment.GET("/gateways/:id", ctrl.GetGateway)

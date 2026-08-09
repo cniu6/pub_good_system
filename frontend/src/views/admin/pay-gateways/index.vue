@@ -1,17 +1,24 @@
 <script setup lang="ts">
-import { h, onMounted, reactive, ref } from 'vue'
+import { h, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NButton, NImage, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
-import type { DataTableColumns, FormRules } from 'naive-ui'
+import type { DataTableColumns, FormRules, SelectOption } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 import { useRequestGuard, useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import {
   createPayGateway,
   deletePayGateway,
   fetchPayGateways,
+  fetchPaymentChannelMetas,
   updatePayGateway,
 } from '@/service/api/admin/paygateway'
-import type { PayGateway, PayGatewayCreateRequest } from '@/service/api/admin/paygateway'
+import type {
+  ChannelConfigField,
+  ChannelMeta,
+  ChannelVersionMeta,
+  PayGateway,
+  PayGatewayCreateRequest,
+} from '@/service/api/admin/paygateway'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -34,17 +41,27 @@ const showModal = ref(false)
 const editingId = ref<number | null>(null)
 const submitting = ref(false)
 const formRef = ref()
+const advancedMode = ref(false)
+const channelMetas = ref<ChannelMeta[]>([])
+const channelMeta = ref<ChannelMeta | null>(null)
+const extConfigMap = reactive<Record<string, string>>({})
+const activeVersion = ref<ChannelVersionMeta | null>(null)
 
 function defaultForm(): PayGatewayCreateRequest {
   return {
     name: '',
     type: 'epay',
     pay_type: 'alipay',
+    sign_type: 'MD5',
+    version: '',
+    device: 'pc',
+    currency: 'CNY',
     description: '',
     status: 1,
     api_url: '',
     pid: '',
     key: '',
+    ext_config: '',
     logo_url: '',
     sort_order: 0,
     min_amount: 1,
@@ -53,6 +70,10 @@ function defaultForm(): PayGatewayCreateRequest {
     fee_mode: 'add',
     min_level: 0,
     notify_url: '',
+    expire_minutes: 30,
+    active_query_enabled: 1,
+    query_interval_seconds: 120,
+    query_batch_size: 50,
   }
 }
 
@@ -62,23 +83,21 @@ const formRules: FormRules = {
   name: [{ required: true, message: t('adminPayGateways.enterName'), trigger: 'blur' }],
   type: [{ required: true, message: t('adminPayGateways.selectType'), trigger: 'change' }],
   pay_type: [{ required: true, message: t('adminPayGateways.selectPayType'), trigger: 'change' }],
+  api_url: [{ required: true, message: t('adminPayGateways.enterApiUrl'), trigger: 'blur' }],
+  version: [{ required: true, message: t('adminPayGateways.selectVersion'), trigger: 'change' }],
 }
 
-const typeOptions = [
-  { label: t('adminPayGateways.epay'), value: 'epay' },
+const feeModeOptions = [
+  { label: t('adminPayGateways.feeModeAdd'), value: 'add' },
+  { label: t('adminPayGateways.feeModeInclude'), value: 'include' },
 ]
 
-const payTypeOptions = [
+const defaultPayTypeOptions = [
   { label: t('recharge.alipay'), value: 'alipay' },
   { label: t('recharge.wechatPay'), value: 'wxpay' },
   { label: t('recharge.qqWallet'), value: 'qqpay' },
   { label: t('recharge.bankCard'), value: 'bank' },
   { label: t('recharge.jdPay'), value: 'jdpay' },
-]
-
-const feeModeOptions = [
-  { label: t('adminPayGateways.feeModeAdd'), value: 'add' },
-  { label: t('adminPayGateways.feeModeInclude'), value: 'include' },
 ]
 
 const payTypeMap: Record<string, string> = {
@@ -88,6 +107,16 @@ const payTypeMap: Record<string, string> = {
   bank: t('recharge.bankCard'),
   jdpay: t('recharge.jdPay'),
 }
+
+const typeOptions = ref<SelectOption[]>([
+  { label: t('adminPayGateways.epay'), value: 'epay' },
+])
+
+const versionOptions = ref<SelectOption[]>([])
+const signTypeOptions = ref<SelectOption[]>([])
+const payTypeOptions = ref<SelectOption[]>([])
+const deviceOptions = ref<SelectOption[]>([])
+const dynamicConfigFields = ref<ChannelConfigField[]>([])
 
 const columns: DataTableColumns<PayGateway> = [
   {
@@ -199,7 +228,6 @@ async function loadList() {
       list.value = res.data?.list || []
       pagination.itemCount = res.data?.total || 0
     }
-    // 业务失败：全局拦截器已提示
   }
   catch {
     // 网络异常：alova onError 已提示
@@ -210,9 +238,124 @@ async function loadList() {
   }
 }
 
+async function loadChannelMetas() {
+  try {
+    const res = await fetchPaymentChannelMetas()
+    if (res.isSuccess && res.data) {
+      channelMetas.value = res.data
+      typeOptions.value = res.data.map(m => ({ label: m.name || m.type, value: m.type }))
+    }
+  }
+  catch {
+    // 后端不支持时兜底
+    typeOptions.value = [
+      { label: t('adminPayGateways.epay'), value: 'epay' },
+      { label: t('adminPayGateways.wechat'), value: 'wechat' },
+      { label: t('adminPayGateways.alipay'), value: 'alipay' },
+    ]
+  }
+}
+
+function pickChannelMeta(type: string) {
+  channelMeta.value = channelMetas.value.find(m => m.type === type) || null
+  if (channelMeta.value) {
+    payTypeOptions.value = [] // 优先由后端决定，但当前后端未返回 payTypes，保留旧列表
+    versionOptions.value = channelMeta.value.versions.map(v => ({ label: v.name || v.version, value: v.version }))
+    deviceOptions.value = [] // 后端当前未返回 devices，由版本字段决定
+  }
+  else {
+    versionOptions.value = []
+    signTypeOptions.value = []
+    dynamicConfigFields.value = []
+  }
+}
+
+function pickVersion(version: string) {
+  activeVersion.value = channelMeta.value?.versions.find(v => v.version === version) || null
+  if (activeVersion.value) {
+    signTypeOptions.value = activeVersion.value.signTypes.map(s => ({ label: s.name || s.value, value: s.value }))
+    dynamicConfigFields.value = activeVersion.value.configFields || []
+    // 自动将签名算法选为第一个
+    if (!form.sign_type && signTypeOptions.value.length > 0) {
+      form.sign_type = signTypeOptions.value[0].value as string
+    }
+  }
+  else {
+    signTypeOptions.value = []
+    dynamicConfigFields.value = []
+  }
+}
+
+function syncExtConfigFromMap() {
+  if (Object.keys(extConfigMap).length === 0) {
+    form.ext_config = ''
+    return
+  }
+  try {
+    form.ext_config = JSON.stringify(extConfigMap, null, 2)
+  }
+  catch {
+    // ignore
+  }
+}
+
+function syncExtConfigToMap() {
+  Object.keys(extConfigMap).forEach(k => delete extConfigMap[k])
+  if (!form.ext_config)
+    return
+  try {
+    const parsed = JSON.parse(form.ext_config)
+    if (parsed && typeof parsed === 'object') {
+      Object.keys(parsed).forEach((k) => {
+        extConfigMap[k] = parsed[k]
+      })
+    }
+  }
+  catch {
+    // ignore
+  }
+}
+
+watch(() => form.type, (type) => {
+  pickChannelMeta(type)
+  if (versionOptions.value.length > 0 && !form.version) {
+    form.version = versionOptions.value[0].value as string
+  }
+})
+
+watch(() => form.version, (version) => {
+  if (version)
+    pickVersion(version)
+})
+
+watch(() => form.sign_type, () => {
+  // 不同签名算法可能有不同配置字段；若后端未来返回，这里可重新渲染
+})
+
+watch(extConfigMap, () => {
+  if (!advancedMode.value)
+    syncExtConfigFromMap()
+}, { deep: true })
+
+watch(advancedMode, (v) => {
+  if (v) {
+    // 切到高级模式：把 map 同步到 JSON 编辑器
+    syncExtConfigFromMap()
+  }
+  else {
+    // 切回普通模式：把 JSON 同步到 map
+    syncExtConfigToMap()
+  }
+})
+
 function handleCreate() {
   editingId.value = null
   Object.assign(form, defaultForm())
+  Object.keys(extConfigMap).forEach(k => delete extConfigMap[k])
+  advancedMode.value = false
+  channelMeta.value = null
+  activeVersion.value = null
+  pickChannelMeta(form.type)
   showModal.value = true
 }
 
@@ -222,11 +365,16 @@ function handleEdit(row: PayGateway) {
     name: row.name,
     type: row.type,
     pay_type: row.pay_type,
+    sign_type: row.sign_type || 'MD5',
+    version: row.version || '',
+    device: row.device || 'pc',
+    currency: row.currency || 'CNY',
     description: row.description,
     status: row.status,
     api_url: row.api_url,
     pid: row.pid,
     key: row.key,
+    ext_config: row.ext_config || '',
     logo_url: row.logo_url,
     sort_order: row.sort_order,
     min_amount: row.min_amount,
@@ -235,7 +383,16 @@ function handleEdit(row: PayGateway) {
     fee_mode: row.fee_mode || 'add',
     min_level: row.min_level,
     notify_url: row.notify_url,
+    expire_minutes: row.expire_minutes || 30,
+    active_query_enabled: row.active_query_enabled ?? 1,
+    query_interval_seconds: row.query_interval_seconds || 120,
+    query_batch_size: row.query_batch_size || 50,
   })
+  advancedMode.value = false
+  syncExtConfigToMap()
+  pickChannelMeta(form.type)
+  if (form.version)
+    pickVersion(form.version)
   showModal.value = true
 }
 
@@ -249,19 +406,32 @@ async function handleSubmit() {
     return
   }
 
+  if (!advancedMode.value)
+    syncExtConfigFromMap()
+
+  // 兼容旧 key：若 ext_config 为空且 key 有值，把 key 写入 ext_config
+  const payload: PayGatewayCreateRequest = { ...form }
+  if (!payload.ext_config && payload.key) {
+    try {
+      payload.ext_config = JSON.stringify({ key: payload.key }, null, 2)
+    }
+    catch {
+      // ignore
+    }
+  }
+
   await withSubmitLock(submitting, async () => {
     try {
       if (editingId.value) {
-        const res = await updatePayGateway(editingId.value, form)
+        const res = await updatePayGateway(editingId.value, payload)
         if (res.isSuccess) {
           message.success(t('adminUsers.updateSuccess'))
           showModal.value = false
           loadList()
         }
-        // 业务失败：全局拦截器已展示 API message，避免双 toast
       }
       else {
-        const res = await createPayGateway(form)
+        const res = await createPayGateway(payload)
         if (res.isSuccess) {
           message.success(t('adminUsers.createSuccess'))
           showModal.value = false
@@ -290,7 +460,6 @@ function handleDelete(row: PayGateway) {
           message.success(t('adminPayGateways.deleteSuccess'))
           loadList()
         }
-        // 业务失败（如存在待支付订单）：全局已提示
       }
       catch {
         // 网络异常：alova onError 已提示
@@ -301,6 +470,7 @@ function handleDelete(row: PayGateway) {
 
 onMounted(() => {
   loadList()
+  loadChannelMetas()
 })
 </script>
 
@@ -352,8 +522,8 @@ onMounted(() => {
     </n-card>
 
     <!-- 新增/编辑弹窗 -->
-    <n-modal v-model:show="showModal" preset="card" :title="editingId ? t('adminPayGateways.editGateway') : t('adminPayGateways.addGateway')" style="width: 680px" :mask-closable="false">
-      <n-form ref="formRef" :model="form" :rules="formRules" label-placement="left" label-width="100">
+    <n-modal v-model:show="showModal" preset="card" :title="editingId ? t('adminPayGateways.editGateway') : t('adminPayGateways.addGateway')" style="width: 760px; max-width: 92vw" :mask-closable="false">
+      <n-form ref="formRef" :model="form" :rules="formRules" label-placement="left" label-width="120">
         <n-grid :cols="2" :x-gap="16">
           <n-gi>
             <n-form-item :label="t('adminPayGateways.gatewayName')" path="name">
@@ -367,7 +537,27 @@ onMounted(() => {
           </n-gi>
           <n-gi>
             <n-form-item :label="t('recharge.paymentMethod')" path="pay_type">
-              <n-select v-model:value="form.pay_type" :options="payTypeOptions" :placeholder="t('adminPayGateways.payTypePlaceholder')" />
+              <n-select v-model:value="form.pay_type" :options="payTypeOptions.length ? payTypeOptions : defaultPayTypeOptions" :placeholder="t('adminPayGateways.payTypePlaceholder')" />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.version')" path="version">
+              <n-select v-model:value="form.version" :options="versionOptions" :placeholder="t('adminPayGateways.versionPlaceholder')" :disabled="!channelMeta" />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.signType')" path="sign_type">
+              <n-select v-model:value="form.sign_type" :options="signTypeOptions" :placeholder="t('adminPayGateways.signTypePlaceholder')" :disabled="!activeVersion" />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.device')" path="device">
+              <n-input v-model:value="form.device" :placeholder="t('adminPayGateways.devicePlaceholder')" />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.currency')" path="currency">
+              <n-input v-model:value="form.currency" :placeholder="t('adminPayGateways.currencyPlaceholder')" />
             </n-form-item>
           </n-gi>
           <n-gi>
@@ -449,12 +639,71 @@ onMounted(() => {
               <n-input-number v-model:value="form.sort_order" :min="0" style="width: 100%" :placeholder="t('adminPayGateways.sortOrderPlaceholder')" />
             </n-form-item>
           </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.expireMinutes')" path="expire_minutes">
+              <n-input-number v-model:value="form.expire_minutes" :min="1" style="width: 100%" />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.activeQueryEnabled')" path="active_query_enabled">
+              <n-switch v-model:value="form.active_query_enabled" :checked-value="1" :unchecked-value="0" />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.queryIntervalSeconds')" path="query_interval_seconds">
+              <n-input-number v-model:value="form.query_interval_seconds" :min="10" style="width: 100%" />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.queryBatchSize')" path="query_batch_size">
+              <n-input-number v-model:value="form.query_batch_size" :min="1" :max="200" style="width: 100%" />
+            </n-form-item>
+          </n-gi>
           <n-gi :span="2">
             <n-form-item :label="t('adminPayGateways.notifyUrl')" path="notify_url">
               <n-input v-model:value="form.notify_url" :placeholder="t('adminPayGateways.notifyUrlPlaceholder')" />
             </n-form-item>
           </n-gi>
         </n-grid>
+
+        <!-- 动态扩展配置字段 -->
+        <n-divider>{{ t('adminPayGateways.dynamicConfig') }}</n-divider>
+        <n-grid v-if="dynamicConfigFields.length > 0" :cols="1" :x-gap="16">
+          <n-gi v-for="field in dynamicConfigFields" :key="field.name">
+            <n-form-item :label="field.label || field.name" :path="`extConfigMap.${field.name}`">
+              <n-input
+                v-if="field.type === 'input'"
+                v-model:value="extConfigMap[field.name]"
+                :placeholder="field.placeholder"
+                :type="field.secret ? 'password' : 'text'"
+                show-password-on="click"
+              />
+              <n-input
+                v-else-if="field.type === 'textarea'"
+                v-model:value="extConfigMap[field.name]"
+                type="textarea"
+                :placeholder="field.placeholder"
+                :rows="3"
+              />
+              <n-select
+                v-else-if="field.type === 'select'"
+                v-model:value="extConfigMap[field.name]"
+                :options="[]"
+                :placeholder="field.placeholder"
+              />
+            </n-form-item>
+          </n-gi>
+        </n-grid>
+        <n-empty v-else :description="t('adminPayGateways.channelTypeNotSelected')" size="small" />
+
+        <!-- ext_config 高级模式 -->
+        <NSpace align="center" style="margin: 16px 0 8px">
+          <n-switch v-model:value="advancedMode" />
+          <span>{{ t('adminPayGateways.advancedMode') }}</span>
+        </NSpace>
+        <n-form-item v-if="advancedMode" :label="t('adminPayGateways.extConfig')" path="ext_config">
+          <n-input v-model:value="form.ext_config" type="textarea" :placeholder="t('adminPayGateways.extConfigPlaceholder')" :rows="8" />
+        </n-form-item>
       </n-form>
 
       <template #footer>
