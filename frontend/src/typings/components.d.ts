@@ -23,6 +23,7 @@ declare module 'vue' {
     IconParkOutlineGithubOne: typeof import('~icons/icon-park-outline/github-one')['default']
     IconParkOutlineHamburgerButton: typeof import('~icons/icon-park-outline/hamburger-button')['default']
     IconParkOutlineLaptopComputer: typeof import('~icons/icon-park-outline/laptop-computer')['default']
+    IconParkOutlineLogout: typeof import('~icons/icon-park-outline/logout')['default']
     IconParkOutlineMenuFold: typeof import('~icons/icon-park-outline/menu-fold')['default']
     IconParkOutlineMenuUnfold: typeof import('~icons/icon-park-outline/menu-unfold')['default']
     IconParkOutlineMoon: typeof import('~icons/icon-park-outline/moon')['default']
