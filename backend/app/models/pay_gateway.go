@@ -21,6 +21,13 @@ const (
 	FeeModInclude = "include" // 手续费包含在充值金额中（到账金额减少）
 )
 
+// 汇率模式
+const (
+	ExchangeRateModeSystem  = "system"  // 使用系统全局汇率
+	ExchangeRateModeFixed   = "fixed"   // 使用通道固定汇率
+	ExchangeRateModeDynamic = "dynamic" // 使用实时动态汇率
+)
+
 // PayGateway 支付通道模型
 type PayGateway struct {
 	ID                   uint64  `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
@@ -31,6 +38,14 @@ type PayGateway struct {
 	Version              string  `gorm:"column:version;size:50;not null;default:''" json:"version"`
 	Device               string  `gorm:"column:device;size:50;not null;default:'pc'" json:"device"`
 	Currency             string  `gorm:"column:currency;size:10;not null;default:'CNY'" json:"currency"`
+	TargetCurrency       string  `gorm:"column:target_currency;size:10;not null;default:''" json:"target_currency"`
+	ExchangeRateMode     string  `gorm:"column:exchange_rate_mode;size:20;not null;default:'system'" json:"exchange_rate_mode"`
+	ExchangeRate         float64 `gorm:"column:exchange_rate;type:decimal(18,8);not null;default:0" json:"exchange_rate"`
+	ExchangeFixedAmount  float64 `gorm:"column:exchange_fixed_amount;type:decimal(10,2);not null;default:0" json:"exchange_fixed_amount"`
+	ExchangeRateSource   string  `gorm:"column:exchange_rate_source;size:255;not null;default:''" json:"exchange_rate_source"`
+	TargetFeeRate        int     `gorm:"column:target_fee_rate;not null;default:0" json:"target_fee_rate"`
+	TargetFeeFixed       float64 `gorm:"column:target_fee_fixed;type:decimal(10,2);not null;default:0" json:"target_fee_fixed"`
+	TargetFeeMode        string  `gorm:"column:target_fee_mode;size:20;not null;default:'add'" json:"target_fee_mode"`
 	Description          string  `gorm:"column:description;size:500;not null;default:''" json:"description"`
 	Status               int     `gorm:"column:status;not null;default:0;index:idx_pg_status;index:idx_pg_status_sort_id,priority:1" json:"status"`
 	ApiURL               string  `gorm:"column:api_url;type:text;not null" json:"api_url"`

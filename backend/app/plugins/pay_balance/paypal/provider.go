@@ -120,7 +120,14 @@ func (p *Provider) CreatePay(ctx context.Context, req *payment.CreatePayRequest)
 		return nil, fmt.Errorf("paypal get access token failed: %w", err)
 	}
 
-	minor, err := payment.ParseMoneyMinor(req.Money)
+	// 优先使用目标币种/金额；未设置时回退原 Money/Currency
+	money := req.Money
+	currency := req.Currency
+	if req.TargetCurrency != "" && req.TargetMoney != "" {
+		money = req.TargetMoney
+		currency = req.TargetCurrency
+	}
+	minor, err := payment.ParseMoneyMinor(money)
 	if err != nil {
 		return nil, fmt.Errorf("invalid money: %w", err)
 	}
@@ -133,7 +140,7 @@ func (p *Provider) CreatePay(ctx context.Context, req *payment.CreatePayRequest)
 				"reference_id": req.OrderNo,
 				"custom_id":    req.OrderNo,
 				"amount": map[string]string{
-					"currency_code": req.Currency,
+					"currency_code": currency,
 					"value":         amount,
 				},
 			},

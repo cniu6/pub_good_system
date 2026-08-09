@@ -124,7 +124,13 @@ func (p *Provider) CreatePay(ctx context.Context, req *payment.CreatePayRequest)
 		method = "alipay.trade.wap.pay"
 	}
 
-	minor, err := payment.ParseMoneyMinor(req.Money)
+	// 优先使用目标币种/金额
+	money := req.Money
+	if req.TargetCurrency != "" && req.TargetMoney != "" {
+		money = req.TargetMoney
+	}
+
+	minor, err := payment.ParseMoneyMinor(money)
 	if err != nil {
 		return nil, fmt.Errorf("invalid money: %w", err)
 	}

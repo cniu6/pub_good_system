@@ -61,28 +61,36 @@ const RealPaidOrderFilterSQL = "gateway_id > 0 AND payment_channel <> 'admin' AN
 
 // PaymentOrder 支付订单
 type PaymentOrder struct {
-	ID             uint64  `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
-	OrderNo        string  `gorm:"column:order_no;size:64;not null;uniqueIndex:idx_order_no" json:"order_no"`
-	UserID         uint64  `gorm:"column:user_id;not null;default:0;index:idx_po_user_id;index:idx_po_user_status_create,priority:1" json:"user_id"`
-	GatewayID      uint64  `gorm:"column:gateway_id;not null;default:0;index:idx_po_gateway_id;index:idx_po_gateway_status,priority:1" json:"gateway_id"`
-	TradeNo        string  `gorm:"column:trade_no;size:64;not null;default:'';index:idx_po_trade_no" json:"trade_no"`
-	PaymentChannel string  `gorm:"column:payment_channel;size:20;not null;default:'epay'" json:"payment_channel"`
-	PaymentType    string  `gorm:"column:payment_type;size:20;not null;default:'alipay'" json:"payment_type"`
-	Amount         float64 `gorm:"column:amount;type:decimal(10,2);not null;default:0" json:"amount"`
-	Fee            float64 `gorm:"column:fee;type:decimal(10,2);not null;default:0" json:"fee"`
-	PayAmount      float64 `gorm:"column:pay_amount;type:decimal(10,2);not null;default:0" json:"pay_amount"`
-	Subject        string  `gorm:"column:subject;size:255;not null;default:''" json:"subject"`
-	Status         int     `gorm:"column:status;not null;default:0;index:idx_po_status;index:idx_po_gateway_status,priority:2;index:idx_po_status_expire,priority:1;index:idx_po_user_status_create,priority:2" json:"status"`
-	NotifyCount    int     `gorm:"column:notify_count;not null;default:0" json:"notify_count"`
-	PayURL         string  `gorm:"column:pay_url;type:text" json:"pay_url"`
-	PaidAt         *int64  `gorm:"column:paid_at" json:"paid_at"`
-	ExpireAt       int64   `gorm:"column:expire_at;not null;default:0;index:idx_po_status_expire,priority:2" json:"expire_at"`
-	ClientIP       string  `gorm:"column:client_ip;size:64;not null;default:''" json:"client_ip"`
-	Extra          string  `gorm:"column:extra;type:text" json:"extra"`
-	LastQueryAt    *int64  `gorm:"column:last_query_at" json:"last_query_at"`
-	QueryCount     int     `gorm:"column:query_count;not null;default:0" json:"query_count"`
-	CreateTime     int64   `gorm:"column:create_time;not null;default:0;index:idx_po_create_time;index:idx_po_user_status_create,priority:3" json:"create_time"`
-	UpdateTime     int64   `gorm:"column:update_time;not null;default:0" json:"update_time"`
+	ID                  uint64  `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	OrderNo             string  `gorm:"column:order_no;size:64;not null;uniqueIndex:idx_order_no" json:"order_no"`
+	UserID              uint64  `gorm:"column:user_id;not null;default:0;index:idx_po_user_id;index:idx_po_user_status_create,priority:1" json:"user_id"`
+	GatewayID           uint64  `gorm:"column:gateway_id;not null;default:0;index:idx_po_gateway_id;index:idx_po_gateway_status,priority:1" json:"gateway_id"`
+	TradeNo             string  `gorm:"column:trade_no;size:64;not null;default:'';index:idx_po_trade_no" json:"trade_no"`
+	PaymentChannel      string  `gorm:"column:payment_channel;size:20;not null;default:'epay'" json:"payment_channel"`
+	PaymentType         string  `gorm:"column:payment_type;size:20;not null;default:'alipay'" json:"payment_type"`
+	Currency            string  `gorm:"column:currency;size:10;not null;default:'CNY'" json:"currency"`
+	Amount              float64 `gorm:"column:amount;type:decimal(10,2);not null;default:0" json:"amount"`
+	Fee                 float64 `gorm:"column:fee;type:decimal(10,2);not null;default:0" json:"fee"`
+	PayAmount           float64 `gorm:"column:pay_amount;type:decimal(10,2);not null;default:0" json:"pay_amount"`
+	TargetCurrency      string  `gorm:"column:target_currency;size:10;not null;default:''" json:"target_currency"`
+	TargetAmount        float64 `gorm:"column:target_amount;type:decimal(10,2);not null;default:0" json:"target_amount"`
+	TargetFee           float64 `gorm:"column:target_fee;type:decimal(10,2);not null;default:0" json:"target_fee"`
+	TargetPayAmount     float64 `gorm:"column:target_pay_amount;type:decimal(10,2);not null;default:0" json:"target_pay_amount"`
+	TargetCredit        float64 `gorm:"column:target_credit;type:decimal(10,2);not null;default:0" json:"target_credit"`
+	ExchangeRate        float64 `gorm:"column:exchange_rate;type:decimal(18,8);not null;default:0" json:"exchange_rate"`
+	ExchangeFixedAmount float64 `gorm:"column:exchange_fixed_amount;type:decimal(10,2);not null;default:0" json:"exchange_fixed_amount"`
+	Subject             string  `gorm:"column:subject;size:255;not null;default:''" json:"subject"`
+	Status              int     `gorm:"column:status;not null;default:0;index:idx_po_status;index:idx_po_gateway_status,priority:2;index:idx_po_status_expire,priority:1;index:idx_po_user_status_create,priority:2" json:"status"`
+	NotifyCount         int     `gorm:"column:notify_count;not null;default:0" json:"notify_count"`
+	PayURL              string  `gorm:"column:pay_url;type:text" json:"pay_url"`
+	PaidAt              *int64  `gorm:"column:paid_at" json:"paid_at"`
+	ExpireAt            int64   `gorm:"column:expire_at;not null;default:0;index:idx_po_status_expire,priority:2" json:"expire_at"`
+	ClientIP            string  `gorm:"column:client_ip;size:64;not null;default:''" json:"client_ip"`
+	Extra               string  `gorm:"column:extra;type:text" json:"extra"`
+	LastQueryAt         *int64  `gorm:"column:last_query_at" json:"last_query_at"`
+	QueryCount          int     `gorm:"column:query_count;not null;default:0" json:"query_count"`
+	CreateTime          int64   `gorm:"column:create_time;not null;default:0;index:idx_po_create_time;index:idx_po_user_status_create,priority:3" json:"create_time"`
+	UpdateTime          int64   `gorm:"column:update_time;not null;default:0" json:"update_time"`
 }
 
 func (PaymentOrder) TableName() string {

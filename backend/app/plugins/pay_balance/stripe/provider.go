@@ -103,7 +103,15 @@ func (p *Provider) CreatePay(ctx context.Context, req *payment.CreatePayRequest)
 		return nil, fmt.Errorf("stripe secret_key missing")
 	}
 
-	minor, err := payment.ParseMoneyMinor(req.Money)
+	// 优先使用目标币种/金额
+	money := req.Money
+	currency := req.Currency
+	if req.TargetCurrency != "" && req.TargetMoney != "" {
+		money = req.TargetMoney
+		currency = req.TargetCurrency
+	}
+
+	minor, err := payment.ParseMoneyMinor(money)
 	if err != nil {
 		return nil, fmt.Errorf("invalid money: %w", err)
 	}
@@ -111,7 +119,7 @@ func (p *Provider) CreatePay(ctx context.Context, req *payment.CreatePayRequest)
 	apiURL := p.apiURL()
 	data := []string{
 		"amount=" + fmt.Sprintf("%d", minor),
-		"currency=" + strings.ToLower(req.Currency),
+		"currency=" + strings.ToLower(currency),
 		"metadata[order_no]=" + req.OrderNo,
 		"automatic_payment_methods[enabled]=true",
 	}

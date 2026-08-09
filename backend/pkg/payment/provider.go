@@ -68,21 +68,23 @@ type PayloadVerifier interface {
 
 // CreatePayRequest 创建支付请求参数
 type CreatePayRequest struct {
-	PID       string            // 商户ID
-	ExtConfig map[string]string // 扩展配置（从 PayGateway.ext_config 解析）
-	ApiURL    string            // 网关地址
-	PayType   string            // 支付方式
-	SignType  string            // 签名算法：MD5 / RSA
-	Version   string            // 通道版本，如 v1 / v2 / v3
-	Device    string            // 设备类型，如 pc / mobile
-	OrderNo   string            // 系统订单号
-	Subject   string            // 订单标题
-	Money     string            // 金额（元，保留两位小数）
-	Currency  string            // 币种，如 CNY / USD
-	NotifyURL string            // 异步通知地址
-	ReturnURL string            // 同步跳转地址
-	ClientIP  string            // 客户端IP
-	Param     string            // 业务扩展参数（防爆破，可选）
+	PID            string            // 商户ID
+	ExtConfig      map[string]string // 扩展配置（从 PayGateway.ext_config 解析）
+	ApiURL         string            // 网关地址
+	PayType        string            // 支付方式
+	SignType       string            // 签名算法：MD5 / RSA
+	Version        string            // 通道版本，如 v1 / v2 / v3
+	Device         string            // 设备类型，如 pc / mobile
+	OrderNo        string            // 系统订单号
+	Subject        string            // 订单标题
+	Money          string            // 金额（元，保留两位小数，原币种）
+	Currency       string            // 币种，如 CNY / USD（原币种）
+	TargetMoney    string            // 目标币种支付金额（转换+目标手续费后）
+	TargetCurrency string            // 目标币种，如 CNY / USD
+	NotifyURL      string            // 异步通知地址
+	ReturnURL      string            // 同步跳转地址
+	ClientIP       string            // 客户端IP
+	Param          string            // 业务扩展参数（防爆破，可选）
 }
 
 // CreatePayResponse 创建支付响应

@@ -103,10 +103,16 @@ func (p *Provider) CreatePay(ctx context.Context, req *payment.CreatePayRequest)
 		Device:    device,
 	}
 
+	// 优先使用目标币种/金额
+	money := req.Money
+	if req.TargetCurrency != "" && req.TargetMoney != "" {
+		money = req.TargetMoney
+	}
+
 	order := &models.PaymentOrder{
 		PaymentType: req.PayType,
 		OrderNo:     req.OrderNo,
-		PayAmount:   parseMoneyFloat(req.Money),
+		PayAmount:   parseMoneyFloat(money),
 		Subject:     req.Subject,
 		ClientIP:    req.ClientIP,
 	}

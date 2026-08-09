@@ -27,15 +27,20 @@ type CreatePaymentOrderRequest struct {
 
 // CreatePaymentOrderResponse 创建支付订单响应
 type CreatePaymentOrderResponse struct {
-	OrderNo     string  `json:"order_no"`
-	TradeNo     string  `json:"trade_no"`
-	PayURL      string  `json:"pay_url"`
-	Amount      float64 `json:"amount"`
-	Fee         float64 `json:"fee"`
-	PayAmount   float64 `json:"pay_amount"`
-	ExpireAt    int64   `json:"expire_at"`
-	GatewayName string  `json:"gateway_name"`
-	PaymentType string  `json:"payment_type"`
+	OrderNo         string  `json:"order_no"`
+	TradeNo         string  `json:"trade_no"`
+	PayURL          string  `json:"pay_url"`
+	Currency        string  `json:"currency"`
+	Amount          float64 `json:"amount"`
+	Fee             float64 `json:"fee"`
+	PayAmount       float64 `json:"pay_amount"`
+	TargetCurrency  string  `json:"target_currency"`
+	TargetAmount    float64 `json:"target_amount"`
+	TargetFee       float64 `json:"target_fee"`
+	TargetPayAmount float64 `json:"target_pay_amount"`
+	ExpireAt        int64   `json:"expire_at"`
+	GatewayName     string  `json:"gateway_name"`
+	PaymentType     string  `json:"payment_type"`
 }
 
 // CreatePaymentOrder 创建支付订单并生成支付链接（多通道版本）
@@ -80,36 +85,54 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 		return nil, NewClientError(fmt.Sprintf("该通道最高充值金额为 ¥%.2f", gateway.MaxAmount))
 	}
 
-	// 6. 计算手续费（费率配置异常，如包含模式下费率=100%，可能导致到账金额为 0，此时直接拒绝建单）
+	// 6. 计算原币种平台手续费（费率配置异常，如包含模式下费率=100%，可能导致到账金额为 0，此时直接拒绝建单）
 	fee, payAmount, creditAmount := CalculateFee(req.Amount, gateway.FeeRate, gateway.FeeMode)
 	if creditAmount <= 0 {
 		return nil, NewClientError("手续费配置异常，到账金额为 0，请联系管理员")
 	}
 
-	// 7. 获取订单过期时间
+	// 7. 转换为目标币种并计算目标通道手续费
+	orderCurrency := payment.NormalizeCurrency(gateway.Currency)
+	if orderCurrency == "" {
+		orderCurrency = payment.DefaultBaseCurrency
+	}
+	targetResult, err := ConvertOrderAmountToTarget(creditAmount, orderCurrency, gateway)
+	if err != nil {
+		return nil, NewClientError("货币转换失败: " + err.Error())
+	}
+
+	// 8. 获取订单过期时间
 	expireMinutes := getOrderExpireMinutes()
 	expireAt := time.Now().Add(time.Duration(expireMinutes) * time.Minute).Unix()
 
-	// 8. 设置订单标题
+	// 9. 设置订单标题
 	subject := req.Subject
 	if subject == "" {
 		subject = "余额充值"
 	}
 
-	// 9. 检查待支付订单数（防刷）+ 创建订单：同一事务内锁定用户行，防止并发请求绕过 10 单限制
+	// 10. 检查待支付订单数（防刷）+ 创建订单：同一事务内锁定用户行，防止并发请求绕过 10 单限制
 	order := &models.PaymentOrder{
-		OrderNo:        models.GenerateOrderNo(),
-		UserID:         userID,
-		GatewayID:      gateway.ID,
-		PaymentChannel: gateway.Type,
-		PaymentType:    gateway.PayType,
-		Amount:         creditAmount,
-		Fee:            fee,
-		PayAmount:      payAmount,
-		Subject:        subject,
-		Status:         models.PaymentStatusPending,
-		ExpireAt:       expireAt,
-		ClientIP:       utils.ClampStoredIP(req.ClientIP),
+		OrderNo:             models.GenerateOrderNo(),
+		UserID:              userID,
+		GatewayID:           gateway.ID,
+		PaymentChannel:      gateway.Type,
+		PaymentType:         gateway.PayType,
+		Currency:            orderCurrency,
+		Amount:              creditAmount,
+		Fee:                 fee,
+		PayAmount:           payAmount,
+		TargetCurrency:      targetResult.TargetCurrency,
+		TargetAmount:        targetResult.TargetAmount,
+		TargetFee:           targetResult.TargetFee,
+		TargetPayAmount:     targetResult.TargetPayAmount,
+		TargetCredit:        targetResult.TargetCredit,
+		ExchangeRate:        targetResult.ExchangeRate,
+		ExchangeFixedAmount: targetResult.ExchangeFixed,
+		Subject:             subject,
+		Status:              models.PaymentStatusPending,
+		ExpireAt:            expireAt,
+		ClientIP:            utils.ClampStoredIP(req.ClientIP),
 	}
 	if err := createPaymentOrderWithPendingLimitTx(userID, order); err != nil {
 		return nil, err
@@ -164,21 +187,26 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 		return nil, errors.New("Failed to save payment order, please retry later")
 	}
 
-	log.Printf("[Payment] 订单创建成功: order_no=%s, user_id=%d, amount=%.2f, fee=%.2f, pay_amount=%.2f, gateway=%s",
-		order.OrderNo, userID, order.Amount, fee, payAmount, gateway.Name)
+	log.Printf("[Payment] 订单创建成功: order_no=%s, user_id=%d, amount=%.2f(%s), fee=%.2f, pay_amount=%.2f, target=%.2f(%s), gateway=%s",
+		order.OrderNo, userID, order.Amount, order.Currency, fee, payAmount, order.TargetPayAmount, order.TargetCurrency, gateway.Name)
 
 	tradeNo := models.NormalizeTradeNo(order.TradeNo)
 
 	return &CreatePaymentOrderResponse{
-		OrderNo:     order.OrderNo,
-		TradeNo:     tradeNo,
-		PayURL:      payURL,
-		Amount:      order.Amount,
-		Fee:         order.Fee,
-		PayAmount:   order.PayAmount,
-		ExpireAt:    order.ExpireAt,
-		GatewayName: gateway.Name,
-		PaymentType: gateway.PayType,
+		OrderNo:         order.OrderNo,
+		TradeNo:         tradeNo,
+		PayURL:          payURL,
+		Currency:        order.Currency,
+		Amount:          order.Amount,
+		Fee:             order.Fee,
+		PayAmount:       order.PayAmount,
+		TargetCurrency:  order.TargetCurrency,
+		TargetAmount:    order.TargetAmount,
+		TargetFee:       order.TargetFee,
+		TargetPayAmount: order.TargetPayAmount,
+		ExpireAt:        order.ExpireAt,
+		GatewayName:     gateway.Name,
+		PaymentType:     gateway.PayType,
 	}, nil
 }
 
@@ -242,7 +270,11 @@ func settleThirdPartyPaidOrderTx(tx *gorm.DB, orderNo, tradeNo, paymentType, mon
 		log.Printf("[Payment] 绑定校验失败: source=%s, order_no=%s, err=%v", source, orderNo, err)
 		return order, nil, false, err
 	}
-	if err := validateCallbackMoney(order.PayAmount, moneyStr); err != nil {
+	expectedMoney := order.PayAmount
+	if order.TargetCurrency != "" && order.TargetCurrency != order.Currency {
+		expectedMoney = order.TargetPayAmount
+	}
+	if err := validateCallbackMoney(expectedMoney, moneyStr); err != nil {
 		log.Printf("[Payment] 金额校验失败: source=%s, order_no=%s, err=%v", source, orderNo, err)
 		return order, nil, false, err
 	}
@@ -471,7 +503,11 @@ func HandlePaymentNotify(params map[string]string, body []byte, headers map[stri
 	}
 
 	// 金额预检（入事务前也记异常，便于审计）
-	if err := validateCallbackMoney(orderForGateway.PayAmount, moneyStr); err != nil {
+	expectedMoney := orderForGateway.PayAmount
+	if orderForGateway.TargetCurrency != "" && orderForGateway.TargetCurrency != orderForGateway.Currency {
+		expectedMoney = orderForGateway.TargetPayAmount
+	}
+	if err := validateCallbackMoney(expectedMoney, moneyStr); err != nil {
 		log.Printf("[Payment] 回调金额不符: order_no=%s, err=%v", outTradeNo, err)
 		_ = recordPaymentException(&models.PaymentException{
 			OrderNo:       outTradeNo,
@@ -791,7 +827,11 @@ func reconcilePaymentOrder(order *models.PaymentOrder) (*models.PaymentOrder, bo
 	if err := validatePaymentNotifyBinding(order, gateway, strings.TrimSpace(gateway.PID), strings.TrimSpace(queryResult.Type), queryTradeNo); err != nil {
 		return order, false, newPaymentNotifyError(true, err.Error())
 	}
-	if err := validateCallbackMoney(order.PayAmount, queryResult.Money); err != nil {
+	expectedMoney := order.PayAmount
+	if order.TargetCurrency != "" && order.TargetCurrency != order.Currency {
+		expectedMoney = order.TargetPayAmount
+	}
+	if err := validateCallbackMoney(expectedMoney, queryResult.Money); err != nil {
 		return order, false, newPaymentNotifyError(true, err.Error())
 	}
 	if queryResult.TradeStatus != "TRADE_SUCCESS" {
@@ -1128,21 +1168,32 @@ func gatewaySignType(gateway *models.PayGateway) string {
 // createPayWithProvider 优先使用 pkg/payment Provider 创建支付订单，未注册则回退到旧 PaymentChannel
 func createPayWithProvider(ctx context.Context, gateway *models.PayGateway, order *models.PaymentOrder, notifyURL, returnURL string) (string, string, error) {
 	if provider := payment.GetProvider(gateway.Type); provider != nil {
+		targetCurrency := payment.NormalizeCurrency(order.TargetCurrency)
+		if targetCurrency == "" {
+			targetCurrency = payment.NormalizeCurrency(gateway.Currency)
+		}
+		targetMoney := order.TargetPayAmount
+		if targetMoney <= 0 {
+			targetMoney = order.PayAmount
+		}
+
 		req := &payment.CreatePayRequest{
-			PID:       gateway.PID,
-			ExtConfig: gatewayExtConfig(gateway),
-			ApiURL:    gateway.ApiURL,
-			PayType:   order.PaymentType,
-			SignType:  gatewaySignType(gateway),
-			Version:   gateway.Version,
-			Device:    gateway.Device,
-			OrderNo:   order.OrderNo,
-			Subject:   order.Subject,
-			Money:     fmt.Sprintf("%.2f", order.PayAmount),
-			Currency:  strings.ToUpper(strings.TrimSpace(gateway.Currency)),
-			NotifyURL: notifyURL,
-			ReturnURL: returnURL,
-			ClientIP:  order.ClientIP,
+			PID:            gateway.PID,
+			ExtConfig:      gatewayExtConfig(gateway),
+			ApiURL:         gateway.ApiURL,
+			PayType:        order.PaymentType,
+			SignType:       gatewaySignType(gateway),
+			Version:        gateway.Version,
+			Device:         gateway.Device,
+			OrderNo:        order.OrderNo,
+			Subject:        order.Subject,
+			Money:          fmt.Sprintf("%.2f", order.PayAmount),
+			Currency:       strings.ToUpper(strings.TrimSpace(gateway.Currency)),
+			TargetMoney:    fmt.Sprintf("%.2f", targetMoney),
+			TargetCurrency: targetCurrency,
+			NotifyURL:      notifyURL,
+			ReturnURL:      returnURL,
+			ClientIP:       order.ClientIP,
 		}
 		if !provider.ValidatePayType(req.PayType, req.ExtConfig) {
 			return "", "", NewClientError("支付方式不受该通道支持")

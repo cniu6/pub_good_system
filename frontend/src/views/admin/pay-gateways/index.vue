@@ -6,10 +6,16 @@ import type { DataTableColumns, FormRules, SelectOption } from 'naive-ui'
 import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 import { useRequestGuard, useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import {
+  createExchangeRate,
   createPayGateway,
+  deleteExchangeRate,
   deletePayGateway,
+  fetchExchangeRates,
   fetchPayGateways,
   fetchPaymentChannelMetas,
+  getBaseCurrency,
+  refreshExchangeRates,
+  setBaseCurrency,
   testPayGatewayConnection,
   updatePayGateway,
 } from '@/service/api/admin/paygateway'
@@ -18,6 +24,7 @@ import type {
   ChannelConfigFieldOption,
   ChannelMeta,
   ChannelVersionMeta,
+  ExchangeRate,
   PayGateway,
   PayGatewayCreateRequest,
 } from '@/service/api/admin/paygateway'
@@ -58,6 +65,14 @@ function defaultForm(): PayGatewayCreateRequest {
     version: '',
     device: 'pc',
     currency: 'CNY',
+    target_currency: '',
+    exchange_rate_mode: 'system',
+    exchange_rate: 0,
+    exchange_fixed_amount: 0,
+    exchange_rate_source: '',
+    target_fee_rate: 0,
+    target_fee_fixed: 0,
+    target_fee_mode: 'add',
     description: '',
     status: 1,
     api_url: '',
@@ -93,6 +108,30 @@ const feeModeOptions = [
   { label: t('adminPayGateways.feeModeAdd'), value: 'add' },
   { label: t('adminPayGateways.feeModeInclude'), value: 'include' },
 ]
+
+const exchangeRateModeOptions = [
+  { label: t('adminPayGateways.exchangeRateModeSystem'), value: 'system' },
+  { label: t('adminPayGateways.exchangeRateModeFixed'), value: 'fixed' },
+  { label: t('adminPayGateways.exchangeRateModeDynamic'), value: 'dynamic' },
+]
+
+const targetFeeModeOptions = [
+  { label: t('adminPayGateways.targetFeeModeAdd'), value: 'add' },
+  { label: t('adminPayGateways.targetFeeModeInclude'), value: 'include' },
+]
+
+// 汇率管理弹窗
+const showCurrencyModal = ref(false)
+const currencyLoading = ref(false)
+const exchangeRates = ref<ExchangeRate[]>([])
+const baseCurrency = ref('CNY')
+const currencyForm = reactive({
+  from_currency: 'CNY',
+  to_currency: 'USD',
+  rate: 0,
+  rate_type: 'fixed',
+  source: '',
+})
 
 const defaultPayTypeOptions = [
   { label: t('recharge.alipay'), value: 'alipay' },
@@ -399,6 +438,14 @@ function handleEdit(row: PayGateway) {
     version: row.version || '',
     device: row.device || 'pc',
     currency: row.currency || 'CNY',
+    target_currency: row.target_currency || '',
+    exchange_rate_mode: row.exchange_rate_mode || 'system',
+    exchange_rate: row.exchange_rate || 0,
+    exchange_fixed_amount: row.exchange_fixed_amount || 0,
+    exchange_rate_source: row.exchange_rate_source || '',
+    target_fee_rate: row.target_fee_rate || 0,
+    target_fee_fixed: row.target_fee_fixed || 0,
+    target_fee_mode: row.target_fee_mode || 'add',
     description: row.description,
     status: row.status,
     api_url: row.api_url,
@@ -475,6 +522,88 @@ async function handleSubmit() {
   })
 }
 
+async function openCurrencyModal() {
+  showCurrencyModal.value = true
+  currencyLoading.value = true
+  try {
+    const [ratesRes, baseRes] = await Promise.all([fetchExchangeRates(), getBaseCurrency()])
+    if (ratesRes.isSuccess) {
+      exchangeRates.value = ratesRes.data?.list || []
+    }
+    if (baseRes.isSuccess) {
+      baseCurrency.value = baseRes.data?.base_currency || 'CNY'
+    }
+  }
+  catch {
+    // ignore
+  }
+  finally {
+    currencyLoading.value = false
+  }
+}
+
+async function handleSaveBaseCurrency() {
+  try {
+    const res = await setBaseCurrency(baseCurrency.value)
+    if (res.isSuccess)
+      message.success(t('adminPayGateways.saveSuccess'))
+  }
+  catch {
+    // ignore
+  }
+}
+
+async function handleAddExchangeRate() {
+  if (!currencyForm.from_currency || !currencyForm.to_currency || currencyForm.rate <= 0) {
+    message.warning(t('adminPayGateways.exchangeRateFormInvalid'))
+    return
+  }
+  try {
+    const res = await createExchangeRate({ ...currencyForm })
+    if (res.isSuccess) {
+      message.success(t('adminPayGateways.exchangeRateSaved'))
+      await openCurrencyModal()
+    }
+  }
+  catch {
+    // ignore
+  }
+}
+
+function handleDeleteExchangeRate(row: ExchangeRate) {
+  dialog.warning({
+    title: t('adminPayGateways.confirmDeleteTitle'),
+    content: t('adminPayGateways.confirmDeleteExchangeRate', { from: row.from_currency, to: row.to_currency }),
+    positiveText: t('adminPayGateways.delete'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        const res = await deleteExchangeRate(row.id)
+        if (res.isSuccess) {
+          message.success(t('adminPayGateways.deleteSuccess'))
+          await openCurrencyModal()
+        }
+      }
+      catch {
+        // ignore
+      }
+    },
+  })
+}
+
+async function handleRefreshRates() {
+  try {
+    const res = await refreshExchangeRates()
+    if (res.isSuccess) {
+      message.success(t('adminPayGateways.exchangeRateRefreshed'))
+      await openCurrencyModal()
+    }
+  }
+  catch {
+    // ignore
+  }
+}
+
 async function handleTestConnection(row: PayGateway) {
   try {
     const res = await testPayGatewayConnection(row.id)
@@ -535,6 +664,9 @@ onMounted(() => {
             :reset-label="t('common.restoreDefaultFields')"
             @reset="resetSelectedColumns"
           />
+          <NButton @click="openCurrencyModal">
+            {{ t('adminPayGateways.currencyManager') }}
+          </NButton>
           <NButton type="primary" @click="handleCreate">
             <template #icon>
               <n-icon><icon-park-outline-add-one /></n-icon>
@@ -603,6 +735,50 @@ onMounted(() => {
           <n-gi>
             <n-form-item :label="t('adminPayGateways.currency')" path="currency">
               <n-input v-model:value="form.currency" :placeholder="t('adminPayGateways.currencyPlaceholder')" />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.targetCurrency')" path="target_currency">
+              <n-input v-model:value="form.target_currency" :placeholder="t('adminPayGateways.targetCurrencyPlaceholder')" />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.exchangeRateMode')" path="exchange_rate_mode">
+              <n-select v-model:value="form.exchange_rate_mode" :options="exchangeRateModeOptions" />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.exchangeRate')" path="exchange_rate">
+              <n-input-number v-model:value="form.exchange_rate" :min="0" :precision="8" style="width: 100%" />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.exchangeFixedAmount')" path="exchange_fixed_amount">
+              <n-input-number v-model:value="form.exchange_fixed_amount" :min="0" :precision="2" style="width: 100%" />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.exchangeRateSource')" path="exchange_rate_source">
+              <n-input v-model:value="form.exchange_rate_source" :placeholder="t('adminPayGateways.exchangeRateSourcePlaceholder')" />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.targetFeeRate')" path="target_fee_rate">
+              <n-input-number v-model:value="form.target_fee_rate" :min="0" :max="100" style="width: 100%">
+                <template #suffix>
+                  %
+                </template>
+              </n-input-number>
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.targetFeeFixed')" path="target_fee_fixed">
+              <n-input-number v-model:value="form.target_fee_fixed" :min="0" :precision="2" style="width: 100%" />
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item :label="t('adminPayGateways.targetFeeMode')" path="target_fee_mode">
+              <n-select v-model:value="form.target_fee_mode" :options="targetFeeModeOptions" />
             </n-form-item>
           </n-gi>
           <n-gi>
@@ -761,6 +937,75 @@ onMounted(() => {
           </NButton>
         </NSpace>
       </template>
+    </n-modal>
+
+    <!-- 汇率管理弹窗 -->
+    <n-modal v-model:show="showCurrencyModal" preset="card" :title="t('adminPayGateways.currencyManager')" style="width: 760px; max-width: 92vw" :mask-closable="false">
+      <NSpace vertical :size="16">
+        <n-form inline :label-width="80">
+          <n-form-item :label="t('adminPayGateways.baseCurrency')">
+            <n-input v-model:value="baseCurrency" style="width: 120px" />
+          </n-form-item>
+          <n-form-item>
+            <NButton type="primary" @click="handleSaveBaseCurrency">
+              {{ t('adminPayGateways.saveBaseCurrency') }}
+            </NButton>
+          </n-form-item>
+          <n-form-item>
+            <NButton @click="handleRefreshRates">
+              {{ t('adminPayGateways.refreshRates') }}
+            </NButton>
+          </n-form-item>
+        </n-form>
+
+        <n-form :label-width="80">
+          <n-grid :cols="3" :x-gap="12">
+            <n-gi>
+              <n-form-item :label="t('adminPayGateways.fromCurrency')">
+                <n-input v-model:value="currencyForm.from_currency" />
+              </n-form-item>
+            </n-gi>
+            <n-gi>
+              <n-form-item :label="t('adminPayGateways.toCurrency')">
+                <n-input v-model:value="currencyForm.to_currency" />
+              </n-form-item>
+            </n-gi>
+            <n-gi>
+              <n-form-item :label="t('adminPayGateways.exchangeRate')">
+                <n-input-number v-model:value="currencyForm.rate" :min="0" :precision="8" style="width: 100%" />
+              </n-form-item>
+            </n-gi>
+            <n-gi>
+              <n-form-item :label="t('adminPayGateways.rateType')">
+                <n-select v-model:value="currencyForm.rate_type" :options="exchangeRateModeOptions" />
+              </n-form-item>
+            </n-gi>
+            <n-gi :span="2">
+              <n-form-item :label="t('adminPayGateways.exchangeRateSource')">
+                <n-input v-model:value="currencyForm.source" :placeholder="t('adminPayGateways.exchangeRateSourcePlaceholder')" />
+              </n-form-item>
+            </n-gi>
+          </n-grid>
+          <NButton type="primary" @click="handleAddExchangeRate">
+            {{ t('adminPayGateways.addExchangeRate') }}
+          </NButton>
+        </n-form>
+
+        <n-data-table
+          :columns="[
+            { title: t('adminPayGateways.fromCurrency'), key: 'from_currency' },
+            { title: t('adminPayGateways.toCurrency'), key: 'to_currency' },
+            { title: t('adminPayGateways.exchangeRate'), key: 'rate', render: (row: ExchangeRate) => row.rate.toFixed(8) },
+            { title: t('adminPayGateways.rateType'), key: 'rate_type' },
+            { title: t('adminPayGateways.source'), key: 'source' },
+            { title: t('moneyScore.actions'), key: 'actions', render: (row: ExchangeRate) => h(NButton, { size: 'small', quaternary: true, type: 'error', onClick: () => handleDeleteExchangeRate(row) }, () => t('adminPayGateways.delete')) },
+          ]"
+          :data="exchangeRates"
+          :loading="currencyLoading"
+          size="small"
+          :scroll-x="560"
+        />
+      </NSpace>
     </n-modal>
   </NSpace>
 </template>

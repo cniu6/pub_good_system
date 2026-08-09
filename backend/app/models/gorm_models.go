@@ -18,6 +18,7 @@ func AllGormModels() []interface{} {
 		&PaymentOrder{},
 		&PaymentException{},
 		&WithdrawRequest{},
+		&ExchangeRate{},
 		&UserMoneyLog{},
 		&UserScoreLog{},
 		&RealnameVerification{},

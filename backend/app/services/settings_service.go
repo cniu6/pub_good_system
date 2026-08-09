@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"errors"
 	"fst/backend/app/models"
 	"fst/backend/pkg/config"
 	"log"
@@ -9,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // SettingsService caches system settings from DB.
@@ -86,6 +89,41 @@ func (s *SettingsService) RefreshCache() error {
 	}
 	s.cacheTime = time.Now()
 
+	return nil
+}
+
+// GetSystemSetting 读取系统设置值（不存在返回空字符串和 false）
+func GetSystemSetting(key string) (string, bool) {
+	if GlobalSettingsService == nil {
+		return "", false
+	}
+	return GlobalSettingsService.Get(key)
+}
+
+// SetSystemSetting 设置系统配置（不存在则创建，存在则更新），并刷新缓存
+func SetSystemSetting(key, value string) error {
+	existing, err := models.GetSettingByKey(key)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	if existing == nil {
+		setting := &models.SystemSetting{
+			Key:   key,
+			Value: value,
+			Type:  "text",
+		}
+		if err := models.CreateSetting(setting); err != nil {
+			return err
+		}
+	} else {
+		existing.Value = value
+		if err := models.UpdateSettingWithMeta(existing); err != nil {
+			return err
+		}
+	}
+	if GlobalSettingsService != nil {
+		GlobalSettingsService.InvalidateCache()
+	}
 	return nil
 }
 

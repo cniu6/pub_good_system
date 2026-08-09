@@ -19,6 +19,14 @@ type PayGatewayCreateRequest struct {
 	Version              string  `json:"version" binding:"omitempty,max=50"`
 	Device               string  `json:"device" binding:"omitempty,max=50"`
 	Currency             string  `json:"currency" binding:"omitempty,max=10"`
+	TargetCurrency       string  `json:"target_currency" binding:"omitempty,max=10"`
+	ExchangeRateMode     string  `json:"exchange_rate_mode" binding:"omitempty,max=20"`
+	ExchangeRate         float64 `json:"exchange_rate"`
+	ExchangeFixedAmount  float64 `json:"exchange_fixed_amount"`
+	ExchangeRateSource   string  `json:"exchange_rate_source" binding:"omitempty,max=255"`
+	TargetFeeRate        int     `json:"target_fee_rate"`
+	TargetFeeFixed       float64 `json:"target_fee_fixed"`
+	TargetFeeMode        string  `json:"target_fee_mode" binding:"omitempty,max=20"`
 	Description          string  `json:"description" binding:"omitempty,max=500"`
 	Status               int     `json:"status"`
 	ApiURL               string  `json:"api_url" binding:"omitempty"`
@@ -48,6 +56,14 @@ type PayGatewayUpdateRequest struct {
 	Version              *string  `json:"version" binding:"omitempty,max=50"`
 	Device               *string  `json:"device" binding:"omitempty,max=50"`
 	Currency             *string  `json:"currency" binding:"omitempty,max=10"`
+	TargetCurrency       *string  `json:"target_currency" binding:"omitempty,max=10"`
+	ExchangeRateMode     *string  `json:"exchange_rate_mode" binding:"omitempty,max=20"`
+	ExchangeRate         *float64 `json:"exchange_rate"`
+	ExchangeFixedAmount  *float64 `json:"exchange_fixed_amount"`
+	ExchangeRateSource   *string  `json:"exchange_rate_source" binding:"omitempty,max=255"`
+	TargetFeeRate        *int     `json:"target_fee_rate"`
+	TargetFeeFixed       *float64 `json:"target_fee_fixed"`
+	TargetFeeMode        *string  `json:"target_fee_mode" binding:"omitempty,max=20"`
 	Description          *string  `json:"description" binding:"omitempty,max=500"`
 	Status               *int     `json:"status"`
 	ApiURL               *string  `json:"api_url" binding:"omitempty"`
@@ -89,6 +105,12 @@ func CreatePayGateway(req *PayGatewayCreateRequest) (*models.PayGateway, error) 
 	if req.Currency == "" {
 		req.Currency = "CNY"
 	}
+	if req.ExchangeRateMode == "" {
+		req.ExchangeRateMode = payment.ExchangeRateModeSystem
+	}
+	if req.TargetFeeMode == "" {
+		req.TargetFeeMode = payment.FeeModeAdd
+	}
 	if req.ExpireMinutes <= 0 {
 		req.ExpireMinutes = getOrderExpireMinutes()
 	}
@@ -107,6 +129,14 @@ func CreatePayGateway(req *PayGatewayCreateRequest) (*models.PayGateway, error) 
 		Version:              req.Version,
 		Device:               req.Device,
 		Currency:             req.Currency,
+		TargetCurrency:       req.TargetCurrency,
+		ExchangeRateMode:     req.ExchangeRateMode,
+		ExchangeRate:         req.ExchangeRate,
+		ExchangeFixedAmount:  req.ExchangeFixedAmount,
+		ExchangeRateSource:   req.ExchangeRateSource,
+		TargetFeeRate:        req.TargetFeeRate,
+		TargetFeeFixed:       req.TargetFeeFixed,
+		TargetFeeMode:        req.TargetFeeMode,
 		Description:          req.Description,
 		Status:               req.Status,
 		ApiURL:               req.ApiURL,
@@ -175,6 +205,33 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 	}
 	if req.Currency != nil {
 		gw.Currency = *req.Currency
+	}
+	if req.TargetCurrency != nil {
+		gw.TargetCurrency = *req.TargetCurrency
+	}
+	if req.ExchangeRateMode != nil {
+		gw.ExchangeRateMode = *req.ExchangeRateMode
+	}
+	if req.ExchangeRate != nil {
+		gw.ExchangeRate = *req.ExchangeRate
+	}
+	if req.ExchangeFixedAmount != nil {
+		gw.ExchangeFixedAmount = *req.ExchangeFixedAmount
+	}
+	if req.ExchangeRateSource != nil {
+		gw.ExchangeRateSource = *req.ExchangeRateSource
+	}
+	if req.TargetFeeRate != nil {
+		if *req.TargetFeeRate < 0 || *req.TargetFeeRate > 100 {
+			return nil, errors.New("Target fee rate must be between 0 and 100")
+		}
+		gw.TargetFeeRate = *req.TargetFeeRate
+	}
+	if req.TargetFeeFixed != nil {
+		gw.TargetFeeFixed = *req.TargetFeeFixed
+	}
+	if req.TargetFeeMode != nil {
+		gw.TargetFeeMode = *req.TargetFeeMode
 	}
 	if req.Description != nil {
 		gw.Description = *req.Description

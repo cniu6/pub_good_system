@@ -72,6 +72,14 @@ export interface PayGateway {
   version: string
   device: string
   currency: string
+  target_currency: string
+  exchange_rate_mode: string
+  exchange_rate: number
+  exchange_fixed_amount: number
+  exchange_rate_source: string
+  target_fee_rate: number
+  target_fee_fixed: number
+  target_fee_mode: string
   description: string
   status: number
   api_url: string
@@ -102,6 +110,14 @@ export interface PayGatewayCreateRequest {
   version?: string
   device?: string
   currency?: string
+  target_currency?: string
+  exchange_rate_mode?: string
+  exchange_rate?: number
+  exchange_fixed_amount?: number
+  exchange_rate_source?: string
+  target_fee_rate?: number
+  target_fee_fixed?: number
+  target_fee_mode?: string
   description?: string
   status: number
   api_url?: string
@@ -157,4 +173,46 @@ export function testPayGatewayConnection(id: number) {
 /** 获取已注册支付通道元数据（版本、签名算法、配置字段） */
 export function fetchPaymentChannelMetas() {
   return request.Get<Service.ResponseResult<ChannelMeta[]>>(`${getAdminApiBase()}/payment/channels/metas`)
+}
+
+/** 全局汇率 */
+export interface ExchangeRate {
+  id: number
+  from_currency: string
+  to_currency: string
+  rate: number
+  rate_type: string
+  source: string
+  create_time: number
+  update_time: number
+}
+
+/** 设置本位币 */
+export function setBaseCurrency(currency: string) {
+  return request.Post<Service.ResponseResult<null>>(`${getAdminApiBase()}/payment/currency/base`, { currency })
+}
+
+/** 获取本位币 */
+export function getBaseCurrency() {
+  return request.Get<Service.ResponseResult<{ base_currency: string }>>(`${getAdminApiBase()}/payment/currency/base`)
+}
+
+/** 列出汇率 */
+export function fetchExchangeRates(params?: { from?: string, to?: string }) {
+  return request.Get<Service.ResponseResult<{ list: ExchangeRate[] }>>(`${getAdminApiBase()}/payment/currency/rates`, { params })
+}
+
+/** 创建/更新汇率 */
+export function createExchangeRate(data: Omit<ExchangeRate, 'id' | 'create_time' | 'update_time'>) {
+  return request.Post<Service.ResponseResult<ExchangeRate>>(`${getAdminApiBase()}/payment/currency/rates`, data)
+}
+
+/** 删除汇率 */
+export function deleteExchangeRate(id: number) {
+  return request.Delete<Service.ResponseResult<null>>(`${getAdminApiBase()}/payment/currency/rates/${id}`)
+}
+
+/** 刷新动态汇率 */
+export function refreshExchangeRates() {
+  return request.Post<Service.ResponseResult<{ rates: Record<string, number> }>>(`${getAdminApiBase()}/payment/currency/rates/refresh`)
 }
