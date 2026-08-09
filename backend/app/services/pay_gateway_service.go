@@ -499,7 +499,7 @@ func defaultPayGatewayConfigFields() []payment.ConfigField {
 			Name:        "target_fee_rate",
 			Label:       "目标手续费率",
 			Type:        "input",
-			Placeholder: "百分之 x，如 200 表示 2%",
+			Placeholder: "百分比，如 2 表示 2%",
 		},
 		{
 			Name:        "target_fee_fixed",

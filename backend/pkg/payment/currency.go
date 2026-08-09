@@ -98,7 +98,7 @@ type TargetMoneyResult struct {
 // targetCurrency: 目标币种（如 USD）
 // exchangeRate: 汇率倍率（>0），0 表示不转换
 // exchangeFixed: 转换后固定加额
-// feeRate: 目标手续费率（百分之 x，如 200 = 2%）
+// feeRate: 目标手续费率（百分比，1 = 1%，如 2 = 2%）
 // feeFixed: 目标固定手续费
 // feeMode: add / include
 func ConvertToTarget(sourceAmount float64, sourceCurrency, targetCurrency, exchangeRateMode string, exchangeRate, exchangeFixed float64, feeRate int, feeFixed float64, feeMode string) (*TargetMoneyResult, error) {
