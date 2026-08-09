@@ -10,6 +10,7 @@ import {
   deletePayGateway,
   fetchPayGateways,
   fetchPaymentChannelMetas,
+  testPayGatewayConnection,
   updatePayGateway,
 } from '@/service/api/admin/paygateway'
 import type {
@@ -180,9 +181,10 @@ const columns: DataTableColumns<PayGateway> = [
   {
     title: t('moneyScore.actions'),
     key: 'actions',
-    width: 140,
+    width: 190,
     render: (row) => {
       return h(NSpace, { size: 4 }, () => [
+        h(NButton, { size: 'small', quaternary: true, type: 'info', onClick: () => handleTestConnection(row) }, () => t('adminPayGateways.testConnection')),
         h(NButton, { size: 'small', quaternary: true, type: 'primary', onClick: () => handleEdit(row) }, () => t('adminUsers.edit')),
         h(NButton, { size: 'small', quaternary: true, type: 'error', onClick: () => handleDelete(row) }, () => t('adminPayGateways.delete')),
       ])
@@ -471,6 +473,21 @@ async function handleSubmit() {
       // 网络异常：alova onError 已提示
     }
   })
+}
+
+async function handleTestConnection(row: PayGateway) {
+  try {
+    const res = await testPayGatewayConnection(row.id)
+    if (res.isSuccess && res.data) {
+      if (res.data.success)
+        message.success(res.data.message || t('adminPayGateways.testConnectionSuccess'))
+      else
+        message.warning(res.data.message || t('adminPayGateways.testConnectionFailed'))
+    }
+  }
+  catch {
+    // alova onError 已提示
+  }
 }
 
 function handleDelete(row: PayGateway) {

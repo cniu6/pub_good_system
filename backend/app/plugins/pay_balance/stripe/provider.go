@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"fst/backend/pkg/payment"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -191,12 +190,12 @@ func (p *Provider) VerifyNotifyWithPayload(ctx context.Context, body []byte, hea
 		Object string `json:"object"`
 		Data   struct {
 			Object struct {
-				ID            string `json:"id"`
-				Status        string `json:"status"`
-				Amount        int64  `json:"amount"`
-				Currency      string `json:"currency"`
+				ID            string            `json:"id"`
+				Status        string            `json:"status"`
+				Amount        int64             `json:"amount"`
+				Currency      string            `json:"currency"`
 				Metadata      map[string]string `json:"metadata"`
-				PaymentMethod string `json:"payment_method"`
+				PaymentMethod string            `json:"payment_method"`
 			} `json:"object"`
 		} `json:"data"`
 	}
@@ -287,8 +286,101 @@ func (p *Provider) QueryOrder(ctx context.Context, req *payment.QueryOrderReques
 	}, nil
 }
 
+// TestConnection 测试 Stripe 配置：查询账户信息
+func (p *Provider) TestConnection(ctx context.Context, extConfig map[string]string) (bool, string) {
+	secretKey := strings.TrimSpace(extConfig["secret_key"])
+	if secretKey == "" {
+		return false, "缺少 secret_key"
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "GET", p.apiURL()+"/v1/account", nil)
+	if err != nil {
+		return false, err.Error()
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+secretKey)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return false, err.Error()
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		return true, "连接成功"
+	}
+	body, _ := io.ReadAll(resp.Body)
+	return false, fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body))
+}
+
 // Refund Stripe 退款
 func (p *Provider) Refund(ctx context.Context, req *payment.RefundRequest) (*payment.RefundResponse, error) {
-	log.Printf("[Stripe] refund not fully implemented: order_no=%s", req.OrderNo)
-	return nil, fmt.Errorf("stripe refund not implemented")
+	extConfig := req.ExtConfig
+	if extConfig == nil {
+		extConfig = make(map[string]string)
+	}
+	secretKey := strings.TrimSpace(extConfig["secret_key"])
+	if secretKey == "" {
+		return nil, fmt.Errorf("stripe secret_key missing")
+	}
+	if req.Money == "" {
+		return nil, fmt.Errorf("stripe refund money missing")
+	}
+	if req.TradeNo == "" {
+		return nil, fmt.Errorf("stripe refund requires trade_no (payment_intent id)")
+	}
+
+	minor, err := payment.ParseMoneyMinor(req.Money)
+	if err != nil {
+		return nil, fmt.Errorf("invalid refund money: %w", err)
+	}
+
+	data := []string{
+		"payment_intent=" + req.TradeNo,
+		"amount=" + fmt.Sprintf("%d", minor),
+	}
+
+	apiURL := p.apiURL()
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", apiURL+"/v1/refunds", bytes.NewReader([]byte(strings.Join(data, "&"))))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	httpReq.Header.Set("Authorization", "Bearer "+secretKey)
+	httpReq.Header.Set("Idempotency-Key", "refund-"+req.OrderNo)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("stripe refund failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var refundResp struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+		Amount int64  `json:"amount"`
+	}
+	if err := json.Unmarshal(respBody, &refundResp); err != nil {
+		return nil, fmt.Errorf("stripe refund parse failed: %w", err)
+	}
+
+	code := 1
+	if refundResp.Status != "succeeded" && refundResp.Status != "pending" {
+		code = 0
+	}
+
+	return &payment.RefundResponse{
+		Code:        code,
+		Msg:         refundResp.Status,
+		RefundNo:    refundResp.ID,
+		OutRefundNo: "refund-" + req.OrderNo,
+		TradeNo:     req.TradeNo,
+		Money:       payment.FormatMoneyYuan(refundResp.Amount),
+	}, nil
 }

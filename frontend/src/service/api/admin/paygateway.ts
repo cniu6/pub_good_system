@@ -149,6 +149,11 @@ export function deletePayGateway(id: number) {
   return request.Delete<Service.ResponseResult<null>>(`${baseUrl()}/${id}`)
 }
 
+/** 测试支付通道连接 */
+export function testPayGatewayConnection(id: number) {
+  return request.Post<Service.ResponseResult<{ success: boolean, message: string }>>(`${baseUrl()}/${id}/test-connection`)
+}
+
 /** 获取已注册支付通道元数据（版本、签名算法、配置字段） */
 export function fetchPaymentChannelMetas() {
   return request.Get<Service.ResponseResult<ChannelMeta[]>>(`${getAdminApiBase()}/payment/channels/metas`)

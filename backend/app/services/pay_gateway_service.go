@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fst/backend/app/models"
 	"fst/backend/pkg/payment"
@@ -303,6 +304,28 @@ type PaymentChannelMetaView struct {
 	Devices           []payment.DeviceMeta         `json:"devices"`
 	DefaultNotifyPath string                       `json:"default_notify_path"`
 	Versions          []payment.ChannelVersionMeta `json:"versions"`
+}
+
+// TestGatewayConnection 测试支付通道配置是否可用
+// 返回 (是否可用, 提示信息)
+func TestGatewayConnection(gatewayID uint64) (bool, string, error) {
+	gateway, err := models.GetPayGatewayByID(gatewayID)
+	if err != nil {
+		return false, "", err
+	}
+
+	provider := payment.GetProvider(gateway.Type)
+	if provider == nil {
+		// 未注册新 Provider 时，只检查基本配置是否存在
+		if gateway.ApiURL == "" || gateway.PID == "" {
+			return false, "API 地址或商户 ID 为空", nil
+		}
+		return true, "旧通道配置存在", nil
+	}
+
+	extConfig := gatewayExtConfig(gateway)
+	ok, msg := provider.TestConnection(context.Background(), extConfig)
+	return ok, msg, nil
 }
 
 // ListPaymentChannelMetas 列出已注册通道类型及其版本/配置字段

@@ -99,6 +99,21 @@ func generateRSASign(params map[string]string, extConfig map[string]string, excl
 	return sig
 }
 
+// generateV2RSASign V2 接口 RSA 签名：所有非空参数（不含 sign/sign_type）参与签名
+func generateV2RSASign(params map[string]string, extConfig map[string]string) string {
+	privateKey := extConfig["merchant_private_key"]
+	if privateKey == "" {
+		privateKey = extConfig["private_key"]
+	}
+
+	sig, err := payment.RSASign(buildV2SignString(params), privateKey)
+	if err != nil {
+		log.Printf("[Epay] V2 RSA sign failed: %v", err)
+		return ""
+	}
+	return sig
+}
+
 // buildParamString 按 key ASCII 升序拼接 key=value&...
 func buildParamString(params map[string]string) string {
 	keys := make([]string, 0, len(params))
@@ -117,6 +132,18 @@ func buildParamString(params map[string]string) string {
 		sb.WriteString(params[k])
 	}
 	return sb.String()
+}
+
+// buildV2SignString V2 接口参数拼接：按 ASCII 升序，跳过 sign/sign_type/空值
+func buildV2SignString(params map[string]string) string {
+	filtered := make(map[string]string)
+	for k, v := range params {
+		if k == "sign" || k == "sign_type" || strings.TrimSpace(v) == "" {
+			continue
+		}
+		filtered[k] = v
+	}
+	return buildParamString(filtered)
 }
 
 // VerifySign 验证易支付回调签名（兼容旧接口：单 key 字符串）

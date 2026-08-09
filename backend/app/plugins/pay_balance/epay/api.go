@@ -16,13 +16,18 @@ import (
 // Config 易支付配置（从 pay_gateways 单条记录构建）
 type Config struct {
 	ApiURL       string
-	PID          string
+	PID          string            // 商户ID
 	Key          string            // 兼容旧通道：单密钥
 	ExtConfig    map[string]string // 扩展配置（V1 MD5 / V2 RSA）
 	SignType     string            // 签名算法：MD5 / RSA
 	Version      string            // 版本：v1 / v2
 	Device       string            // 设备类型：pc / mobile
 	PaymentTypes []string
+}
+
+// IsV2 是否为 V2 接口（RSA + 新接口地址）
+func (c *Config) IsV2() bool {
+	return strings.EqualFold(strings.TrimSpace(c.Version), "v2")
 }
 
 // ConfigFromGateway 从支付通道模型构建易支付配置
@@ -100,6 +105,16 @@ type QueryResponse struct {
 	TradeStatus string
 }
 
+// RefundResponse 易支付退款响应
+type RefundResponse struct {
+	Code        int
+	Msg         string
+	RefundNo    string
+	OutRefundNo string
+	TradeNo     string
+	Money       string
+}
+
 type queryResponseRaw struct {
 	Code        int             `json:"code"`
 	Msg         string          `json:"msg"`
@@ -114,6 +129,10 @@ type queryResponseRaw struct {
 
 // QueryOrder 向易支付平台查询订单状态
 func QueryOrder(config *Config, orderNo, tradeNo string) (*QueryResponse, error) {
+	if config.IsV2() {
+		return v2QueryOrder(config, orderNo, tradeNo)
+	}
+
 	key := GetSignKeyForQuery(config.ExtConfig)
 	if key == "" {
 		key = config.Key
@@ -268,10 +287,14 @@ type APIPayResponse struct {
 	TradeNo   string `json:"trade_no"`
 }
 
-// APIPay 通过 mapi.php 发起支付，返回支付链接与交易号
+// APIPay 通过 mapi.php（V1）或 /api/pay/create（V2）发起支付，返回支付链接与交易号
 func APIPay(config *Config, order *models.PaymentOrder, notifyURL, returnURL string) (string, string, error) {
 	if config.ApiURL == "" || config.PID == "" || (config.Key == "" && len(config.ExtConfig) == 0) {
 		return "", "", fmt.Errorf("Epay configuration incomplete")
+	}
+
+	if config.IsV2() {
+		return v2CreateOrder(config, order, notifyURL, returnURL)
 	}
 
 	device := config.Device
@@ -354,6 +377,14 @@ func APIPay(config *Config, order *models.PaymentOrder, notifyURL, returnURL str
 	}
 
 	return "", normalizedTradeNo, fmt.Errorf("Payment interface did not return a usable payment link")
+}
+
+// Refund 发起易支付退款（V2 走 /api/pay/refund，V1 不支持）
+func Refund(config *Config, orderNo, tradeNo, money, outRefundNo string) (*RefundResponse, error) {
+	if config.IsV2() {
+		return v2Refund(config, orderNo, tradeNo, money, outRefundNo)
+	}
+	return nil, fmt.Errorf("Epay V1 refund not supported, please use V2")
 }
 
 // ValidatePayType 验证支付方式是否在配置允许列表中

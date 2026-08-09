@@ -7,6 +7,7 @@ import (
 	"fst/backend/pkg/payment"
 	"log"
 	"strings"
+	"time"
 )
 
 func init() {
@@ -164,9 +165,46 @@ func (p *Provider) QueryOrder(ctx context.Context, req *payment.QueryOrderReques
 	}, nil
 }
 
-// Refund 易支付退款（当前未实现）
+// Refund 易支付退款
 func (p *Provider) Refund(ctx context.Context, req *payment.RefundRequest) (*payment.RefundResponse, error) {
-	return nil, fmt.Errorf("epay refund not implemented")
+	config := &Config{
+		ApiURL:    strings.TrimRight(req.ApiURL, "/"),
+		PID:       req.PID,
+		ExtConfig: req.ExtConfig,
+		SignType:  FormatSignType(req.SignType),
+		Version:   req.Version,
+	}
+
+	money := req.Money
+	if money == "" {
+		// RefundRequest 默认按元传，若为空尝试从 ExtConfig 取
+		money = req.ExtConfig["refund_money"]
+	}
+	if money == "" {
+		return nil, fmt.Errorf("epay refund money missing")
+	}
+
+	outRefundNo := req.ExtConfig["out_refund_no"]
+	if outRefundNo == "" {
+		outRefundNo = fmt.Sprintf("R%s%d", req.OrderNo, time.Now().Unix())
+	}
+
+	result, err := Refund(config, req.OrderNo, req.TradeNo, money, outRefundNo)
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, fmt.Errorf("epay refund empty response")
+	}
+
+	return &payment.RefundResponse{
+		Code:        result.Code,
+		Msg:         result.Msg,
+		RefundNo:    result.RefundNo,
+		OutRefundNo: result.OutRefundNo,
+		TradeNo:     result.TradeNo,
+		Money:       result.Money,
+	}, nil
 }
 
 // ValidatePayType 校验支付方式是否被该通道允许
@@ -180,6 +218,28 @@ func parseMoneyFloat(money string) float64 {
 		return 0
 	}
 	return float64(v) / 100.0
+}
+
+// TestConnection 测试易支付连接
+// 用 TEST 订单号查询，只要能拿到非网络/非 HTML 响应即认为连接成功
+func (p *Provider) TestConnection(ctx context.Context, extConfig map[string]string) (bool, string) {
+	config := &Config{
+		ApiURL:    strings.TrimRight(extConfig["api_url"], "/"),
+		PID:       extConfig["pid"],
+		Key:       extConfig["key"],
+		ExtConfig: extConfig,
+		SignType:  FormatSignType(extConfig["sign_type"]),
+		Version:   extConfig["version"],
+	}
+	_, err := QueryOrder(config, "TEST", "")
+	if err == nil {
+		return true, "连接成功"
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "HTML") || strings.Contains(msg, "No such host") || strings.Contains(msg, "connection refused") {
+		return false, "无法连接网关：" + msg
+	}
+	return true, "连接成功，但测试订单返回：" + msg
 }
 
 // validatePayTypeExt 校验 payType 是否在允许的支付方式列表中

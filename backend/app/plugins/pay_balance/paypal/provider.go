@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"fst/backend/pkg/payment"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -230,13 +229,13 @@ func (p *Provider) VerifyNotifyWithPayload(ctx context.Context, body []byte, hea
 	}
 
 	payload := verifyWebhookPayload{
-		AuthAlgo:        headers["paypal-auth-algo"],
-		CertURL:         headers["paypal-cert-url"],
-		TransmissionID:  headers["paypal-transmission-id"],
-		TransmissionSig: headers["paypal-transmission-sig"],
+		AuthAlgo:         headers["paypal-auth-algo"],
+		CertURL:          headers["paypal-cert-url"],
+		TransmissionID:   headers["paypal-transmission-id"],
+		TransmissionSig:  headers["paypal-transmission-sig"],
 		TransmissionTime: headers["paypal-transmission-time"],
-		WebhookID:       webhookID,
-		WebhookEvent:    body,
+		WebhookID:        webhookID,
+		WebhookEvent:     body,
 	}
 
 	ok, err := VerifyWebhookSignature(apiURL, token, payload, 10*time.Second)
@@ -354,8 +353,160 @@ func (p *Provider) QueryOrder(ctx context.Context, req *payment.QueryOrderReques
 	}, nil
 }
 
-// Refund PayPal 退款（stub：PayPal 退款基于 capture，不是 order）
+// TestConnection 测试 PayPal 配置：获取 access_token
+func (p *Provider) TestConnection(ctx context.Context, extConfig map[string]string) (bool, string) {
+	clientID := strings.TrimSpace(extConfig["client_id"])
+	clientSecret := strings.TrimSpace(extConfig["client_secret"])
+	if clientID == "" || clientSecret == "" {
+		return false, "缺少 client_id 或 client_secret"
+	}
+	apiURL := p.apiURL(extConfig)
+	_, err := getAccessToken(clientID, clientSecret, apiURL, 10*time.Second)
+	if err != nil {
+		return false, err.Error()
+	}
+	return true, "连接成功"
+}
+
+// Refund PayPal 退款
+// 先查询订单获取 capture_id，再调用 /v2/payments/captures/{capture_id}/refund
 func (p *Provider) Refund(ctx context.Context, req *payment.RefundRequest) (*payment.RefundResponse, error) {
-	log.Printf("[PayPal] refund not fully implemented: order_no=%s", req.OrderNo)
-	return nil, fmt.Errorf("paypal refund not implemented")
+	extConfig := req.ExtConfig
+	if extConfig == nil {
+		extConfig = make(map[string]string)
+	}
+	clientID := strings.TrimSpace(extConfig["client_id"])
+	clientSecret := strings.TrimSpace(extConfig["client_secret"])
+	if clientID == "" || clientSecret == "" {
+		return nil, fmt.Errorf("paypal client_id / client_secret missing")
+	}
+
+	apiURL := strings.TrimRight(req.ApiURL, "/")
+	if apiURL == "" {
+		apiURL = p.apiURL(extConfig)
+	}
+
+	token, err := getAccessToken(clientID, clientSecret, apiURL, 10*time.Second)
+	if err != nil {
+		return nil, fmt.Errorf("paypal get access token failed: %w", err)
+	}
+
+	orderID := req.TradeNo
+	if orderID == "" {
+		// 如果 trade_no 为空，尝试从 out_trade_no 查 order
+		return nil, fmt.Errorf("paypal refund requires trade_no (paypal order id)")
+	}
+
+	// 查询订单拿到 capture_id
+	captureID, err := p.getCaptureID(ctx, apiURL, token, orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	refundURL := fmt.Sprintf("%s/v2/payments/captures/%s/refund", apiURL, captureID)
+	minor, err := payment.ParseMoneyMinor(req.Money)
+	if err != nil {
+		return nil, fmt.Errorf("invalid refund money: %w", err)
+	}
+	refundBody, _ := json.Marshal(map[string]interface{}{
+		"amount": map[string]string{
+			"value":         fmt.Sprintf("%.2f", float64(minor)/100.0),
+			"currency_code": strings.ToUpper(req.ExtConfig["currency"]),
+		},
+	})
+	if req.ExtConfig["currency"] == "" {
+		refundBody, _ = json.Marshal(map[string]interface{}{
+			"amount": map[string]string{
+				"value":         fmt.Sprintf("%.2f", float64(minor)/100.0),
+				"currency_code": "USD",
+			},
+		})
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", refundURL, bytes.NewReader(refundBody))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	httpReq.Header.Set("PayPal-Request-Id", "refund-"+req.OrderNo)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("paypal refund failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var refundResp struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+		Amount struct {
+			Value string `json:"value"`
+		} `json:"amount"`
+	}
+	if err := json.Unmarshal(respBody, &refundResp); err != nil {
+		return nil, fmt.Errorf("paypal refund parse failed: %w", err)
+	}
+
+	code := 1
+	if !strings.EqualFold(refundResp.Status, "COMPLETED") && !strings.EqualFold(refundResp.Status, "PENDING") {
+		code = 0
+	}
+
+	return &payment.RefundResponse{
+		Code:        code,
+		Msg:         refundResp.Status,
+		RefundNo:    refundResp.ID,
+		OutRefundNo: "refund-" + req.OrderNo,
+		TradeNo:     orderID,
+		Money:       refundResp.Amount.Value,
+	}, nil
+}
+
+// getCaptureID 从 PayPal order 中拿到第一个 capture_id
+func (p *Provider) getCaptureID(ctx context.Context, apiURL, token, orderID string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/v2/checkout/orders/%s", apiURL, orderID), nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("paypal query order for refund failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	var orderResp struct {
+		PurchaseUnits []struct {
+			Payments struct {
+				Captures []struct {
+					ID string `json:"id"`
+				} `json:"captures"`
+			} `json:"payments"`
+		} `json:"purchase_units"`
+	}
+	if err := json.Unmarshal(body, &orderResp); err != nil {
+		return "", fmt.Errorf("paypal parse order for refund failed: %w", err)
+	}
+	for _, unit := range orderResp.PurchaseUnits {
+		for _, capture := range unit.Payments.Captures {
+			if capture.ID != "" {
+				return capture.ID, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("paypal order has no capture")
 }

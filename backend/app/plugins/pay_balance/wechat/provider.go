@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"fst/backend/pkg/payment"
+	"io"
+	"net/http"
 	"strings"
+	"time"
 )
 
 const ChannelType = "wechat"
@@ -254,7 +257,73 @@ func (p *Provider) QueryOrder(ctx context.Context, req *payment.QueryOrderReques
 	}, nil
 }
 
-// Refund 微信退款（stub）
+// TestConnection 测试微信支付配置
+// V3：调用 /v3/certificates 拉取平台证书；V2：检查 mch_id / api_key 是否齐全
+func (p *Provider) TestConnection(ctx context.Context, extConfig map[string]string) (bool, string) {
+	version := strings.ToLower(strings.TrimSpace(extConfig["version"]))
+	if version == "" {
+		version = "v2"
+	}
+
+	if version == "v3" {
+		mchID := strings.TrimSpace(extConfig["mch_id"])
+		serialNo := strings.TrimSpace(extConfig["serial_no"])
+		privateKey := strings.TrimSpace(extConfig["private_key"])
+		if mchID == "" || serialNo == "" || privateKey == "" {
+			return false, "缺少 mch_id / serial_no / private_key"
+		}
+
+		httpReq, err := http.NewRequestWithContext(ctx, "GET", "https://api.mch.weixin.qq.com/v3/certificates", nil)
+		if err != nil {
+			return false, err.Error()
+		}
+		headers, err := buildV3AuthHeader(http.MethodGet, "/v3/certificates", nil, mchID, serialNo, privateKey)
+		if err != nil {
+			return false, err.Error()
+		}
+		delete(headers, "Wechatpay-Serial")
+		for k, v := range headers {
+			httpReq.Header.Set(k, v)
+		}
+
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(httpReq)
+		if err != nil {
+			return false, err.Error()
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			return true, "连接成功"
+		}
+		body, _ := io.ReadAll(resp.Body)
+		return false, fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	mchID := strings.TrimSpace(extConfig["mch_id"])
+	apiKey := strings.TrimSpace(extConfig["api_key"])
+	if mchID == "" || apiKey == "" {
+		return false, "缺少 mch_id / api_key"
+	}
+	return true, "配置齐全（V2 需真实网络环境进一步验证）"
+}
+
+// Refund 微信退款
+// V3 走 /v3/refund/domestic/refunds；V2 需要商户证书，暂不实现
 func (p *Provider) Refund(ctx context.Context, req *payment.RefundRequest) (*payment.RefundResponse, error) {
-	return nil, fmt.Errorf("wechat refund not implemented")
+	extConfig := req.ExtConfig
+	if extConfig == nil {
+		extConfig = make(map[string]string)
+	}
+
+	version := strings.ToLower(strings.TrimSpace(req.Version))
+	if version == "" {
+		version = "v2"
+	}
+
+	if version == "v3" {
+		return v3Refund(ctx, extConfig, req)
+	}
+
+	return nil, fmt.Errorf("wechat v2 refund not implemented: requires merchant client certificate")
 }

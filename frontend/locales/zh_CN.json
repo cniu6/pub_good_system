@@ -2589,6 +2589,8 @@
     "paypal": "PayPal",
     "stripe": "Stripe",
     "testConnection": "测试连接",
+    "testConnectionSuccess": "连接成功",
+    "testConnectionFailed": "连接失败",
     "currency": "结算币种",
     "currencyPlaceholder": "如 CNY",
     "extConfig": "扩展配置 (ext_config)",

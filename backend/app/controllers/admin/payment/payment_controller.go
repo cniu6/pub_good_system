@@ -455,6 +455,31 @@ func (ctrl *PaymentController) DeleteGateway(c *gin.Context) {
 // 注册路由
 // ========================================
 
+// TestGatewayConnection 测试支付通道连接
+// @Summary 测试支付通道连接
+// @Tags Admin-支付
+// @Security BearerAuth
+// @Success 200 {object} utils.Response{data=map[string]interface{}}
+// @Router /v1/admin/payment/gateways/{id}/test-connection [post]
+func (ctrl *PaymentController) TestGatewayConnection(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "Invalid gateway ID")
+		return
+	}
+
+	ok, msg, err := services.TestGatewayConnection(id)
+	if err != nil {
+		utils.Fail(c, 400, err.Error())
+		return
+	}
+
+	utils.Success(c, map[string]interface{}{
+		"success": ok,
+		"message": msg,
+	})
+}
+
 // RegisterPaymentRoutes 注册管理端支付路由
 // ListChannelMetas 返回已注册支付通道的元数据（版本、签名算法、配置字段），供管理端动态渲染表单
 // @Summary 支付通道类型元数据
@@ -490,5 +515,6 @@ func (ctrl *PaymentController) RegisterPaymentRoutes(group *gin.RouterGroup) {
 		payment.GET("/gateways/:id", ctrl.GetGateway)
 		payment.PUT("/gateways/:id", ctrl.UpdateGateway)
 		payment.DELETE("/gateways/:id", ctrl.DeleteGateway)
+		payment.POST("/gateways/:id/test-connection", ctrl.TestGatewayConnection)
 	}
 }

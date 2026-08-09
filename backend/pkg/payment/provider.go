@@ -46,6 +46,9 @@ type Provider interface {
 
 	// ValidatePayType 校验支付方式是否被该通道允许
 	ValidatePayType(payType string, extConfig map[string]string) bool
+
+	// TestConnection 测试通道配置是否可用
+	TestConnection(ctx context.Context, extConfig map[string]string) (bool, string)
 }
 
 // NotifyPayload 回调验签后提取的归一化回调数据
@@ -119,6 +122,7 @@ type RefundRequest struct {
 	PID       string            // 商户ID
 	ExtConfig map[string]string // 扩展配置
 	SignType  string            // 签名算法
+	Version   string            // 通道版本
 	ApiURL    string            // 网关地址
 	OrderNo   string            // 系统订单号（二选一）
 	TradeNo   string            // 第三方交易号（二选一，优先）
@@ -127,8 +131,12 @@ type RefundRequest struct {
 
 // RefundResponse 退款响应
 type RefundResponse struct {
-	Code int
-	Msg  string
+	Code        int
+	Msg         string
+	RefundNo    string // 平台退款单号
+	OutRefundNo string // 商户退款单号
+	TradeNo     string // 平台订单号
+	Money       string // 退款金额
 }
 
 // ParseExtConfig 解析 ext_config JSON 字符串为 map。

@@ -1101,6 +1101,8 @@
     "paypal": "PayPal",
     "stripe": "Stripe",
     "testConnection": "Test Connection",
+    "testConnectionSuccess": "Connection successful",
+    "testConnectionFailed": "Connection failed",
     "currency": "Currency",
     "currencyPlaceholder": "e.g. CNY",
     "extConfig": "Extended Config (ext_config)",

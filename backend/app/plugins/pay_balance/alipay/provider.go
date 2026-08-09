@@ -294,9 +294,178 @@ func (p *Provider) QueryOrder(ctx context.Context, req *payment.QueryOrderReques
 	}, nil
 }
 
-// Refund 支付宝退款（ stub，需按业务完善）
+// Refund 调用 alipay.trade.refund 发起退款
 func (p *Provider) Refund(ctx context.Context, req *payment.RefundRequest) (*payment.RefundResponse, error) {
-	return nil, fmt.Errorf("alipay refund not implemented")
+	signType := FormatSignType(req.SignType)
+	extConfig := req.ExtConfig
+	if extConfig == nil {
+		extConfig = make(map[string]string)
+	}
+	appID := strings.TrimSpace(extConfig["app_id"])
+	privateKey := strings.TrimSpace(extConfig["merchant_private_key"])
+	if appID == "" || privateKey == "" {
+		return nil, fmt.Errorf("alipay app_id or private key missing")
+	}
+	if req.Money == "" {
+		return nil, fmt.Errorf("alipay refund money missing")
+	}
+	if req.OrderNo == "" && req.TradeNo == "" {
+		return nil, fmt.Errorf("alipay refund requires order_no or trade_no")
+	}
+
+	apiURL := strings.TrimRight(req.ApiURL, "/")
+	if apiURL == "" {
+		apiURL = "https://openapi.alipay.com/gateway.do"
+	}
+
+	outRefundNo := extConfig["out_refund_no"]
+	if outRefundNo == "" {
+		outRefundNo = fmt.Sprintf("R%s%d", req.OrderNo, time.Now().Unix())
+	}
+
+	bizContent := map[string]string{
+		"refund_amount":  req.Money,
+		"out_request_no": outRefundNo,
+	}
+	if req.TradeNo != "" {
+		bizContent["trade_no"] = req.TradeNo
+	} else {
+		bizContent["out_trade_no"] = req.OrderNo
+	}
+
+	params := map[string]string{
+		"app_id":      appID,
+		"method":      "alipay.trade.refund",
+		"format":      "JSON",
+		"charset":     "utf-8",
+		"sign_type":   signType,
+		"timestamp":   time.Now().Format("2006-01-02 15:04:05"),
+		"version":     "1.0",
+		"biz_content": JSONContent(bizContent),
+	}
+
+	sign, err := SignWithRSA2(params, privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("alipay refund sign failed: %w", err)
+	}
+	params["sign"] = sign
+
+	u, err := url.Parse(apiURL)
+	if err != nil {
+		return nil, err
+	}
+	q := u.Query()
+	for k, v := range params {
+		q.Set(k, v)
+	}
+	u.RawQuery = q.Encode()
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(u.String())
+	if err != nil {
+		return nil, fmt.Errorf("alipay refund request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var aliResp alipayRefundResponse
+	if err := json.Unmarshal(body, &aliResp); err != nil {
+		log.Printf("[Alipay] refund response parse failed: %s", string(body))
+		return nil, fmt.Errorf("alipay refund response parse failed: %w", err)
+	}
+
+	code := 0
+	if aliResp.Code == "10000" {
+		code = 1
+	}
+	return &payment.RefundResponse{
+		Code:        code,
+		Msg:         aliResp.Msg,
+		RefundNo:    aliResp.AlipayTradeRefundResponse.TradeNo,
+		OutRefundNo: outRefundNo,
+		TradeNo:     aliResp.AlipayTradeRefundResponse.TradeNo,
+		Money:       aliResp.AlipayTradeRefundResponse.RefundFee,
+	}, nil
+}
+
+type alipayRefundResponse struct {
+	Code                      string `json:"code"`
+	Msg                       string `json:"msg"`
+	AlipayTradeRefundResponse *struct {
+		TradeNo    string `json:"trade_no"`
+		OutTradeNo string `json:"out_trade_no"`
+		RefundFee  string `json:"refund_fee"`
+	} `json:"alipay_trade_refund_response"`
+}
+
+// TestConnection 测试支付宝配置：查询一个不存在订单，若返回 10000 或 TRADE_NOT_EXIST 则认为连接/鉴权正常
+func (p *Provider) TestConnection(ctx context.Context, extConfig map[string]string) (bool, string) {
+	appID := strings.TrimSpace(extConfig["app_id"])
+	privateKey := strings.TrimSpace(extConfig["merchant_private_key"])
+	if appID == "" || privateKey == "" {
+		return false, "缺少 app_id 或应用私钥"
+	}
+
+	apiURL := strings.TrimRight(extConfig["api_url"], "/")
+	if apiURL == "" {
+		apiURL = "https://openapi.alipay.com/gateway.do"
+	}
+
+	bizContent := map[string]string{"out_trade_no": "TEST"}
+	params := map[string]string{
+		"app_id":      appID,
+		"method":      "alipay.trade.query",
+		"format":      "JSON",
+		"charset":     "utf-8",
+		"sign_type":   SignTypeRSA2,
+		"timestamp":   time.Now().Format("2006-01-02 15:04:05"),
+		"version":     "1.0",
+		"biz_content": JSONContent(bizContent),
+	}
+	sign, err := SignWithRSA2(params, privateKey)
+	if err != nil {
+		return false, "签名失败：" + err.Error()
+	}
+	params["sign"] = sign
+
+	u, err := url.Parse(apiURL)
+	if err != nil {
+		return false, err.Error()
+	}
+	q := u.Query()
+	for k, v := range params {
+		q.Set(k, v)
+	}
+	u.RawQuery = q.Encode()
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(u.String())
+	if err != nil {
+		return false, "请求失败：" + err.Error()
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, err.Error()
+	}
+
+	var aliResp alipayQueryResponse
+	if err := json.Unmarshal(body, &aliResp); err != nil {
+		return false, "响应解析失败：" + err.Error()
+	}
+
+	if aliResp.Code == "10000" || (aliResp.Code == "40004" && strings.Contains(string(body), "TRADE_NOT_EXIST")) {
+		return true, "连接成功"
+	}
+	if aliResp.SubCode != "" {
+		return false, aliResp.SubCode + ":" + aliResp.SubMsg
+	}
+	return false, aliResp.Msg
 }
 
 func validatePayType(payType string, extConfig map[string]string) bool {
@@ -316,6 +485,8 @@ func validatePayType(payType string, extConfig map[string]string) bool {
 type alipayQueryResponse struct {
 	Code                     string `json:"code"`
 	Msg                      string `json:"msg"`
+	SubCode                  string `json:"sub_code"`
+	SubMsg                   string `json:"sub_msg"`
 	AlipayTradeQueryResponse *struct {
 		TradeNo     string `json:"trade_no"`
 		OutTradeNo  string `json:"out_trade_no"`
