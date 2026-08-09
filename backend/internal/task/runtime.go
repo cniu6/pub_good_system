@@ -429,6 +429,7 @@ func Trigger(jobCode string, opts RunOptions) (*JobRun, error) {
 		return nil, err
 	}
 	run.ID = id
+	maybeAutoKeep(run)
 	if err := bumpDefinitionAfterRun(jobCode, status, startedAt, finished, errorText); err != nil {
 		log.Printf("[AutoJob] bumpDefinitionAfterRun failed job=%s: %v", jobCode, err)
 	}
@@ -468,6 +469,7 @@ func persistFailed(def *JobDefinition, opts RunOptions, startedAt int64, message
 		return nil, err
 	}
 	run.ID = id
+	maybeAutoKeep(run)
 	if err := bumpDefinitionAfterRun(def.JobCode, StatusFailed, startedAt, finished, errText); err != nil {
 		log.Printf("[AutoJob] bumpDefinitionAfterRun(persistFailed) failed job=%s: %v", def.JobCode, err)
 	}

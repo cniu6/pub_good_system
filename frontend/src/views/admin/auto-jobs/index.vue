@@ -30,6 +30,7 @@ import {
 import type { DataTableColumns } from 'naive-ui'
 import { useRequestGuard, withSubmitLock } from '@/hooks'
 import { adminApi } from '@/service/api/admin'
+import KeptRuns from './components/KeptRuns.vue'
 import type {
   AutoJobDefinition,
   AutoJobGlobalConfig,
@@ -48,7 +49,7 @@ const savingConfig = ref(false)
 const importing = ref(false)
 /** 启用开关 / 立即执行 / 清理 / 标记保留 等行操作锁 */
 const actionLock = ref(false)
-const activeTab = ref<'jobs' | 'runs' | 'running'>('jobs')
+const activeTab = ref<'jobs' | 'runs' | 'running' | 'kept'>('jobs')
 
 const overview = ref<AutoJobOverview | null>(null)
 const config = reactive<AutoJobGlobalConfig>({
@@ -57,6 +58,8 @@ const config = reactive<AutoJobGlobalConfig>({
   auto_job_retain_errors: true,
   auto_job_auto_prune: true,
   auto_job_stuck_after_sec: 600,
+  auto_job_auto_keep_job_codes: [],
+  auto_job_auto_keep_categories: ['payment'],
 })
 
 const jobList = ref<AutoJobDefinition[]>([])
@@ -114,6 +117,20 @@ const enabledOptions = [
   { label: t('common.enable'), value: '1' },
   { label: t('common.disable'), value: '0' },
 ]
+
+const autoKeepCategoriesText = computed({
+  get: () => config.auto_job_auto_keep_categories.join(','),
+  set: (v: string) => {
+    config.auto_job_auto_keep_categories = v.split(',').map(s => s.trim()).filter(Boolean)
+  },
+})
+
+const autoKeepJobCodesText = computed({
+  get: () => config.auto_job_auto_keep_job_codes.join(','),
+  set: (v: string) => {
+    config.auto_job_auto_keep_job_codes = v.split(',').map(s => s.trim()).filter(Boolean)
+  },
+})
 
 const statusOptions = [
   { label: t('adminAutoJobs.selectStatus'), value: '' },
@@ -653,6 +670,18 @@ onMounted(() => {
           </NText>
           <NInputNumber v-model:value="config.auto_job_stuck_after_sec" :min="60" :max="86400" :step="60" style="width: 140px" />
         </NSpace>
+        <NSpace align="center" :size="8" style="max-width: 400px">
+          <NText depth="3" class="whitespace-nowrap">
+            {{ t('adminAutoJobs.autoKeepCategories') }}
+          </NText>
+          <NInput v-model:value="autoKeepCategoriesText" :placeholder="t('adminAutoJobs.autoKeepCategoriesPlaceholder')" />
+        </NSpace>
+        <NSpace align="center" :size="8" style="max-width: 400px">
+          <NText depth="3" class="whitespace-nowrap">
+            {{ t('adminAutoJobs.autoKeepJobCodes') }}
+          </NText>
+          <NInput v-model:value="autoKeepJobCodesText" :placeholder="t('adminAutoJobs.autoKeepJobCodesPlaceholder')" />
+        </NSpace>
         <NSpace :size="8">
           <NButton type="primary" :loading="savingConfig" @click="handleSaveConfig">
             {{ t('adminAutoJobs.saveConfig') }}
@@ -762,6 +791,10 @@ onMounted(() => {
           <NText v-else depth="3">
             {{ t('adminAutoJobs.noRunning') }}
           </NText>
+        </NTabPane>
+
+        <NTabPane name="kept" :tab="t('adminAutoJobs.tabKept')">
+          <KeptRuns />
         </NTabPane>
       </NTabs>
     </NCard>

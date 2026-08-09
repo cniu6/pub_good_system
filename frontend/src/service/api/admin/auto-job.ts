@@ -30,6 +30,8 @@ export interface AutoJobGlobalConfig {
   auto_job_retain_errors: boolean
   auto_job_auto_prune: boolean
   auto_job_stuck_after_sec: number
+  auto_job_auto_keep_job_codes: string[]
+  auto_job_auto_keep_categories: string[]
 }
 
 export interface AutoJobDefinition {
@@ -71,6 +73,25 @@ export interface AutoJobRun {
   error_text: string
   keep_forever: number
   operator: string
+}
+
+export interface AutoJobRunKeep {
+  id: number
+  run_uid: string
+  job_code: string
+  category: string
+  trigger: string
+  status: string
+  started_at: number
+  finished_at: number
+  duration_ms: number
+  message: string
+  detail_json: string
+  error_text: string
+  operator: string
+  source_run_id: number
+  kept_at: number
+  run_timestamp: number
 }
 
 export interface AutoJobUpdateRequest {
@@ -120,6 +141,9 @@ export const adminAutoJobApi = {
   },
   listRuns(params?: Record<string, string | number | undefined>) {
     return request.Get<Service.ResponseResult<{ list: AutoJobRun[], total: number, page: number, page_size: number }>>(`${baseUrl()}/runs`, { params })
+  },
+  listKeptRuns(params?: Record<string, string | number | undefined>) {
+    return request.Get<Service.ResponseResult<{ list: AutoJobRunKeep[], total: number, page: number, page_size: number }>>(`${baseUrl()}/runs/kept`, { params })
   },
   listRunning() {
     return request.Get<Service.ResponseResult<{ list: AutoJobDefinition[], total: number }>>(`${baseUrl()}/running`)

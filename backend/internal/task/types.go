@@ -24,11 +24,13 @@ const (
 
 // Config keys（system_settings）
 const (
-	CfgEnabled       = "auto_job_enabled"
-	CfgRunMaxCount   = "auto_job_run_max_count"
-	CfgRetainErrors  = "auto_job_retain_errors"
-	CfgAutoPrune     = "auto_job_auto_prune"
-	CfgStuckAfterSec = "auto_job_stuck_after_sec"
+	CfgEnabled            = "auto_job_enabled"
+	CfgRunMaxCount        = "auto_job_run_max_count"
+	CfgRetainErrors       = "auto_job_retain_errors"
+	CfgAutoPrune          = "auto_job_auto_prune"
+	CfgStuckAfterSec      = "auto_job_stuck_after_sec"
+	CfgAutoKeepJobCodes   = "auto_job_auto_keep_job_codes"
+	CfgAutoKeepCategories = "auto_job_auto_keep_categories"
 )
 
 // Handler keys
@@ -97,6 +99,29 @@ type JobRun struct {
 // TableName GORM 表名
 func (JobRun) TableName() string { return "auto_job_runs" }
 
+// JobRunKeep 被标记保留的执行记录副本（独立表，方便检索/长期保存）
+type JobRunKeep struct {
+	ID           uint64 `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	RunUID       string `gorm:"column:run_uid;size:36;not null;default:''" json:"run_uid"`
+	JobCode      string `gorm:"column:job_code;size:64;index:idx_auto_job_keeps_job_started,priority:1" json:"job_code"`
+	Category     string `gorm:"column:category;size:64" json:"category"`
+	TriggerType  string `gorm:"column:trigger_type;size:32" json:"trigger"`
+	Status       string `gorm:"column:status;size:32" json:"status"`
+	StartedAt    int64  `gorm:"column:started_at;index:idx_auto_job_keeps_job_started,priority:2" json:"started_at"`
+	FinishedAt   int64  `gorm:"column:finished_at" json:"finished_at"`
+	DurationMs   int64  `gorm:"column:duration_ms" json:"duration_ms"`
+	Message      string `gorm:"column:message;type:text" json:"message"`
+	DetailJSON   string `gorm:"column:detail_json;type:text" json:"detail_json"`
+	ErrorText    string `gorm:"column:error_text;type:text" json:"error_text"`
+	Operator     string `gorm:"column:operator;size:64" json:"operator"`
+	SourceRunID  uint64 `gorm:"column:source_run_id" json:"source_run_id"`
+	KeptAt       int64  `gorm:"column:kept_at" json:"kept_at"`
+	RunTimestamp int64  `gorm:"column:run_timestamp" json:"run_timestamp"`
+}
+
+// TableName GORM 表名
+func (JobRunKeep) TableName() string { return "auto_job_runs_keep" }
+
 // HandlerResult handler 返回
 type HandlerResult struct {
 	Message string
@@ -117,11 +142,13 @@ type RunOptions struct {
 
 // GlobalConfig 运行时配置
 type GlobalConfig struct {
-	Enabled       bool `json:"auto_job_enabled"`
-	RunMaxCount   int  `json:"auto_job_run_max_count"`
-	RetainErrors  bool `json:"auto_job_retain_errors"`
-	AutoPrune     bool `json:"auto_job_auto_prune"`
-	StuckAfterSec int  `json:"auto_job_stuck_after_sec"`
+	Enabled            bool     `json:"auto_job_enabled"`
+	RunMaxCount        int      `json:"auto_job_run_max_count"`
+	RetainErrors       bool     `json:"auto_job_retain_errors"`
+	AutoPrune          bool     `json:"auto_job_auto_prune"`
+	StuckAfterSec      int      `json:"auto_job_stuck_after_sec"`
+	AutoKeepJobCodes   []string `json:"auto_job_auto_keep_job_codes"`
+	AutoKeepCategories []string `json:"auto_job_auto_keep_categories"`
 }
 
 // Overview 总览卡片

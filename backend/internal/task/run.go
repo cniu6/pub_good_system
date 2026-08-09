@@ -288,7 +288,8 @@ func CleanRuns(req CleanRunsRequest) (int64, error) {
 	return r.RowsAffected, nil
 }
 
-// MarkKeepForever 批量标记/取消永久保留
+// MarkKeepForever 批量标记/取消永久保留。
+// keep=true 时，原记录 keep_forever=1 并同步复制到 auto_job_runs_keep 独立表。
 func MarkKeepForever(ids []uint64, keep bool) (int64, error) {
 	if len(ids) == 0 {
 		return 0, nil
@@ -307,6 +308,12 @@ func MarkKeepForever(ids []uint64, keep bool) (int64, error) {
 	r := db.DB.Exec(`UPDATE auto_job_runs SET keep_forever=? WHERE id IN (`+strings.Join(ph, ",")+`)`, args...)
 	if r.Error != nil {
 		return 0, r.Error
+	}
+	if keep {
+		_, err := CopyKeptByRunID(ids)
+		if err != nil {
+			return r.RowsAffected, err
+		}
 	}
 	return r.RowsAffected, nil
 }

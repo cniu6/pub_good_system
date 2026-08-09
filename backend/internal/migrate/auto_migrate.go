@@ -30,7 +30,7 @@ func RunAutoMigrate() {
 
 	// 业务模型清单在 models.AllGormModels；自动任务表在 task 包，这里一并注册
 	modelsList := models.AllGormModels()
-	modelsList = append(modelsList, &task.JobDefinition{}, &task.JobRun{})
+	modelsList = append(modelsList, &task.JobDefinition{}, &task.JobRun{}, &task.JobRunKeep{})
 
 	// AutoMigrate 时临时设置 gorm:table_options，确保新建表使用统一字符集/排序规则。
 	// 不能在全局 db.DB 上 Set —— Set 返回的实例 clone==0，会导致后续查询共享 Statement 污染。

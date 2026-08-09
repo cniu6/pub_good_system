@@ -30,6 +30,7 @@ func (ctrl *AutoJobController) RegisterRoutes(rg *gin.RouterGroup) {
 		g.GET("/running", ctrl.ListRunning)
 		g.GET("/runs", ctrl.ListRuns)
 		g.GET("/runs/:id", ctrl.RunDetail)
+		g.GET("/runs/kept", ctrl.ListKeptRuns)
 		g.POST("/runs/clean", ctrl.CleanRuns)
 		g.POST("/runs/mark-keep", ctrl.MarkKeep)
 		g.GET("", ctrl.ListJobs)
@@ -307,6 +308,36 @@ func (ctrl *AutoJobController) RunDetail(c *gin.Context) {
 		return
 	}
 	utils.Success(c, run)
+}
+
+// ListKeptRuns 获取保留的执行记录副本（独立表，支持关键字/状态/分类/任务代码/时间范围检索）
+// @Summary 获取保留的执行记录
+// @Tags Admin-自动任务
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Router /v1/admin/auto-jobs/runs/kept [get]
+func (ctrl *AutoJobController) ListKeptRuns(c *gin.Context) {
+	utils.SanitizeQueryParams(c)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize = utils.NormalizePagination(page, pageSize)
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	status := strings.TrimSpace(c.Query("status"))
+	category := strings.TrimSpace(c.Query("category"))
+	jobCode := strings.TrimSpace(c.Query("job_code"))
+	startAt, _ := strconv.ParseInt(c.Query("start_time"), 10, 64)
+	endAt, _ := strconv.ParseInt(c.Query("end_time"), 10, 64)
+	list, total, err := task.ListKeptRuns(page, pageSize, keyword, status, category, jobCode, startAt, endAt)
+	if err != nil {
+		utils.Fail(c, 500, "Query failed")
+		return
+	}
+	utils.Success(c, gin.H{
+		"list":      list,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
 }
 
 // CleanRuns 清理自动任务运行记录
