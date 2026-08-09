@@ -442,9 +442,10 @@ function pickVersion(version: string) {
   const versionFields = (activeVersion.value?.config_fields || activeVersion.value?.configFields || [])
     .map(normalizeConfigField)
 
+  // 版本字段放前面，通用字段跟在后面做兜底/覆盖，这样 V1 的 key 会出现在表单顶部
   const fieldMap = new Map<string, ChannelConfigField>()
-  topFields.forEach(f => fieldMap.set(f.name, f))
   versionFields.forEach(f => fieldMap.set(f.name, f))
+  topFields.forEach(f => fieldMap.set(f.name, f))
 
   if (fieldMap.has('sign_type') && signTypeOptions.value.length > 0) {
     const signField = fieldMap.get('sign_type')!

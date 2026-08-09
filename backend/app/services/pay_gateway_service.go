@@ -460,13 +460,6 @@ func payGatewayExtInt(v interface{}) int {
 func defaultPayGatewayConfigFields() []payment.ConfigField {
 	return []payment.ConfigField{
 		{
-			Name:        "key",
-			Label:       "商户密钥",
-			Type:        "textarea",
-			Secret:      true,
-			Placeholder: "通道统一密钥/单密钥，MD5 签名等",
-		},
-		{
 			Name:    "sign_type",
 			Label:   "签名算法",
 			Type:    "select",
