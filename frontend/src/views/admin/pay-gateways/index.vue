@@ -905,6 +905,9 @@ onMounted(() => {
               <n-divider title-placement="left">
                 {{ t('adminPayGateways.exchangeSectionTitle') }}
               </n-divider>
+              <n-alert v-if="!needExchange" type="info" :bordered="false" size="small">
+                {{ t('adminPayGateways.exchangeSectionHint') }}
+              </n-alert>
             </n-gi>
             <n-gi v-if="field.name === 'active_query_enabled'" :span="2" style="padding: 4px 0;">
               <n-divider title-placement="left">
