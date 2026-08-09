@@ -94,6 +94,12 @@ const activeQueryEnabled = computed(() => {
   return v === 1 || v === '1' || v === true
 })
 
+// 是否需要展示「目标币种/汇率/目标手续费」相关配置
+const needExchange = computed(() => {
+  const targetCurrency = String(extConfigMap.target_currency || '').trim().toUpperCase()
+  return targetCurrency && targetCurrency !== String(form.currency || '').trim().toUpperCase()
+})
+
 const formRules: FormRules = {
   name: [{ required: true, message: t('adminPayGateways.enterName'), trigger: 'blur' }],
   type: [{ required: true, message: t('adminPayGateways.selectType'), trigger: 'change' }],
@@ -370,9 +376,27 @@ function normalizeConfigField(field: ChannelConfigField): ChannelConfigField {
   return f
 }
 
+const exchangeSectionFields = new Set(['exchange_rate_mode', 'exchange_rate', 'exchange_fixed_amount', 'exchange_rate_source'])
+const targetFeeSectionFields = new Set(['target_fee_rate', 'target_fee_fixed', 'target_fee_mode'])
+
 function isFieldVisible(field: ChannelConfigField): boolean {
+  // 查单间隔/批次只在开启主动查单时显示
   if (field.name === 'query_interval_seconds' || field.name === 'query_batch_size')
     return activeQueryEnabled.value
+
+  // 汇率/目标手续费相关字段只在目标币种与结算币种不同且已设置目标币种时显示
+  if (exchangeSectionFields.has(field.name) || targetFeeSectionFields.has(field.name)) {
+    if (!needExchange.value)
+      return false
+    // 固定汇率：显示「固定汇率」和「固定加额」；动态汇率：显示「汇率源标识」
+    const mode = String(extConfigMap.exchange_rate_mode || '').trim().toLowerCase()
+    if (field.name === 'exchange_rate' || field.name === 'exchange_fixed_amount')
+      return mode === 'fixed'
+    if (field.name === 'exchange_rate_source')
+      return mode === 'dynamic'
+    return true
+  }
+
   return true
 }
 
@@ -876,6 +900,16 @@ onMounted(() => {
             </n-form-item>
           </n-gi>
           <template v-for="field in dynamicConfigFields" :key="field.name">
+            <n-gi v-if="field.name === 'target_currency'" :span="2" style="padding: 4px 0;">
+              <n-divider title-placement="left">
+                {{ t('adminPayGateways.exchangeSectionTitle') }}
+              </n-divider>
+            </n-gi>
+            <n-gi v-if="field.name === 'active_query_enabled'" :span="2" style="padding: 4px 0;">
+              <n-divider title-placement="left">
+                {{ t('adminPayGateways.querySectionTitle') }}
+              </n-divider>
+            </n-gi>
             <n-gi v-if="isFieldVisible(field)" :span="field.type === 'textarea' ? 2 : 1">
               <n-form-item :label="field.label || field.name" :path="`extConfigMap.${field.name}`">
                 <n-input
@@ -923,6 +957,11 @@ onMounted(() => {
                 </template>
               </n-input-number>
             </n-form-item>
+          </n-gi>
+          <n-gi :span="2" style="padding: 4px 0;">
+            <n-divider title-placement="left">
+              {{ t('adminPayGateways.channelFeeSectionTitle') }}
+            </n-divider>
           </n-gi>
           <n-gi>
             <n-form-item :label="t('adminPayGateways.feeRate')" path="fee_rate">

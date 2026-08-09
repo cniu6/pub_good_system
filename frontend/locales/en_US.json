@@ -1075,8 +1075,11 @@
     "logoUrlPlaceholder": "Gateway logo image URL (optional)",
     "minAmount": "Minimum Amount",
     "maxAmount": "Maximum Amount",
-    "feeRate": "Fee Rate",
-    "feeMode": "Fee Mode",
+    "feeRate": "Channel Fee Rate",
+    "feeMode": "Channel Fee Mode",
+    "channelFeeSectionTitle": "Original Currency Fee",
+    "exchangeSectionTitle": "Target Currency & Exchange",
+    "querySectionTitle": "Active Query",
     "minLevel": "Minimum Level",
     "minLevelPlaceholder": "0 = no limit",
     "sortOrder": "Sort Order",
@@ -1148,8 +1151,8 @@
     "feeModeAdd": "Add-on (user pays more)",
     "feeModeInclude": "Included (net received reduced)",
     "confirmDeleteContent": "Are you sure you want to delete gateway \"{name}\"?",
-    "feeExplainTitle": "Fee Rate vs Target Fee Rate",
-    "feeExplainContent": "Fee Rate: platform/channel fee charged on the original currency, deducted before conversion.\nTarget Fee Rate: fee charged on the target currency after the exchange conversion.\n\nFull calculation order:\nUser input amount (original currency)\n  → Fee rate / fixed fee\n  → Original currency net amount\n  → Exchange conversion (+ fixed spread)\n  → Target currency net amount\n  → Target fee rate / target fixed fee\n  → Final target currency payable/received amount"
+    "feeExplainTitle": "Channel Fee vs Target Fee",
+    "feeExplainContent": "Channel Fee: platform/channel fee charged on the original currency, deducted before conversion.\nTarget Fee: fee charged on the target currency after the exchange conversion.\n\nFull calculation order:\nUser input amount (original currency)\n  → Channel fee rate / fixed fee\n  → Original currency net amount\n  → Exchange conversion (+ fixed spread)\n  → Target currency net amount\n  → Target fee rate / target fixed fee\n  → Final target currency payable/received amount\n\nExample:\n- Channel fee 2% (add): user pays 100 CNY, 2 CNY is deducted first, 98 CNY goes into exchange conversion.\n- Target fee 2% (add): if 98 CNY converts to 13.72 USD, then 2% target fee is deducted, final received ≈ 13.45 USD.\n\nReason:\nWhen the settlement currency and the original currency differ, the fee bearers and proportions differ in each currency.\nSplitting the channel fee (original currency) and the target currency fee, and configuring them separately, prevents the actual rate from becoming inaccurate after conversion."
   },
   "adminCurrency": {
     "globalConfig": "Global Currency Config",

@@ -38,7 +38,7 @@ func init() {
 				SignTypes: []payment.SignTypeMeta{{Value: SignTypeMD5, Name: "MD5"}},
 				ConfigFields: []payment.ConfigField{
 					{
-						Name:        "merchant_key",
+						Name:        "key",
 						Label:       "商户密钥",
 						Type:        "textarea",
 						Required:    true,
