@@ -38,12 +38,14 @@ func RunAutoMigrate() {
 	models.RepairHashedApiKeys()
 	dropObsoleteFinanceApprovalArtifacts()
 	dropObsoleteRBACArtifacts()
+	migratePayGatewayExtConfig()
 
 	// 业务种子与聚合表历史回填
 	models.SeedEmailTemplates()
 	models.SeedSystemSettings()
 	models.SeedUserLevelCaps()
 	models.SeedSMSTemplates()
+	models.SeedExchangeRates()
 	models.BackfillAPIAccessLogAggregateIfNeeded()
 	models.BackfillEmailLogAggregateIfNeeded()
 	models.BackfillSMSLogAggregateIfNeeded()

@@ -1,0 +1,10 @@
+@use "flag-icons/sass/flag-icons" with (
+  // 仅打包业务需要的国旗，减少体积
+  $flag-icons-included-countries: (
+    "cn", "us", "eu", "jp", "gb", "hk", "tw", "kr", "au", "ca", "ch", "sg",
+    "in", "ru", "th", "vn", "my", "ph", "id", "mx", "br", "nz", "za", "se",
+    "no", "dk", "pl", "tr", "ae", "sa", "il", "eg"
+  ),
+  // 用绝对路径让 Vite 能在 build 时解析到 node_modules 里的 svg
+  $flag-icons-path: "/node_modules/flag-icons/flags"
+);

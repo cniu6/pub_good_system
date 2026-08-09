@@ -418,10 +418,10 @@ func TestChannelType(t *testing.T) {
 
 func TestConfigFromGateway(t *testing.T) {
 	cfg := ConfigFromGateway(&models.PayGateway{
-		ApiURL:  "https://pay.example.com/",
-		PID:     "1001",
-		Key:     "secret",
-		PayType: "alipay",
+		ApiURL:    "https://pay.example.com/",
+		PID:       "1001",
+		ExtConfig: `{"key":"secret"}`,
+		PayType:   "alipay",
 	})
 	if cfg.ApiURL != "https://pay.example.com" {
 		t.Fatalf("ApiURL should trim trailing slash, got %q", cfg.ApiURL)
@@ -458,10 +458,10 @@ func TestCreatePay_APIPaySuccess(t *testing.T) {
 
 	ch := NewChannel()
 	gw := &models.PayGateway{
-		ApiURL:  server.URL,
-		PID:     "1001",
-		Key:     "secret-key",
-		PayType: "alipay",
+		ApiURL:    server.URL,
+		PID:       "1001",
+		ExtConfig: `{"key":"secret-key"}`,
+		PayType:   "alipay",
 	}
 	order := &models.PaymentOrder{
 		OrderNo:     "P100",
@@ -496,10 +496,10 @@ func TestCreatePay_FallbackToSubmit(t *testing.T) {
 
 	ch := NewChannel()
 	gw := &models.PayGateway{
-		ApiURL:  server.URL,
-		PID:     "1001",
-		Key:     "secret-key",
-		PayType: "wxpay",
+		ApiURL:    server.URL,
+		PID:       "1001",
+		ExtConfig: `{"key":"secret-key"}`,
+		PayType:   "wxpay",
 	}
 	order := &models.PaymentOrder{
 		OrderNo:     "P200",
@@ -542,7 +542,7 @@ func TestChannelQueryOrderAndVerifyNotify(t *testing.T) {
 	defer server.Close()
 
 	ch := NewChannel()
-	gw := &models.PayGateway{ApiURL: server.URL, PID: "1", Key: "k", PayType: "alipay"}
+	gw := &models.PayGateway{ApiURL: server.URL, PID: "1", ExtConfig: `{"key":"k"}`, PayType: "alipay"}
 
 	result, err := ch.QueryOrder(gw, "P1", "")
 	if err != nil {

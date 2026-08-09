@@ -95,6 +95,18 @@ func DefaultPresets() []PresetJob {
 			TimeoutSec:      180,
 			ParamsJSON:      `{}`,
 		},
+		{
+			JobCode:     "refresh_exchange_rates",
+			Name:        "动态汇率自动刷新",
+			Description: "每天凌晨 2 点自动从上游 API 刷新 rate_type=dynamic 的汇率记录",
+			Category:    "payment",
+			HandlerKey:  HandlerRefreshExchangeRates,
+			CronExpr:    "0 2 * * *",
+			Timezone:    "Asia/Shanghai",
+			Enabled:     false, // 默认关闭：避免首次启动无 API KEY/网络时大量失败；需要手动开启
+			TimeoutSec:  300,
+			ParamsJSON:  `{}`,
+		},
 	}
 }
 

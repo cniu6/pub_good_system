@@ -37,6 +37,76 @@ definitions:
     required:
     - content
     type: object
+  app_controllers_admin_payment.BatchRefreshRatesRequest:
+    properties:
+      ids:
+        items:
+          type: integer
+        minItems: 1
+        type: array
+    required:
+    - ids
+    type: object
+  app_controllers_admin_payment.CurrencyConfigRequest:
+    properties:
+      base_currency:
+        maxLength: 10
+        type: string
+      currency_dynamic_source:
+        maxLength: 50
+        type: string
+      currency_dynamic_source_url:
+        maxLength: 512
+        type: string
+    type: object
+  app_controllers_admin_payment.ExchangeRateRequest:
+    properties:
+      fixed_amount:
+        type: number
+      from_currency:
+        maxLength: 10
+        type: string
+      rate:
+        type: number
+      rate_type:
+        maxLength: 20
+        type: string
+      source:
+        maxLength: 255
+        type: string
+      to_currency:
+        maxLength: 10
+        type: string
+    required:
+    - from_currency
+    - rate
+    - rate_type
+    - to_currency
+    type: object
+  app_controllers_admin_payment.UpdateExchangeRateRequest:
+    properties:
+      fixed_amount:
+        type: number
+      from_currency:
+        maxLength: 10
+        type: string
+      rate:
+        type: number
+      rate_type:
+        maxLength: 20
+        type: string
+      source:
+        maxLength: 255
+        type: string
+      to_currency:
+        maxLength: 10
+        type: string
+    required:
+    - from_currency
+    - rate
+    - rate_type
+    - to_currency
+    type: object
   app_controllers_admin_realname.ReviewRealnameRequest:
     properties:
       id:
@@ -1785,6 +1855,264 @@ paths:
       summary: 在线用户统计
       tags:
       - Admin-在线用户
+  /v1/admin/payment/channels/metas:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 支付通道类型元数据
+      tags:
+      - Admin-支付
+  /v1/admin/payment/currency/base:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取系统本位币
+      tags:
+      - Admin-支付
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: '{\'
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 设置系统本位币
+      tags:
+      - Admin-支付
+  /v1/admin/payment/currency/config:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取货币全局配置
+      tags:
+      - Admin-支付
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 货币全局配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_admin_payment.CurrencyConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新货币全局配置
+      tags:
+      - Admin-支付
+  /v1/admin/payment/currency/rates:
+    get:
+      parameters:
+      - description: 源币种
+        in: query
+        name: from
+        type: string
+      - description: 目标币种
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 列出全局汇率
+      tags:
+      - Admin-支付
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 汇率信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_admin_payment.ExchangeRateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 创建汇率
+      tags:
+      - Admin-支付
+  /v1/admin/payment/currency/rates/{id}:
+    delete:
+      parameters:
+      - description: 汇率ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除汇率
+      tags:
+      - Admin-支付
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 汇率ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 汇率信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_admin_payment.UpdateExchangeRateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新汇率
+      tags:
+      - Admin-支付
+  /v1/admin/payment/currency/rates/{id}/refresh:
+    post:
+      parameters:
+      - description: 汇率ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 按 ID 刷新单条汇率
+      tags:
+      - Admin-支付
+  /v1/admin/payment/currency/rates/batch-refresh:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 汇率ID列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_admin_payment.BatchRefreshRatesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 批量确认并刷新汇率
+      tags:
+      - Admin-支付
+  /v1/admin/payment/currency/rates/batch-refresh/preview:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 汇率ID列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/app_controllers_admin_payment.BatchRefreshRatesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 批量刷新汇率预览
+      tags:
+      - Admin-支付
+  /v1/admin/payment/currency/rates/refresh:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: 刷新动态汇率
+      tags:
+      - Admin-支付
   /v1/admin/payment/exceptions:
     get:
       produces:
@@ -1876,6 +2204,24 @@ paths:
       security:
       - BearerAuth: []
       summary: 更新支付通道
+      tags:
+      - Admin-支付
+  /v1/admin/payment/gateways/{id}/test-connection:
+    post:
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 测试支付通道连接
       tags:
       - Admin-支付
   /v1/admin/payment/orders:
@@ -3325,7 +3671,23 @@ paths:
           description: OK
           schema:
             type: string
-      summary: 支付异步通知回调
+      summary: 支付异步通知回调（旧入口，兼容 epay）
+      tags:
+      - Public-回调
+  /v1/public/payment/notify/:channel_type:
+    post:
+      parameters:
+      - description: 通道类型，如 epay
+        in: path
+        name: channel_type
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: 支付异步通知回调（分通道）
       tags:
       - Public-回调
   /v1/public/payment/return:

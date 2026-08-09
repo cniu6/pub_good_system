@@ -48,6 +48,7 @@ export const adminApi = {
   dashboard: createLazyModule(() => import('./dashboard').then(m => m.adminDashboardApi)),
   realname: createLazyModule(() => import('./realname').then(m => m.adminRealnameApi)),
   payment: createLazyModule(() => import('./payment').then(m => m.adminPaymentApi)),
+  currency: createLazyModule(() => import('./currency').then(m => m.adminCurrencyApi)),
   // 财务：余额/积分操作 + 提现审核（懒加载，与其它 admin 子模块一致）
   finance: createLazyModule(() => import('./finance').then(m => m.adminFinanceApi)),
   announcement: createLazyModule(() => import('./announcement').then(m => m.adminAnnouncementApi)),

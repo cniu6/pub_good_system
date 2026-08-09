@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, onMounted, reactive, ref, watch } from 'vue'
+import { computed, h, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NButton, NImage, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns, FormRules, SelectOption } from 'naive-ui'
@@ -14,20 +14,24 @@ import {
   fetchPayGateways,
   fetchPaymentChannelMetas,
   getBaseCurrency,
+  marshalExtConfig,
+  parseExtConfig,
+  refreshExchangeRate,
   refreshExchangeRates,
   setBaseCurrency,
   testPayGatewayConnection,
+  updateExchangeRate,
   updatePayGateway,
 } from '@/service/api/admin/paygateway'
 import type {
   ChannelConfigField,
-  ChannelConfigFieldOption,
   ChannelMeta,
   ChannelVersionMeta,
   ExchangeRate,
   PayGateway,
   PayGatewayCreateRequest,
 } from '@/service/api/admin/paygateway'
+import CurrencyPair from '@/components/common/CurrencyPair.vue'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -53,7 +57,7 @@ const formRef = ref()
 const advancedMode = ref(false)
 const channelMetas = ref<ChannelMeta[]>([])
 const channelMeta = ref<ChannelMeta | null>(null)
-const extConfigMap = reactive<Record<string, string>>({})
+const extConfigMap = reactive<Record<string, any>>({})
 const activeVersion = ref<ChannelVersionMeta | null>(null)
 
 function defaultForm(): PayGatewayCreateRequest {
@@ -61,23 +65,13 @@ function defaultForm(): PayGatewayCreateRequest {
     name: '',
     type: 'epay',
     pay_type: 'alipay',
-    sign_type: 'MD5',
     version: '',
     device: 'pc',
     currency: 'CNY',
-    target_currency: '',
-    exchange_rate_mode: 'system',
-    exchange_rate: 0,
-    exchange_fixed_amount: 0,
-    exchange_rate_source: '',
-    target_fee_rate: 0,
-    target_fee_fixed: 0,
-    target_fee_mode: 'add',
     description: '',
     status: 1,
     api_url: '',
     pid: '',
-    key: '',
     ext_config: '',
     logo_url: '',
     sort_order: 0,
@@ -88,13 +82,17 @@ function defaultForm(): PayGatewayCreateRequest {
     min_level: 0,
     notify_url: '',
     expire_minutes: 30,
-    active_query_enabled: 1,
-    query_interval_seconds: 120,
-    query_batch_size: 50,
   }
 }
 
+const baseCurrency = ref('CNY')
+
 const form = reactive<PayGatewayCreateRequest>(defaultForm())
+
+const activeQueryEnabled = computed(() => {
+  const v = extConfigMap.active_query_enabled
+  return v === 1 || v === '1' || v === true
+})
 
 const formRules: FormRules = {
   name: [{ required: true, message: t('adminPayGateways.enterName'), trigger: 'blur' }],
@@ -115,20 +113,17 @@ const exchangeRateModeOptions = [
   { label: t('adminPayGateways.exchangeRateModeDynamic'), value: 'dynamic' },
 ]
 
-const targetFeeModeOptions = [
-  { label: t('adminPayGateways.targetFeeModeAdd'), value: 'add' },
-  { label: t('adminPayGateways.targetFeeModeInclude'), value: 'include' },
-]
-
 // 汇率管理弹窗
 const showCurrencyModal = ref(false)
 const currencyLoading = ref(false)
+const currencyRefreshingId = ref<number | null>(null)
 const exchangeRates = ref<ExchangeRate[]>([])
-const baseCurrency = ref('CNY')
+const currencyEditingId = ref<number | null>(null)
 const currencyForm = reactive({
   from_currency: 'CNY',
   to_currency: 'USD',
   rate: 0,
+  fixed_amount: 0,
   rate_type: 'fixed',
   source: '',
 })
@@ -231,6 +226,33 @@ const columns: DataTableColumns<PayGateway> = [
   },
 ]
 
+const exchangeRateColumns: DataTableColumns<ExchangeRate> = [
+  {
+    title: t('adminPayGateways.currencyPair'),
+    key: 'pair',
+    render: (row: ExchangeRate) => h(CurrencyPair, { from: row.from_currency, to: row.to_currency }),
+  },
+  { title: t('adminPayGateways.exchangeRate'), key: 'rate', render: (row: ExchangeRate) => row.rate.toFixed(8) },
+  { title: t('adminPayGateways.fixedAmount'), key: 'fixed_amount', render: (row: ExchangeRate) => (row.fixed_amount || 0).toFixed(8) },
+  {
+    title: t('adminPayGateways.rateType'),
+    key: 'rate_type',
+    render: (row: ExchangeRate) => ({ fixed: t('adminPayGateways.rateTypeFixed'), dynamic: t('adminPayGateways.rateTypeDynamic') }[row.rate_type] || row.rate_type),
+  },
+  { title: t('adminPayGateways.source'), key: 'source' },
+  {
+    title: t('moneyScore.actions'),
+    key: 'actions',
+    render: (row: ExchangeRate) => h(NSpace, { size: 8 }, {
+      default: () => [
+        h(NButton, { size: 'small', quaternary: true, loading: isCurrencyRefreshing(row), onClick: () => handleRefreshExchangeRate(row) }, () => t('adminPayGateways.refreshRate')),
+        h(NButton, { size: 'small', quaternary: true, onClick: () => handleEditExchangeRate(row) }, () => t('common.edit')),
+        h(NButton, { size: 'small', quaternary: true, type: 'error', onClick: () => handleDeleteExchangeRate(row) }, () => t('adminPayGateways.delete')),
+      ],
+    }),
+  },
+]
+
 const selectableColumnOptions = [
   { key: 'id', label: 'ID' },
   { key: 'logo_url', label: t('adminPayGateways.logo') },
@@ -300,6 +322,15 @@ async function loadChannelMetas() {
 
 const baseApiURL = `${window.location.protocol}//${window.location.host}`
 
+function fillNotifyUrl() {
+  if (channelMeta.value?.default_notify_path) {
+    form.notify_url = `${baseApiURL}${channelMeta.value.default_notify_path}`
+  }
+  else {
+    message.warning(t('adminPayGateways.noDefaultNotifyUrl'))
+  }
+}
+
 function pickChannelMeta(type: string) {
   channelMeta.value = channelMetas.value.find(m => m.type === type) || null
   if (channelMeta.value) {
@@ -331,58 +362,83 @@ function pickChannelMeta(type: string) {
   }
 }
 
+function normalizeConfigField(field: ChannelConfigField): ChannelConfigField {
+  const f = { ...field }
+  if (f.type === 'select' && f.options?.length) {
+    f.options = f.options.map((opt: any) => ({ label: opt.label || opt.value, value: opt.value }))
+  }
+  return f
+}
+
+function isFieldVisible(field: ChannelConfigField): boolean {
+  if (field.name === 'query_interval_seconds' || field.name === 'query_batch_size')
+    return activeQueryEnabled.value
+  return true
+}
+
+function fillDynamicDefaults() {
+  const defaultValues: Record<string, any> = {
+    sign_type: signTypeOptions.value[0]?.value || 'MD5',
+    active_query_enabled: '1',
+    query_interval_seconds: '120',
+    query_batch_size: '50',
+    exchange_rate_mode: 'system',
+    target_fee_mode: 'add',
+  }
+
+  dynamicConfigFields.value.forEach((field) => {
+    const current = extConfigMap[field.name]
+    if (current !== undefined && current !== null && String(current) !== '')
+      return
+
+    if (field.options?.length) {
+      if (field.name === 'sign_type' && signTypeOptions.value.length > 0)
+        extConfigMap[field.name] = signTypeOptions.value[0].value
+      else
+        extConfigMap[field.name] = field.options[0].value
+      return
+    }
+
+    if (defaultValues[field.name] !== undefined)
+      extConfigMap[field.name] = defaultValues[field.name]
+  })
+}
+
 function pickVersion(version: string) {
   activeVersion.value = channelMeta.value?.versions.find(v => v.version === version) || null
   if (activeVersion.value) {
     signTypeOptions.value = activeVersion.value.signTypes.map(s => ({ label: s.name || s.value, value: s.value }))
-    dynamicConfigFields.value = activeVersion.value.configFields?.map((field) => {
-      if (field.type === 'select' && field.options?.length) {
-        return {
-          ...field,
-          options: field.options.map((opt: ChannelConfigFieldOption) => ({ label: opt.label || opt.value, value: opt.value })),
-        }
-      }
-      return field
-    }) || []
-    // 自动将签名算法选为第一个
-    if (!form.sign_type && signTypeOptions.value.length > 0) {
-      form.sign_type = signTypeOptions.value[0].value as string
-    }
   }
   else {
     signTypeOptions.value = []
-    dynamicConfigFields.value = []
   }
+
+  const topFields = (channelMeta.value?.config_fields || channelMeta.value?.configFields || [])
+    .map(normalizeConfigField)
+  const versionFields = (activeVersion.value?.config_fields || activeVersion.value?.configFields || [])
+    .map(normalizeConfigField)
+
+  const fieldMap = new Map<string, ChannelConfigField>()
+  topFields.forEach(f => fieldMap.set(f.name, f))
+  versionFields.forEach(f => fieldMap.set(f.name, f))
+
+  if (fieldMap.has('sign_type') && signTypeOptions.value.length > 0) {
+    const signField = fieldMap.get('sign_type')!
+    signField.options = signTypeOptions.value.map(opt => ({ label: opt.label as string, value: opt.value as string }))
+    fieldMap.set('sign_type', signField)
+  }
+
+  dynamicConfigFields.value = Array.from(fieldMap.values())
+  fillDynamicDefaults()
 }
 
 function syncExtConfigFromMap() {
-  if (Object.keys(extConfigMap).length === 0) {
-    form.ext_config = ''
-    return
-  }
-  try {
-    form.ext_config = JSON.stringify(extConfigMap, null, 2)
-  }
-  catch {
-    // ignore
-  }
+  form.ext_config = Object.keys(extConfigMap).length === 0 ? '' : marshalExtConfig(extConfigMap)
 }
 
 function syncExtConfigToMap() {
   Object.keys(extConfigMap).forEach(k => delete extConfigMap[k])
-  if (!form.ext_config)
-    return
-  try {
-    const parsed = JSON.parse(form.ext_config)
-    if (parsed && typeof parsed === 'object') {
-      Object.keys(parsed).forEach((k) => {
-        extConfigMap[k] = parsed[k]
-      })
-    }
-  }
-  catch {
-    // ignore
-  }
+  Object.assign(extConfigMap, parseExtConfig(form.ext_config))
 }
 
 watch(() => form.type, (type) => {
@@ -395,10 +451,6 @@ watch(() => form.type, (type) => {
 watch(() => form.version, (version) => {
   if (version)
     pickVersion(version)
-})
-
-watch(() => form.sign_type, () => {
-  // 不同签名算法可能有不同配置字段；若后端未来返回，这里可重新渲染
 })
 
 watch(extConfigMap, () => {
@@ -434,23 +486,13 @@ function handleEdit(row: PayGateway) {
     name: row.name,
     type: row.type,
     pay_type: row.pay_type,
-    sign_type: row.sign_type || 'MD5',
     version: row.version || '',
     device: row.device || 'pc',
     currency: row.currency || 'CNY',
-    target_currency: row.target_currency || '',
-    exchange_rate_mode: row.exchange_rate_mode || 'system',
-    exchange_rate: row.exchange_rate || 0,
-    exchange_fixed_amount: row.exchange_fixed_amount || 0,
-    exchange_rate_source: row.exchange_rate_source || '',
-    target_fee_rate: row.target_fee_rate || 0,
-    target_fee_fixed: row.target_fee_fixed || 0,
-    target_fee_mode: row.target_fee_mode || 'add',
     description: row.description,
     status: row.status,
     api_url: row.api_url,
     pid: row.pid,
-    key: row.key,
     ext_config: row.ext_config || '',
     logo_url: row.logo_url,
     sort_order: row.sort_order,
@@ -461,9 +503,6 @@ function handleEdit(row: PayGateway) {
     min_level: row.min_level,
     notify_url: row.notify_url,
     expire_minutes: row.expire_minutes || 30,
-    active_query_enabled: row.active_query_enabled ?? 1,
-    query_interval_seconds: row.query_interval_seconds || 120,
-    query_batch_size: row.query_batch_size || 50,
   })
   advancedMode.value = false
   syncExtConfigToMap()
@@ -488,9 +527,9 @@ async function handleSubmit() {
 
   // 兼容旧 key：若 ext_config 为空且 key 有值，把 key 写入 ext_config
   const payload: PayGatewayCreateRequest = { ...form }
-  if (!payload.ext_config && payload.key) {
+  if (!payload.ext_config && extConfigMap.key) {
     try {
-      payload.ext_config = JSON.stringify({ key: payload.key }, null, 2)
+      payload.ext_config = marshalExtConfig({ key: String(extConfigMap.key) })
     }
     catch {
       // ignore
@@ -524,6 +563,7 @@ async function handleSubmit() {
 
 async function openCurrencyModal() {
   showCurrencyModal.value = true
+  resetCurrencyForm()
   currencyLoading.value = true
   try {
     const [ratesRes, baseRes] = await Promise.all([fetchExchangeRates(), getBaseCurrency()])
@@ -553,21 +593,44 @@ async function handleSaveBaseCurrency() {
   }
 }
 
+function resetCurrencyForm() {
+  currencyEditingId.value = null
+  currencyForm.from_currency = baseCurrency.value || 'CNY'
+  currencyForm.to_currency = 'USD'
+  currencyForm.rate = 0
+  currencyForm.fixed_amount = 0
+  currencyForm.rate_type = 'fixed'
+  currencyForm.source = ''
+}
+
 async function handleAddExchangeRate() {
   if (!currencyForm.from_currency || !currencyForm.to_currency || currencyForm.rate <= 0) {
     message.warning(t('adminPayGateways.exchangeRateFormInvalid'))
     return
   }
   try {
-    const res = await createExchangeRate({ ...currencyForm })
+    const res = currencyEditingId.value
+      ? await updateExchangeRate(currencyEditingId.value, { ...currencyForm })
+      : await createExchangeRate({ ...currencyForm })
     if (res.isSuccess) {
       message.success(t('adminPayGateways.exchangeRateSaved'))
+      resetCurrencyForm()
       await openCurrencyModal()
     }
   }
   catch {
     // ignore
   }
+}
+
+function handleEditExchangeRate(row: ExchangeRate) {
+  currencyEditingId.value = row.id
+  currencyForm.from_currency = row.from_currency
+  currencyForm.to_currency = row.to_currency
+  currencyForm.rate = row.rate
+  currencyForm.fixed_amount = row.fixed_amount || 0
+  currencyForm.rate_type = row.rate_type || 'fixed'
+  currencyForm.source = row.source || ''
 }
 
 function handleDeleteExchangeRate(row: ExchangeRate) {
@@ -601,6 +664,27 @@ async function handleRefreshRates() {
   }
   catch {
     // ignore
+  }
+}
+
+function isCurrencyRefreshing(row: ExchangeRate) {
+  return currencyRefreshingId.value === row.id
+}
+
+async function handleRefreshExchangeRate(row: ExchangeRate) {
+  currencyRefreshingId.value = row.id
+  try {
+    const res = await refreshExchangeRate(row.id)
+    if (res.isSuccess) {
+      message.success(t('adminPayGateways.exchangeRateRefreshed'))
+      await openCurrencyModal()
+    }
+    else {
+      message.error(res.message || t('adminPayGateways.exchangeRateRefreshFailed'))
+    }
+  }
+  finally {
+    currencyRefreshingId.value = null
   }
 }
 
@@ -642,9 +726,41 @@ function handleDelete(row: PayGateway) {
   })
 }
 
+watch(() => form.currency, (val) => {
+  const currency = (val || '').toUpperCase()
+  if (!currency)
+    return
+  if (currency !== baseCurrency.value.toUpperCase()) {
+    if (!extConfigMap.target_currency)
+      extConfigMap.target_currency = baseCurrency.value
+  }
+  else {
+    extConfigMap.target_currency = ''
+    extConfigMap.exchange_rate_mode = 'system'
+    extConfigMap.exchange_rate = '0'
+    extConfigMap.exchange_fixed_amount = '0'
+    extConfigMap.exchange_rate_source = ''
+    extConfigMap.target_fee_rate = '0'
+    extConfigMap.target_fee_fixed = '0'
+    extConfigMap.target_fee_mode = 'add'
+  }
+})
+
+async function loadBaseCurrency() {
+  try {
+    const res = await getBaseCurrency()
+    if (res.isSuccess)
+      baseCurrency.value = res.data?.base_currency || 'CNY'
+  }
+  catch {
+    // ignore
+  }
+}
+
 onMounted(() => {
   loadList()
   loadChannelMetas()
+  loadBaseCurrency()
 })
 </script>
 
@@ -723,11 +839,6 @@ onMounted(() => {
             </n-form-item>
           </n-gi>
           <n-gi>
-            <n-form-item :label="t('adminPayGateways.signType')" path="sign_type">
-              <n-select v-model:value="form.sign_type" :options="signTypeOptions" :placeholder="t('adminPayGateways.signTypePlaceholder')" :disabled="!activeVersion" />
-            </n-form-item>
-          </n-gi>
-          <n-gi>
             <n-form-item :label="t('adminPayGateways.device')" path="device">
               <n-select v-model:value="form.device" :options="deviceOptions" :placeholder="t('adminPayGateways.devicePlaceholder')" />
             </n-form-item>
@@ -735,50 +846,6 @@ onMounted(() => {
           <n-gi>
             <n-form-item :label="t('adminPayGateways.currency')" path="currency">
               <n-input v-model:value="form.currency" :placeholder="t('adminPayGateways.currencyPlaceholder')" />
-            </n-form-item>
-          </n-gi>
-          <n-gi>
-            <n-form-item :label="t('adminPayGateways.targetCurrency')" path="target_currency">
-              <n-input v-model:value="form.target_currency" :placeholder="t('adminPayGateways.targetCurrencyPlaceholder')" />
-            </n-form-item>
-          </n-gi>
-          <n-gi>
-            <n-form-item :label="t('adminPayGateways.exchangeRateMode')" path="exchange_rate_mode">
-              <n-select v-model:value="form.exchange_rate_mode" :options="exchangeRateModeOptions" />
-            </n-form-item>
-          </n-gi>
-          <n-gi>
-            <n-form-item :label="t('adminPayGateways.exchangeRate')" path="exchange_rate">
-              <n-input-number v-model:value="form.exchange_rate" :min="0" :precision="8" style="width: 100%" />
-            </n-form-item>
-          </n-gi>
-          <n-gi>
-            <n-form-item :label="t('adminPayGateways.exchangeFixedAmount')" path="exchange_fixed_amount">
-              <n-input-number v-model:value="form.exchange_fixed_amount" :min="0" :precision="2" style="width: 100%" />
-            </n-form-item>
-          </n-gi>
-          <n-gi>
-            <n-form-item :label="t('adminPayGateways.exchangeRateSource')" path="exchange_rate_source">
-              <n-input v-model:value="form.exchange_rate_source" :placeholder="t('adminPayGateways.exchangeRateSourcePlaceholder')" />
-            </n-form-item>
-          </n-gi>
-          <n-gi>
-            <n-form-item :label="t('adminPayGateways.targetFeeRate')" path="target_fee_rate">
-              <n-input-number v-model:value="form.target_fee_rate" :min="0" :max="100" style="width: 100%">
-                <template #suffix>
-                  %
-                </template>
-              </n-input-number>
-            </n-form-item>
-          </n-gi>
-          <n-gi>
-            <n-form-item :label="t('adminPayGateways.targetFeeFixed')" path="target_fee_fixed">
-              <n-input-number v-model:value="form.target_fee_fixed" :min="0" :precision="2" style="width: 100%" />
-            </n-form-item>
-          </n-gi>
-          <n-gi>
-            <n-form-item :label="t('adminPayGateways.targetFeeMode')" path="target_fee_mode">
-              <n-select v-model:value="form.target_fee_mode" :options="targetFeeModeOptions" />
             </n-form-item>
           </n-gi>
           <n-gi>
@@ -808,11 +875,32 @@ onMounted(() => {
               <n-input v-model:value="form.pid" :placeholder="t('adminPayGateways.merchantIdPlaceholder')" />
             </n-form-item>
           </n-gi>
-          <n-gi>
-            <n-form-item :label="t('adminPayGateways.merchantKey')" path="key">
-              <n-input v-model:value="form.key" type="password" show-password-on="click" :placeholder="t('adminPayGateways.merchantKeyPlaceholder')" />
-            </n-form-item>
-          </n-gi>
+          <template v-for="field in dynamicConfigFields" :key="field.name">
+            <n-gi v-if="isFieldVisible(field)" :span="field.type === 'textarea' ? 2 : 1">
+              <n-form-item :label="field.label || field.name" :path="`extConfigMap.${field.name}`">
+                <n-input
+                  v-if="field.type === 'input'"
+                  v-model:value="extConfigMap[field.name]"
+                  :placeholder="field.placeholder"
+                  :type="field.secret ? 'password' : 'text'"
+                  show-password-on="click"
+                />
+                <n-input
+                  v-else-if="field.type === 'textarea'"
+                  v-model:value="extConfigMap[field.name]"
+                  type="textarea"
+                  :placeholder="field.placeholder"
+                  :rows="3"
+                />
+                <n-select
+                  v-else-if="field.type === 'select'"
+                  v-model:value="extConfigMap[field.name]"
+                  :options="field.options || []"
+                  :placeholder="field.placeholder"
+                />
+              </n-form-item>
+            </n-gi>
+          </template>
           <n-gi :span="2">
             <n-form-item :label="t('adminPayGateways.logoUrl')" path="logo_url">
               <n-input v-model:value="form.logo_url" :placeholder="t('adminPayGateways.logoUrlPlaceholder')" />
@@ -865,57 +953,24 @@ onMounted(() => {
               <n-input-number v-model:value="form.expire_minutes" :min="1" style="width: 100%" />
             </n-form-item>
           </n-gi>
-          <n-gi>
-            <n-form-item :label="t('adminPayGateways.activeQueryEnabled')" path="active_query_enabled">
-              <n-switch v-model:value="form.active_query_enabled" :checked-value="1" :unchecked-value="0" />
-            </n-form-item>
-          </n-gi>
-          <n-gi>
-            <n-form-item :label="t('adminPayGateways.queryIntervalSeconds')" path="query_interval_seconds">
-              <n-input-number v-model:value="form.query_interval_seconds" :min="10" style="width: 100%" />
-            </n-form-item>
-          </n-gi>
-          <n-gi>
-            <n-form-item :label="t('adminPayGateways.queryBatchSize')" path="query_batch_size">
-              <n-input-number v-model:value="form.query_batch_size" :min="1" :max="200" style="width: 100%" />
-            </n-form-item>
-          </n-gi>
           <n-gi :span="2">
             <n-form-item :label="t('adminPayGateways.notifyUrl')" path="notify_url">
-              <n-input v-model:value="form.notify_url" :placeholder="t('adminPayGateways.notifyUrlPlaceholder')" />
+              <n-input-group>
+                <n-input v-model:value="form.notify_url" :placeholder="t('adminPayGateways.notifyUrlPlaceholder')" />
+                <NButton @click="fillNotifyUrl">
+                  <template #icon>
+                    <NIcon><icon-park-outline-refresh /></NIcon>
+                  </template>
+                  {{ t('adminPayGateways.fillNotifyUrl') }}
+                </NButton>
+              </n-input-group>
             </n-form-item>
           </n-gi>
         </n-grid>
 
-        <!-- 动态扩展配置字段 -->
-        <n-divider>{{ t('adminPayGateways.dynamicConfig') }}</n-divider>
-        <n-grid v-if="dynamicConfigFields.length > 0" :cols="1" :x-gap="16">
-          <n-gi v-for="field in dynamicConfigFields" :key="field.name">
-            <n-form-item :label="field.label || field.name" :path="`extConfigMap.${field.name}`">
-              <n-input
-                v-if="field.type === 'input'"
-                v-model:value="extConfigMap[field.name]"
-                :placeholder="field.placeholder"
-                :type="field.secret ? 'password' : 'text'"
-                show-password-on="click"
-              />
-              <n-input
-                v-else-if="field.type === 'textarea'"
-                v-model:value="extConfigMap[field.name]"
-                type="textarea"
-                :placeholder="field.placeholder"
-                :rows="3"
-              />
-              <n-select
-                v-else-if="field.type === 'select'"
-                v-model:value="extConfigMap[field.name]"
-                :options="field.options || []"
-                :placeholder="field.placeholder"
-              />
-            </n-form-item>
-          </n-gi>
-        </n-grid>
-        <n-empty v-else :description="t('adminPayGateways.channelTypeNotSelected')" size="small" />
+        <n-alert type="info" :title="t('adminPayGateways.feeExplainTitle')" :bordered="false" style="margin-top: 12px; white-space: pre-line;">
+          {{ t('adminPayGateways.feeExplainContent') }}
+        </n-alert>
 
         <!-- ext_config 高级模式 -->
         <NSpace align="center" style="margin: 16px 0 8px">
@@ -980,6 +1035,11 @@ onMounted(() => {
                 <n-select v-model:value="currencyForm.rate_type" :options="exchangeRateModeOptions" />
               </n-form-item>
             </n-gi>
+            <n-gi>
+              <n-form-item :label="t('adminPayGateways.fixedAmount')">
+                <n-input-number v-model:value="currencyForm.fixed_amount" :min="0" :precision="8" style="width: 100%" />
+              </n-form-item>
+            </n-gi>
             <n-gi :span="2">
               <n-form-item :label="t('adminPayGateways.exchangeRateSource')">
                 <n-input v-model:value="currencyForm.source" :placeholder="t('adminPayGateways.exchangeRateSourcePlaceholder')" />
@@ -987,19 +1047,15 @@ onMounted(() => {
             </n-gi>
           </n-grid>
           <NButton type="primary" @click="handleAddExchangeRate">
-            {{ t('adminPayGateways.addExchangeRate') }}
+            {{ currencyEditingId ? t('common.save') : t('adminPayGateways.addExchangeRate') }}
+          </NButton>
+          <NButton v-if="currencyEditingId" @click="resetCurrencyForm">
+            {{ t('common.cancel') }}
           </NButton>
         </n-form>
 
         <n-data-table
-          :columns="[
-            { title: t('adminPayGateways.fromCurrency'), key: 'from_currency' },
-            { title: t('adminPayGateways.toCurrency'), key: 'to_currency' },
-            { title: t('adminPayGateways.exchangeRate'), key: 'rate', render: (row: ExchangeRate) => row.rate.toFixed(8) },
-            { title: t('adminPayGateways.rateType'), key: 'rate_type' },
-            { title: t('adminPayGateways.source'), key: 'source' },
-            { title: t('moneyScore.actions'), key: 'actions', render: (row: ExchangeRate) => h(NButton, { size: 'small', quaternary: true, type: 'error', onClick: () => handleDeleteExchangeRate(row) }, () => t('adminPayGateways.delete')) },
-          ]"
+          :columns="exchangeRateColumns"
           :data="exchangeRates"
           :loading="currencyLoading"
           size="small"

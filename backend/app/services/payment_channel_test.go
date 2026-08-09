@@ -8,19 +8,19 @@ import (
 
 // stubPaymentChannel 测试用假通道
 type stubPaymentChannel struct {
-	typeName       string
-	payURL         string
-	tradeNo        string
-	createErr      error
-	verifyOK       bool
-	queryResult    *PaymentQueryResult
-	queryErr       error
-	validPayTypes  map[string]bool
-	createCalled   bool
-	verifyCalled   bool
-	queryCalled    bool
-	lastNotifyURL  string
-	lastReturnURL  string
+	typeName      string
+	payURL        string
+	tradeNo       string
+	createErr     error
+	verifyOK      bool
+	queryResult   *PaymentQueryResult
+	queryErr      error
+	validPayTypes map[string]bool
+	createCalled  bool
+	verifyCalled  bool
+	queryCalled   bool
+	lastNotifyURL string
+	lastReturnURL string
 }
 
 func (s *stubPaymentChannel) Type() string { return s.typeName }
@@ -123,7 +123,7 @@ func TestStubPaymentChannel_CreatePayAndVerify(t *testing.T) {
 		t.Fatal("channel not registered")
 	}
 
-	gw := &models.PayGateway{Type: "epay", PayType: "alipay", Key: "k"}
+	gw := &models.PayGateway{Type: "epay", PayType: "alipay", ExtConfig: `{"key":"k"}`}
 	order := &models.PaymentOrder{OrderNo: "P1", PaymentType: "alipay", PayAmount: 10}
 
 	if !ch.ValidatePayType(gw, "alipay") {
@@ -202,4 +202,3 @@ func TestPaymentServiceDispatchRequiresRegisteredChannel(t *testing.T) {
 		t.Fatal("dispatch VerifyNotify failed")
 	}
 }
-

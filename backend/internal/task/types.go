@@ -39,7 +39,11 @@ const (
 	HandlerCleanupExpiredOrders      = "cleanup_expired_orders"
 	HandlerCleanupSessionsCodes      = "cleanup_sessions_codes"
 	HandlerReconcilePaymentOrders    = "reconcile_payment_orders"
+	HandlerRefreshExchangeRates      = "refresh_exchange_rates"
 )
+
+// CurrencyRefreshDynamicRatesFn 由 services 注入，避免 task 与 services 循环依赖
+var CurrencyRefreshDynamicRatesFn func(ctx context.Context) (map[string]float64, error)
 
 // JobDefinition 任务定义
 // 注意：MySQL 上 string 缺 size 会迁成 longtext；主键/索引列必须带 size，否则 Error 1170。

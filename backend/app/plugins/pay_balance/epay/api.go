@@ -36,11 +36,11 @@ func ConfigFromGateway(gateway *models.PayGateway) *Config {
 		return &Config{}
 	}
 	extConfig := payment.ParseExtConfig(gateway.ExtConfig)
-	// 兼容旧通道：没有 ext_config 时使用 key 字段
-	if len(extConfig) == 0 && gateway.Key != "" {
-		extConfig = map[string]string{"key": gateway.Key}
+	// 兼容旧通道：没有 ext_config 时使用模型 getter 兜底密钥
+	if len(extConfig) == 0 && gateway.GetKey() != "" {
+		extConfig = map[string]string{"key": gateway.GetKey()}
 	}
-	signType := gateway.SignType
+	signType := gateway.GetSignType()
 	if signType == "" {
 		signType = SignTypeMD5
 	}
@@ -51,7 +51,7 @@ func ConfigFromGateway(gateway *models.PayGateway) *Config {
 	return &Config{
 		ApiURL:       strings.TrimRight(gateway.ApiURL, "/"),
 		PID:          gateway.PID,
-		Key:          gateway.Key,
+		Key:          gateway.GetKey(),
 		ExtConfig:    extConfig,
 		SignType:     signType,
 		Version:      gateway.Version,

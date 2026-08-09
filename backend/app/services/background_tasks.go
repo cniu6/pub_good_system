@@ -32,5 +32,9 @@ func StartBackgroundTasks() {
 			"errors":     result.Errors,
 		}, nil
 	}
+	// 注入汇率刷新回调，避免 task 包直接依赖 services
+	task.CurrencyRefreshDynamicRatesFn = func(ctx context.Context) (map[string]float64, error) {
+		return RefreshDynamicRates(ctx)
+	}
 	task.Start()
 }

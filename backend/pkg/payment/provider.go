@@ -141,21 +141,35 @@ type RefundResponse struct {
 	Money       string // 退款金额
 }
 
-// ParseExtConfig 解析 ext_config JSON 字符串为 map。
+// ParseExtConfig 解析 ext_config JSON 字符串为 map[string]string。
+// 兼容数值字段：先按 interface{} 解析（数字保留 json.Number），再统一转字符串。
 // 空字符串或解析失败均返回空 map（不返回 nil），方便调用方统一处理。
 func ParseExtConfig(extConfigJSON string) map[string]string {
-	result := make(map[string]string)
-	s := strings.TrimSpace(extConfigJSON)
-	if s == "" {
-		return result
-	}
-	if err := json.Unmarshal([]byte(s), &result); err != nil {
-		return make(map[string]string)
+	raw := ParseExtConfigMap(extConfigJSON)
+	result := make(map[string]string, len(raw))
+	for k, v := range raw {
+		result[k] = extConfigValueToString(v)
 	}
 	return result
 }
 
-// MarshalExtConfig 将 map 序列化为 ext_config JSON 字符串。空 map 返回空字符串。
+// ParseExtConfigMap 解析 ext_config JSON 字符串为 map[string]interface{}。
+// 使用 json.Decoder.UseNumber 避免浮点精度丢失，空字符串或解析失败返回空 map。
+func ParseExtConfigMap(extConfigJSON string) map[string]interface{} {
+	result := make(map[string]interface{})
+	s := strings.TrimSpace(extConfigJSON)
+	if s == "" {
+		return result
+	}
+	dec := json.NewDecoder(strings.NewReader(s))
+	dec.UseNumber()
+	if err := dec.Decode(&result); err != nil {
+		return make(map[string]interface{})
+	}
+	return result
+}
+
+// MarshalExtConfig 将 map[string]string 序列化为 ext_config JSON 字符串。空 map 返回空字符串。
 func MarshalExtConfig(extConfig map[string]string) string {
 	if len(extConfig) == 0 {
 		return ""
@@ -165,6 +179,44 @@ func MarshalExtConfig(extConfig map[string]string) string {
 		return ""
 	}
 	return string(data)
+}
+
+// MarshalExtConfigMap 将 map[string]interface{} 序列化为 ext_config JSON 字符串。空 map 返回空字符串。
+func MarshalExtConfigMap(extConfig map[string]interface{}) string {
+	if len(extConfig) == 0 {
+		return ""
+	}
+	data, err := json.Marshal(extConfig)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+// extConfigValueToString 把 ext_config 中的值统一转为字符串，供 ParseExtConfig 使用。
+func extConfigValueToString(v interface{}) string {
+	switch val := v.(type) {
+	case string:
+		return val
+	case json.Number:
+		return val.String()
+	case float64:
+		return strconv.FormatFloat(val, 'f', -1, 64)
+	case float32:
+		return strconv.FormatFloat(float64(val), 'f', -1, 32)
+	case int:
+		return strconv.Itoa(val)
+	case int64:
+		return strconv.FormatInt(val, 10)
+	case int32:
+		return strconv.Itoa(int(val))
+	case bool:
+		return strconv.FormatBool(val)
+	case nil:
+		return ""
+	default:
+		return fmt.Sprint(v)
+	}
 }
 
 // NormalizeTradeStatus 归一化网关返回的交易状态为可比较值

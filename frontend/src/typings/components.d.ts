@@ -11,6 +11,7 @@ declare module 'vue' {
     AnnouncementPreviewModal: typeof import('./../components/common/AnnouncementPreviewModal.vue')['default']
     AppLoading: typeof import('./../components/common/AppLoading.vue')['default']
     CommonWrapper: typeof import('./../components/common/CommonWrapper.vue')['default']
+    CurrencyPair: typeof import('./../components/common/CurrencyPair.vue')['default']
     DarkModeSwitch: typeof import('./../components/common/DarkModeSwitch.vue')['default']
     ErrorTip: typeof import('./../components/common/ErrorTip.vue')['default']
     GeetestCaptcha: typeof import('./../components/common/GeetestCaptcha.vue')['default']

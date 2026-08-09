@@ -1,6 +1,7 @@
 package services
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fst/backend/app/models"
@@ -103,7 +104,7 @@ func GetSystemSetting(key string) (string, bool) {
 // SetSystemSetting 设置系统配置（不存在则创建，存在则更新），并刷新缓存
 func SetSystemSetting(key, value string) error {
 	existing, err := models.GetSettingByKey(key)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
 	if existing == nil {

@@ -1,7 +1,7 @@
 # 网络请求与 API 定义 (Service)
 
 > 路径：`frontend/src/service/`
-> **最后更新**：2026-07-16
+> **最后更新**：2026-08-10
 
 ## 简介
 
@@ -48,7 +48,7 @@ service/
 
 ## 管理端模块（请求时拼 base）
 
-- `user.ts` / `dashboard.ts` / `settings.ts` / `payment.ts` / `paygateway.ts`
+- `user.ts` / `dashboard.ts` / `settings.ts` / `payment.ts` / `paygateway.ts` / `currency.ts`
 - `log.ts` / `api-log.ts` / `email-log.ts` / `sms-log.ts` / `email-template.ts`
 - `finance.ts` / `realname.ts` / `debug.ts` / `server.ts`
 

@@ -709,9 +709,9 @@ func ReconcilePaymentOrdersBatch(ctx context.Context, limit int) (*PaymentReconc
 		policy, exists := channelPolicies[order.GatewayID]
 		if !exists {
 			policy = &channelPolicy{
-				enabled:     gw.ActiveQueryEnabled != 0,
-				cooldownSec: int64(gw.QueryIntervalSeconds),
-				batchSize:   gw.QueryBatchSize,
+				enabled:     gw.GetActiveQueryEnabled() != 0,
+				cooldownSec: int64(gw.GetQueryIntervalSeconds()),
+				batchSize:   gw.GetQueryBatchSize(),
 			}
 			if policy.batchSize <= 0 {
 				policy.batchSize = 50
@@ -1145,24 +1145,40 @@ func getOrderExpireMinutes() int {
 	return GetGlobalPaymentOrderExpireMinutes()
 }
 
-// gatewayExtConfig 解析支付通道的 ext_config，兼容旧 key 字段
+// gatewayExtConfig 解析支付通道的 ext_config，并注入部分基础字段，方便 Provider.TestConnection 读取。
 func gatewayExtConfig(gateway *models.PayGateway) map[string]string {
 	if gateway == nil {
 		return map[string]string{}
 	}
 	extConfig := payment.ParseExtConfig(gateway.ExtConfig)
-	if len(extConfig) == 0 && gateway.Key != "" {
-		extConfig = map[string]string{"key": gateway.Key}
+	// 兼容旧通道：没有 ext_config 时，从模型 getter 取密钥兜底
+	if len(extConfig) == 0 && gateway.GetKey() != "" {
+		extConfig = map[string]string{"key": gateway.GetKey()}
+	}
+	if extConfig["key"] == "" && gateway.GetKey() != "" {
+		extConfig["key"] = gateway.GetKey()
+	}
+	if extConfig["sign_type"] == "" {
+		extConfig["sign_type"] = gateway.GetSignType()
+	}
+	if extConfig["version"] == "" {
+		extConfig["version"] = gateway.Version
+	}
+	if extConfig["api_url"] == "" {
+		extConfig["api_url"] = gateway.ApiURL
+	}
+	if extConfig["pid"] == "" {
+		extConfig["pid"] = gateway.PID
 	}
 	return extConfig
 }
 
 // gatewaySignType 返回通道签名算法，空值兜底 MD5
 func gatewaySignType(gateway *models.PayGateway) string {
-	if gateway == nil || strings.TrimSpace(gateway.SignType) == "" {
+	if gateway == nil {
 		return "MD5"
 	}
-	return strings.TrimSpace(gateway.SignType)
+	return gateway.GetSignType()
 }
 
 // createPayWithProvider 优先使用 pkg/payment Provider 创建支付订单，未注册则回退到旧 PaymentChannel
@@ -1228,7 +1244,7 @@ func verifyNotifyWithProvider(gateway *models.PayGateway, params map[string]stri
 		if !ok {
 			return false, nil, false
 		}
-		return channel.VerifyNotify(params, gateway.Key), nil, false
+		return channel.VerifyNotify(params, gateway.GetKey()), nil, false
 	}
 
 	// 若 Provider 实现了 PayloadVerifier 且有 body/headers，优先走 raw body 验签

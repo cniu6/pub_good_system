@@ -63,6 +63,7 @@ type ChannelMeta struct {
 	SupportCashbox    bool                 `json:"supportCashbox"`
 	DefaultNotifyPath string               `json:"defaultNotifyPath"`
 	Versions          []ChannelVersionMeta `json:"versions"`
+	ConfigFields      []ConfigField        `json:"configFields"` // 通用/网关级动态配置字段
 }
 
 // GetVersionMeta 取通道指定版本的元数据，version 为空时取第一个

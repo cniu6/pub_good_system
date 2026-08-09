@@ -2,6 +2,8 @@ package payment
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/pkg/middleware"
@@ -463,8 +465,34 @@ type ExchangeRateRequest struct {
 	FromCurrency string  `json:"from_currency" binding:"required,max=10"`
 	ToCurrency   string  `json:"to_currency" binding:"required,max=10"`
 	Rate         float64 `json:"rate" binding:"required"`
+	FixedAmount  float64 `json:"fixed_amount"`
 	RateType     string  `json:"rate_type" binding:"required,max=20"`
 	Source       string  `json:"source" binding:"omitempty,max=255"`
+}
+
+// UpdateExchangeRateRequest 汇率更新请求
+// @name 汇率更新请求
+type UpdateExchangeRateRequest struct {
+	FromCurrency string  `json:"from_currency" binding:"required,max=10"`
+	ToCurrency   string  `json:"to_currency" binding:"required,max=10"`
+	Rate         float64 `json:"rate" binding:"required"`
+	FixedAmount  float64 `json:"fixed_amount"`
+	RateType     string  `json:"rate_type" binding:"required,max=20"`
+	Source       string  `json:"source" binding:"omitempty,max=255"`
+}
+
+// CurrencyConfigRequest 货币全局配置请求
+// @name 货币全局配置请求
+type CurrencyConfigRequest struct {
+	BaseCurrency             string `json:"base_currency" binding:"omitempty,max=10"`
+	CurrencyDynamicSource    string `json:"currency_dynamic_source" binding:"omitempty,max=50"`
+	CurrencyDynamicSourceURL string `json:"currency_dynamic_source_url" binding:"omitempty,max=512"`
+}
+
+// BatchRefreshRatesRequest 批量刷新汇率请求
+// @name 批量刷新汇率请求
+type BatchRefreshRatesRequest struct {
+	IDs []uint64 `json:"ids" binding:"required,min=1"`
 }
 
 // SetBaseCurrency 设置系统本位币
@@ -500,6 +528,59 @@ func (ctrl *PaymentController) SetBaseCurrency(c *gin.Context) {
 // @Router /v1/admin/payment/currency/base [get]
 func (ctrl *PaymentController) GetBaseCurrency(c *gin.Context) {
 	utils.Success(c, gin.H{"base_currency": services.GetBaseCurrency()})
+}
+
+// GetCurrencyConfig 获取货币全局配置
+// @Summary 获取货币全局配置
+// @Tags Admin-支付
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} utils.Response
+// @Router /v1/admin/payment/currency/config [get]
+func (ctrl *PaymentController) GetCurrencyConfig(c *gin.Context) {
+	cfg := gin.H{
+		"base_currency":               services.GetBaseCurrency(),
+		"currency_dynamic_source":     services.GetSystemSettingOrDefault(services.CurrencySettingDynamicSource, ""),
+		"currency_dynamic_source_url": services.GetSystemSettingOrDefault(services.CurrencySettingDynamicSourceURL, ""),
+	}
+	utils.Success(c, cfg)
+}
+
+// UpdateCurrencyConfig 更新货币全局配置
+// @Summary 更新货币全局配置
+// @Tags Admin-支付
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body CurrencyConfigRequest true "货币全局配置"
+// @Success 200 {object} utils.Response
+// @Router /v1/admin/payment/currency/config [put]
+func (ctrl *PaymentController) UpdateCurrencyConfig(c *gin.Context) {
+	var req CurrencyConfigRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Fail(c, 400, "参数错误: "+err.Error())
+		return
+	}
+
+	if req.BaseCurrency != "" {
+		if err := services.SetBaseCurrency(req.BaseCurrency); err != nil {
+			log.Printf("[UpdateCurrencyConfig] SetBaseCurrency failed: %v", err)
+			utils.Fail(c, 500, err.Error())
+			return
+		}
+	}
+	if err := services.SetSystemSetting(services.CurrencySettingDynamicSource, req.CurrencyDynamicSource); err != nil {
+		log.Printf("[UpdateCurrencyConfig] SetSystemSetting currency_dynamic_source failed: %v", err)
+		utils.Fail(c, 500, err.Error())
+		return
+	}
+	if err := services.SetSystemSetting(services.CurrencySettingDynamicSourceURL, req.CurrencyDynamicSourceURL); err != nil {
+		log.Printf("[UpdateCurrencyConfig] SetSystemSetting currency_dynamic_source_url failed: %v", err)
+		utils.Fail(c, 500, err.Error())
+		return
+	}
+
+	utils.SuccessMsg(c, "Currency config updated", nil)
 }
 
 // ListExchangeRates 列出汇率
@@ -547,6 +628,7 @@ func (ctrl *PaymentController) CreateExchangeRate(c *gin.Context) {
 		FromCurrency: req.FromCurrency,
 		ToCurrency:   req.ToCurrency,
 		Rate:         req.Rate,
+		FixedAmount:  req.FixedAmount,
 		RateType:     rateType,
 		Source:       req.Source,
 	}
@@ -555,6 +637,58 @@ func (ctrl *PaymentController) CreateExchangeRate(c *gin.Context) {
 		return
 	}
 	utils.SuccessMsg(c, "Exchange rate saved", rate)
+}
+
+// UpdateExchangeRate 更新汇率
+// @Summary 更新汇率
+// @Tags Admin-支付
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "汇率ID"
+// @Param body body UpdateExchangeRateRequest true "汇率信息"
+// @Success 200 {object} utils.Response
+// @Router /v1/admin/payment/currency/rates/{id} [put]
+func (ctrl *PaymentController) UpdateExchangeRate(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "Invalid rate ID")
+		return
+	}
+
+	var req UpdateExchangeRateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Fail(c, 400, "参数错误: "+err.Error())
+		return
+	}
+
+	rate, err := models.GetExchangeRateByID(id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			utils.Fail(c, 404, "Exchange rate not found")
+			return
+		}
+		utils.Fail(c, 500, err.Error())
+		return
+	}
+
+	rateType := payment.ExchangeRateModeFixed
+	if req.RateType != "" {
+		rateType = req.RateType
+	}
+	rate.FromCurrency = req.FromCurrency
+	rate.ToCurrency = req.ToCurrency
+	rate.Rate = req.Rate
+	rate.FixedAmount = req.FixedAmount
+	rate.RateType = rateType
+	rate.Source = req.Source
+
+	if err := models.UpdateExchangeRate(rate); err != nil {
+		utils.Fail(c, 500, err.Error())
+		return
+	}
+
+	utils.SuccessMsg(c, "Exchange rate updated", rate)
 }
 
 // DeleteExchangeRate 删除汇率
@@ -578,7 +712,85 @@ func (ctrl *PaymentController) DeleteExchangeRate(c *gin.Context) {
 	utils.SuccessMsg(c, "Exchange rate deleted", nil)
 }
 
-// RefreshExchangeRates 刷新动态汇率
+// RefreshExchangeRate 按 ID 从上游 API 刷新单条汇率（不区分 rate_type，保留原类型和固定加额）
+// @Summary 按 ID 刷新单条汇率
+// @Tags Admin-支付
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "汇率ID"
+// @Success 200 {object} utils.Response
+// @Router /v1/admin/payment/currency/rates/{id}/refresh [post]
+func (ctrl *PaymentController) RefreshExchangeRate(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "Invalid rate ID")
+		return
+	}
+
+	rate, err := services.RefreshExchangeRateByID(id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			utils.Fail(c, 404, "Exchange rate not found")
+			return
+		}
+		log.Printf("[ADMIN][PAYMENT] refresh exchange rate %d failed: %v", id, err)
+		utils.Fail(c, 500, "Failed to refresh exchange rate: "+err.Error())
+		return
+	}
+	utils.SuccessMsg(c, "Exchange rate refreshed", rate)
+}
+
+// BatchRefreshExchangeRatesPreview 批量刷新汇率预览（不更新数据库）
+// @Summary 批量刷新汇率预览
+// @Tags Admin-支付
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body BatchRefreshRatesRequest true "汇率ID列表"
+// @Success 200 {object} utils.Response
+// @Router /v1/admin/payment/currency/rates/batch-refresh/preview [post]
+func (ctrl *PaymentController) BatchRefreshExchangeRatesPreview(c *gin.Context) {
+	var req BatchRefreshRatesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Fail(c, 400, "参数错误: "+err.Error())
+		return
+	}
+
+	items, err := services.BatchRefreshPreview(req.IDs)
+	if err != nil {
+		log.Printf("[ADMIN][PAYMENT] batch refresh preview failed: %v", err)
+		utils.Fail(c, 500, "Failed to preview batch refresh: "+err.Error())
+		return
+	}
+	utils.Success(c, gin.H{"items": items})
+}
+
+// BatchRefreshExchangeRates 批量确认并刷新汇率
+// @Summary 批量确认并刷新汇率
+// @Tags Admin-支付
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body BatchRefreshRatesRequest true "汇率ID列表"
+// @Success 200 {object} utils.Response
+// @Router /v1/admin/payment/currency/rates/batch-refresh [post]
+func (ctrl *PaymentController) BatchRefreshExchangeRates(c *gin.Context) {
+	var req BatchRefreshRatesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Fail(c, 400, "参数错误: "+err.Error())
+		return
+	}
+
+	items, err := services.BatchRefreshExchangeRates(req.IDs)
+	if err != nil {
+		log.Printf("[ADMIN][PAYMENT] batch refresh exchange rates failed: %v", err)
+		utils.Fail(c, 500, "Failed to batch refresh exchange rates: "+err.Error())
+		return
+	}
+	utils.Success(c, gin.H{"items": items})
+}
+
+// RefreshExchangeRates 刷新全部动态汇率
 // @Summary 刷新动态汇率
 // @Tags Admin-支付
 // @Produce json
@@ -660,9 +872,15 @@ func (ctrl *PaymentController) RegisterPaymentRoutes(group *gin.RouterGroup) {
 		// 货币/汇率管理
 		payment.GET("/currency/base", ctrl.GetBaseCurrency)
 		payment.POST("/currency/base", ctrl.SetBaseCurrency)
+		payment.GET("/currency/config", ctrl.GetCurrencyConfig)
+		payment.PUT("/currency/config", ctrl.UpdateCurrencyConfig)
 		payment.GET("/currency/rates", ctrl.ListExchangeRates)
 		payment.POST("/currency/rates", ctrl.CreateExchangeRate)
+		payment.PUT("/currency/rates/:id", ctrl.UpdateExchangeRate)
 		payment.DELETE("/currency/rates/:id", ctrl.DeleteExchangeRate)
+		payment.POST("/currency/rates/:id/refresh", ctrl.RefreshExchangeRate)
+		payment.POST("/currency/rates/batch-refresh/preview", ctrl.BatchRefreshExchangeRatesPreview)
+		payment.POST("/currency/rates/batch-refresh", ctrl.BatchRefreshExchangeRates)
 		payment.POST("/currency/rates/refresh", ctrl.RefreshExchangeRates)
 	}
 }

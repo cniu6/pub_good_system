@@ -8,6 +8,31 @@ function baseUrl() {
   return `${getAdminApiBase()}/payment/gateways`
 }
 
+/** 解析 ext_config JSON 字符串 */
+export function parseExtConfig(raw?: string): Record<string, any> {
+  if (!raw)
+    return {}
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed))
+      return parsed
+  }
+  catch {
+    // ignore
+  }
+  return {}
+}
+
+/** 将 ext_config map 序列化为 JSON 字符串 */
+export function marshalExtConfig(map: Record<string, any>): string {
+  try {
+    return JSON.stringify(map)
+  }
+  catch {
+    return '{}'
+  }
+}
+
 /** 配置字段 select 选项 */
 export interface ChannelConfigFieldOption {
   value: string
@@ -36,7 +61,8 @@ export interface ChannelVersionMeta {
   version: string
   name: string
   signTypes: ChannelSignTypeMeta[]
-  configFields: ChannelConfigField[]
+  configFields?: ChannelConfigField[]
+  config_fields?: ChannelConfigField[]
 }
 
 /** 支付方式元数据 */
@@ -60,6 +86,8 @@ export interface ChannelMeta {
   devices: ChannelDeviceMeta[]
   default_notify_path: string
   versions: ChannelVersionMeta[]
+  config_fields?: ChannelConfigField[]
+  configFields?: ChannelConfigField[]
 }
 
 /** 支付通道 */
@@ -68,23 +96,13 @@ export interface PayGateway {
   name: string
   type: string
   pay_type: string
-  sign_type: string
   version: string
   device: string
   currency: string
-  target_currency: string
-  exchange_rate_mode: string
-  exchange_rate: number
-  exchange_fixed_amount: number
-  exchange_rate_source: string
-  target_fee_rate: number
-  target_fee_fixed: number
-  target_fee_mode: string
   description: string
   status: number
   api_url: string
   pid: string
-  key: string
   ext_config: string
   logo_url: string
   sort_order: number
@@ -95,9 +113,6 @@ export interface PayGateway {
   min_level: number
   notify_url: string
   expire_minutes: number
-  active_query_enabled: number
-  query_interval_seconds: number
-  query_batch_size: number
   create_time: number
   update_time: number
 }
@@ -106,23 +121,13 @@ export interface PayGatewayCreateRequest {
   name: string
   type: string
   pay_type: string
-  sign_type?: string
   version?: string
   device?: string
   currency?: string
-  target_currency?: string
-  exchange_rate_mode?: string
-  exchange_rate?: number
-  exchange_fixed_amount?: number
-  exchange_rate_source?: string
-  target_fee_rate?: number
-  target_fee_fixed?: number
-  target_fee_mode?: string
   description?: string
   status: number
   api_url?: string
   pid?: string
-  key?: string
   ext_config?: string
   logo_url?: string
   sort_order?: number
@@ -133,9 +138,6 @@ export interface PayGatewayCreateRequest {
   min_level?: number
   notify_url?: string
   expire_minutes?: number
-  active_query_enabled?: number
-  query_interval_seconds?: number
-  query_batch_size?: number
 }
 
 export type PayGatewayUpdateRequest = Partial<PayGatewayCreateRequest>
@@ -181,6 +183,7 @@ export interface ExchangeRate {
   from_currency: string
   to_currency: string
   rate: number
+  fixed_amount: number
   rate_type: string
   source: string
   create_time: number
@@ -202,14 +205,24 @@ export function fetchExchangeRates(params?: { from?: string, to?: string }) {
   return request.Get<Service.ResponseResult<{ list: ExchangeRate[] }>>(`${getAdminApiBase()}/payment/currency/rates`, { params })
 }
 
-/** 创建/更新汇率 */
+/** 创建/更新汇率（不存在则创建，存在则全量覆盖） */
 export function createExchangeRate(data: Omit<ExchangeRate, 'id' | 'create_time' | 'update_time'>) {
   return request.Post<Service.ResponseResult<ExchangeRate>>(`${getAdminApiBase()}/payment/currency/rates`, data)
+}
+
+/** 更新汇率（按 ID） */
+export function updateExchangeRate(id: number, data: Omit<ExchangeRate, 'id' | 'create_time' | 'update_time'>) {
+  return request.Put<Service.ResponseResult<ExchangeRate>>(`${getAdminApiBase()}/payment/currency/rates/${id}`, data)
 }
 
 /** 删除汇率 */
 export function deleteExchangeRate(id: number) {
   return request.Delete<Service.ResponseResult<null>>(`${getAdminApiBase()}/payment/currency/rates/${id}`)
+}
+
+/** 刷新单条汇率 */
+export function refreshExchangeRate(id: number) {
+  return request.Post<Service.ResponseResult<ExchangeRate>>(`${getAdminApiBase()}/payment/currency/rates/${id}/refresh`)
 }
 
 /** 刷新动态汇率 */

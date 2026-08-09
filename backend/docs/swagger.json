@@ -1747,6 +1747,433 @@
                 }
             }
         },
+        "/v1/admin/payment/channels/metas": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "支付通道类型元数据",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/payment/currency/base": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "获取系统本位币",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "设置系统本位币",
+                "parameters": [
+                    {
+                        "description": "{\\",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/payment/currency/config": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "获取货币全局配置",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "更新货币全局配置",
+                "parameters": [
+                    {
+                        "description": "货币全局配置",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app_controllers_admin_payment.CurrencyConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/payment/currency/rates": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "列出全局汇率",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "源币种",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "目标币种",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "创建汇率",
+                "parameters": [
+                    {
+                        "description": "汇率信息",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app_controllers_admin_payment.ExchangeRateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/payment/currency/rates/batch-refresh": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "批量确认并刷新汇率",
+                "parameters": [
+                    {
+                        "description": "汇率ID列表",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app_controllers_admin_payment.BatchRefreshRatesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/payment/currency/rates/batch-refresh/preview": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "批量刷新汇率预览",
+                "parameters": [
+                    {
+                        "description": "汇率ID列表",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app_controllers_admin_payment.BatchRefreshRatesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/payment/currency/rates/refresh": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "刷新动态汇率",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/payment/currency/rates/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "更新汇率",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "汇率ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "汇率信息",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app_controllers_admin_payment.UpdateExchangeRateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "删除汇率",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "汇率ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/payment/currency/rates/{id}/refresh": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "按 ID 刷新单条汇率",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "汇率ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/admin/payment/exceptions": {
             "get": {
                 "security": [
@@ -1901,6 +2328,40 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/payment/gateways/{id}/test-connection": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin-支付"
+                ],
+                "summary": "测试支付通道连接",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -4276,7 +4737,32 @@
                 "tags": [
                     "Public-回调"
                 ],
-                "summary": "支付异步通知回调",
+                "summary": "支付异步通知回调（旧入口，兼容 epay）",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/public/payment/notify/:channel_type": {
+            "post": {
+                "tags": [
+                    "Public-回调"
+                ],
+                "summary": "支付异步通知回调（分通道）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "通道类型，如 epay",
+                        "name": "channel_type",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -5834,6 +6320,104 @@
                 },
                 "subject": {
                     "type": "string"
+                }
+            }
+        },
+        "app_controllers_admin_payment.BatchRefreshRatesRequest": {
+            "type": "object",
+            "required": [
+                "ids"
+            ],
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "app_controllers_admin_payment.CurrencyConfigRequest": {
+            "type": "object",
+            "properties": {
+                "base_currency": {
+                    "type": "string",
+                    "maxLength": 10
+                },
+                "currency_dynamic_source": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "currency_dynamic_source_url": {
+                    "type": "string",
+                    "maxLength": 512
+                }
+            }
+        },
+        "app_controllers_admin_payment.ExchangeRateRequest": {
+            "type": "object",
+            "required": [
+                "from_currency",
+                "rate",
+                "rate_type",
+                "to_currency"
+            ],
+            "properties": {
+                "fixed_amount": {
+                    "type": "number"
+                },
+                "from_currency": {
+                    "type": "string",
+                    "maxLength": 10
+                },
+                "rate": {
+                    "type": "number"
+                },
+                "rate_type": {
+                    "type": "string",
+                    "maxLength": 20
+                },
+                "source": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "to_currency": {
+                    "type": "string",
+                    "maxLength": 10
+                }
+            }
+        },
+        "app_controllers_admin_payment.UpdateExchangeRateRequest": {
+            "type": "object",
+            "required": [
+                "from_currency",
+                "rate",
+                "rate_type",
+                "to_currency"
+            ],
+            "properties": {
+                "fixed_amount": {
+                    "type": "number"
+                },
+                "from_currency": {
+                    "type": "string",
+                    "maxLength": 10
+                },
+                "rate": {
+                    "type": "number"
+                },
+                "rate_type": {
+                    "type": "string",
+                    "maxLength": 20
+                },
+                "source": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "to_currency": {
+                    "type": "string",
+                    "maxLength": 10
                 }
             }
         },

@@ -2,86 +2,65 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/pkg/payment"
 	"fst/backend/utils"
 	"log"
 	"math"
+	"strconv"
+	"strings"
 )
 
 // PayGatewayCreateRequest 创建支付通道请求
+// 已迁移到 ext_config 的字段不再单独接收，由前端统一放到 ext_config JSON 中。
 type PayGatewayCreateRequest struct {
-	Name                 string  `json:"name" binding:"required,max=100"`
-	Type                 string  `json:"type" binding:"required,max=50"`
-	PayType              string  `json:"pay_type" binding:"required,max=50"`
-	SignType             string  `json:"sign_type" binding:"omitempty,max=50"`
-	Version              string  `json:"version" binding:"omitempty,max=50"`
-	Device               string  `json:"device" binding:"omitempty,max=50"`
-	Currency             string  `json:"currency" binding:"omitempty,max=10"`
-	TargetCurrency       string  `json:"target_currency" binding:"omitempty,max=10"`
-	ExchangeRateMode     string  `json:"exchange_rate_mode" binding:"omitempty,max=20"`
-	ExchangeRate         float64 `json:"exchange_rate"`
-	ExchangeFixedAmount  float64 `json:"exchange_fixed_amount"`
-	ExchangeRateSource   string  `json:"exchange_rate_source" binding:"omitempty,max=255"`
-	TargetFeeRate        int     `json:"target_fee_rate"`
-	TargetFeeFixed       float64 `json:"target_fee_fixed"`
-	TargetFeeMode        string  `json:"target_fee_mode" binding:"omitempty,max=20"`
-	Description          string  `json:"description" binding:"omitempty,max=500"`
-	Status               int     `json:"status"`
-	ApiURL               string  `json:"api_url" binding:"omitempty"`
-	PID                  string  `json:"pid" binding:"omitempty"`
-	Key                  string  `json:"key" binding:"omitempty"`
-	ExtConfig            string  `json:"ext_config" binding:"omitempty"`
-	LogoURL              string  `json:"logo_url" binding:"omitempty"`
-	SortOrder            int     `json:"sort_order"`
-	MinAmount            float64 `json:"min_amount"`
-	MaxAmount            float64 `json:"max_amount"`
-	FeeRate              int     `json:"fee_rate"`
-	FeeMode              string  `json:"fee_mode" binding:"omitempty,max=50"`
-	MinLevel             int     `json:"min_level"`
-	NotifyURL            string  `json:"notify_url" binding:"omitempty"`
-	ExpireMinutes        int     `json:"expire_minutes"`
-	ActiveQueryEnabled   int     `json:"active_query_enabled"`
-	QueryIntervalSeconds int     `json:"query_interval_seconds"`
-	QueryBatchSize       int     `json:"query_batch_size"`
+	Name          string  `json:"name" binding:"required,max=100"`
+	Type          string  `json:"type" binding:"required,max=50"`
+	PayType       string  `json:"pay_type" binding:"required,max=50"`
+	Version       string  `json:"version" binding:"omitempty,max=50"`
+	Device        string  `json:"device" binding:"omitempty,max=50"`
+	Currency      string  `json:"currency" binding:"omitempty,max=10"`
+	Description   string  `json:"description" binding:"omitempty,max=500"`
+	Status        int     `json:"status"`
+	ApiURL        string  `json:"api_url" binding:"omitempty"`
+	PID           string  `json:"pid" binding:"omitempty"`
+	ExtConfig     string  `json:"ext_config" binding:"omitempty"`
+	LogoURL       string  `json:"logo_url" binding:"omitempty"`
+	SortOrder     int     `json:"sort_order"`
+	MinAmount     float64 `json:"min_amount"`
+	MaxAmount     float64 `json:"max_amount"`
+	FeeRate       int     `json:"fee_rate"`
+	FeeMode       string  `json:"fee_mode" binding:"omitempty,max=50"`
+	MinLevel      int     `json:"min_level"`
+	NotifyURL     string  `json:"notify_url" binding:"omitempty"`
+	ExpireMinutes int     `json:"expire_minutes"`
 }
 
 // PayGatewayUpdateRequest 更新支付通道请求
 type PayGatewayUpdateRequest struct {
-	Name                 *string  `json:"name" binding:"omitempty,max=100"`
-	Type                 *string  `json:"type" binding:"omitempty,max=50"`
-	PayType              *string  `json:"pay_type" binding:"omitempty,max=50"`
-	SignType             *string  `json:"sign_type" binding:"omitempty,max=50"`
-	Version              *string  `json:"version" binding:"omitempty,max=50"`
-	Device               *string  `json:"device" binding:"omitempty,max=50"`
-	Currency             *string  `json:"currency" binding:"omitempty,max=10"`
-	TargetCurrency       *string  `json:"target_currency" binding:"omitempty,max=10"`
-	ExchangeRateMode     *string  `json:"exchange_rate_mode" binding:"omitempty,max=20"`
-	ExchangeRate         *float64 `json:"exchange_rate"`
-	ExchangeFixedAmount  *float64 `json:"exchange_fixed_amount"`
-	ExchangeRateSource   *string  `json:"exchange_rate_source" binding:"omitempty,max=255"`
-	TargetFeeRate        *int     `json:"target_fee_rate"`
-	TargetFeeFixed       *float64 `json:"target_fee_fixed"`
-	TargetFeeMode        *string  `json:"target_fee_mode" binding:"omitempty,max=20"`
-	Description          *string  `json:"description" binding:"omitempty,max=500"`
-	Status               *int     `json:"status"`
-	ApiURL               *string  `json:"api_url" binding:"omitempty"`
-	PID                  *string  `json:"pid" binding:"omitempty"`
-	Key                  *string  `json:"key" binding:"omitempty"`
-	ExtConfig            *string  `json:"ext_config" binding:"omitempty"`
-	LogoURL              *string  `json:"logo_url" binding:"omitempty"`
-	SortOrder            *int     `json:"sort_order"`
-	MinAmount            *float64 `json:"min_amount"`
-	MaxAmount            *float64 `json:"max_amount"`
-	FeeRate              *int     `json:"fee_rate"`
-	FeeMode              *string  `json:"fee_mode" binding:"omitempty,max=50"`
-	MinLevel             *int     `json:"min_level"`
-	NotifyURL            *string  `json:"notify_url" binding:"omitempty"`
-	ExpireMinutes        *int     `json:"expire_minutes"`
-	ActiveQueryEnabled   *int     `json:"active_query_enabled"`
-	QueryIntervalSeconds *int     `json:"query_interval_seconds"`
-	QueryBatchSize       *int     `json:"query_batch_size"`
+	Name          *string  `json:"name" binding:"omitempty,max=100"`
+	Type          *string  `json:"type" binding:"omitempty,max=50"`
+	PayType       *string  `json:"pay_type" binding:"omitempty,max=50"`
+	Version       *string  `json:"version" binding:"omitempty,max=50"`
+	Device        *string  `json:"device" binding:"omitempty,max=50"`
+	Currency      *string  `json:"currency" binding:"omitempty,max=10"`
+	Description   *string  `json:"description" binding:"omitempty,max=500"`
+	Status        *int     `json:"status"`
+	ApiURL        *string  `json:"api_url" binding:"omitempty"`
+	PID           *string  `json:"pid" binding:"omitempty"`
+	ExtConfig     *string  `json:"ext_config" binding:"omitempty"`
+	LogoURL       *string  `json:"logo_url" binding:"omitempty"`
+	SortOrder     *int     `json:"sort_order"`
+	MinAmount     *float64 `json:"min_amount"`
+	MaxAmount     *float64 `json:"max_amount"`
+	FeeRate       *int     `json:"fee_rate"`
+	FeeMode       *string  `json:"fee_mode" binding:"omitempty,max=50"`
+	MinLevel      *int     `json:"min_level"`
+	NotifyURL     *string  `json:"notify_url" binding:"omitempty"`
+	ExpireMinutes *int     `json:"expire_minutes"`
 }
 
 // CreatePayGateway 创建支付通道
@@ -99,62 +78,38 @@ func CreatePayGateway(req *PayGatewayCreateRequest) (*models.PayGateway, error) 
 		return nil, errors.New("Fee rate must be between 0 and 100")
 	}
 
-	if req.SignType == "" {
-		req.SignType = "MD5"
-	}
 	if req.Currency == "" {
 		req.Currency = "CNY"
-	}
-	if req.ExchangeRateMode == "" {
-		req.ExchangeRateMode = payment.ExchangeRateModeSystem
-	}
-	if req.TargetFeeMode == "" {
-		req.TargetFeeMode = payment.FeeModeAdd
 	}
 	if req.ExpireMinutes <= 0 {
 		req.ExpireMinutes = getOrderExpireMinutes()
 	}
-	if req.QueryIntervalSeconds <= 0 {
-		req.QueryIntervalSeconds = 120
-	}
-	if req.QueryBatchSize <= 0 {
-		req.QueryBatchSize = 50
-	}
+
+	// 解析前端传入的 ext_config JSON，补充默认值后统一落库
+	extMap := payment.ParseExtConfigMap(req.ExtConfig)
+	applyPayGatewayExtDefaults(extMap)
 
 	gw := &models.PayGateway{
-		Name:                 req.Name,
-		Type:                 req.Type,
-		PayType:              req.PayType,
-		SignType:             req.SignType,
-		Version:              req.Version,
-		Device:               req.Device,
-		Currency:             req.Currency,
-		TargetCurrency:       req.TargetCurrency,
-		ExchangeRateMode:     req.ExchangeRateMode,
-		ExchangeRate:         req.ExchangeRate,
-		ExchangeFixedAmount:  req.ExchangeFixedAmount,
-		ExchangeRateSource:   req.ExchangeRateSource,
-		TargetFeeRate:        req.TargetFeeRate,
-		TargetFeeFixed:       req.TargetFeeFixed,
-		TargetFeeMode:        req.TargetFeeMode,
-		Description:          req.Description,
-		Status:               req.Status,
-		ApiURL:               req.ApiURL,
-		PID:                  req.PID,
-		Key:                  req.Key,
-		ExtConfig:            req.ExtConfig,
-		LogoURL:              req.LogoURL,
-		SortOrder:            req.SortOrder,
-		MinAmount:            req.MinAmount,
-		MaxAmount:            req.MaxAmount,
-		FeeRate:              req.FeeRate,
-		FeeMode:              req.FeeMode,
-		MinLevel:             req.MinLevel,
-		NotifyURL:            req.NotifyURL,
-		ExpireMinutes:        req.ExpireMinutes,
-		ActiveQueryEnabled:   req.ActiveQueryEnabled,
-		QueryIntervalSeconds: req.QueryIntervalSeconds,
-		QueryBatchSize:       req.QueryBatchSize,
+		Name:          req.Name,
+		Type:          req.Type,
+		PayType:       req.PayType,
+		Version:       req.Version,
+		Device:        req.Device,
+		Currency:      req.Currency,
+		Description:   req.Description,
+		Status:        req.Status,
+		ApiURL:        req.ApiURL,
+		PID:           req.PID,
+		ExtConfig:     payment.MarshalExtConfigMap(extMap),
+		LogoURL:       req.LogoURL,
+		SortOrder:     req.SortOrder,
+		MinAmount:     req.MinAmount,
+		MaxAmount:     req.MaxAmount,
+		FeeRate:       req.FeeRate,
+		FeeMode:       req.FeeMode,
+		MinLevel:      req.MinLevel,
+		NotifyURL:     req.NotifyURL,
+		ExpireMinutes: req.ExpireMinutes,
 	}
 
 	if err := models.CreatePayGateway(gw); err != nil {
@@ -178,9 +133,8 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 	// 允许在存在待支付订单时修改 PID/密钥：运维纠错（密钥填错）时不能被卡死。
 	// 风险：旧待支付单的回调验签可能失败，需管理员自行处理（取消旧单或补单）。
 	if pendingCount > 0 {
-		keyChanged := req.Key != nil && *req.Key != gw.Key
 		extChanged := req.ExtConfig != nil && *req.ExtConfig != gw.ExtConfig
-		if (req.PID != nil && *req.PID != gw.PID) || keyChanged || extChanged {
+		if (req.PID != nil && *req.PID != gw.PID) || extChanged {
 			log.Printf("[PayGateway] 存在 %d 笔待支付订单，仍修改通道敏感配置: gateway_id=%d", pendingCount, id)
 		}
 	}
@@ -194,9 +148,6 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 	if req.PayType != nil {
 		gw.PayType = *req.PayType
 	}
-	if req.SignType != nil {
-		gw.SignType = *req.SignType
-	}
 	if req.Version != nil {
 		gw.Version = *req.Version
 	}
@@ -205,33 +156,6 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 	}
 	if req.Currency != nil {
 		gw.Currency = *req.Currency
-	}
-	if req.TargetCurrency != nil {
-		gw.TargetCurrency = *req.TargetCurrency
-	}
-	if req.ExchangeRateMode != nil {
-		gw.ExchangeRateMode = *req.ExchangeRateMode
-	}
-	if req.ExchangeRate != nil {
-		gw.ExchangeRate = *req.ExchangeRate
-	}
-	if req.ExchangeFixedAmount != nil {
-		gw.ExchangeFixedAmount = *req.ExchangeFixedAmount
-	}
-	if req.ExchangeRateSource != nil {
-		gw.ExchangeRateSource = *req.ExchangeRateSource
-	}
-	if req.TargetFeeRate != nil {
-		if *req.TargetFeeRate < 0 || *req.TargetFeeRate > 100 {
-			return nil, errors.New("Target fee rate must be between 0 and 100")
-		}
-		gw.TargetFeeRate = *req.TargetFeeRate
-	}
-	if req.TargetFeeFixed != nil {
-		gw.TargetFeeFixed = *req.TargetFeeFixed
-	}
-	if req.TargetFeeMode != nil {
-		gw.TargetFeeMode = *req.TargetFeeMode
 	}
 	if req.Description != nil {
 		gw.Description = *req.Description
@@ -245,11 +169,15 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 	if req.PID != nil {
 		gw.PID = *req.PID
 	}
-	if req.Key != nil {
-		gw.Key = *req.Key
-	}
 	if req.ExtConfig != nil {
-		gw.ExtConfig = *req.ExtConfig
+		// 合并现有 ext_config 与前端传入的新值，再补充默认值
+		extMap := gw.ExtConfigMap()
+		newMap := payment.ParseExtConfigMap(*req.ExtConfig)
+		for k, v := range newMap {
+			extMap[k] = v
+		}
+		applyPayGatewayExtDefaults(extMap)
+		gw.ExtConfig = payment.MarshalExtConfigMap(extMap)
 	}
 	if req.LogoURL != nil {
 		gw.LogoURL = *req.LogoURL
@@ -280,15 +208,6 @@ func UpdatePayGateway(id uint64, req *PayGatewayUpdateRequest) (*models.PayGatew
 	}
 	if req.ExpireMinutes != nil {
 		gw.ExpireMinutes = *req.ExpireMinutes
-	}
-	if req.ActiveQueryEnabled != nil {
-		gw.ActiveQueryEnabled = *req.ActiveQueryEnabled
-	}
-	if req.QueryIntervalSeconds != nil {
-		gw.QueryIntervalSeconds = *req.QueryIntervalSeconds
-	}
-	if req.QueryBatchSize != nil {
-		gw.QueryBatchSize = *req.QueryBatchSize
 	}
 
 	// 验证金额
@@ -343,7 +262,6 @@ func GetPayGatewayListForUser() ([]models.PayGateway, error) {
 	// 隐藏敏感信息
 	for i := range gateways {
 		gateways[i].ApiURL = ""
-		gateways[i].Key = ""
 		gateways[i].ExtConfig = ""
 		gateways[i].PID = ""
 		gateways[i].NotifyURL = ""
@@ -361,6 +279,7 @@ type PaymentChannelMetaView struct {
 	Devices           []payment.DeviceMeta         `json:"devices"`
 	DefaultNotifyPath string                       `json:"default_notify_path"`
 	Versions          []payment.ChannelVersionMeta `json:"versions"`
+	ConfigFields      []payment.ConfigField        `json:"config_fields"` // 网关级动态配置字段
 }
 
 // TestGatewayConnection 测试支付通道配置是否可用
@@ -390,6 +309,7 @@ func ListPaymentChannelMetas() []PaymentChannelMetaView {
 	metas := payment.ListChannelMetas()
 	out := make([]PaymentChannelMetaView, 0, len(metas))
 	for _, m := range metas {
+		m.ConfigFields = append(m.ConfigFields, defaultPayGatewayConfigFields()...)
 		out = append(out, PaymentChannelMetaView{
 			Type:              m.Type,
 			Name:              m.Name,
@@ -398,6 +318,7 @@ func ListPaymentChannelMetas() []PaymentChannelMetaView {
 			Devices:           m.Devices,
 			DefaultNotifyPath: m.DefaultNotifyPath,
 			Versions:          m.Versions,
+			ConfigFields:      m.ConfigFields,
 		})
 	}
 	return out
@@ -434,4 +355,188 @@ func CalculateFee(amount float64, feeRate int, feeMode string) (fee float64, pay
 	}
 
 	return utils.FenToYuan(feeFen), utils.FenToYuan(payFen), utils.FenToYuan(creditFen)
+}
+
+// applyPayGatewayExtDefaults 给 ext_config map 填充已迁移字段的默认值。
+// 只处理缺省或空值的字段；显式设置为 0 的开关字段（如 active_query_enabled=0）会被保留。
+func applyPayGatewayExtDefaults(m map[string]interface{}) {
+	if m == nil {
+		return
+	}
+
+	if v, ok := m["sign_type"]; !ok || payGatewayExtString(v) == "" {
+		m["sign_type"] = "MD5"
+	}
+	if _, ok := m["key"]; !ok {
+		m["key"] = ""
+	}
+	if _, ok := m["target_currency"]; !ok {
+		m["target_currency"] = ""
+	}
+	if v, ok := m["exchange_rate_mode"]; !ok || payGatewayExtString(v) == "" {
+		m["exchange_rate_mode"] = payment.ExchangeRateModeSystem
+	}
+	if _, ok := m["exchange_rate"]; !ok {
+		m["exchange_rate"] = 0
+	}
+	if _, ok := m["exchange_fixed_amount"]; !ok {
+		m["exchange_fixed_amount"] = 0
+	}
+	if _, ok := m["exchange_rate_source"]; !ok {
+		m["exchange_rate_source"] = ""
+	}
+	if _, ok := m["target_fee_rate"]; !ok {
+		m["target_fee_rate"] = 0
+	}
+	if _, ok := m["target_fee_fixed"]; !ok {
+		m["target_fee_fixed"] = 0
+	}
+	if v, ok := m["target_fee_mode"]; !ok || payGatewayExtString(v) == "" {
+		m["target_fee_mode"] = payment.FeeModeAdd
+	}
+	if _, ok := m["active_query_enabled"]; !ok {
+		m["active_query_enabled"] = 1
+	}
+	if v, ok := m["query_interval_seconds"]; !ok || payGatewayExtInt(v) <= 0 {
+		m["query_interval_seconds"] = 120
+	}
+	if v, ok := m["query_batch_size"]; !ok || payGatewayExtInt(v) <= 0 {
+		m["query_batch_size"] = 50
+	}
+}
+
+// payGatewayExtString 把 ext_config map 中的值转成字符串（辅助 applyPayGatewayExtDefaults）
+func payGatewayExtString(v interface{}) string {
+	switch val := v.(type) {
+	case string:
+		return val
+	case json.Number:
+		return val.String()
+	case float64:
+		return strconv.FormatFloat(val, 'f', -1, 64)
+	case int, int64, int32:
+		return fmt.Sprintf("%v", v)
+	case bool:
+		return strconv.FormatBool(val)
+	case nil:
+		return ""
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+// payGatewayExtInt 把 ext_config map 中的值转成 int（辅助 applyPayGatewayExtDefaults）
+func payGatewayExtInt(v interface{}) int {
+	switch val := v.(type) {
+	case json.Number:
+		i, err := val.Int64()
+		if err != nil {
+			return 0
+		}
+		return int(i)
+	case float64:
+		return int(val)
+	case float32:
+		return int(val)
+	case int:
+		return val
+	case int64:
+		return int(val)
+	case int32:
+		return int(val)
+	case string:
+		i, err := strconv.Atoi(strings.TrimSpace(val))
+		if err != nil {
+			return 0
+		}
+		return i
+	default:
+		return 0
+	}
+}
+
+// defaultPayGatewayConfigFields 返回已迁移到 ext_config 的通用网关配置字段 schema，
+// 供管理端动态渲染表单。
+func defaultPayGatewayConfigFields() []payment.ConfigField {
+	return []payment.ConfigField{
+		{
+			Name:        "key",
+			Label:       "商户密钥",
+			Type:        "textarea",
+			Secret:      true,
+			Placeholder: "通道统一密钥/单密钥，MD5 签名等",
+		},
+		{
+			Name:    "sign_type",
+			Label:   "签名算法",
+			Type:    "select",
+			Options: []payment.ConfigFieldOption{{Value: "MD5", Label: "MD5"}, {Value: "RSA", Label: "RSA"}},
+		},
+		{
+			Name:        "target_currency",
+			Label:       "目标币种",
+			Type:        "input",
+			Placeholder: "如 USD / CNY，空则与币种一致",
+		},
+		{
+			Name:    "exchange_rate_mode",
+			Label:   "汇率模式",
+			Type:    "select",
+			Options: []payment.ConfigFieldOption{{Value: payment.ExchangeRateModeSystem, Label: "系统汇率"}, {Value: payment.ExchangeRateModeFixed, Label: "固定汇率"}, {Value: payment.ExchangeRateModeDynamic, Label: "动态汇率"}},
+		},
+		{
+			Name:        "exchange_rate",
+			Label:       "固定汇率",
+			Type:        "input",
+			Placeholder: "汇率模式为 fixed 时必填",
+		},
+		{
+			Name:        "exchange_fixed_amount",
+			Label:       "固定加额",
+			Type:        "input",
+			Placeholder: "转换后固定加额（元）",
+		},
+		{
+			Name:        "exchange_rate_source",
+			Label:       "汇率源标识",
+			Type:        "input",
+			Placeholder: "动态汇率源标识，如 exchangerate-api",
+		},
+		{
+			Name:        "target_fee_rate",
+			Label:       "目标手续费率",
+			Type:        "input",
+			Placeholder: "百分之 x，如 200 表示 2%",
+		},
+		{
+			Name:        "target_fee_fixed",
+			Label:       "目标固定手续费",
+			Type:        "input",
+			Placeholder: "元",
+		},
+		{
+			Name:    "target_fee_mode",
+			Label:   "目标手续费模式",
+			Type:    "select",
+			Options: []payment.ConfigFieldOption{{Value: payment.FeeModeAdd, Label: "加收（add）"}, {Value: payment.FeeModeInclude, Label: "内扣（include）"}},
+		},
+		{
+			Name:    "active_query_enabled",
+			Label:   "主动查单开关",
+			Type:    "select",
+			Options: []payment.ConfigFieldOption{{Value: "1", Label: "开启"}, {Value: "0", Label: "关闭"}},
+		},
+		{
+			Name:        "query_interval_seconds",
+			Label:       "查单间隔",
+			Type:        "input",
+			Placeholder: "秒，默认 120",
+		},
+		{
+			Name:        "query_batch_size",
+			Label:       "查单批次",
+			Type:        "input",
+			Placeholder: "默认 50",
+		},
+	}
 }

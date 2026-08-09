@@ -20,6 +20,7 @@ var handlers = map[string]JobHandler{
 	HandlerCleanupSessionsCodes:      handleCleanupSessionsCodes,
 	HandlerCleanupExpiredOrders:      handleCleanupExpiredOrders,
 	HandlerReconcilePaymentOrders:    handleReconcilePaymentOrders,
+	HandlerRefreshExchangeRates:      handleRefreshExchangeRates,
 }
 
 func GetHandler(key string) (JobHandler, bool) {
@@ -202,5 +203,30 @@ func handleReconcilePaymentOrders(ctx context.Context, job *JobDefinition) (*Han
 		Message: msg,
 		Detail:  detail,
 		Quiet:   scanned == 0 || (recovered == 0 && exceptions == 0),
+	}, nil
+}
+
+// handleRefreshExchangeRates 定时刷新动态汇率（只刷新 rate_type=dynamic 的记录）
+func handleRefreshExchangeRates(ctx context.Context, job *JobDefinition) (*HandlerResult, error) {
+	_ = job
+	if err := errIfCanceled(ctx); err != nil {
+		return nil, err
+	}
+	if CurrencyRefreshDynamicRatesFn == nil {
+		return nil, fmt.Errorf("Currency refresh callback not injected")
+	}
+	rates, err := CurrencyRefreshDynamicRatesFn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	detail := make(map[string]interface{}, len(rates))
+	for k, v := range rates {
+		detail[k] = v
+	}
+	msg := fmt.Sprintf("刷新 %d 条动态汇率", len(rates))
+	return &HandlerResult{
+		Message: msg,
+		Detail:  detail,
+		Quiet:   len(rates) == 0,
 	}, nil
 }
