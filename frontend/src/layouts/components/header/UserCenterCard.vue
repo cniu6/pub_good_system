@@ -49,13 +49,6 @@ const maskedId = computed(() => {
   return `${s[0]}***`
 })
 
-const isAdmin = computed(() => {
-  const role = props.userInfo?.role
-  if (Array.isArray(role) && role.length > 0)
-    return role.includes('admin')
-  return role === 'admin'
-})
-
 const switchOptions = computed(() => [
   { label: t('userCenter.personal'), key: 'personal', disabled: false },
   { label: t('userCenter.noTeamNow'), key: 'team', disabled: true },
@@ -88,7 +81,7 @@ function handleQuickClick(key: QuickAction) {
 
 <template>
   <div class="user-center-card w-320px max-w-90vw overflow-hidden rounded-2xl">
-    <!-- 头部：左对齐头像 + 名称 + 团队切换 -->
+    <!-- 头部：左对齐头像 + 名称/ID，右侧空区放团队/个人切换器 -->
     <div class="relative px-16px pt-16px pb-12px">
       <div class="flex items-start gap-12px">
         <div class="avatar-ring flex-shrink-0 rounded-full p-2px">
@@ -107,37 +100,12 @@ function handleQuickClick(key: QuickAction) {
         </div>
 
         <div class="min-w-0 flex-1 pt-2px">
-          <div class="flex items-center gap-6px">
-            <span class="nickname text-15px font-bold truncate">{{ displayName }}</span>
-            <n-popover trigger="click" class="!p-0" style="width: auto" arrow-point-to-center>
-              <template #trigger>
-                <n-button text class="team-switch h-auto p-2px" :title="t('userCenter.switchTeam')">
-                  <template #icon>
-                    <IconSwitch class="text-15px opacity-70" />
-                  </template>
-                </n-button>
-              </template>
-              <div class="team-switch-popover w-160px py-6px">
-                <div
-                  v-for="item in switchOptions"
-                  :key="item.key"
-                  class="team-switch-item flex items-center justify-between px-12px py-8px text-13px"
-                  :class="{ 'is-disabled': item.disabled }"
-                >
-                  <span class="flex items-center gap-6px">
-                    <IconPeople class="text-14px" />
-                    {{ item.label }}
-                  </span>
-                  <span v-if="item.key === 'personal'" class="status-dot rounded-full" />
-                </div>
-              </div>
-            </n-popover>
+          <div class="nickname text-15px font-bold truncate">
+            {{ displayName }}
           </div>
-
           <div v-if="displayAccount" class="mt-2px text-12px opacity-60 truncate">
             @{{ displayAccount }}
           </div>
-
           <div v-if="userInfo?.id" class="mt-4px inline-flex cursor-pointer items-center gap-4px text-12px opacity-70 hover:opacity-100" @click="copyId">
             <span class="font-medium">ID:</span>
             <span class="id-value">{{ maskedId }}</span>
@@ -149,11 +117,36 @@ function handleQuickClick(key: QuickAction) {
               {{ t('userCenter.copyId') }}
             </n-tooltip>
           </div>
-
-          <div v-if="isAdmin" class="mt-4px text-12px text-[var(--primary-color)] font-medium">
-            {{ t('userCenter.admin') }}
-          </div>
         </div>
+
+        <n-popover trigger="click" class="!p-0" style="width: auto" placement="bottom-end" arrow-point-to-center>
+          <template #trigger>
+            <div class="switcher-trigger flex flex-col items-center justify-center rounded-lg p-8px min-w-80px cursor-pointer" :title="t('userCenter.switchTeam')">
+              <div class="flex items-center gap-4px">
+                <IconPeople class="text-14px" />
+                <span class="text-13px font-bold">{{ t('userCenter.personal') }}</span>
+              </div>
+              <div class="mt-4px flex items-center gap-4px text-11px opacity-70">
+                <IconSwitch class="text-11px" />
+                <span class="whitespace-nowrap">{{ t('userCenter.switchTeam') }}</span>
+              </div>
+            </div>
+          </template>
+          <div class="team-switch-popover w-160px py-6px">
+            <div
+              v-for="item in switchOptions"
+              :key="item.key"
+              class="team-switch-item flex items-center justify-between px-12px py-8px text-13px"
+              :class="{ 'is-disabled': item.disabled }"
+            >
+              <span class="flex items-center gap-6px">
+                <IconPeople class="text-14px" />
+                {{ item.label }}
+              </span>
+              <span v-if="item.key === 'personal'" class="status-dot rounded-full" />
+            </div>
+          </div>
+        </n-popover>
       </div>
     </div>
 
@@ -256,11 +249,12 @@ function handleQuickClick(key: QuickAction) {
   font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
 }
 
-.team-switch {
-  border-radius: 6px;
+.switcher-trigger {
+  background: var(--card-color);
+  transition: all 0.2s ease;
 }
 
-.team-switch:hover {
+.switcher-trigger:hover {
   background: var(--hover-color);
 }
 
