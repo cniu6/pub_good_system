@@ -4,6 +4,7 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/pkg/config"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -47,10 +48,26 @@ func (ctrl *PaymentCallbackController) NotifyByChannel(c *gin.Context) {
 // handleNotify 统一回调处理
 func (ctrl *PaymentCallbackController) handleNotify(c *gin.Context, channelType string) {
 	params := extractCallbackParams(c)
+
+	// 读取 raw body（供 PayPal / Stripe / 微信 V3 等需要 headers + body 的通道）
+	var body []byte
+	if c.Request.Body != nil {
+		body, _ = io.ReadAll(c.Request.Body)
+		// 重新填回，防止后续中间件/日志读取不到
+		c.Request.Body = io.NopCloser(strings.NewReader(string(body)))
+	}
+
+	headers := make(map[string]string)
+	for k, v := range c.Request.Header {
+		if len(v) > 0 {
+			headers[strings.ToLower(k)] = v[0]
+		}
+	}
+
 	// 回调参数明文落盘（含 sign/金额），便于对账排查；不做日志脱敏
 	log.Printf("[Payment Notify] 收到回调 channel=%s: %v", channelType, params)
 
-	ok, err := services.HandlePaymentNotify(params)
+	ok, err := services.HandlePaymentNotify(params, body, headers)
 	if err != nil {
 		log.Printf("[Payment Notify] 处理失败: channel=%s order_no=%s permanent=%v err=%v",
 			channelType, params["out_trade_no"], services.IsPermanentPaymentNotifyError(err), err)

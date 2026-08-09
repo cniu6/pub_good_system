@@ -8,6 +8,12 @@ function baseUrl() {
   return `${getAdminApiBase()}/payment/gateways`
 }
 
+/** 配置字段 select 选项 */
+export interface ChannelConfigFieldOption {
+  value: string
+  label: string
+}
+
 /** 配置字段 schema */
 export interface ChannelConfigField {
   name: string
@@ -16,6 +22,7 @@ export interface ChannelConfigField {
   required: boolean
   secret: boolean
   placeholder: string
+  options?: ChannelConfigFieldOption[]
 }
 
 /** 签名算法元数据 */
@@ -38,11 +45,20 @@ export interface ChannelPayTypeMeta {
   name: string
 }
 
+/** 设备类型元数据 */
+export interface ChannelDeviceMeta {
+  value: string
+  name: string
+}
+
 /** 通道类型元数据 */
 export interface ChannelMeta {
   type: string
   name: string
   currency: string
+  pay_types: ChannelPayTypeMeta[]
+  devices: ChannelDeviceMeta[]
+  default_notify_path: string
   versions: ChannelVersionMeta[]
 }
 

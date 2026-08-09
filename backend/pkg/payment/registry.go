@@ -28,14 +28,21 @@ type DeviceMeta struct {
 	Name  string `json:"name"`  // 显示名
 }
 
+// ConfigFieldOption select 类型的选项
+type ConfigFieldOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
 // ConfigField 通道扩展配置字段 schema，供前端动态渲染表单
 type ConfigField struct {
-	Name        string `json:"name"`
-	Label       string `json:"label"`
-	Type        string `json:"type"` // input / textarea / select
-	Required    bool   `json:"required"`
-	Secret      bool   `json:"secret"`
-	Placeholder string `json:"placeholder"`
+	Name        string              `json:"name"`
+	Label       string              `json:"label"`
+	Type        string              `json:"type"` // input / textarea / select
+	Required    bool                `json:"required"`
+	Secret      bool                `json:"secret"`
+	Placeholder string              `json:"placeholder"`
+	Options     []ConfigFieldOption `json:"options"` // 仅 select 类型有效
 }
 
 // ChannelVersionMeta 通道版本元数据，同一通道可有多个版本（V1 MD5 / V2 RSA）

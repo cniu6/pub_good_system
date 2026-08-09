@@ -294,12 +294,15 @@ func GetPayGatewayListForUser() ([]models.PayGateway, error) {
 	return gateways, nil
 }
 
-// ListPaymentChannelMetas 返回已注册支付通道元数据，供管理端动态渲染表单
+// PaymentChannelMetaView 返回已注册支付通道元数据，供管理端动态渲染表单
 type PaymentChannelMetaView struct {
-	Type     string                       `json:"type"`
-	Name     string                       `json:"name"`
-	Currency string                       `json:"currency"`
-	Versions []payment.ChannelVersionMeta `json:"versions"`
+	Type              string                       `json:"type"`
+	Name              string                       `json:"name"`
+	Currency          string                       `json:"currency"`
+	PayTypes          []payment.PayTypeMeta        `json:"pay_types"`
+	Devices           []payment.DeviceMeta         `json:"devices"`
+	DefaultNotifyPath string                       `json:"default_notify_path"`
+	Versions          []payment.ChannelVersionMeta `json:"versions"`
 }
 
 // ListPaymentChannelMetas 列出已注册通道类型及其版本/配置字段
@@ -308,10 +311,13 @@ func ListPaymentChannelMetas() []PaymentChannelMetaView {
 	out := make([]PaymentChannelMetaView, 0, len(metas))
 	for _, m := range metas {
 		out = append(out, PaymentChannelMetaView{
-			Type:     m.Type,
-			Name:     m.Name,
-			Currency: m.Currency,
-			Versions: m.Versions,
+			Type:              m.Type,
+			Name:              m.Name,
+			Currency:          m.Currency,
+			PayTypes:          m.PayTypes,
+			Devices:           m.Devices,
+			DefaultNotifyPath: m.DefaultNotifyPath,
+			Versions:          m.Versions,
 		})
 	}
 	return out

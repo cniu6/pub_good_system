@@ -48,6 +48,21 @@ type Provider interface {
 	ValidatePayType(payType string, extConfig map[string]string) bool
 }
 
+// NotifyPayload 回调验签后提取的归一化回调数据
+type NotifyPayload struct {
+	OutTradeNo  string // 系统订单号
+	TradeNo     string // 第三方交易号
+	TradeStatus string // 归一化交易状态
+	Money       string // 金额（元）
+	PayType     string // 支付方式
+}
+
+// PayloadVerifier 可选接口：针对需要 raw body + headers 验签的通道（WeChat V3 / Stripe / PayPal 等）。
+// Provider 若实现此接口，回调控制器优先调用；否则回退到旧 VerifyNotify。
+type PayloadVerifier interface {
+	VerifyNotifyWithPayload(ctx context.Context, body []byte, headers map[string]string, signType string, extConfig map[string]string) (bool, *NotifyPayload, error)
+}
+
 // CreatePayRequest 创建支付请求参数
 type CreatePayRequest struct {
 	PID       string            // 商户ID
@@ -60,6 +75,7 @@ type CreatePayRequest struct {
 	OrderNo   string            // 系统订单号
 	Subject   string            // 订单标题
 	Money     string            // 金额（元，保留两位小数）
+	Currency  string            // 币种，如 CNY / USD
 	NotifyURL string            // 异步通知地址
 	ReturnURL string            // 同步跳转地址
 	ClientIP  string            // 客户端IP

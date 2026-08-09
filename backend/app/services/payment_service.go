@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"fst/backend/app/models"
@@ -362,18 +363,18 @@ func classifyNotifyExceptionType(err error) string {
 	}
 }
 
-// HandlePaymentNotify 处理易支付异步回调（多通道版本）
+// HandlePaymentNotify 处理多通道异步回调
+// body / headers 供 WeChat V3 / Stripe / PayPal 等需要 raw body + headers 的通道使用。
 // 返回: 是否处理成功, 错误信息。永久错误也会返回 err，由控制器决定回 SUCCESS 停重试。
-func HandlePaymentNotify(params map[string]string) (bool, error) {
-	// 1. 提取回调参数
-	outTradeNo := params["out_trade_no"]
-	tradeNo := models.NormalizeTradeNo(params["trade_no"])
-	tradeStatus := params["trade_status"]
-	moneyStr := params["money"]
-	pid := strings.TrimSpace(params["pid"])
-	callbackType := strings.TrimSpace(params["type"])
+func HandlePaymentNotify(params map[string]string, body []byte, headers map[string]string) (bool, error) {
+	// 1. 提取系统订单号：form/query 优先，其次尝试 JSON body
+	outTradeNo := strings.TrimSpace(params["out_trade_no"])
+	if outTradeNo == "" && len(body) > 0 {
+		outTradeNo = extractOutTradeNoFromJSONBody(body)
+	}
 
-	if outTradeNo == "" || tradeNo == "" {
+	var tradeNo, tradeStatus, moneyStr, callbackType, pid string
+	if outTradeNo == "" {
 		return false, newPaymentNotifyError(true, "回调参数不完整")
 	}
 
@@ -399,8 +400,9 @@ func HandlePaymentNotify(params map[string]string) (bool, error) {
 	}
 
 	// 4. 验证签名（防篡改）：优先 pkg/payment Provider
-	if !verifyNotifyWithProvider(gateway, params) {
-		log.Printf("[Payment] 回调签名验证失败: order_no=%s, trade_status=%s", outTradeNo, tradeStatus)
+	verified, payload, usedPayload := verifyNotifyWithProvider(gateway, params, body, headers)
+	if !verified {
+		log.Printf("[Payment] 回调签名验证失败: order_no=%s", outTradeNo)
 		_ = recordPaymentException(&models.PaymentException{
 			OrderNo:       outTradeNo,
 			UserID:        orderForGateway.UserID,
@@ -413,6 +415,34 @@ func HandlePaymentNotify(params map[string]string) (bool, error) {
 			TradeNo:       tradeNo,
 		})
 		return false, newPaymentNotifyError(true, "签名验证失败")
+	}
+
+	// 4a. 若通道返回了归一化 payload，用它覆盖 form/query 中的字段
+	if usedPayload && payload != nil {
+		if payload.TradeNo != "" {
+			tradeNo = models.NormalizeTradeNo(payload.TradeNo)
+		}
+		if payload.TradeStatus != "" {
+			tradeStatus = payload.TradeStatus
+		}
+		if payload.Money != "" {
+			moneyStr = payload.Money
+		}
+		if payload.PayType != "" {
+			callbackType = payload.PayType
+		}
+	} else {
+		// 旧 form/query 通道，从 params 提取
+		tradeNo = models.NormalizeTradeNo(params["trade_no"])
+		tradeStatus = params["trade_status"]
+		moneyStr = params["money"]
+		callbackType = strings.TrimSpace(params["type"])
+	}
+
+	pid = strings.TrimSpace(params["pid"])
+
+	if tradeNo == "" {
+		return false, newPaymentNotifyError(true, "回调缺少第三方交易号")
 	}
 	// 5. 订单与通道/商户/支付方式绑定校验（防串单）
 	if err := validatePaymentNotifyBinding(orderForGateway, gateway, pid, callbackType, tradeNo); err != nil {
@@ -508,11 +538,63 @@ func HandlePaymentReturn(params map[string]string) (*models.PaymentOrder, error)
 		return nil, errors.New("Payment gateway does not exist")
 	}
 
-	if !verifyNotifyWithProvider(gateway, params) {
+	verified, _, _ := verifyNotifyWithProvider(gateway, params, nil, nil)
+	if !verified {
 		return nil, errors.New("Signature verification failed")
 	}
 
 	return order, nil
+}
+
+// extractOutTradeNoFromJSONBody 尝试从 JSON 回调体中找系统订单号
+func extractOutTradeNoFromJSONBody(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+	// 先按通用 object 解析
+	var root map[string]interface{}
+	if err := json.Unmarshal(body, &root); err != nil {
+		return ""
+	}
+
+	// 按常见路径查找：
+	// 1. 顶层 out_trade_no（微信 V3 等）
+	if v, ok := root["out_trade_no"].(string); ok && v != "" {
+		return v
+	}
+
+	// 2. Stripe / PayPal 等嵌套在 resource / data.object 里
+	paths := []string{"reference_id", "custom_id"}
+
+	if resource, ok := root["resource"].(map[string]interface{}); ok {
+		if ref, ok := resource["reference_id"].(string); ok && ref != "" {
+			return ref
+		}
+		if custom, ok := resource["custom_id"].(string); ok && custom != "" {
+			return custom
+		}
+		if units, ok := resource["purchase_units"].([]interface{}); ok && len(units) > 0 {
+			if unit, ok := units[0].(map[string]interface{}); ok {
+				for _, k := range paths {
+					if v, ok := unit[k].(string); ok && v != "" {
+						return v
+					}
+				}
+			}
+		}
+	}
+
+	if data, ok := root["data"].(map[string]interface{}); ok {
+		if obj, ok := data["object"].(map[string]interface{}); ok {
+			if meta, ok := obj["metadata"].(map[string]interface{}); ok {
+				if v, ok := meta["order_no"].(string); ok && v != "" {
+					return v
+				}
+			}
+		}
+	}
+
+	return ""
 }
 
 // ReconcilePaymentOrderByID 主动查单并对账。
@@ -1057,6 +1139,7 @@ func createPayWithProvider(ctx context.Context, gateway *models.PayGateway, orde
 			OrderNo:   order.OrderNo,
 			Subject:   order.Subject,
 			Money:     fmt.Sprintf("%.2f", order.PayAmount),
+			Currency:  strings.ToUpper(strings.TrimSpace(gateway.Currency)),
 			NotifyURL: notifyURL,
 			ReturnURL: returnURL,
 			ClientIP:  order.ClientIP,
@@ -1086,15 +1169,29 @@ func createPayWithProvider(ctx context.Context, gateway *models.PayGateway, orde
 }
 
 // verifyNotifyWithProvider 优先使用 pkg/payment Provider 验签
-func verifyNotifyWithProvider(gateway *models.PayGateway, params map[string]string) bool {
-	if provider := payment.GetProvider(gateway.Type); provider != nil {
-		return provider.VerifyNotify(params, gatewaySignType(gateway), gatewayExtConfig(gateway))
+// 返回 (是否通过, 归一化 payload, 是否使用了 PayloadVerifier)
+func verifyNotifyWithProvider(gateway *models.PayGateway, params map[string]string, body []byte, headers map[string]string) (bool, *payment.NotifyPayload, bool) {
+	provider := payment.GetProvider(gateway.Type)
+	if provider == nil {
+		channel, ok := GetPaymentChannel(gateway.Type)
+		if !ok {
+			return false, nil, false
+		}
+		return channel.VerifyNotify(params, gateway.Key), nil, false
 	}
-	channel, ok := GetPaymentChannel(gateway.Type)
-	if !ok {
-		return false
+
+	// 若 Provider 实现了 PayloadVerifier 且有 body/headers，优先走 raw body 验签
+	if pv, ok := provider.(payment.PayloadVerifier); ok && (len(body) > 0 || len(headers) > 0) {
+		verified, payload, err := pv.VerifyNotifyWithPayload(context.Background(), body, headers, gatewaySignType(gateway), gatewayExtConfig(gateway))
+		if err != nil {
+			log.Printf("[Payment] %s PayloadVerifier error: %v", gateway.Type, err)
+			return false, nil, true
+		}
+		return verified, payload, true
 	}
-	return channel.VerifyNotify(params, gateway.Key)
+
+	// 旧 form/query 回调
+	return provider.VerifyNotify(params, gatewaySignType(gateway), gatewayExtConfig(gateway)), nil, false
 }
 
 // queryOrderWithProvider 优先使用 pkg/payment Provider 查单

@@ -14,6 +14,7 @@ import {
 } from '@/service/api/admin/paygateway'
 import type {
   ChannelConfigField,
+  ChannelConfigFieldOption,
   ChannelMeta,
   ChannelVersionMeta,
   PayGateway,
@@ -256,16 +257,35 @@ async function loadChannelMetas() {
   }
 }
 
+const baseApiURL = `${window.location.protocol}//${window.location.host}`
+
 function pickChannelMeta(type: string) {
   channelMeta.value = channelMetas.value.find(m => m.type === type) || null
   if (channelMeta.value) {
-    payTypeOptions.value = [] // 优先由后端决定，但当前后端未返回 payTypes，保留旧列表
+    payTypeOptions.value = channelMeta.value.pay_types?.length > 0
+      ? channelMeta.value.pay_types.map(p => ({ label: p.name || p.value, value: p.value }))
+      : defaultPayTypeOptions
     versionOptions.value = channelMeta.value.versions.map(v => ({ label: v.name || v.version, value: v.version }))
-    deviceOptions.value = [] // 后端当前未返回 devices，由版本字段决定
+    deviceOptions.value = channelMeta.value.devices?.length > 0
+      ? channelMeta.value.devices.map(d => ({ label: d.name || d.value, value: d.value }))
+      : [
+          { label: t('adminPayGateways.pc'), value: 'pc' },
+          { label: t('adminPayGateways.mobile'), value: 'mobile' },
+        ]
+
+    // 若 notify_url 为空，自动回填默认回调地址
+    if (!form.notify_url && channelMeta.value.default_notify_path) {
+      form.notify_url = `${baseApiURL}${channelMeta.value.default_notify_path}`
+    }
   }
   else {
+    payTypeOptions.value = defaultPayTypeOptions
     versionOptions.value = []
     signTypeOptions.value = []
+    deviceOptions.value = [
+      { label: t('adminPayGateways.pc'), value: 'pc' },
+      { label: t('adminPayGateways.mobile'), value: 'mobile' },
+    ]
     dynamicConfigFields.value = []
   }
 }
@@ -274,7 +294,15 @@ function pickVersion(version: string) {
   activeVersion.value = channelMeta.value?.versions.find(v => v.version === version) || null
   if (activeVersion.value) {
     signTypeOptions.value = activeVersion.value.signTypes.map(s => ({ label: s.name || s.value, value: s.value }))
-    dynamicConfigFields.value = activeVersion.value.configFields || []
+    dynamicConfigFields.value = activeVersion.value.configFields?.map((field) => {
+      if (field.type === 'select' && field.options?.length) {
+        return {
+          ...field,
+          options: field.options.map((opt: ChannelConfigFieldOption) => ({ label: opt.label || opt.value, value: opt.value })),
+        }
+      }
+      return field
+    }) || []
     // 自动将签名算法选为第一个
     if (!form.sign_type && signTypeOptions.value.length > 0) {
       form.sign_type = signTypeOptions.value[0].value as string
@@ -552,7 +580,7 @@ onMounted(() => {
           </n-gi>
           <n-gi>
             <n-form-item :label="t('adminPayGateways.device')" path="device">
-              <n-input v-model:value="form.device" :placeholder="t('adminPayGateways.devicePlaceholder')" />
+              <n-select v-model:value="form.device" :options="deviceOptions" :placeholder="t('adminPayGateways.devicePlaceholder')" />
             </n-form-item>
           </n-gi>
           <n-gi>
@@ -688,7 +716,7 @@ onMounted(() => {
               <n-select
                 v-else-if="field.type === 'select'"
                 v-model:value="extConfigMap[field.name]"
-                :options="[]"
+                :options="field.options || []"
                 :placeholder="field.placeholder"
               />
             </n-form-item>
