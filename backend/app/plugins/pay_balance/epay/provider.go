@@ -1,0 +1,207 @@
+package epay
+
+import (
+	"context"
+	"fmt"
+	"fst/backend/app/models"
+	"fst/backend/pkg/payment"
+	"log"
+	"strings"
+)
+
+func init() {
+	// 注册易支付通道到全局支付通道注册表
+	payment.RegisterChannel(payment.ChannelMeta{
+		Type:     ChannelType,
+		Name:     "易支付",
+		Currency: "CNY",
+		PayTypes: []payment.PayTypeMeta{
+			{Value: "alipay", Name: "支付宝"},
+			{Value: "wxpay", Name: "微信支付"},
+			{Value: "qqpay", Name: "QQ钱包"},
+		},
+		Devices: []payment.DeviceMeta{
+			{Value: "pc", Name: "电脑浏览器"},
+			{Value: "mobile", Name: "手机浏览器"},
+			{Value: "qq", Name: "手机QQ内"},
+			{Value: "wechat", Name: "微信内"},
+			{Value: "alipay", Name: "支付宝客户端"},
+			{Value: "jump", Name: "仅返回跳转URL"},
+		},
+		SupportCashbox:    true,
+		DefaultNotifyPath: "/api/v1/public/payment/notify/epay",
+		Versions: []payment.ChannelVersionMeta{
+			{
+				Version:   "v1",
+				Name:      "V1（MD5）",
+				SignTypes: []payment.SignTypeMeta{{Value: SignTypeMD5, Name: "MD5"}},
+				ConfigFields: []payment.ConfigField{
+					{
+						Name:        "merchant_key",
+						Label:       "商户密钥",
+						Type:        "textarea",
+						Required:    true,
+						Secret:      true,
+						Placeholder: "易支付商户密钥（MD5 签名用）",
+					},
+				},
+			},
+			{
+				Version:   "v2",
+				Name:      "V2（RSA）",
+				SignTypes: []payment.SignTypeMeta{{Value: SignTypeRSA, Name: "SHA256WithRSA"}},
+				ConfigFields: []payment.ConfigField{
+					{
+						Name:        "merchant_private_key",
+						Label:       "商户RSA私钥",
+						Type:        "textarea",
+						Required:    true,
+						Secret:      true,
+						Placeholder: "商户后台生成的 RSA 私钥（PEM 格式）",
+					},
+					{
+						Name:        "platform_public_key",
+						Label:       "平台RSA公钥",
+						Type:        "textarea",
+						Required:    true,
+						Secret:      true,
+						Placeholder: "易支付平台的 RSA 公钥（PEM 格式，用于验签回调）",
+					},
+				},
+			},
+		},
+	}, NewProvider)
+}
+
+// Provider 易支付通道适配器
+type Provider struct{}
+
+// NewProvider 创建易支付 Provider 实例
+func NewProvider() payment.Provider {
+	return &Provider{}
+}
+
+// Type 返回通道类型标识
+func (p *Provider) Type() string {
+	return ChannelType
+}
+
+// CreatePay 调用易支付网关创建支付订单
+func (p *Provider) CreatePay(ctx context.Context, req *payment.CreatePayRequest) (*payment.CreatePayResponse, error) {
+	signType := FormatSignType(req.SignType)
+	device := req.Device
+	if device == "" {
+		device = "pc"
+	}
+
+	config := &Config{
+		ApiURL:    strings.TrimRight(req.ApiURL, "/"),
+		PID:       req.PID,
+		ExtConfig: req.ExtConfig,
+		SignType:  signType,
+		Device:    device,
+	}
+
+	order := &models.PaymentOrder{
+		PaymentType: req.PayType,
+		OrderNo:     req.OrderNo,
+		PayAmount:   parseMoneyFloat(req.Money),
+		Subject:     req.Subject,
+		ClientIP:    req.ClientIP,
+	}
+
+	// 优先走 mapi.php，失败则回退到 submit.php（保持与旧 Channel 行为一致）
+	apiPayURL, tradeNo, apiErr := APIPay(config, order, req.NotifyURL, req.ReturnURL)
+	if apiErr != nil {
+		log.Printf("[Epay] APIPay failed, fallback to submit: %v", apiErr)
+		payURL, err := BuildSubmitURL(config, order, req.NotifyURL, req.ReturnURL)
+		if err != nil {
+			return nil, err
+		}
+		return &payment.CreatePayResponse{PayURL: payURL, TradeNo: ""}, nil
+	}
+	return &payment.CreatePayResponse{PayURL: apiPayURL, TradeNo: tradeNo}, nil
+}
+
+// VerifyNotify 校验易支付回调签名
+func (p *Provider) VerifyNotify(params map[string]string, signType string, extConfig map[string]string) bool {
+	return VerifySignWithConfig(params, FormatSignType(signType), extConfig)
+}
+
+// QueryOrder 向易支付网关查询订单状态
+func (p *Provider) QueryOrder(ctx context.Context, req *payment.QueryOrderRequest) (*payment.QueryOrderResponse, error) {
+	signType := FormatSignType(req.SignType)
+	timeout := req.RequestTimeout
+	if timeout <= 0 {
+		timeout = 10
+	}
+
+	config := &Config{
+		ApiURL:    strings.TrimRight(req.ApiURL, "/"),
+		PID:       req.PID,
+		ExtConfig: req.ExtConfig,
+		SignType:  signType,
+	}
+
+	result, err := QueryOrder(config, req.OrderNo, req.TradeNo)
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, nil
+	}
+
+	_ = timeout
+	return &payment.QueryOrderResponse{
+		Code:        result.Code,
+		Msg:         result.Msg,
+		TradeNo:     result.TradeNo,
+		OutTradeNo:  result.OutTradeNo,
+		Type:        result.Type,
+		Name:        result.Name,
+		Money:       result.Money,
+		TradeStatus: result.TradeStatus,
+	}, nil
+}
+
+// Refund 易支付退款（当前未实现）
+func (p *Provider) Refund(ctx context.Context, req *payment.RefundRequest) (*payment.RefundResponse, error) {
+	return nil, fmt.Errorf("epay refund not implemented")
+}
+
+// ValidatePayType 校验支付方式是否被该通道允许
+func (p *Provider) ValidatePayType(payType string, extConfig map[string]string) bool {
+	return validatePayTypeExt(payType, extConfig)
+}
+
+func parseMoneyFloat(money string) float64 {
+	v, err := payment.ParseMoneyMinor(money)
+	if err != nil {
+		return 0
+	}
+	return float64(v) / 100.0
+}
+
+// validatePayTypeExt 校验 payType 是否在允许的支付方式列表中
+func validatePayTypeExt(payType string, extConfig map[string]string) bool {
+	payType = strings.TrimSpace(payType)
+	if payType == "" {
+		return true
+	}
+	allowed := extConfig["pay_types"]
+	if allowed == "" {
+		// 未配置时允许常见类型
+		switch strings.ToLower(payType) {
+		case "alipay", "wxpay", "qqpay", "bank", "jdpay", "paypal", "usdt":
+			return true
+		default:
+			return true
+		}
+	}
+	for _, t := range strings.Split(allowed, ",") {
+		if strings.EqualFold(strings.TrimSpace(t), payType) {
+			return true
+		}
+	}
+	return false
+}

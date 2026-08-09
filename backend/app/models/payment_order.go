@@ -79,6 +79,8 @@ type PaymentOrder struct {
 	ExpireAt       int64   `gorm:"column:expire_at;not null;default:0;index:idx_po_status_expire,priority:2" json:"expire_at"`
 	ClientIP       string  `gorm:"column:client_ip;size:64;not null;default:''" json:"client_ip"`
 	Extra          string  `gorm:"column:extra;type:text" json:"extra"`
+	LastQueryAt    *int64  `gorm:"column:last_query_at" json:"last_query_at"`
+	QueryCount     int     `gorm:"column:query_count;not null;default:0" json:"query_count"`
 	CreateTime     int64   `gorm:"column:create_time;not null;default:0;index:idx_po_create_time;index:idx_po_user_status_create,priority:3" json:"create_time"`
 	UpdateTime     int64   `gorm:"column:update_time;not null;default:0" json:"update_time"`
 }
@@ -159,7 +161,7 @@ func GetPaymentOrderForUpdate(tx *gorm.DB, orderNo string) (*PaymentOrder, error
 
 // canTransitionPaymentStatus 校验订单状态流转是否合法。
 // 允许 canceled/failed → paid：过期取消或本地落库失败后，网关迟到成功回调/主动对账仍可安全恢复到账
-//（前提是服务层已完成验签、金额与通道绑定校验，且余额入账与状态变更同事务）。
+// （前提是服务层已完成验签、金额与通道绑定校验，且余额入账与状态变更同事务）。
 func canTransitionPaymentStatus(fromStatus, toStatus int) bool {
 	if fromStatus == toStatus {
 		return true
@@ -235,6 +237,17 @@ func IncrementNotifyCount(orderNo string) error {
 		Updates(map[string]interface{}{
 			"notify_count": gorm.Expr("notify_count + 1"),
 			"update_time":  time.Now().Unix(),
+		}).Error
+}
+
+// UpdatePaymentOrderQueryAttempt 记录一次主动查单尝试
+func UpdatePaymentOrderQueryAttempt(orderNo string) error {
+	now := time.Now().Unix()
+	return db.DB.Model(&PaymentOrder{}).
+		Where("order_no = ?", orderNo).
+		Updates(map[string]interface{}{
+			"last_query_at": now,
+			"query_count":   gorm.Expr("query_count + 1"),
 		}).Error
 }
 

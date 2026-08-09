@@ -23,25 +23,34 @@ const (
 
 // PayGateway 支付通道模型
 type PayGateway struct {
-	ID          uint64  `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
-	Name        string  `gorm:"column:name;size:100;not null;default:''" json:"name"`
-	Type        string  `gorm:"column:type;size:50;not null;default:'epay'" json:"type"`
-	PayType     string  `gorm:"column:pay_type;size:50;not null;default:''" json:"pay_type"`
-	Description string  `gorm:"column:description;size:500;not null;default:''" json:"description"`
-	Status      int     `gorm:"column:status;not null;default:0;index:idx_pg_status;index:idx_pg_status_sort_id,priority:1" json:"status"`
-	ApiURL      string  `gorm:"column:api_url;type:text;not null" json:"api_url"`
-	PID         string  `gorm:"column:pid;type:text;not null" json:"pid"`
-	Key         string  `gorm:"column:key;type:text;not null" json:"key,omitempty"`
-	LogoURL     string  `gorm:"column:logo_url;type:text;not null" json:"logo_url"`
-	SortOrder   int     `gorm:"column:sort_order;not null;default:0;index:idx_pg_sort_order;index:idx_pg_status_sort_id,priority:2" json:"sort_order"`
-	MinAmount   float64 `gorm:"column:min_amount;type:decimal(10,2);not null;default:0" json:"min_amount"`
-	MaxAmount   float64 `gorm:"column:max_amount;type:decimal(10,2);not null;default:10000" json:"max_amount"`
-	FeeRate     int     `gorm:"column:fee_rate;not null;default:0" json:"fee_rate"`
-	FeeMode     string  `gorm:"column:fee_mode;size:50;not null;default:''" json:"fee_mode"`
-	MinLevel    int     `gorm:"column:min_level;not null;default:0" json:"min_level"`
-	NotifyURL   string  `gorm:"column:notify_url;type:text;not null" json:"notify_url"`
-	CreateTime  int64   `gorm:"column:create_time;not null;default:0" json:"create_time"`
-	UpdateTime  int64   `gorm:"column:update_time;not null;default:0" json:"update_time"`
+	ID                   uint64  `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	Name                 string  `gorm:"column:name;size:100;not null;default:''" json:"name"`
+	Type                 string  `gorm:"column:type;size:50;not null;default:'epay'" json:"type"`
+	PayType              string  `gorm:"column:pay_type;size:50;not null;default:''" json:"pay_type"`
+	SignType             string  `gorm:"column:sign_type;size:50;not null;default:''" json:"sign_type"`
+	Version              string  `gorm:"column:version;size:50;not null;default:''" json:"version"`
+	Device               string  `gorm:"column:device;size:50;not null;default:'pc'" json:"device"`
+	Currency             string  `gorm:"column:currency;size:10;not null;default:'CNY'" json:"currency"`
+	Description          string  `gorm:"column:description;size:500;not null;default:''" json:"description"`
+	Status               int     `gorm:"column:status;not null;default:0;index:idx_pg_status;index:idx_pg_status_sort_id,priority:1" json:"status"`
+	ApiURL               string  `gorm:"column:api_url;type:text;not null" json:"api_url"`
+	PID                  string  `gorm:"column:pid;type:text;not null" json:"pid"`
+	Key                  string  `gorm:"column:key;type:text;not null" json:"key,omitempty"` // 兼容旧通道：单密钥模式
+	ExtConfig            string  `gorm:"column:ext_config;type:text" json:"ext_config"`      // JSON 扩展配置，多版本/多密钥
+	LogoURL              string  `gorm:"column:logo_url;type:text;not null" json:"logo_url"`
+	SortOrder            int     `gorm:"column:sort_order;not null;default:0;index:idx_pg_sort_order;index:idx_pg_status_sort_id,priority:2" json:"sort_order"`
+	MinAmount            float64 `gorm:"column:min_amount;type:decimal(10,2);not null;default:0" json:"min_amount"`
+	MaxAmount            float64 `gorm:"column:max_amount;type:decimal(10,2);not null;default:10000" json:"max_amount"`
+	FeeRate              int     `gorm:"column:fee_rate;not null;default:0" json:"fee_rate"`
+	FeeMode              string  `gorm:"column:fee_mode;size:50;not null;default:''" json:"fee_mode"`
+	MinLevel             int     `gorm:"column:min_level;not null;default:0" json:"min_level"`
+	NotifyURL            string  `gorm:"column:notify_url;type:text;not null" json:"notify_url"`
+	ExpireMinutes        int     `gorm:"column:expire_minutes;not null;default:0" json:"expire_minutes"`
+	ActiveQueryEnabled   int     `gorm:"column:active_query_enabled;not null;default:1" json:"active_query_enabled"`
+	QueryIntervalSeconds int     `gorm:"column:query_interval_seconds;not null;default:120" json:"query_interval_seconds"`
+	QueryBatchSize       int     `gorm:"column:query_batch_size;not null;default:50" json:"query_batch_size"`
+	CreateTime           int64   `gorm:"column:create_time;not null;default:0" json:"create_time"`
+	UpdateTime           int64   `gorm:"column:update_time;not null;default:0" json:"update_time"`
 }
 
 // TableName 表名

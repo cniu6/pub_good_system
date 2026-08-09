@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"fst/backend/app/models"
+	"fst/backend/pkg/payment"
 	"io"
 	"log"
 	"net/http"
@@ -16,7 +17,11 @@ import (
 type Config struct {
 	ApiURL       string
 	PID          string
-	Key          string
+	Key          string            // 兼容旧通道：单密钥
+	ExtConfig    map[string]string // 扩展配置（V1 MD5 / V2 RSA）
+	SignType     string            // 签名算法：MD5 / RSA
+	Version      string            // 版本：v1 / v2
+	Device       string            // 设备类型：pc / mobile
 	PaymentTypes []string
 }
 
@@ -25,17 +30,34 @@ func ConfigFromGateway(gateway *models.PayGateway) *Config {
 	if gateway == nil {
 		return &Config{}
 	}
+	extConfig := payment.ParseExtConfig(gateway.ExtConfig)
+	// 兼容旧通道：没有 ext_config 时使用 key 字段
+	if len(extConfig) == 0 && gateway.Key != "" {
+		extConfig = map[string]string{"key": gateway.Key}
+	}
+	signType := gateway.SignType
+	if signType == "" {
+		signType = SignTypeMD5
+	}
+	device := gateway.Device
+	if device == "" {
+		device = "pc"
+	}
 	return &Config{
 		ApiURL:       strings.TrimRight(gateway.ApiURL, "/"),
 		PID:          gateway.PID,
 		Key:          gateway.Key,
+		ExtConfig:    extConfig,
+		SignType:     signType,
+		Version:      gateway.Version,
+		Device:       device,
 		PaymentTypes: []string{gateway.PayType},
 	}
 }
 
 // BuildSubmitURL 构造易支付跳转支付 URL（submit.php）
 func BuildSubmitURL(config *Config, order *models.PaymentOrder, notifyURL, returnURL string) (string, error) {
-	if config.ApiURL == "" || config.PID == "" || config.Key == "" {
+	if config.ApiURL == "" || config.PID == "" || (config.Key == "" && len(config.ExtConfig) == 0) {
 		return "", fmt.Errorf("Epay configuration incomplete")
 	}
 
@@ -49,8 +71,8 @@ func BuildSubmitURL(config *Config, order *models.PaymentOrder, notifyURL, retur
 		"money":        fmt.Sprintf("%.2f", order.PayAmount),
 	}
 
-	params["sign"] = GenerateSign(params, config.Key)
-	params["sign_type"] = "MD5"
+	params["sign"] = GenerateSignWithConfig(params, config.SignType, config.ExtConfig)
+	params["sign_type"] = config.SignType
 
 	u, err := url.Parse(config.ApiURL + "/submit.php")
 	if err != nil {
@@ -92,7 +114,11 @@ type queryResponseRaw struct {
 
 // QueryOrder 向易支付平台查询订单状态
 func QueryOrder(config *Config, orderNo, tradeNo string) (*QueryResponse, error) {
-	if config.ApiURL == "" || config.PID == "" || config.Key == "" {
+	key := GetSignKeyForQuery(config.ExtConfig)
+	if key == "" {
+		key = config.Key
+	}
+	if config.ApiURL == "" || config.PID == "" || key == "" {
 		return nil, fmt.Errorf("Epay configuration incomplete")
 	}
 
@@ -107,7 +133,7 @@ func QueryOrder(config *Config, orderNo, tradeNo string) (*QueryResponse, error)
 		queryCandidates = append(queryCandidates, map[string]string{
 			"act":          "order",
 			"pid":          config.PID,
-			"key":          config.Key,
+			"key":          key,
 			"out_trade_no": orderNo,
 		})
 	}
@@ -115,7 +141,7 @@ func QueryOrder(config *Config, orderNo, tradeNo string) (*QueryResponse, error)
 		queryCandidates = append(queryCandidates, map[string]string{
 			"act":      "order",
 			"pid":      config.PID,
-			"key":      config.Key,
+			"key":      key,
 			"trade_no": tradeNo,
 		})
 	}
@@ -244,8 +270,13 @@ type APIPayResponse struct {
 
 // APIPay 通过 mapi.php 发起支付，返回支付链接与交易号
 func APIPay(config *Config, order *models.PaymentOrder, notifyURL, returnURL string) (string, string, error) {
-	if config.ApiURL == "" || config.PID == "" || config.Key == "" {
+	if config.ApiURL == "" || config.PID == "" || (config.Key == "" && len(config.ExtConfig) == 0) {
 		return "", "", fmt.Errorf("Epay configuration incomplete")
+	}
+
+	device := config.Device
+	if device == "" {
+		device = "pc"
 	}
 
 	params := map[string]string{
@@ -257,10 +288,11 @@ func APIPay(config *Config, order *models.PaymentOrder, notifyURL, returnURL str
 		"name":         order.Subject,
 		"money":        fmt.Sprintf("%.2f", order.PayAmount),
 		"clientip":     order.ClientIP,
+		"device":       device,
 	}
 
-	params["sign"] = GenerateSign(params, config.Key)
-	params["sign_type"] = "MD5"
+	params["sign"] = GenerateSignWithConfig(params, config.SignType, config.ExtConfig)
+	params["sign_type"] = config.SignType
 
 	mapiURL := config.ApiURL + "/mapi.php"
 	formData := url.Values{}

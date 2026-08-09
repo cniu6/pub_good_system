@@ -37,7 +37,10 @@ func (c *Channel) CreatePay(gateway *models.PayGateway, order *models.PaymentOrd
 }
 
 func (c *Channel) VerifyNotify(params map[string]string, key string) bool {
-	return VerifySign(params, key)
+	// Channel 适配层保持旧接口；实际验签使用 ext_config + sign_type
+	// 调用方（payment_service）尚未传入 gateway，先用 key 兜底
+	extConfig := map[string]string{"key": key}
+	return VerifySignWithConfig(params, SignTypeMD5, extConfig)
 }
 
 func (c *Channel) QueryOrder(gateway *models.PayGateway, orderNo, tradeNo string) (*services.PaymentQueryResult, error) {

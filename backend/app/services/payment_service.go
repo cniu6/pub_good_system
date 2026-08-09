@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/pkg/db"
+	"fst/backend/pkg/payment"
 	"fst/backend/utils"
 	"log"
 	"strconv"
@@ -113,25 +114,13 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 		return nil, err
 	}
 
-	// 10. 根据通道类型发起支付（由 pay_balance 插件注册的 PaymentChannel 分发）
-	channel, ok := GetPaymentChannel(gateway.Type)
-	if !ok {
-		models.UpdatePaymentOrderStatus(order.OrderNo, models.PaymentStatusFailed, "")
-		return nil, NewClientError("不支持的支付通道类型")
-	}
-
-	if !channel.ValidatePayType(gateway, order.PaymentType) {
-		models.UpdatePaymentOrderStatus(order.OrderNo, models.PaymentStatusFailed, "")
-		return nil, NewClientError("支付方式不受该通道支持")
-	}
-
-	// 使用回调地址：优先通道自定义，否则用全局
+	// 10. 根据通道类型发起支付：优先 pkg/payment Provider，兼容旧 PaymentChannel
 	gwNotifyURL := notifyURL
 	if gateway.NotifyURL != "" {
 		gwNotifyURL = gateway.NotifyURL
 	}
 
-	payURL, tradeNoFromRemote, createErr := channel.CreatePay(gateway, order, gwNotifyURL, returnURL)
+	payURL, tradeNoFromRemote, createErr := createPayWithProvider(context.Background(), gateway, order, gwNotifyURL, returnURL)
 	if createErr != nil {
 		log.Printf("[Payment] 创建远程支付失败: type=%s, err=%v", gateway.Type, createErr)
 		models.UpdatePaymentOrderStatus(order.OrderNo, models.PaymentStatusFailed, "")
@@ -409,12 +398,8 @@ func HandlePaymentNotify(params map[string]string) (bool, error) {
 		return false, newPaymentNotifyError(true, "支付通道不存在")
 	}
 
-	// 4. 验证签名（防篡改）
-	notifyChannel, ok := GetPaymentChannel(gateway.Type)
-	if !ok {
-		return false, newPaymentNotifyError(true, "不支持的支付通道类型")
-	}
-	if !notifyChannel.VerifyNotify(params, gateway.Key) {
+	// 4. 验证签名（防篡改）：优先 pkg/payment Provider
+	if !verifyNotifyWithProvider(gateway, params) {
 		log.Printf("[Payment] 回调签名验证失败: order_no=%s, trade_status=%s", outTradeNo, tradeStatus)
 		_ = recordPaymentException(&models.PaymentException{
 			OrderNo:       outTradeNo,
@@ -517,17 +502,13 @@ func HandlePaymentReturn(params map[string]string) (*models.PaymentOrder, error)
 		return nil, errors.New("Order does not exist")
 	}
 
-	// 获取通道密钥验签
+	// 获取通道密钥验签：优先 pkg/payment Provider
 	gateway, err := models.GetPayGatewayByID(order.GatewayID)
 	if err != nil {
 		return nil, errors.New("Payment gateway does not exist")
 	}
 
-	returnChannel, ok := GetPaymentChannel(gateway.Type)
-	if !ok {
-		return nil, errors.New("Unsupported payment gateway type")
-	}
-	if !returnChannel.VerifyNotify(params, gateway.Key) {
+	if !verifyNotifyWithProvider(gateway, params) {
 		return nil, errors.New("Signature verification failed")
 	}
 
@@ -562,20 +543,89 @@ type PaymentReconcileBatchResult struct {
 }
 
 // ReconcilePaymentOrdersBatch 扫描待支付与近期取消/失败订单并向网关查单补账
+// 新增：按通道开关、每通道批次、冷却间隔控制，避免高频空扫。
 func ReconcilePaymentOrdersBatch(ctx context.Context, limit int) (*PaymentReconcileBatchResult, error) {
 	result := &PaymentReconcileBatchResult{}
-	orders, err := models.ListPaymentOrdersForReconcile(limit, 7*24*3600)
+	orders, err := models.ListPaymentOrdersForReconcile(limit*3, 7*24*3600)
 	if err != nil {
 		return nil, err
 	}
-	result.Scanned = len(orders)
+
+	// 预加载通道配置，按 gateway_id 分组
+	gateways, err := models.GetEnabledPayGateways()
+	if err != nil {
+		return nil, err
+	}
+	gatewayMap := make(map[uint64]*models.PayGateway)
+	for i := range gateways {
+		gatewayMap[gateways[i].ID] = &gateways[i]
+	}
+
+	type channelPolicy struct {
+		enabled     bool
+		cooldownSec int64
+		batchSize   int
+		processed   int
+	}
+	channelPolicies := make(map[uint64]*channelPolicy)
+
+	now := time.Now().Unix()
 	for _, order := range orders {
 		if ctx != nil {
 			if err := ctx.Err(); err != nil {
 				return result, err
 			}
 		}
+
+		// 扫描总量达到上限即停止
+		if result.Scanned >= limit {
+			break
+		}
+
+		gw := gatewayMap[order.GatewayID]
+		if gw == nil {
+			result.Skipped++
+			continue
+		}
+
+		policy, exists := channelPolicies[order.GatewayID]
+		if !exists {
+			policy = &channelPolicy{
+				enabled:     gw.ActiveQueryEnabled != 0,
+				cooldownSec: int64(gw.QueryIntervalSeconds),
+				batchSize:   gw.QueryBatchSize,
+			}
+			if policy.batchSize <= 0 {
+				policy.batchSize = 50
+			}
+			if policy.cooldownSec <= 0 {
+				policy.cooldownSec = 120
+			}
+			channelPolicies[order.GatewayID] = policy
+		}
+
+		if !policy.enabled {
+			result.Skipped++
+			log.Printf("[Payment Reconcile] skipped order_no=%s reason=active_query_disabled gateway_id=%d", order.OrderNo, order.GatewayID)
+			continue
+		}
+		if policy.processed >= policy.batchSize {
+			result.Skipped++
+			continue
+		}
+		// 冷却检查：last_query_at 与当前时间间隔小于通道查询间隔则跳过
+		if order.LastQueryAt != nil && *order.LastQueryAt > 0 && now-*order.LastQueryAt < policy.cooldownSec {
+			result.Skipped++
+			continue
+		}
+
+		result.Scanned++
+		policy.processed++
 		o := order
+
+		// 提前标记查询尝试，减少并发重复查单（不阻塞对账结果）
+		_ = models.UpdatePaymentOrderQueryAttempt(o.OrderNo)
+
 		_, changed, err := reconcilePaymentOrder(&o)
 		if err != nil {
 			result.Exceptions++
@@ -620,11 +670,6 @@ func reconcilePaymentOrder(order *models.PaymentOrder) (*models.PaymentOrder, bo
 	if order.GatewayID == 0 {
 		return order, false, nil
 	}
-	channel, ok := GetPaymentChannel(order.PaymentChannel)
-	if !ok {
-		return order, false, nil
-	}
-
 	orderNo := strings.TrimSpace(order.OrderNo)
 	tradeNo := models.NormalizeTradeNo(order.TradeNo)
 	if orderNo == "" && tradeNo == "" {
@@ -636,7 +681,7 @@ func reconcilePaymentOrder(order *models.PaymentOrder) (*models.PaymentOrder, bo
 		return order, false, fmt.Errorf("Failed to get payment gateway: %w", err)
 	}
 
-	queryResult, err := channel.QueryOrder(gateway, orderNo, tradeNo)
+	queryResult, err := queryOrderWithProvider(context.Background(), gateway, orderNo, tradeNo)
 	if err != nil {
 		return order, false, err
 	}
@@ -976,4 +1021,112 @@ func validatePaymentOrderDeletion(status int) error {
 // getOrderExpireMinutes 从系统配置获取订单过期时间（分钟）
 func getOrderExpireMinutes() int {
 	return GetGlobalPaymentOrderExpireMinutes()
+}
+
+// gatewayExtConfig 解析支付通道的 ext_config，兼容旧 key 字段
+func gatewayExtConfig(gateway *models.PayGateway) map[string]string {
+	if gateway == nil {
+		return map[string]string{}
+	}
+	extConfig := payment.ParseExtConfig(gateway.ExtConfig)
+	if len(extConfig) == 0 && gateway.Key != "" {
+		extConfig = map[string]string{"key": gateway.Key}
+	}
+	return extConfig
+}
+
+// gatewaySignType 返回通道签名算法，空值兜底 MD5
+func gatewaySignType(gateway *models.PayGateway) string {
+	if gateway == nil || strings.TrimSpace(gateway.SignType) == "" {
+		return "MD5"
+	}
+	return strings.TrimSpace(gateway.SignType)
+}
+
+// createPayWithProvider 优先使用 pkg/payment Provider 创建支付订单，未注册则回退到旧 PaymentChannel
+func createPayWithProvider(ctx context.Context, gateway *models.PayGateway, order *models.PaymentOrder, notifyURL, returnURL string) (string, string, error) {
+	if provider := payment.GetProvider(gateway.Type); provider != nil {
+		req := &payment.CreatePayRequest{
+			PID:       gateway.PID,
+			ExtConfig: gatewayExtConfig(gateway),
+			ApiURL:    gateway.ApiURL,
+			PayType:   order.PaymentType,
+			SignType:  gatewaySignType(gateway),
+			Device:    gateway.Device,
+			OrderNo:   order.OrderNo,
+			Subject:   order.Subject,
+			Money:     fmt.Sprintf("%.2f", order.PayAmount),
+			NotifyURL: notifyURL,
+			ReturnURL: returnURL,
+			ClientIP:  order.ClientIP,
+		}
+		if !provider.ValidatePayType(req.PayType, req.ExtConfig) {
+			return "", "", NewClientError("支付方式不受该通道支持")
+		}
+		resp, err := provider.CreatePay(ctx, req)
+		if err != nil {
+			return "", "", err
+		}
+		if resp == nil {
+			return "", "", errors.New("payment provider returned empty response")
+		}
+		return resp.PayURL, resp.TradeNo, nil
+	}
+
+	// 兼容旧注册表
+	channel, ok := GetPaymentChannel(gateway.Type)
+	if !ok {
+		return "", "", errors.New("unsupported payment channel type")
+	}
+	if !channel.ValidatePayType(gateway, order.PaymentType) {
+		return "", "", NewClientError("支付方式不受该通道支持")
+	}
+	return channel.CreatePay(gateway, order, notifyURL, returnURL)
+}
+
+// verifyNotifyWithProvider 优先使用 pkg/payment Provider 验签
+func verifyNotifyWithProvider(gateway *models.PayGateway, params map[string]string) bool {
+	if provider := payment.GetProvider(gateway.Type); provider != nil {
+		return provider.VerifyNotify(params, gatewaySignType(gateway), gatewayExtConfig(gateway))
+	}
+	channel, ok := GetPaymentChannel(gateway.Type)
+	if !ok {
+		return false
+	}
+	return channel.VerifyNotify(params, gateway.Key)
+}
+
+// queryOrderWithProvider 优先使用 pkg/payment Provider 查单
+func queryOrderWithProvider(ctx context.Context, gateway *models.PayGateway, orderNo, tradeNo string) (*payment.QueryOrderResponse, error) {
+	if provider := payment.GetProvider(gateway.Type); provider != nil {
+		return provider.QueryOrder(ctx, &payment.QueryOrderRequest{
+			PID:       gateway.PID,
+			ExtConfig: gatewayExtConfig(gateway),
+			SignType:  gatewaySignType(gateway),
+			ApiURL:    gateway.ApiURL,
+			OrderNo:   orderNo,
+			TradeNo:   tradeNo,
+		})
+	}
+	channel, ok := GetPaymentChannel(gateway.Type)
+	if !ok {
+		return nil, errors.New("unsupported payment channel type")
+	}
+	result, err := channel.QueryOrder(gateway, orderNo, tradeNo)
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, nil
+	}
+	return &payment.QueryOrderResponse{
+		Code:        result.Code,
+		Msg:         result.Msg,
+		TradeNo:     result.TradeNo,
+		OutTradeNo:  result.OutTradeNo,
+		Type:        result.Type,
+		Name:        result.Name,
+		Money:       result.Money,
+		TradeStatus: result.TradeStatus,
+	}, nil
 }
