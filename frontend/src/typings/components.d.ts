@@ -31,7 +31,6 @@ declare module 'vue' {
     IconParkOutlinePreviewCloseOne: typeof import('~icons/icon-park-outline/preview-close-one')['default']
     IconParkOutlinePreviewOpen: typeof import('~icons/icon-park-outline/preview-open')['default']
     IconParkOutlineRefresh: typeof import('~icons/icon-park-outline/refresh')['default']
-    IconParkOutlineRefreshOne: typeof import('~icons/icon-park-outline/refresh-one')['default']
     IconParkOutlineRemind: typeof import('~icons/icon-park-outline/remind')['default']
     IconParkOutlineRight: typeof import('~icons/icon-park-outline/right')['default']
     IconParkOutlineSearch: typeof import('~icons/icon-park-outline/search')['default']
