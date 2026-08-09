@@ -101,32 +101,29 @@ func InitDB() {
 		sqlDB.SetMaxIdleConns(10)
 	}
 
-	// MySQL 统一字符集/排序规则：防止后续 GORM AutoMigrate 新建表出现 utf8mb4_general_ci 等多 collation 混用。
+	// MySQL 统一字符集/排序规则：DSN 已带 collation 参数，
+	// 这里只执行 SET NAMES 确保连接池中复用的连接也使用统一排序规则。
+	// 注意：不在此处 Set("gorm:table_options", ...) —— Set 返回的实例 clone==0，
+	// 会导致后续链式调用共享同一个 Statement，污染全局 DB。
+	// table_options 在 RunAutoMigrate 时临时设置。
 	if driver == "mysql" {
-		gdb = applyMySQLDefaults(gdb)
+		applyMySQLSessionCollation(gdb)
 	}
 
 	DB = gdb
 }
 
-// applyMySQLDefaults 为 GORM 设置统一的建表选项与连接排序规则。
-func applyMySQLDefaults(gdb *gorm.DB) *gorm.DB {
+// applyMySQLSessionCollation 对连接池中的连接执行 SET NAMES，统一会话排序规则。
+// 在原始 gdb（clone==1）上调用 Exec，Exec 内部会创建新实例，不污染 gdb 本身。
+func applyMySQLSessionCollation(gdb *gorm.DB) {
 	cfg := config.GlobalConfig
 	collation := config.DefaultMySQLCollation
 	if cfg != nil && cfg.DBCollation != "" {
 		collation = cfg.DBCollation
 	}
-
-	// gorm:table_options 会附加到所有由 GORM 生成的 CREATE TABLE 语句尾部，
-	// 确保即使数据库默认排序规则是 general_ci，新建表也使用项目指定规则。
-	gdb = gdb.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE="+collation)
-
-	// DSN 里已带 collation，但为兼容已有的连接池复用，再显式 SET NAMES 一次。
 	if err := gdb.Exec("SET NAMES utf8mb4 COLLATE " + collation).Error; err != nil {
 		log.Printf("[DB] 设置 MySQL 会话排序规则失败: %v", err)
 	}
-
-	return gdb
 }
 
 func sqliteOpenName(dsn string) string {

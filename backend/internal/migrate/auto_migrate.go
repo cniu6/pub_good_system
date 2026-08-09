@@ -32,7 +32,18 @@ func RunAutoMigrate() {
 	modelsList := models.AllGormModels()
 	modelsList = append(modelsList, &task.JobDefinition{}, &task.JobRun{})
 
-	if err := db.DB.AutoMigrate(modelsList...); err != nil {
+	// AutoMigrate 时临时设置 gorm:table_options，确保新建表使用统一字符集/排序规则。
+	// 不能在全局 db.DB 上 Set —— Set 返回的实例 clone==0，会导致后续查询共享 Statement 污染。
+	migrateDB := db.DB
+	if db.IsMySQL() {
+		collation := config.DefaultMySQLCollation
+		if cfg := config.GetGlobalConfig(); cfg != nil && cfg.DBCollation != "" {
+			collation = cfg.DBCollation
+		}
+		migrateDB = db.DB.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE="+collation)
+	}
+
+	if err := migrateDB.AutoMigrate(modelsList...); err != nil {
 		log.Fatalf("[Migrate] GORM AutoMigrate 失败: %v", err)
 	}
 	log.Printf("[Migrate] GORM AutoMigrate 完成，共 %d 个模型", len(modelsList))
