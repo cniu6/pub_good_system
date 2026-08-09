@@ -15,6 +15,10 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// DefaultMySQLCollation 项目默认 MySQL 排序规则。
+// utf8mb4 字符集支持 emoji 与 4 字节字符；utf8mb4_unicode_ci 在 MySQL 5.7/8.0/MariaDB 均可用。
+const DefaultMySQLCollation = "utf8mb4_unicode_ci"
+
 type Config struct {
 	AppName                      string
 	AppTitle                     string
@@ -33,15 +37,18 @@ type Config struct {
 	APILogFlushIntervalMillis    int
 	APILogWALDir                 string
 	DBDriver                     string
-	DBDSN                        string
-	GeetestEnabled               bool
-	GeetestID                    string
-	GeetestKey                   string
-	JWTSecret                    string
-	AdminJWTSecret               string
-	AdminPath                    string // 管理后台前端页面入口（隐藏路径，如 /system-mgr）
-	AdminAPIPath                 string // 管理端 REST API 在 /api/v1 下的前缀（默认 /admin）
-	CorsOrigins                  string
+	// DBDSN 已包含字符集/排序规则连接参数。
+	DBDSN string
+	// DBCollation 当前使用的 MySQL 排序规则；SQLite/Postgres 下无意义。
+	DBCollation    string
+	GeetestEnabled bool
+	GeetestID      string
+	GeetestKey     string
+	JWTSecret      string
+	AdminJWTSecret string
+	AdminPath      string // 管理后台前端页面入口（隐藏路径，如 /system-mgr）
+	AdminAPIPath   string // 管理端 REST API 在 /api/v1 下的前缀（默认 /admin）
+	CorsOrigins    string
 	// AuthCorsEnabled 是否对登录/注册/找回密码等认证接口启用独立 CORS 白名单。
 	// 默认 false：认证接口与其它接口共用 CorsOrigins（可继续为 *）。
 	AuthCorsEnabled bool
@@ -502,6 +509,7 @@ func InitConfig() {
 		APILogWALDir:                 getEnv("API_LOG_WAL_DIR", "./api-access-log-wal"),
 		DBDriver:                     getEnv("DB_DRIVER", "mysql"),
 		DBDSN:                        buildDSN(),
+		DBCollation:                  getEnv("DB_COLLATION", DefaultMySQLCollation),
 		GeetestEnabled:               geetestEnabled && geetestID != "" && geetestKey != "",
 		GeetestID:                    geetestID,
 		GeetestKey:                   geetestKey,
@@ -649,7 +657,8 @@ func buildDSN() string {
 		port := getEnv("DB_PORT", "3306")
 		name := getEnv("DB_NAME", "fst_platform")
 
-		return user + ":" + pass + "@tcp(" + host + ":" + port + ")/" + name + "?charset=utf8mb4&parseTime=True&loc=Local"
+		collation := getEnv("DB_COLLATION", DefaultMySQLCollation)
+		return user + ":" + pass + "@tcp(" + host + ":" + port + ")/" + name + "?charset=utf8mb4&collation=" + collation + "&parseTime=True&loc=Local"
 	}
 }
 
@@ -700,6 +709,7 @@ type jsonDotEnv struct {
 	DBUser                       string `json:"db_user"`
 	DBPassword                   string `json:"db_password"`
 	DBName                       string `json:"db_name"`
+	DBCollation                  string `json:"db_collation"`
 	Port                         string `json:"port"`
 	HTTPReadHeaderTimeoutSeconds string `json:"http_read_header_timeout_seconds"`
 	HTTPReadTimeoutSeconds       string `json:"http_read_timeout_seconds"`
@@ -821,7 +831,11 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 	if name == "" {
 		name = "fst_platform"
 	}
-	dsn := user + ":" + pass + "@tcp(" + host + ":" + dbPort + ")/" + name + "?charset=utf8mb4&parseTime=True&loc=Local"
+	collation := strings.TrimSpace(raw.DBCollation)
+	if collation == "" {
+		collation = DefaultMySQLCollation
+	}
+	dsn := user + ":" + pass + "@tcp(" + host + ":" + dbPort + ")/" + name + "?charset=utf8mb4&collation=" + collation + "&parseTime=True&loc=Local"
 
 	cfg := &Config{
 		AppName:                      "F.st",

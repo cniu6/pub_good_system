@@ -8,10 +8,12 @@
 package migrate
 
 import (
+	"fmt"
 	"log"
 
 	"fst/backend/app/models"
 	"fst/backend/internal/task"
+	"fst/backend/pkg/config"
 	"fst/backend/pkg/db"
 )
 
@@ -22,6 +24,9 @@ func RunAutoMigrate() {
 	if db.DB == nil {
 		log.Fatalf("[Migrate] 数据库未初始化，无法 AutoMigrate")
 	}
+
+	// MySQL 统一数据库默认排序规则，确保 AutoMigrate 新建表继承一致规则。
+	ensureMySQLDatabaseCollation()
 
 	// 业务模型清单在 models.AllGormModels；自动任务表在 task 包，这里一并注册
 	modelsList := models.AllGormModels()
@@ -52,4 +57,35 @@ func RunAutoMigrate() {
 	models.BackfillOperationLogAggregateIfNeeded()
 
 	log.Println("[Migrate] 数据库自迁移全部完成")
+}
+
+// ensureMySQLDatabaseCollation 启动时将数据库默认字符集/排序规则统一为项目默认值，
+// 避免新建表因数据库默认规则不一致而产生 utf8mb4_general_ci 等多 collation 混用。
+func ensureMySQLDatabaseCollation() {
+	if !db.IsMySQL() {
+		return
+	}
+
+	cfg := config.GetGlobalConfig()
+	collation := config.DefaultMySQLCollation
+	if cfg != nil && cfg.DBCollation != "" {
+		collation = cfg.DBCollation
+	}
+
+	var dbName string
+	if err := db.DB.Raw("SELECT DATABASE()").Scan(&dbName).Error; err != nil {
+		log.Printf("[Migrate] 查询当前数据库名失败: %v", err)
+		return
+	}
+	if dbName == "" {
+		log.Println("[Migrate] 当前数据库名为空，跳过数据库默认排序规则设置")
+		return
+	}
+
+	sql := fmt.Sprintf("ALTER DATABASE `%s` CHARACTER SET utf8mb4 COLLATE %s", dbName, collation)
+	if err := db.DB.Exec(sql).Error; err != nil {
+		log.Printf("[Migrate] 设置数据库默认排序规则失败: %v", err)
+		return
+	}
+	log.Printf("[Migrate] 数据库 `%s` 默认排序规则已统一为 utf8mb4 / %s", dbName, collation)
 }

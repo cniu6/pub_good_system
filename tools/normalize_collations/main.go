@@ -33,18 +33,18 @@ type options struct {
 }
 
 type tableInfo struct {
-	TableName     string
-	TableCharset  string
+	TableName      string
+	TableCharset   string
 	TableCollation string
-	NeedsConvert  bool
+	NeedsConvert   bool
 }
 
 type columnInfo struct {
-	TableName   string
-	ColumnName  string
-	ColumnType  string
-	Charset     string
-	Collation   string
+	TableName  string
+	ColumnName string
+	ColumnType string
+	Charset    string
+	Collation  string
 }
 
 func main() {
@@ -179,8 +179,8 @@ func run(args []string) error {
 	}
 
 	type job struct {
-		idx  int
-		tbl  *tableInfo
+		idx int
+		tbl *tableInfo
 	}
 
 	jobs := make(chan job, len(needTables))
@@ -283,10 +283,14 @@ func parseOptions(args []string) (*options, error) {
 }
 
 // resolveTargetCollation 选择最合适的统一排序规则。
-// 用户显式指定优先；否则 MySQL 8.0+ 用 utf8mb4_0900_ai_ci，MySQL 5.7 用 utf8mb4_unicode_ci。
+// 优先级：--collation 显式值 > 项目配置 DBCollation > 按 MySQL 版本自动选择。
 func resolveTargetCollation(sqlDB *sql.DB, explicit string) (string, error) {
 	if explicit != "" {
 		return explicit, nil
+	}
+
+	if cfg := config.GetGlobalConfig(); cfg != nil && cfg.DBCollation != "" {
+		return cfg.DBCollation, nil
 	}
 
 	var version string

@@ -101,7 +101,32 @@ func InitDB() {
 		sqlDB.SetMaxIdleConns(10)
 	}
 
+	// MySQL 统一字符集/排序规则：防止后续 GORM AutoMigrate 新建表出现 utf8mb4_general_ci 等多 collation 混用。
+	if driver == "mysql" {
+		gdb = applyMySQLDefaults(gdb)
+	}
+
 	DB = gdb
+}
+
+// applyMySQLDefaults 为 GORM 设置统一的建表选项与连接排序规则。
+func applyMySQLDefaults(gdb *gorm.DB) *gorm.DB {
+	cfg := config.GlobalConfig
+	collation := config.DefaultMySQLCollation
+	if cfg != nil && cfg.DBCollation != "" {
+		collation = cfg.DBCollation
+	}
+
+	// gorm:table_options 会附加到所有由 GORM 生成的 CREATE TABLE 语句尾部，
+	// 确保即使数据库默认排序规则是 general_ci，新建表也使用项目指定规则。
+	gdb = gdb.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE="+collation)
+
+	// DSN 里已带 collation，但为兼容已有的连接池复用，再显式 SET NAMES 一次。
+	if err := gdb.Exec("SET NAMES utf8mb4 COLLATE " + collation).Error; err != nil {
+		log.Printf("[DB] 设置 MySQL 会话排序规则失败: %v", err)
+	}
+
+	return gdb
 }
 
 func sqliteOpenName(dsn string) string {
