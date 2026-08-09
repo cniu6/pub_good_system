@@ -106,17 +106,6 @@ function handleQuickClick(key: QuickAction) {
           <div v-if="displayAccount" class="mt-2px text-12px opacity-60 truncate">
             @{{ displayAccount }}
           </div>
-          <div v-if="userInfo?.id" class="mt-4px inline-flex cursor-pointer items-center gap-4px text-12px opacity-70 hover:opacity-100" @click="copyId">
-            <span class="font-medium">ID:</span>
-            <span class="id-value">{{ maskedId }}</span>
-            <IconCopy class="text-12px" />
-            <n-tooltip trigger="hover">
-              <template #trigger>
-                <span class="sr-only">{{ t('userCenter.copyId') }}</span>
-              </template>
-              {{ t('userCenter.copyId') }}
-            </n-tooltip>
-          </div>
         </div>
 
         <n-popover trigger="click" class="!p-0" style="width: auto" placement="bottom-end" arrow-point-to-center>
@@ -147,6 +136,19 @@ function handleQuickClick(key: QuickAction) {
             </div>
           </div>
         </n-popover>
+      </div>
+
+      <div v-if="userInfo?.id" class="mt-12px flex justify-center">
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <div class="id-row inline-flex cursor-pointer items-center gap-6px rounded-lg px-12px py-6px text-12px" @click="copyId">
+              <span class="opacity-70">ID:</span>
+              <span class="id-value font-medium opacity-90">{{ maskedId }}</span>
+              <IconCopy class="text-12px opacity-70" />
+            </div>
+          </template>
+          {{ t('userCenter.copyId') }}
+        </n-tooltip>
       </div>
     </div>
 
@@ -247,6 +249,15 @@ function handleQuickClick(key: QuickAction) {
 
 .id-value {
   font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+}
+
+.id-row {
+  background: var(--card-color);
+  transition: all 0.2s ease;
+}
+
+.id-row:hover {
+  background: var(--hover-color);
 }
 
 .switcher-trigger {
