@@ -11,6 +11,7 @@ import type { AdminUser, UserSimpleInfo } from '@/service/api/admin/user'
 import { adminApi } from '@/service/api/admin'
 import type { MoneyOperationPayload, WithdrawRecord } from '@/service/api/admin/finance'
 import { withSubmitLock } from '@/hooks'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
 import {
   formatTime,
   getAdminDisplayName,
@@ -32,6 +33,7 @@ export function useUserFinance(options: {
   const message = useMessage()
   const dialog = useDialog()
   const { t } = useI18n()
+  const { currencySymbol } = useBaseCurrency()
 
   const balanceForm = reactive({
     amount: 0,
@@ -168,7 +170,7 @@ export function useUserFinance(options: {
       title: t('adminUsers.amount'),
       key: 'amount',
       width: 100,
-      render: row => `¥${(Number(row.amount) || 0).toFixed(2)}`,
+      render: row => `${currencySymbol.value}${(Number(row.amount) || 0).toFixed(2)}`,
     },
     {
       title: t('adminUsers.status'),
@@ -258,7 +260,7 @@ export function useUserFinance(options: {
 
     const opLabel = balanceOperationLabel(balanceForm.operation)
     const amountText = needsAmount
-      ? `${money > 0 ? '+' : ''}¥${money.toFixed(2)}`
+      ? `${money > 0 ? '+' : ''}${currencySymbol.value}${money.toFixed(2)}`
       : t('adminUsers.noAmountChange')
     dialog.warning({
       title: t('adminUsers.confirmBalanceOpTitle'),

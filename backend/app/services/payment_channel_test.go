@@ -21,6 +21,7 @@ type stubPaymentChannel struct {
 	queryCalled   bool
 	lastNotifyURL string
 	lastReturnURL string
+	lastOrder     *models.PaymentOrder
 }
 
 func (s *stubPaymentChannel) Type() string { return s.typeName }
@@ -29,6 +30,8 @@ func (s *stubPaymentChannel) CreatePay(gateway *models.PayGateway, order *models
 	s.createCalled = true
 	s.lastNotifyURL = notifyURL
 	s.lastReturnURL = returnURL
+	orderCopy := *order
+	s.lastOrder = &orderCopy
 	return s.payURL, s.tradeNo, s.createErr
 }
 

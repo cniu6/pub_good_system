@@ -114,6 +114,26 @@ export const useSettingsStore = defineStore('settings-store', () => {
   // 在线心跳上报周期（秒），默认30秒；由管理端「在线用户」页可配置
   const onlineReportIntervalSeconds = computed(() => config.value?.online_report_interval_seconds ?? 30)
 
+  // 系统本位币（后端 app-config.base_currency，默认 CNY）
+  const baseCurrency = computed(() => config.value?.base_currency?.toUpperCase() ?? 'CNY')
+
+  // 根据本位币返回货币符号（CNY/USD/EUR/GBP/JPY 等常见币种）
+  const currencySymbol = computed(() => {
+    switch (baseCurrency.value) {
+      case 'CNY':
+      case 'JPY':
+        return '¥'
+      case 'USD':
+        return '$'
+      case 'EUR':
+        return '€'
+      case 'GBP':
+        return '£'
+      default:
+        return baseCurrency.value
+    }
+  })
+
   // ========================================
   // Actions
   // ========================================
@@ -217,6 +237,8 @@ export const useSettingsStore = defineStore('settings-store', () => {
     adminApiPath,
     presenceEnabled,
     onlineReportIntervalSeconds,
+    baseCurrency,
+    currencySymbol,
 
     // Actions
     loadConfig,

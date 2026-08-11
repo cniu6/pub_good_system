@@ -19,6 +19,7 @@ import {
 } from '@vicons/antd'
 import { useEcharts, useRequestGuard, useTableColumnVisibility } from '@/hooks'
 import type { ECOption } from '@/hooks'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
 import { adminApi } from '@/service/api/admin'
 import type {
   AdminDashboardRecentUser,
@@ -85,6 +86,7 @@ export function useAdminDashboard() {
   const dashboardFetchGuard = useRequestGuard()
   const alertOnlyIssues = ref(false)
   const lastRefreshAt = ref<number | null>(null)
+  const { currencySymbol } = useBaseCurrency()
 
   const statistics = reactive<AdminDashboardStatistics>({
     total_users: 0,
@@ -162,13 +164,13 @@ export function useAdminDashboard() {
       title: t('adminUsers.balance'),
       key: 'money',
       width: 120,
-      render: row => `¥${formatCurrency(row.money)}`,
+      render: row => `${currencySymbol.value}${formatCurrency(row.money)}`,
     },
     {
       title: t('adminDashboard.actualPaidAmount'),
       key: 'total_paid_amount',
       width: 140,
-      render: row => `¥${formatCurrency(row.total_paid_amount)}`,
+      render: row => `${currencySymbol.value}${formatCurrency(row.total_paid_amount)}`,
     },
     {
       title: t('adminDashboard.rechargeRetentionRatio'),
@@ -262,11 +264,11 @@ export function useAdminDashboard() {
       icon: markRaw(DollarOutlined),
       color: 'var(--success-color)',
       metrics: [
-        { key: 'today-payment-amount', label: t('adminPaymentOrders.todayRevenue'), value: statistics.today_payment_amount, precision: 2, prefix: '¥' },
-        { key: 'month-payment-amount', label: t('adminPaymentOrders.monthRevenue'), value: statistics.month_payment_amount, precision: 2, prefix: '¥' },
-        { key: 'year-payment-amount', label: t('adminPaymentOrders.yearRevenue'), value: statistics.year_payment_amount, precision: 2, prefix: '¥' },
-        { key: 'total-payment-amount', label: t('adminPaymentOrders.totalRevenue'), value: statistics.total_payment_amount, precision: 2, prefix: '¥' },
-        { key: 'total-user-balance', label: t('adminDashboard.totalUserBalance'), value: statistics.total_user_balance, precision: 2, prefix: '¥' },
+        { key: 'today-payment-amount', label: t('adminPaymentOrders.todayRevenue'), value: statistics.today_payment_amount, precision: 2, prefix: currencySymbol.value },
+        { key: 'month-payment-amount', label: t('adminPaymentOrders.monthRevenue'), value: statistics.month_payment_amount, precision: 2, prefix: currencySymbol.value },
+        { key: 'year-payment-amount', label: t('adminPaymentOrders.yearRevenue'), value: statistics.year_payment_amount, precision: 2, prefix: currencySymbol.value },
+        { key: 'total-payment-amount', label: t('adminPaymentOrders.totalRevenue'), value: statistics.total_payment_amount, precision: 2, prefix: currencySymbol.value },
+        { key: 'total-user-balance', label: t('adminDashboard.totalUserBalance'), value: statistics.total_user_balance, precision: 2, prefix: currencySymbol.value },
         { key: 'recharge-retention-ratio', label: t('adminDashboard.rechargeRetentionRatio'), value: totalRechargeRetentionRatio.value * 100, precision: 2, suffix: '%' },
         { key: 'total-payment-orders', label: t('adminPaymentOrders.totalOrders'), value: statistics.total_payment_orders, precision: 0 },
       ],

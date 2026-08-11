@@ -8,6 +8,7 @@ import IconLevel from '~icons/icon-park-outline/level'
 import IconSwitch from '~icons/icon-park-outline/switch'
 import IconCopy from '~icons/icon-park-outline/copy'
 import IconPeople from '~icons/icon-park-outline/people'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
 
 type QuickAction = 'userCenter' | 'settings' | 'dashboard'
 
@@ -29,6 +30,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const message = useMessage()
+const { currencySymbol } = useBaseCurrency()
 
 const displayName = computed(() => props.userInfo?.nickname || props.userInfo?.userName || t('userCenter.user'))
 const displayAccount = computed(() => props.userInfo?.userName || '')
@@ -162,7 +164,7 @@ function handleQuickClick(key: QuickAction) {
               {{ t('userCenter.balance') }}
             </div>
             <div class="text-14px font-bold text-[var(--primary-color)]">
-              ¥{{ Number(userInfo?.money || 0).toFixed(2) }}
+              {{ currencySymbol }}{{ Number(userInfo?.money || 0).toFixed(2) }}
             </div>
           </div>
         </n-grid-item>

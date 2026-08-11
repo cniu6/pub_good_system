@@ -5,6 +5,7 @@
 import { NTag } from 'naive-ui'
 import type { WithdrawRecord } from '@/service/api/admin/finance'
 import type { UserSimpleInfo } from '@/service/api/admin/user'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
 import {
   formatTime,
   getAdminDisplayName,
@@ -20,6 +21,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:show': [value: boolean]
 }>()
+
+const { currencySymbol } = useBaseCurrency()
 
 function adminName(id?: number | null) {
   return getAdminDisplayName(id, props.adminUserMap)
@@ -44,7 +47,7 @@ function adminName(id?: number | null) {
           {{ detail.user_id }}
         </n-descriptions-item>
         <n-descriptions-item :label="$t('moneyScore.withdrawAmount')">
-          ¥{{ Number(detail.amount).toFixed(2) }}
+          {{ currencySymbol }}{{ Number(detail.amount).toFixed(2) }}
         </n-descriptions-item>
         <n-descriptions-item :label="$t('moneyScore.status')">
           <NTag :type="getWithdrawStatusMeta(detail.status).type">

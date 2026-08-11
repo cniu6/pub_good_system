@@ -171,7 +171,7 @@ function bindFormRef(el: any) {
             <n-card :title="$t('adminUsers.currentBalance')" size="small">
               <n-statistic :label="$t('adminUsers.userBalance')" :value="selectedUser?.money || 0" :precision="2">
                 <template #prefix>
-                  ¥
+                  {{ settingsStore.currencySymbol }}
                 </template>
               </n-statistic>
             </n-card>

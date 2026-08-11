@@ -5,6 +5,9 @@ import {
   ReloadOutlined,
 } from '@vicons/antd'
 import { useAdminDashboard } from './composables/useAdminDashboard'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
+
+const { currencySymbol } = useBaseCurrency()
 
 const {
   t,
@@ -193,7 +196,7 @@ const {
               {{ statistics.paid_withdraw_count }}
             </n-descriptions-item>
             <n-descriptions-item :label="t('adminDashboard.paidWithdrawAmount')">
-              ¥{{ formatCurrency(statistics.paid_withdraw_amount) }}
+              {{ currencySymbol }}{{ formatCurrency(statistics.paid_withdraw_amount) }}
             </n-descriptions-item>
           </n-descriptions>
         </n-card>

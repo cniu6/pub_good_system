@@ -69,6 +69,8 @@ type AppConfigResponse struct {
 
 	UserAPILogVisible       bool `json:"user_api_log_visible"`
 	UserOperationLogVisible bool `json:"user_operation_log_visible"`
+	// BaseCurrency 系统本位币（默认 CNY）
+	BaseCurrency string `json:"base_currency"`
 }
 
 //@name 应用配置响应
@@ -249,6 +251,7 @@ func buildAppConfigResponse(settings []models.SystemSetting) *AppConfigResponse 
 	} else {
 		response.UserOperationLogVisible = true
 	}
+	response.BaseCurrency = services.GetBaseCurrency()
 
 	return response
 }

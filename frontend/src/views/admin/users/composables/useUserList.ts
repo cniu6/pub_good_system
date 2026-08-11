@@ -5,6 +5,7 @@ import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { NButton, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
 import type { DataTableColumns } from 'naive-ui'
 import { useRequestGuard, useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import {
@@ -56,6 +57,7 @@ export function useUserList(options?: {
   const loading = ref(false)
   /** 删除等危险写操作防连点 */
   const actionLock = ref(false)
+  const { currencySymbol } = useBaseCurrency()
 
   /** 跳转详情页（唯一入口，不再弹窗） */
   function handleViewUserDetail(user: AdminUser) {
@@ -197,7 +199,7 @@ export function useUserList(options?: {
       title: t('adminUsers.balance'),
       key: 'money',
       width: 100,
-      render: (row: AdminUser) => `¥${formatCurrency(row.money)}`,
+      render: (row: AdminUser) => `${currencySymbol.value}${formatCurrency(row.money)}`,
     },
     {
       title: t('adminUsers.rechargeRetentionRatio'),

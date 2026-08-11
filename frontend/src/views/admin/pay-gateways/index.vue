@@ -32,10 +32,12 @@ import type {
   PayGatewayCreateRequest,
 } from '@/service/api/admin/paygateway'
 import CurrencyPair from '@/components/common/CurrencyPair.vue'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
 
 const message = useMessage()
 const dialog = useDialog()
 const { t } = useI18n()
+const { currencySymbol } = useBaseCurrency()
 const listFetchGuard = useRequestGuard()
 
 const loading = ref(false)
@@ -199,7 +201,7 @@ const columns: DataTableColumns<PayGateway> = [
     title: t('adminPayGateways.amountRange'),
     key: 'amount_range',
     width: 140,
-    render: row => `¥${row.min_amount} - ¥${row.max_amount}`,
+    render: row => `${currencySymbol.value}${row.min_amount} - ${currencySymbol.value}${row.max_amount}`,
   },
   {
     title: t('adminPayGateways.fee'),
@@ -948,7 +950,7 @@ onMounted(() => {
             <n-form-item :label="t('adminPayGateways.minAmount')" path="min_amount">
               <n-input-number v-model:value="form.min_amount" :min="0" :precision="2" style="width: 100%">
                 <template #prefix>
-                  ¥
+                  {{ currencySymbol }}
                 </template>
               </n-input-number>
             </n-form-item>
@@ -957,7 +959,7 @@ onMounted(() => {
             <n-form-item :label="t('adminPayGateways.maxAmount')" path="max_amount">
               <n-input-number v-model:value="form.max_amount" :min="0" :precision="2" style="width: 100%">
                 <template #prefix>
-                  ¥
+                  {{ currencySymbol }}
                 </template>
               </n-input-number>
             </n-form-item>

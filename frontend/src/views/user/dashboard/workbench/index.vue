@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n'
 import { useMessage } from 'naive-ui'
 import { useAuthStore } from '@/store'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
 import { fetchDashboard } from '@/service'
 import AnnouncementPreviewModal from '@/components/common/AnnouncementPreviewModal.vue'
 import { userAnnouncementApi } from '@/service/api/user/announcement'
@@ -9,6 +10,7 @@ import { userAnnouncementApi } from '@/service/api/user/announcement'
 const authStore = useAuthStore()
 const { t } = useI18n()
 const message = useMessage()
+const { currencySymbol } = useBaseCurrency()
 const userInfo = computed(() => authStore.userInfo)
 
 const loading = ref(false)
@@ -139,7 +141,7 @@ onMounted(() => {
                   <template #header>
                     <n-statistic :label="t('workbench.balance')">
                       <template #prefix>
-                        ¥
+                        {{ currencySymbol }}
                       </template>
                       <n-number-animation show-separator :from="0" :to="Number(stats.money) || 0" :precision="2" />
                     </n-statistic>

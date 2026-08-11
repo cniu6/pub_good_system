@@ -113,7 +113,7 @@ async function handleSaveConfig() {
       currency_dynamic_source_url: configForm.currency_dynamic_source_url.trim(),
     })
     if (res.isSuccess) {
-      message.success(res.message || t('adminCurrency.configSaved'))
+      message.success(t('adminCurrency.configSaved'))
     }
     else {
       message.error(res.message || t('adminCurrency.configSaveFailed'))

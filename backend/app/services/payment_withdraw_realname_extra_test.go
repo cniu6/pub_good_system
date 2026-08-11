@@ -155,6 +155,119 @@ func TestCreatePaymentOrder_AllowsSameAmountPendingOrders(t *testing.T) {
 	}
 }
 
+// TestCreatePaymentOrder_ConvertsBaseCurrencyToGatewayCurrency 验证订单金额使用系统本位币，
+// 并在发给支付通道前转换为通道实际收款币种。
+func TestCreatePaymentOrder_ConvertsBaseCurrencyToGatewayCurrency(t *testing.T) {
+	cleanup := testutil.SetupSQLite(t)
+	defer cleanup()
+
+	old := GlobalSettingsService
+	t.Cleanup(func() { GlobalSettingsService = old })
+	GlobalSettingsService = &SettingsService{
+		cache: map[string]*models.SystemSetting{
+			"payment_enabled": {Key: "payment_enabled", Value: "true"},
+			"base_currency":   {Key: "base_currency", Value: "USD"},
+		},
+		cacheTime: time.Now(),
+		ttl:       time.Hour,
+	}
+
+	ClearPaymentChannels()
+	t.Cleanup(ClearPaymentChannels)
+	channel := &stubPaymentChannel{typeName: "stub", payURL: "https://pay.example/x", tradeNo: "TN-USD-CNY", verifyOK: true}
+	RegisterPaymentChannel(channel)
+
+	u := testutil.CreateTestUser(t, "pay-usd-cny-user")
+	gw := createTestPayGateway(t, 0, models.FeeModInclude)
+	gw.Currency = "CNY"
+	gw.ExtConfig = `{"target_currency":"CNY","exchange_rate_mode":"fixed","exchange_rate":7.2}`
+	if err := models.UpdatePayGateway(gw); err != nil {
+		t.Fatalf("更新测试支付通道失败: %v", err)
+	}
+
+	result, err := CreatePaymentOrder(u.ID, &CreatePaymentOrderRequest{
+		GatewayID: gw.ID,
+		Amount:    1,
+	}, "https://notify", "https://return")
+	if err != nil {
+		t.Fatalf("创建 USD 到 CNY 支付订单失败: %v", err)
+	}
+
+	if result.Currency != "USD" || result.Amount != 1 {
+		t.Fatalf("源订单金额错误: amount=%.2f currency=%s，期望 1.00 USD", result.Amount, result.Currency)
+	}
+	if result.TargetCurrency != "CNY" || result.TargetPayAmount != 7.2 {
+		t.Fatalf("目标支付金额错误: amount=%.2f currency=%s，期望 7.20 CNY", result.TargetPayAmount, result.TargetCurrency)
+	}
+	if channel.lastOrder == nil || channel.lastOrder.TargetPayAmount != 7.2 || channel.lastOrder.TargetCurrency != "CNY" {
+		t.Fatalf("支付通道未收到换算后的目标金额: %+v", channel.lastOrder)
+	}
+}
+
+// TestCreatePaymentOrder_ConvertsPlatformFeeBeforeGatewayPayment 验证平台手续费先计入用户应付金额，
+// 再统一换算为通道收款币种；用户余额仅增加扣除平台手续费后的到账金额。
+func TestCreatePaymentOrder_ConvertsPlatformFeeBeforeGatewayPayment(t *testing.T) {
+	tests := []struct {
+		name             string
+		feeMode          string
+		wantAmount       float64
+		wantPayAmount    float64
+		wantTargetAmount float64
+	}{
+		{name: "add 模式手续费由用户额外支付", feeMode: models.FeeModAdd, wantAmount: 100, wantPayAmount: 102, wantTargetAmount: 734.4},
+		{name: "include 模式手续费从充值金额内扣", feeMode: models.FeeModInclude, wantAmount: 98, wantPayAmount: 100, wantTargetAmount: 720},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cleanup := testutil.SetupSQLite(t)
+			defer cleanup()
+
+			old := GlobalSettingsService
+			t.Cleanup(func() { GlobalSettingsService = old })
+			GlobalSettingsService = &SettingsService{
+				cache: map[string]*models.SystemSetting{
+					"payment_enabled": {Key: "payment_enabled", Value: "true"},
+					"base_currency":   {Key: "base_currency", Value: "USD"},
+				},
+				cacheTime: time.Now(),
+				ttl:       time.Hour,
+			}
+
+			ClearPaymentChannels()
+			t.Cleanup(ClearPaymentChannels)
+			channel := &stubPaymentChannel{typeName: "stub", payURL: "https://pay.example/x", tradeNo: "TN-FEE", verifyOK: true}
+			RegisterPaymentChannel(channel)
+
+			u := testutil.CreateTestUser(t, "pay-fee-"+tt.feeMode)
+			gw := createTestPayGateway(t, 2, tt.feeMode)
+			gw.Currency = "CNY"
+			gw.ExtConfig = `{"target_currency":"CNY","exchange_rate_mode":"fixed","exchange_rate":7.2}`
+			if err := models.UpdatePayGateway(gw); err != nil {
+				t.Fatalf("更新测试支付通道失败: %v", err)
+			}
+
+			result, err := CreatePaymentOrder(u.ID, &CreatePaymentOrderRequest{
+				GatewayID: gw.ID,
+				Amount:    100,
+			}, "https://notify", "https://return")
+			if err != nil {
+				t.Fatalf("创建带平台手续费的支付订单失败: %v", err)
+			}
+
+			if result.Fee != 2 || result.Amount != tt.wantAmount || result.PayAmount != tt.wantPayAmount {
+				t.Fatalf("平台手续费结果错误: amount=%.2f fee=%.2f pay=%.2f", result.Amount, result.Fee, result.PayAmount)
+			}
+			if result.TargetPayAmount != tt.wantTargetAmount {
+				t.Fatalf("目标支付金额=%.2f，期望 %.2f", result.TargetPayAmount, tt.wantTargetAmount)
+			}
+			if channel.lastOrder == nil || channel.lastOrder.TargetPayAmount != tt.wantTargetAmount {
+				t.Fatalf("支付通道未收到正确的目标支付金额: %+v", channel.lastOrder)
+			}
+		})
+	}
+}
+
 // TestWithdrawServiceReview_ClearsBalanceDeductedOnReject 验证提现被拒绝退回预扣余额后，
 // balance_deducted 字段同步清零，避免字段语义与实际余额状态不一致。
 func TestWithdrawServiceReview_ClearsBalanceDeductedOnReject(t *testing.T) {

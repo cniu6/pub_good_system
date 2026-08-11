@@ -65,6 +65,9 @@ export interface AppConfig {
   user_api_log_visible?: boolean
   /** 用户中心是否展示操作日志 */
   user_operation_log_visible?: boolean
+
+  /** 系统本位币（ISO 4217 代码，如 CNY/USD/EUR） */
+  base_currency?: string
 }
 
 /**

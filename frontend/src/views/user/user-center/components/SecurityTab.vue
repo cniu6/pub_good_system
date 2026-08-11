@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { withSubmitLock } from '@/hooks'
 import { deactivateAccount, fetchUserSessions, fetchUserStats, revokeAllSessions, revokeSession } from '@/service'
 import { useAuthStore, useSettingsStore } from '@/store'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
 import NovaIcon from '@/components/common/NovaIcon.vue'
 import GeetestCaptcha from '@/components/common/GeetestCaptcha.vue'
 import { geetestManager } from '@/utils/geetest'
@@ -11,6 +12,7 @@ import { geetestManager } from '@/utils/geetest'
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 const { t } = useI18n()
+const { currencySymbol } = useBaseCurrency()
 const allowDeleteAccount = computed(() => settingsStore.allowDeleteAccount)
 
 interface SessionItem {
@@ -227,7 +229,7 @@ onMounted(() => {
           <n-grid-item>
             <n-statistic :label="t('securityTab.accountBalance')">
               <template #default>
-                ¥{{ stats?.money ? Number(stats.money).toFixed(2) : '0.00' }}
+                {{ currencySymbol }}{{ stats?.money ? Number(stats.money).toFixed(2) : '0.00' }}
               </template>
             </n-statistic>
           </n-grid-item>

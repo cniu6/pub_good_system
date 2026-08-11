@@ -9,10 +9,12 @@ import { adminApi } from '@/service/api/admin'
 import type { WithdrawRecord, WithdrawStats } from '@/service/api/admin/finance'
 import { adminUserApi } from '@/service/api/admin/user'
 import type { UserSimpleInfo } from '@/service/api/admin/user'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
 
 const message = useMessage()
 const dialog = useDialog()
 const { t } = useI18n()
+const { currencySymbol } = useBaseCurrency()
 const loading = ref(false)
 const submitting = ref(false)
 
@@ -98,7 +100,7 @@ const columns: DataTableColumns<WithdrawRecord> = [
     title: t('adminWithdraw.withdrawAmount'),
     key: 'amount',
     width: 120,
-    render: row => `¥${(Number(row.amount) || 0).toFixed(2)}`,
+    render: row => `${currencySymbol.value}${(Number(row.amount) || 0).toFixed(2)}`,
   },
   {
     title: t('adminWithdraw.status'),
@@ -429,7 +431,7 @@ onMounted(fetchData)
             <n-card size="small">
               <n-statistic :label="t('adminWithdraw.statPaidAmount')" :value="stats.paid_amount" :precision="2">
                 <template #prefix>
-                  ¥
+                  {{ currencySymbol }}
                 </template>
               </n-statistic>
             </n-card>
@@ -473,7 +475,7 @@ onMounted(fetchData)
               {{ currentRow.user_id }}
             </n-descriptions-item>
             <n-descriptions-item :label="t('adminWithdraw.withdrawAmount')">
-              ¥{{ Number(currentRow.amount).toFixed(2) }}
+              {{ currencySymbol }}{{ Number(currentRow.amount).toFixed(2) }}
             </n-descriptions-item>
             <n-descriptions-item :label="t('adminWithdraw.status')">
               <NTag :type="getStatusMeta(currentRow.status).type">
@@ -531,7 +533,7 @@ onMounted(fetchData)
             {{ currentRow.user_id }}
           </n-descriptions-item>
           <n-descriptions-item :label="t('adminWithdraw.withdrawAmount')">
-            ¥{{ Number(currentRow.amount).toFixed(2) }}
+            {{ currencySymbol }}{{ Number(currentRow.amount).toFixed(2) }}
           </n-descriptions-item>
           <n-descriptions-item :label="t('adminWithdraw.accountType')">
             {{ currentRow.account_type }}
@@ -589,7 +591,7 @@ onMounted(fetchData)
             {{ currentRow.user_id }}
           </n-descriptions-item>
           <n-descriptions-item :label="t('adminWithdraw.withdrawAmount')">
-            ¥{{ Number(currentRow.amount).toFixed(2) }}
+            {{ currencySymbol }}{{ Number(currentRow.amount).toFixed(2) }}
           </n-descriptions-item>
           <n-descriptions-item :label="t('adminWithdraw.accountType')">
             {{ currentRow.account_type }}

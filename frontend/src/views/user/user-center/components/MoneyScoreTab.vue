@@ -5,12 +5,14 @@ import { NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { createWithdrawRequest, fetchMyMoneyLogs, fetchMyScoreLogs, fetchMyWithdrawDetail, fetchMyWithdrawRecords } from '@/service/api/user/user-center'
 import { useSettingsStore } from '@/store'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
 import { parseMemo } from '@/utils/memo'
 import { useRequestGuard, withSubmitLock } from '@/hooks'
 
 const message = useMessage()
 const settingsStore = useSettingsStore()
 const { t } = useI18n()
+const { currencySymbol } = useBaseCurrency()
 const moneyFetchGuard = useRequestGuard()
 const scoreFetchGuard = useRequestGuard()
 const withdrawFetchGuard = useRequestGuard()
@@ -39,20 +41,20 @@ const moneyColumns: DataTableColumns<Entity.UserMoneyLog> = [
       const isPositive = money > 0
       return h('span', {
         style: { color: isPositive ? '#18a058' : '#d03050', fontWeight: '500' },
-      }, `${isPositive ? '+' : ''}¥${money.toFixed(2)}`)
+      }, `${isPositive ? '+' : ''}${currencySymbol.value}${money.toFixed(2)}`)
     },
   },
   {
     title: t('moneyScore.beforeChange'),
     key: 'before',
     width: 110,
-    render: row => `¥${(Number(row.before) || 0).toFixed(2)}`,
+    render: row => `${currencySymbol.value}${(Number(row.before) || 0).toFixed(2)}`,
   },
   {
     title: t('moneyScore.afterChange'),
     key: 'after',
     width: 110,
-    render: row => `¥${(Number(row.after) || 0).toFixed(2)}`,
+    render: row => `${currencySymbol.value}${(Number(row.after) || 0).toFixed(2)}`,
   },
   {
     title: t('moneyScore.remark'),
@@ -264,7 +266,7 @@ const withdrawColumns: DataTableColumns<Entity.WithdrawRecord> = [
     title: t('moneyScore.withdrawAmount'),
     key: 'amount',
     width: 120,
-    render: row => `¥${(Number(row.amount) || 0).toFixed(2)}`,
+    render: row => `${currencySymbol.value}${(Number(row.amount) || 0).toFixed(2)}`,
   },
   {
     title: t('moneyScore.status'),
@@ -547,7 +549,7 @@ onMounted(() => fetchMoneyLogs())
     <n-form :model="withdrawForm" label-placement="left" label-width="90">
       <n-form-item :label="t('moneyScore.minWithdrawAmount')">
         <n-text depth="3">
-          ¥{{ withdrawMinAmount.toFixed(2) }}
+          {{ currencySymbol }}{{ withdrawMinAmount.toFixed(2) }}
         </n-text>
       </n-form-item>
       <n-form-item :label="t('moneyScore.withdrawAmount')" required>
@@ -589,7 +591,7 @@ onMounted(() => fetchMoneyLogs())
             {{ currentWithdraw.id }}
           </n-descriptions-item>
           <n-descriptions-item :label="t('moneyScore.withdrawAmount')">
-            ¥{{ Number(currentWithdraw.amount).toFixed(2) }}
+            {{ currencySymbol }}{{ Number(currentWithdraw.amount).toFixed(2) }}
           </n-descriptions-item>
           <n-descriptions-item :label="t('moneyScore.status')">
             <NTag :type="getWithdrawStatusMeta(currentWithdraw.status).type" :bordered="false">

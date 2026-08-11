@@ -91,12 +91,14 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 		return nil, NewClientError("手续费配置异常，到账金额为 0，请联系管理员")
 	}
 
-	// 7. 转换为目标币种并计算目标通道手续费
-	orderCurrency := payment.NormalizeCurrency(gateway.Currency)
+	// 7. 订单源币种始终是系统本位币；通道 currency/target_currency 仅表示上游实际收款币种。
+	// 汇率换算必须以用户应付金额为基数：add 模式包含加收手续费，include 模式保持原支付总额。
+	// 余额实际到账仍使用 creditAmount，避免把手续费计入用户余额。
+	orderCurrency := payment.NormalizeCurrency(GetBaseCurrency())
 	if orderCurrency == "" {
 		orderCurrency = payment.DefaultBaseCurrency
 	}
-	targetResult, err := ConvertOrderAmountToTarget(creditAmount, orderCurrency, gateway)
+	targetResult, err := ConvertOrderAmountToTarget(payAmount, orderCurrency, gateway)
 	if err != nil {
 		return nil, NewClientError("货币转换失败: " + err.Error())
 	}

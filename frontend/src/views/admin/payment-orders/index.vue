@@ -8,10 +8,12 @@ import TableColumnSelector from '@/components/common/TableColumnSelector.vue'
 import { useRequestGuard, useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import { adminPaymentApi } from '@/service/api/admin/payment'
 import type { PaymentOrder, PaymentStats } from '@/service/api/admin/payment'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
 
 const message = useMessage()
 const dialog = useDialog()
 const { t } = useI18n()
+const { currencySymbol } = useBaseCurrency()
 const listFetchGuard = useRequestGuard()
 const detailFetchGuard = useRequestGuard()
 const statsFetchGuard = useRequestGuard()
@@ -100,7 +102,7 @@ const columns: DataTableColumns<PaymentOrder> = [
     title: t('adminUsers.amount'),
     key: 'amount',
     width: 100,
-    render: row => h('span', { style: { color: '#18a058', fontWeight: '500' } }, `¥${Number(row.amount).toFixed(2)}`),
+    render: row => h('span', { style: { color: '#18a058', fontWeight: '500' } }, `${currencySymbol.value}${Number(row.amount).toFixed(2)}`),
   },
   {
     title: t('recharge.paymentMethod'),
@@ -397,7 +399,7 @@ onMounted(() => {
         <n-card size="small">
           <n-statistic :label="t('adminPaymentOrders.todayRevenue')" :value="stats.today_amount" :precision="2">
             <template #prefix>
-              ¥
+              {{ currencySymbol }}
             </template>
           </n-statistic>
           <n-text depth="3" style="font-size: 12px">
@@ -409,7 +411,7 @@ onMounted(() => {
         <n-card size="small">
           <n-statistic :label="t('adminPaymentOrders.totalRevenue')" :value="stats.total_amount" :precision="2">
             <template #prefix>
-              ¥
+              {{ currencySymbol }}
             </template>
           </n-statistic>
           <n-text depth="3" style="font-size: 12px">
@@ -498,7 +500,7 @@ onMounted(() => {
                 {{ paymentTypeMap[detailOrder.payment_type] || detailOrder.payment_type }}
               </n-descriptions-item>
               <n-descriptions-item :label="t('adminUsers.amount')">
-                ¥{{ Number(detailOrder.amount).toFixed(2) }}
+                {{ currencySymbol }}{{ Number(detailOrder.amount).toFixed(2) }}
               </n-descriptions-item>
               <n-descriptions-item :label="t('adminPaymentOrders.orderTitle')">
                 {{ detailOrder.subject || '-' }}
@@ -542,7 +544,7 @@ onMounted(() => {
               {{ completeOrder.user_id }}
             </n-descriptions-item>
             <n-descriptions-item :label="t('adminUsers.amount')">
-              ¥{{ Number(completeOrder.amount).toFixed(2) }}
+              {{ currencySymbol }}{{ Number(completeOrder.amount).toFixed(2) }}
             </n-descriptions-item>
           </n-descriptions>
           <n-form-item :label="t('adminPaymentOrders.completeRemark')">

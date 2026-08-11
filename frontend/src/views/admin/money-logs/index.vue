@@ -9,10 +9,12 @@ import { adminMoneyLogApi, adminUserApi } from '@/service/api/admin/user'
 import { parseMemo } from '@/utils/memo'
 import I18nMemoEditor from '@/components/common/I18nMemoEditor.vue'
 import { useLedgerLogPage } from '../composables/useLedgerLogPage'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
 
 const message = useMessage()
 const dialog = useDialog()
 const { t } = useI18n()
+const { currencySymbol } = useBaseCurrency()
 const submitting = ref(false)
 
 const {
@@ -55,20 +57,20 @@ const columns: DataTableColumns<Entity.UserMoneyLog> = [
       const isPositive = money > 0
       return h('span', {
         style: { color: isPositive ? '#18a058' : '#d03050', fontWeight: '500' },
-      }, `${isPositive ? '+' : ''}¥${money.toFixed(2)}`)
+      }, `${isPositive ? '+' : ''}${currencySymbol.value}${money.toFixed(2)}`)
     },
   },
   {
     title: t('moneyScore.beforeChange'),
     key: 'before',
     width: 110,
-    render: row => `¥${(Number(row.before) || 0).toFixed(2)}`,
+    render: row => `${currencySymbol.value}${(Number(row.before) || 0).toFixed(2)}`,
   },
   {
     title: t('moneyScore.afterChange'),
     key: 'after',
     width: 110,
-    render: row => `¥${(Number(row.after) || 0).toFixed(2)}`,
+    render: row => `${currencySymbol.value}${(Number(row.after) || 0).toFixed(2)}`,
   },
   {
     title: t('moneyScore.remark'),
@@ -147,7 +149,7 @@ async function handleSubmit() {
     title: t('adminMoneyLogs.confirmChangeTitle'),
     content: t('adminMoneyLogs.confirmChangeContent', {
       userId,
-      amount: `${money > 0 ? '+' : ''}¥${money.toFixed(2)}`,
+      amount: `${money > 0 ? '+' : ''}${currencySymbol.value}${money.toFixed(2)}`,
     }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),

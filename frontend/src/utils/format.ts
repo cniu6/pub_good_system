@@ -83,3 +83,31 @@ export function formatPrettyJSON(raw?: string | null): string {
     return value
   }
 }
+
+/**
+ * 常见 ISO 4217 货币代码 → 符号映射
+ * 未知货币回退其大写代码本身
+ */
+export function getCurrencySymbol(currency?: string): string {
+  const code = (currency || 'CNY').toUpperCase()
+  const symbolMap: Record<string, string> = {
+    CNY: '¥',
+    USD: '$',
+    EUR: '€',
+    GBP: '£',
+    JPY: '¥',
+  }
+  return symbolMap[code] ?? code
+}
+
+/**
+ * 根据货币代码格式化金额
+ * @param currency ISO 4217 货币代码，缺省则按 CNY
+ * @param value 原始金额，支持 null/undefined
+ * @returns 带货币符号的两位小数字符串
+ */
+export function formatCurrency(currency: string | undefined, value: number | string | null | undefined): string {
+  const symbol = getCurrencySymbol(currency)
+  const amount = Number(value ?? 0)
+  return `${symbol}${amount.toFixed(2)}`
+}

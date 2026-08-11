@@ -277,6 +277,8 @@ type PublicAppConfig struct {
 	UserAPILogVisible bool `json:"user_api_log_visible"`
 	// UserOperationLogVisible 用户中心是否展示「操作日志」
 	UserOperationLogVisible bool `json:"user_operation_log_visible"`
+	// BaseCurrency 系统本位币（默认 CNY）
+	BaseCurrency string `json:"base_currency"`
 }
 
 // VerifyConfig 验证码功能开关运行时配置
@@ -971,6 +973,7 @@ func (s *SettingsService) GetPublicAppConfig() *PublicAppConfig {
 		OnlineReportIntervalSeconds: s.GetOnlinePresenceRuntimeConfig().ReportIntervalSeconds,
 		UserAPILogVisible:           s.GetBoolWithDefault("user_api_log_visible", true),
 		UserOperationLogVisible:     s.GetBoolWithDefault("user_operation_log_visible", true),
+		BaseCurrency:                GetBaseCurrency(),
 	}
 }
 

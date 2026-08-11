@@ -21,6 +21,7 @@ import { adminApi } from '@/service/api/admin'
 import type { WithdrawRecord } from '@/service/api/admin/finance'
 import { useRequestGuard, withSubmitLock } from '@/hooks'
 import WithdrawDetailModal from './components/WithdrawDetailModal.vue'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
 import {
   formatCurrency,
   formatLanguage,
@@ -40,6 +41,7 @@ const router = useRouter()
 const message = useMessage()
 const dialog = useDialog()
 const { t } = useI18n()
+const { currencySymbol } = useBaseCurrency()
 
 // 各 Tab 分页拉取各自独立的竞态保护（快速切页/切 Tab 时丢弃过期响应）
 const orderFetchGuard = useRequestGuard()
@@ -154,7 +156,7 @@ const orderColumns = [
     title: t('adminUsersDetail.amount'),
     key: 'amount',
     width: 100,
-    render: (row: PaymentOrder) => `¥${(Number(row.amount) || 0).toFixed(2)}`,
+    render: (row: PaymentOrder) => `${currencySymbol.value}${(Number(row.amount) || 0).toFixed(2)}`,
   },
   {
     title: t('adminUsersDetail.status'),
@@ -199,7 +201,7 @@ const moneyColumns = [
             fontWeight: '500',
           },
         },
-        `${isPositive ? '+' : ''}¥${money.toFixed(2)}`,
+        `${isPositive ? '+' : ''}${currencySymbol.value}${money.toFixed(2)}`,
       )
     },
   },
@@ -207,13 +209,13 @@ const moneyColumns = [
     title: t('adminUsersDetail.beforeChange'),
     key: 'before',
     width: 120,
-    render: (row: Entity.UserMoneyLog) => `¥${(Number(row.before) || 0).toFixed(2)}`,
+    render: (row: Entity.UserMoneyLog) => `${currencySymbol.value}${(Number(row.before) || 0).toFixed(2)}`,
   },
   {
     title: t('adminUsersDetail.afterChange'),
     key: 'after',
     width: 120,
-    render: (row: Entity.UserMoneyLog) => `¥${(Number(row.after) || 0).toFixed(2)}`,
+    render: (row: Entity.UserMoneyLog) => `${currencySymbol.value}${(Number(row.after) || 0).toFixed(2)}`,
   },
   { title: t('adminUsersDetail.remark'), key: 'memo', ellipsis: { tooltip: true }, render: (row: Entity.UserMoneyLog) => parseMemo(row.memo) },
   {
@@ -274,7 +276,7 @@ const withdrawColumns = [
     title: t('adminUsersDetail.withdrawAmount'),
     key: 'amount',
     width: 120,
-    render: (row: WithdrawRecord) => `¥${(Number(row.amount) || 0).toFixed(2)}`,
+    render: (row: WithdrawRecord) => `${currencySymbol.value}${(Number(row.amount) || 0).toFixed(2)}`,
   },
   {
     title: t('adminUsersDetail.status'),
@@ -887,7 +889,7 @@ onMounted(() => {
         <div class="user-stats">
           <div class="stat-item">
             <div class="stat-value">
-              ¥{{ (Number(user.money) || 0).toFixed(2) }}
+              {{ currencySymbol }}{{ (Number(user.money) || 0).toFixed(2) }}
             </div>
             <div class="stat-label">
               {{ t('adminUsersDetail.balance') }}
@@ -964,13 +966,13 @@ onMounted(() => {
             <n-card :title="t('adminUsersDetail.assetInfo')" class="info-section">
               <n-descriptions :column="2" bordered>
                 <n-descriptions-item :label="t('adminUsersDetail.balance')">
-                  <span class="money-amount">¥{{ formatCurrency(user?.money) }}</span>
+                  <span class="money-amount">{{ currencySymbol }}{{ formatCurrency(user?.money) }}</span>
                 </n-descriptions-item>
                 <n-descriptions-item :label="t('adminUsersDetail.score')">
                   <span class="score-amount">{{ user?.score || '0' }}</span>
                 </n-descriptions-item>
                 <n-descriptions-item :label="t('adminUsers.totalPaidAmount')">
-                  {{ Number(user?.total_paid_amount || 0) > 0 ? `¥${formatCurrency(user?.total_paid_amount)}` : '-' }}
+                  {{ Number(user?.total_paid_amount || 0) > 0 ? `${currencySymbol}${formatCurrency(user?.total_paid_amount)}` : '-' }}
                 </n-descriptions-item>
                 <n-descriptions-item :label="t('adminUsers.rechargeRetentionRatio')">
                   {{ formatRechargeRetentionRatio(user) }}

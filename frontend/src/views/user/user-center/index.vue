@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { withSubmitLock } from '@/hooks'
 import { useAuthStore, useSettingsStore } from '@/store'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
 import { fetchUpdateProfile, fetchUserProfile } from '@/service'
 import ProfileTab from './components/ProfileTab.vue'
 import ApiTab from './components/ApiTab.vue'
@@ -16,6 +17,7 @@ import NovaIcon from '@/components/common/NovaIcon.vue'
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 const { t } = useI18n()
+const { currencySymbol } = useBaseCurrency()
 
 const userInfo = computed(() => authStore.userInfo)
 const showApiLogsTab = computed(() => settingsStore.config?.user_api_log_visible !== false)
@@ -204,7 +206,7 @@ onActivated(() => {
               ID: {{ userInfo?.id || 'N/A' }}
             </n-tag>
             <n-tag type="warning" size="small">
-              {{ t('userCenter.balance') }}: ¥{{ userInfo?.money ? Number(userInfo.money).toFixed(2) : '0.00' }}
+              {{ t('userCenter.balance') }}: {{ currencySymbol }}{{ userInfo?.money ? Number(userInfo.money).toFixed(2) : '0.00' }}
             </n-tag>
             <n-tag type="primary" size="small">
               {{ t('userCenter.score') }}: {{ userInfo?.score || '0' }}

@@ -35,12 +35,14 @@ import {
 import type { PayGateway, PaymentOrder } from '@/service/api/user/payment'
 import { fetchUserProfile } from '@/service/api/user/login'
 import { useAuthStore } from '@/store'
+import { useBaseCurrency } from '@/composables/useBaseCurrency'
 import { useRequestGuard, withSubmitLock } from '@/hooks'
 
 const message = useMessage()
 const dialog = useDialog()
 const authStore = useAuthStore()
 const { t } = useI18n()
+const { currencySymbol } = useBaseCurrency()
 const ordersFetchGuard = useRequestGuard()
 const route = useRoute()
 
@@ -241,7 +243,7 @@ const columns: DataTableColumns<PaymentOrder> = [
     width: 140,
     render(row) {
       return h('div', { style: 'display:flex;flex-direction:column;gap:2px' }, [
-        h('span', { style: 'color:#18a058;font-weight:500' }, `¥${Number(row.amount).toFixed(2)}`),
+        h('span', { style: 'color:#18a058;font-weight:500' }, `${currencySymbol.value}${Number(row.amount).toFixed(2)}`),
         h('span', { style: 'font-size:12px;color:var(--primary-color)' }, t('recharge.actualPaid', { amount: Number(row.pay_amount).toFixed(2) })),
       ])
     },
@@ -716,7 +718,7 @@ onMounted(() => {
               {{ t('recharge.currentBalance') }}
             </NText>
             <div class="balance-value">
-              <span class="balance-currency">¥</span>
+              <span class="balance-currency">{{ currencySymbol }}</span>
               <span class="balance-number">{{ userBalance.toFixed(2) }}</span>
             </div>
           </div>
@@ -737,7 +739,7 @@ onMounted(() => {
                 :type="selectedAmount === amt ? 'primary' : 'default'"
                 @click="selectAmount(amt)"
               >
-                ¥{{ amt }}
+                {{ currencySymbol }}{{ amt }}
               </NButton>
             </NSpace>
 
@@ -753,7 +755,7 @@ onMounted(() => {
                 @update:value="onCustomAmountChange"
               >
                 <template #prefix>
-                  ¥
+                  {{ currencySymbol }}
                 </template>
               </NInputNumber>
 
@@ -917,15 +919,15 @@ onMounted(() => {
             </NDescriptionsItem>
             <NDescriptionsItem :label="t('recharge.rechargeAmount')">
               <NText type="success">
-                ¥{{ Number(selectedOrder.amount).toFixed(2) }}
+                {{ currencySymbol }}{{ Number(selectedOrder.amount).toFixed(2) }}
               </NText>
             </NDescriptionsItem>
             <NDescriptionsItem :label="t('recharge.fee')">
-              {{ selectedOrder.fee > 0 ? `¥${Number(selectedOrder.fee).toFixed(2)}` : t('recharge.none') }}
+              {{ selectedOrder.fee > 0 ? `${currencySymbol}${Number(selectedOrder.fee).toFixed(2)}` : t('recharge.none') }}
             </NDescriptionsItem>
             <NDescriptionsItem :label="t('recharge.actualPayment')">
               <NText type="info">
-                ¥{{ Number(selectedOrder.pay_amount).toFixed(2) }}
+                {{ currencySymbol }}{{ Number(selectedOrder.pay_amount).toFixed(2) }}
               </NText>
             </NDescriptionsItem>
             <NDescriptionsItem :label="t('recharge.paymentMethod')">
