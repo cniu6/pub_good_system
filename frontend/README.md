@@ -1,131 +1,43 @@
-# Shadcn Vue Admin
+<div align="center">
+    <h1>F.st Admin</h1>
+    <p>基于 Vue3 · Vite · TypeScript · Naive UI 的后台管理前端</p>
+</div>
 
-[![code style](https://antfu.me/badge-code-style.svg)](https://github.com/antfu/eslint-config)
+## 介绍
 
-[中文](./README-CN.md)
+F.st 前端是 [F.st (Full Stack Template)](../README.md) 项目的管理后台与用户中心界面，基于 Vue3、Vite、TypeScript、Naive UI 构建，配合 Go(Gin) 后端一起使用，前后端分离，也支持打包为单二进制同源部署。
 
-Forked from [shadcn-admin](https://github.com/satnaing/shadcn-admin)
+## 特性
 
-Admin Dashboard UI crafted with Shadcn-vue, Vue3 and Vite. Built with responsiveness and accessibility in mind.
+- 基于 Vue3、Vite、TypeScript、NaiveUI、UnoCSS 等主流技术栈开发
+- 基于 [alova](https://alova.js.org/) 封装和配置，提供统一的响应处理和多场景能力
+- 完善的前后端权限管理方案（用户端 / 管理端分离鉴权）
+- 支持本地静态路由和后台返回动态路由，路由简单易配置
+- 对日常使用频率较高的组件二次封装，满足基础工作需求
+- 黑暗主题适配，界面样式保持 Naive 风格
+- 多语言（i18n）支持（中文 / 英文）
 
-![cover](public/shadcn-vue-admin.png)
+## 安装使用
 
-This is not a starter project (template) though. More components will be added later.
-
-## Features
-
-- [x] Light/Dark Mode
-- [x] Global Search Command
-- [x] shadcn-ui sidebar
-- [x] 8+ pages
-- [x] some custom components
-- [x] auto generate routes
-
-## Tech Stack
-
-ui:
-
-- [inspira-ui](https://inspira-ui.com/components/box-reveal)
-- [shadcn-vue](https://www.shadcn-vue.com)
-
-Build Tool:
-
-- [Vite](https://cn.vitejs.dev/)
-
-State Management:
-
-- [pinia](https://pinia.vuejs.org/api/pinia/)
-- [persistedstate](https://prazdevs.github.io/pinia-plugin-persistedstate/guide/limitations.html)
-
-Styling:
-
-- [Tailwind CSS](https://tailwindcss.com/)
-
-Unplugins:
-
-- [Auto Import](https://github.com/antfu/unplugin-auto-import)
-- [Components](https://github.com/antfu/unplugin-vue-components)
-- [vite-plugin-pages](https://github.com/hannoeru/vite-plugin-pages) [Deprecation]
-- [unplugin-vue-router](https://github.com/posva/unplugin-vue-router)
-- [Vite Plugin Vue Layouts](https://github.com/JohnCampionJr/vite-plugin-vue-layouts)
-- [Vite Plugin Vue Devtools](https://github.com/webfansplz/vite-plugin-vue-devtools)
-
-Icons:
-
-- [Lucide](https://lucide.dev/)
-
-Linting:
-
-- [ESLint](https://eslint.org/)
-- [antfu/eslint-config](https://github.com/antfu/eslint-config)
-
-Charts:
-
-- [vue-chrts](https://github.com/dennisadriaans/vue-chrts)
-  > If you use tailwindcss v4, shadcn-vue charts is 'Legacy'. We now use this library instead.
-
-## Run locally
-
-Clone the project
+本地开发环境建议使用 pnpm 10.x、Node.js 21.x
 
 ```bash
-git clone https://github.com/Whbbit1999/shadcn-vue-admin.git
-```
+# 安装依赖
+pnpm i
 
-Go to the project directory
-
-```bash
-cd shadcn-vue-admin
-```
-
-Install dependencies
-
-```bash
-pnpm install
-```
-
-Start the development server
-
-```bash
+# 开发
 pnpm dev
+
+# 构建产物
+pnpm build
 ```
 
-## Author
+环境变量说明见 `.env.example`；仅本地开发用的敏感配置放在 `.env`（不提交版本库）。
 
-Created by [Whbbit](https://github.com/Whbbit1999), Design by [shadcn-admin](https://github.com/satnaing/shadcn-admin)
+## 目录结构
 
-## Tips
+详见项目根目录 [README.md](../README.md) 与 [frontend/留档.md](./留档.md)。
 
-### Theme Customization
+## 协议
 
-If you need to change the website style, you can use the preset styles provided by [tweakcn](https://tweakcn.com/editor/theme). You only need to copy the css variables provided by tweakcn to `index.css` and change the `:root` `:dark` and `@theme inline` parts.
-
-### No `index.vue` in nested directories and don't want to use the default layout
-
-For example, I don't want the pages in the `pages/errors/` and `pages/auth/` folders to use the default layout. I need to create a file in `pages/` with the same name as the directory, `src/pages/errors.vue` `src/pages/auth.vue`, with the following file contents.
-
-```vue
-<template>
-  <router-view />
-</template>
-
-<route lang="yml">
-meta:
-  layout: false # This is the layout you want. I use false here to indicate that it does not need layout components.
-</route>
-```
-
-> This will result in an extra route being generated. In this example, if you follow the above steps, redundant `/error/` and `/auth/` routes will be generated, and these two pages will be blank pages.
-> If you don't need them and there is no `index.vue` in the directory, you can create an `index.vue` file in the directory and redirect it to any page.
-> I redirect it to `/errors/404` here, you can handle it according to your situation. The content of the `index.vue` file is as follows:
-
-```vue
-<script lang="ts" setup>
-const router = useRouter()
-router.replace({ name: '/errors/404' })
-</script>
-```
-
-## License
-
-[MIT](https://github.com/Whbbit1999/shadcn-vue-admin/blob/main/LICENSE)
+[MIT](LICENSE)

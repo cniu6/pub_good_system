@@ -310,15 +310,15 @@ fetchRegister(data) // 使用封装好的API
 | 用户模型 | `backend/app/models/user.go` |
 | 验证码模型 | `backend/app/models/verification_code.go` |
 | 邮件模板 | `backend/app/models/email.go` |
-| 认证控制器 | `backend/app/controllers/auth_controller.go` |
-| 系统控制器 | `backend/app/controllers/system_controller.go` |
+| 认证控制器 | `backend/app/controllers/public/auth/auth_controller.go` |
+| 系统控制器 | `backend/app/controllers/system/system/system_controller.go` |
 | 认证中间件 | `backend/pkg/middleware/auth.go` |
 | CORS中间件 | `backend/pkg/middleware/cors.go` |
 | 配置管理 | `backend/pkg/config/config.go` |
 | 数据库初始化 | `backend/pkg/db/db.go` |
 | 路由定义 | `backend/routes/routes.go` |
 | 插件接口 | `backend/app/plugins/interface.go` |
-| 前端请求封装 | `frontend/src/service/request.ts` |
+| 前端请求封装 | `frontend/src/service/http/`（alova.ts / handle.ts / token-refresh.ts） |
 | 前端API定义 | `frontend/src/service/api/user/*.ts`, `frontend/src/service/api/admin/*.ts` |
 
 ---

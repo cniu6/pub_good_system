@@ -15,7 +15,7 @@
 - 管理端 REST 组前缀：`ADMIN_API_PATH`（默认 `/admin`）→ `/api/v1{ADMIN_API_PATH}`。
 - 页面入口 `ADMIN_PATH` **不**在 API 路由里注册。
 - Scalar：`ScalarAdminPathRewriteMiddleware` 按运行时前缀改写 `openapi.json`。
-- 详细说明见 [管理端路径与Scalar自适应.md](./管理端路径与Scalar自适应.md)。
+- 详细说明见 [管理端路径与Swagger自适应.md](./管理端路径与Swagger自适应.md)。
 
 当前路由树：
 
@@ -690,4 +690,4 @@ func (ctrl *UserController) GetUser(c *gin.Context) {
 ---
 
 > 📝 **最后更新**: 2026-08-09  
-> 如有疑问，请参考 `backend/routes/routes.go` 与 [管理端路径与Scalar自适应.md](./管理端路径与Scalar自适应.md)。
+> 如有疑问，请参考 `backend/routes/routes.go` 与 [管理端路径与Swagger自适应.md](./管理端路径与Swagger自适应.md)。
