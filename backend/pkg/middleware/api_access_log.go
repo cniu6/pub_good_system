@@ -38,15 +38,27 @@ func shouldSkipAPIAccessLog(path string) bool {
 		return true
 	}
 	// pprof 二进制输出体积大，跳过访问日志
+	if strings.HasPrefix(path, adminAPIBasePath()+"/debug/pprof") {
+		return true
+	}
 	return false
 }
 
 // isPaymentCallbackPath 判断是否为支付回调接口。
-// 这些路径的 body 与 query 携带支付签名（部分通道签名在 query 里），签名在时间窗内可重放，
-// 因此访问日志只保留元信息，不落签名明文。
+// 签名可能位于请求体、query 或请求头，日志只保留排查所需的信息。
 func isPaymentCallbackPath(path string) bool {
-	return strings.HasPrefix(path, "/api/v1/public/payment/notify") ||
+	const notifyPath = "/api/v1/public/payment/notify"
+	return path == notifyPath || strings.HasPrefix(path, notifyPath+"/") ||
 		path == "/api/v1/public/payment/return"
+}
+
+// accessLogRequestMetadata 仅省略回调的日志副本，不修改业务验签所需的请求头。
+// Referer 也可能包含带签名的完整回调 URL，不能通过另一字段重新落库。
+func accessLogRequestMetadata(c *gin.Context) (*string, string) {
+	if isPaymentCallbackPath(c.Request.URL.Path) {
+		return nil, ""
+	}
+	return captureRequestHeaders(c.Request.Header), truncateForLog(c.Request.Referer(), 500)
 }
 
 // accessLogQueryString 返回可入库的 query：支付回调的签名参数打码后落盘。
@@ -58,7 +70,7 @@ func accessLogQueryString(c *gin.Context) string {
 	return redactPaymentQuery(raw)
 }
 
-// redactPaymentQuery 将回调 query 中的签名类参数打码，订单号/金额/状态照原样保留。
+// redactPaymentQuery 仅保留对账字段，其余值打码，避免新通道凭据因不在黑名单而漏出。
 func redactPaymentQuery(raw string) string {
 	if strings.TrimSpace(raw) == "" {
 		return ""
@@ -68,8 +80,10 @@ func redactPaymentQuery(raw string) string {
 		return "[query omitted: payment callback]"
 	}
 	for key := range values {
-		switch strings.ToLower(key) {
-		case "sign", "signature", "hmac", "auth":
+		switch key {
+		case "pid", "out_trade_no", "trade_no", "type", "money", "trade_status", "sign_type":
+			// 与回调解析器一致，仅保留标准对账字段。
+		default:
 			values.Set(key, "***")
 		}
 	}
@@ -374,10 +388,10 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 		requestContentType := truncateForLog(normalizeContentType(c.GetHeader("Content-Type")), 255)
 		responseContentType := truncateForLog(normalizeContentType(blw.Header().Get("Content-Type")), 255)
 		transport := resolveAPITransport(c, requestBody, responseContentType)
-		// 按产品要求：访问日志明文落库敏感字段，仅做长度截断
+		// 普通接口按产品要求保留明文；支付回调例外，省略签名可能出现的原始载荷。
 		responseBody := truncateResponseBodyByType(blw.body.String(), responseContentType, transport, c.Writer.Status())
 		requestBody = truncateForLog(requestBody, maxLogStoredBodyBytes)
-		requestHeaders := captureRequestHeaders(c.Request.Header)
+		requestHeaders, referer := accessLogRequestMetadata(c)
 		pathParams := sanitizePathParams(c.Params)
 
 		var userID uint64
@@ -439,7 +453,7 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 			XForwardedFor:       xForwardedFor,
 			XRealIP:             xRealIP,
 			UserAgent:           truncateForLog(c.Request.UserAgent(), 1000),
-			Referer:             truncateForLog(c.Request.Referer(), 500),
+			Referer:             referer,
 			RequestHeaders:      requestHeaders,
 			RequestBody:         &requestBody,
 			ResponseBody:        &responseBody,
