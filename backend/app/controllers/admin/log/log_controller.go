@@ -4,7 +4,6 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/utils"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -78,9 +77,8 @@ func (c *LogController) List(ctx *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/logs/{id} [get]
 func (c *LogController) Detail(ctx *gin.Context) {
-	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(ctx, 400, "无效的 ID")
+	id, ok := utils.ParamID(ctx, "id")
+	if !ok {
 		return
 	}
 
@@ -140,4 +138,3 @@ func (c *LogController) Stats(ctx *gin.Context) {
 	}
 	utils.Success(ctx, stats)
 }
-

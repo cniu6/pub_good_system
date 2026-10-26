@@ -22,18 +22,6 @@ func TestNormalizePagination(t *testing.T) {
 	}
 }
 
-func TestNormalizePaginationWithLimits(t *testing.T) {
-	page, pageSize := NormalizePaginationWithLimits(0, 0, 50, 200)
-	if page != 1 || pageSize != 50 {
-		t.Errorf("got (%d,%d), want (1,50)", page, pageSize)
-	}
-	// maxSize <= 0 表示不限制上限
-	page, pageSize = NormalizePaginationWithLimits(1, 99999, 50, 0)
-	if pageSize != 99999 {
-		t.Errorf("maxSize<=0 应不限制上限，got %d", pageSize)
-	}
-}
-
 func TestNormalizeTimeRange(t *testing.T) {
 	// 全部默认：结束=当前，开始=结束-30天
 	start, end, err := NormalizeTimeRange(0, 0, 30, 365)

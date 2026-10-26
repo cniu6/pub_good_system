@@ -25,10 +25,6 @@ func adminUserID(c *gin.Context) uint64 {
 	return id
 }
 
-func parseAnnouncementID(c *gin.Context) (uint64, error) {
-	return strconv.ParseUint(c.Param("id"), 10, 64)
-}
-
 func normalizeAnnouncementType(t string) string {
 	switch strings.ToLower(strings.TrimSpace(t)) {
 	case "success", "warning", "error":
@@ -44,9 +40,7 @@ func normalizeAnnouncementType(t string) string {
 // @Security BearerAuth
 // @Router /v1/admin/announcements [get]
 func (ctrl *AnnouncementController) List(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = utils.NormalizePagination(page, pageSize)
+	page, pageSize := utils.QueryPage(c)
 	keyword := strings.TrimSpace(c.Query("keyword"))
 	typ := strings.TrimSpace(c.Query("type"))
 	var statusPtr *uint8
@@ -71,9 +65,8 @@ func (ctrl *AnnouncementController) List(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/announcements/{id} [get]
 func (ctrl *AnnouncementController) Detail(c *gin.Context) {
-	id, err := parseAnnouncementID(c)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid id")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 	a, err := models.GetAnnouncementByID(id)
@@ -165,9 +158,8 @@ func (ctrl *AnnouncementController) Create(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/announcements/{id} [put]
 func (ctrl *AnnouncementController) Update(c *gin.Context) {
-	id, err := parseAnnouncementID(c)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid id")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 	existing, err := models.GetAnnouncementByID(id)
@@ -219,9 +211,8 @@ func (ctrl *AnnouncementController) Update(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/announcements/{id}/publish [post]
 func (ctrl *AnnouncementController) Publish(c *gin.Context) {
-	id, err := parseAnnouncementID(c)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid id")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 	if _, err := models.GetAnnouncementByID(id); err != nil {
@@ -265,9 +256,8 @@ func (ctrl *AnnouncementController) Publish(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/announcements/{id}/unpublish [post]
 func (ctrl *AnnouncementController) Unpublish(c *gin.Context) {
-	id, err := parseAnnouncementID(c)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid id")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 	if err := models.SetAnnouncementStatus(id, models.AnnouncementStatusUnpublished, adminUserID(c)); err != nil {
@@ -285,9 +275,8 @@ func (ctrl *AnnouncementController) Unpublish(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/announcements/{id} [delete]
 func (ctrl *AnnouncementController) Delete(c *gin.Context) {
-	id, err := parseAnnouncementID(c)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid id")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 	if err := models.SoftDeleteAnnouncement(id, adminUserID(c)); err != nil {

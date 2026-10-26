@@ -3,7 +3,6 @@ package emaillog
 import (
 	"fst/backend/app/models"
 	"fst/backend/utils"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -71,9 +70,8 @@ func (ctrl *EmailLogController) List(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/email-logs/{id} [get]
 func (ctrl *EmailLogController) Detail(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid ID")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -152,4 +150,3 @@ func (ctrl *EmailLogController) TemplateNames(c *gin.Context) {
 
 	utils.Success(c, names)
 }
-

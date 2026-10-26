@@ -40,9 +40,7 @@ type PayWithdrawBody struct {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/withdraw [get]
 func (ctrl *WithdrawController) List(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = utils.NormalizePagination(page, pageSize)
+	page, pageSize := utils.QueryPage(c)
 	userID, _ := strconv.ParseUint(c.DefaultQuery("user_id", "0"), 10, 64)
 	keyword := utils.Clean_XSS(c.DefaultQuery("keyword", ""))
 
@@ -112,9 +110,8 @@ func (ctrl *WithdrawController) Stats(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/withdraw/{id} [get]
 func (ctrl *WithdrawController) Detail(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid ID")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 	item, err := ctrl.withdrawService.GetByID(id)
@@ -163,9 +160,8 @@ func (ctrl *WithdrawController) Review(c *gin.Context) {
 		return
 	}
 
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid ID")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -205,9 +201,8 @@ func (ctrl *WithdrawController) MarkPaid(c *gin.Context) {
 		return
 	}
 
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid ID")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 

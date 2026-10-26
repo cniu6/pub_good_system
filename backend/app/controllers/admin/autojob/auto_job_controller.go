@@ -264,9 +264,7 @@ func (ctrl *AutoJobController) ListRunning(c *gin.Context) {
 // @Router /v1/admin/auto-jobs/runs [get]
 func (ctrl *AutoJobController) ListRuns(c *gin.Context) {
 	utils.SanitizeQueryParams(c)
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = utils.NormalizePagination(page, pageSize)
+	page, pageSize := utils.QueryPage(c)
 	keyword := strings.TrimSpace(c.Query("keyword"))
 	status := strings.TrimSpace(c.Query("status"))
 	category := strings.TrimSpace(c.Query("category"))
@@ -293,9 +291,8 @@ func (ctrl *AutoJobController) ListRuns(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/auto-jobs/runs/{id} [get]
 func (ctrl *AutoJobController) RunDetail(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid ID")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 	run, err := task.GetRun(id)
@@ -318,9 +315,7 @@ func (ctrl *AutoJobController) RunDetail(c *gin.Context) {
 // @Router /v1/admin/auto-jobs/runs/kept [get]
 func (ctrl *AutoJobController) ListKeptRuns(c *gin.Context) {
 	utils.SanitizeQueryParams(c)
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = utils.NormalizePagination(page, pageSize)
+	page, pageSize := utils.QueryPage(c)
 	keyword := strings.TrimSpace(c.Query("keyword"))
 	status := strings.TrimSpace(c.Query("status"))
 	category := strings.TrimSpace(c.Query("category"))

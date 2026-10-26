@@ -8,7 +8,6 @@ import (
 	"fst/backend/pkg/middleware"
 	"fst/backend/utils"
 	"log"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -82,9 +81,8 @@ func (c *RealnameController) List(ctx *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/realname/{id} [get]
 func (c *RealnameController) Detail(ctx *gin.Context) {
-	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(ctx, 400, "无效的ID")
+	id, ok := utils.ParamID(ctx, "id")
+	if !ok {
 		return
 	}
 
@@ -111,9 +109,8 @@ func (c *RealnameController) Detail(ctx *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/realname/{id}/reveal-certificate [post]
 func (c *RealnameController) RevealCertificate(ctx *gin.Context) {
-	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(ctx, 400, "无效的ID")
+	id, ok := utils.ParamID(ctx, "id")
+	if !ok {
 		return
 	}
 	verification, err := c.realnameService.GetByID(id)

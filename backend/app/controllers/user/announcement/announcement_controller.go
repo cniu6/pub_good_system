@@ -20,10 +20,6 @@ func NewAnnouncementController() *AnnouncementController {
 	return &AnnouncementController{userSvc: services.NewUserService()}
 }
 
-func userIDFromCtx(c *gin.Context) (uint64, bool) {
-	return utils.GetUserID(c)
-}
-
 func (ctrl *AnnouncementController) userRole(uid uint64) string {
 	u, err := ctrl.userSvc.GetByID(uid)
 	if err != nil || u == nil {
@@ -42,7 +38,7 @@ func (ctrl *AnnouncementController) userRole(uid uint64) string {
 // @Success 200 {object} utils.Response
 // @Router /v1/user/announcements [get]
 func (ctrl *AnnouncementController) List(c *gin.Context) {
-	uid, ok := userIDFromCtx(c)
+	uid, ok := utils.GetUserID(c)
 	if !ok {
 		utils.Fail(c, 401, "Unauthorized")
 		return
@@ -87,7 +83,7 @@ func (ctrl *AnnouncementController) List(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/user/announcements/{id} [get]
 func (ctrl *AnnouncementController) Detail(c *gin.Context) {
-	uid, ok := userIDFromCtx(c)
+	uid, ok := utils.GetUserID(c)
 	if !ok {
 		utils.Fail(c, 401, "Unauthorized")
 		return
@@ -96,9 +92,8 @@ func (ctrl *AnnouncementController) Detail(c *gin.Context) {
 		utils.Fail(c, 404, "Announcement not found")
 		return
 	}
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid id")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 	item, err := models.GetVisibleAnnouncementForUser(uid, id, ctrl.userRole(uid))
@@ -116,14 +111,13 @@ func (ctrl *AnnouncementController) Detail(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/user/announcements/{id}/read [post]
 func (ctrl *AnnouncementController) MarkRead(c *gin.Context) {
-	uid, ok := userIDFromCtx(c)
+	uid, ok := utils.GetUserID(c)
 	if !ok {
 		utils.Fail(c, 401, "Unauthorized")
 		return
 	}
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid id")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 	// 必须可见才允许记已读
@@ -146,7 +140,7 @@ func (ctrl *AnnouncementController) MarkRead(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/user/announcements/read-all [post]
 func (ctrl *AnnouncementController) MarkAllRead(c *gin.Context) {
-	uid, ok := userIDFromCtx(c)
+	uid, ok := utils.GetUserID(c)
 	if !ok {
 		utils.Fail(c, 401, "Unauthorized")
 		return
@@ -178,7 +172,7 @@ func (ctrl *AnnouncementController) RegisterRoutes(group *gin.RouterGroup) {
 // @Success 200 {object} utils.Response
 // @Router /v1/user/announcements/unread-count [get]
 func (ctrl *AnnouncementController) UnreadCount(c *gin.Context) {
-	uid, ok := userIDFromCtx(c)
+	uid, ok := utils.GetUserID(c)
 	if !ok {
 		utils.Fail(c, 401, "Unauthorized")
 		return

@@ -36,9 +36,8 @@ func NewUserMoneyScoreController() *UserMoneyScoreController {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/users/{id}/money/change [post]
 func (ctrl *UserMoneyScoreController) ChangeMoney(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid user ID format")
+	userID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -71,9 +70,8 @@ func (ctrl *UserMoneyScoreController) ChangeMoney(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/users/{id}/money [put]
 func (ctrl *UserMoneyScoreController) SetMoney(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid user ID format")
+	userID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -102,9 +100,8 @@ func (ctrl *UserMoneyScoreController) SetMoney(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/users/{id}/money/log [post]
 func (ctrl *UserMoneyScoreController) AddMoneyLog(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid user ID format")
+	userID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -137,9 +134,8 @@ func (ctrl *UserMoneyScoreController) AddMoneyLog(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/users/{id}/money/operate [post]
 func (ctrl *UserMoneyScoreController) OperateMoney(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid user ID format")
+	userID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -194,9 +190,7 @@ func (ctrl *UserMoneyScoreController) OperateMoney(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/money-logs [get]
 func (ctrl *UserMoneyScoreController) MoneyLogList(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = utils.NormalizePagination(page, pageSize)
+	page, pageSize := utils.QueryPage(c)
 	keyword := c.DefaultQuery("keyword", "")
 	userIDFilter, _ := strconv.ParseUint(c.DefaultQuery("user_id", "0"), 10, 64)
 
@@ -217,9 +211,8 @@ func (ctrl *UserMoneyScoreController) MoneyLogList(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/money-logs/{id} [get]
 func (ctrl *UserMoneyScoreController) MoneyLogDetail(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid record ID format")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -239,9 +232,8 @@ func (ctrl *UserMoneyScoreController) MoneyLogDetail(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/money-logs/{id} [delete]
 func (ctrl *UserMoneyScoreController) MoneyLogDelete(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid record ID format")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -269,9 +261,8 @@ func (ctrl *UserMoneyScoreController) MoneyLogDelete(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/users/{id}/score/change [post]
 func (ctrl *UserMoneyScoreController) ChangeScore(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid user ID format")
+	userID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -300,9 +291,8 @@ func (ctrl *UserMoneyScoreController) ChangeScore(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/users/{id}/score [put]
 func (ctrl *UserMoneyScoreController) SetScore(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid user ID format")
+	userID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -331,9 +321,8 @@ func (ctrl *UserMoneyScoreController) SetScore(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/users/{id}/score/log [post]
 func (ctrl *UserMoneyScoreController) AddScoreLog(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid user ID format")
+	userID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -362,9 +351,7 @@ func (ctrl *UserMoneyScoreController) AddScoreLog(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/score-logs [get]
 func (ctrl *UserMoneyScoreController) ScoreLogList(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = utils.NormalizePagination(page, pageSize)
+	page, pageSize := utils.QueryPage(c)
 	keyword := c.DefaultQuery("keyword", "")
 	userIDFilter, _ := strconv.ParseUint(c.DefaultQuery("user_id", "0"), 10, 64)
 
@@ -385,9 +372,8 @@ func (ctrl *UserMoneyScoreController) ScoreLogList(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/score-logs/{id} [get]
 func (ctrl *UserMoneyScoreController) ScoreLogDetail(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid record ID format")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -407,9 +393,8 @@ func (ctrl *UserMoneyScoreController) ScoreLogDetail(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/score-logs/{id} [delete]
 func (ctrl *UserMoneyScoreController) ScoreLogDelete(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid record ID format")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 

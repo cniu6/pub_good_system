@@ -27,12 +27,8 @@ func ResolveRequestLang(c *gin.Context, reqLang, defaultLang string) string {
 	return "en-US"
 }
 
-// GetUserID 从 gin.Context 里取出 AuthMiddleware 写入的 userID。
-// 中间件里写入的是 uint64（见 pkg/middleware/auth.go），这里额外兼容 int64/float64/int 只是防御性写法
-// （历史上多个 controller 各自写了一份几乎一样的 type switch，这里统一收敛成一个函数）。
-// exists=false 表示 context 里没有 userID 或类型对不上（未登录 / 中间件未生效）。
 // GetAdminAuditUser 从 gin.Context 中同时提取管理员用户ID与用户名，
-// 用于写操作审计日志。与 GetUserID 配套，避免各管理端 controller 重复实现。
+// 用于写操作审计日志。
 func GetAdminAuditUser(c *gin.Context) (uint64, string) {
 	uid, _ := GetUserID(c)
 	var name string
@@ -44,23 +40,26 @@ func GetAdminAuditUser(c *gin.Context) (uint64, string) {
 	return uid, name
 }
 
+// GetUserID 取出 AuthMiddleware 写入的 userID（写入类型固定为 uint64，见 pkg/middleware/auth.go）。
+// ok=false 表示未登录或中间件未生效。
 func GetUserID(c *gin.Context) (uint64, bool) {
-	v, ok := c.Get("userID")
+	id, ok := c.Get("userID")
 	if !ok {
 		return 0, false
 	}
-	switch id := v.(type) {
-	case uint64:
-		return id, true
-	case int64:
-		return uint64(id), true
-	case float64:
-		return uint64(id), true
-	case int:
-		return uint64(id), true
-	default:
+	uid, ok := id.(uint64)
+	return uid, ok
+}
+
+// RequireUserID 取当前登录用户 ID；未登录/无效时已写好 401 响应，调用方直接 return。
+// 统一用户侧 controller 重复的 GetUserID + Fail(401) 样板。
+func RequireUserID(c *gin.Context) (uint64, bool) {
+	uid, ok := GetUserID(c)
+	if !ok || uid == 0 {
+		Fail(c, 401, "User not logged in")
 		return 0, false
 	}
+	return uid, true
 }
 
 // GetClientIP 统一获取客户端 IP。

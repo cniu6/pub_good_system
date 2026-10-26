@@ -9,16 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// currentUserID 从上下文取当前登录用户 ID；缺失/无效时直接写 401 响应。
-func currentUserID(c *gin.Context) (uint64, bool) {
-	uid, ok := utils.GetUserID(c)
-	if !ok || uid == 0 {
-		utils.Fail(c, 401, "User not logged in")
-		return 0, false
-	}
-	return uid, true
-}
-
 // ListMyOperationLogs 当前用户自己的操作日志列表（强制按 user_id 过滤）
 // @Summary 我的操作日志列表
 // @Tags User-资料
@@ -26,7 +16,7 @@ func currentUserID(c *gin.Context) (uint64, bool) {
 // @Success 200 {object} utils.Response
 // @Router /v1/user/logs [get]
 func (ctrl *ProfileController) ListMyOperationLogs(c *gin.Context) {
-	uid, ok := currentUserID(c)
+	uid, ok := utils.RequireUserID(c)
 	if !ok {
 		return
 	}
@@ -82,7 +72,7 @@ func (ctrl *ProfileController) ListMyOperationLogs(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/user/logs/{id} [get]
 func (ctrl *ProfileController) GetMyOperationLogDetail(c *gin.Context) {
-	uid, ok := currentUserID(c)
+	uid, ok := utils.RequireUserID(c)
 	if !ok {
 		return
 	}
@@ -91,9 +81,8 @@ func (ctrl *ProfileController) GetMyOperationLogDetail(c *gin.Context) {
 		utils.Fail(c, 403, "User operation logs not open")
 		return
 	}
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid ID")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 	item, err := models.GetOperationLogByID(id)
@@ -121,7 +110,7 @@ func (ctrl *ProfileController) GetMyOperationLogDetail(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/user/api-logs [get]
 func (ctrl *ProfileController) ListMyAPILogs(c *gin.Context) {
-	uid, ok := currentUserID(c)
+	uid, ok := utils.RequireUserID(c)
 	if !ok {
 		return
 	}
@@ -174,7 +163,7 @@ func (ctrl *ProfileController) ListMyAPILogs(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/user/api-logs/stats [get]
 func (ctrl *ProfileController) GetMyAPILogStats(c *gin.Context) {
-	uid, ok := currentUserID(c)
+	uid, ok := utils.RequireUserID(c)
 	if !ok {
 		return
 	}
@@ -197,7 +186,7 @@ func (ctrl *ProfileController) GetMyAPILogStats(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/user/api-logs/{id} [get]
 func (ctrl *ProfileController) GetMyAPILogDetail(c *gin.Context) {
-	uid, ok := currentUserID(c)
+	uid, ok := utils.RequireUserID(c)
 	if !ok {
 		return
 	}

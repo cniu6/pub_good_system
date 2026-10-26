@@ -57,9 +57,7 @@ type AdminResolveExceptionRequest struct {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/payment/orders [get]
 func (ctrl *PaymentController) ListOrders(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = utils.NormalizePagination(page, pageSize)
+	page, pageSize := utils.QueryPage(c)
 	status, _ := strconv.Atoi(c.DefaultQuery("status", "-1"))
 	userIDStr := c.DefaultQuery("user_id", "0")
 	keyword := c.DefaultQuery("keyword", "")
@@ -90,9 +88,8 @@ func (ctrl *PaymentController) ListOrders(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/payment/orders/{id} [get]
 func (ctrl *PaymentController) OrderDetail(c *gin.Context) {
-	orderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid order ID")
+	orderID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -123,9 +120,8 @@ func (ctrl *PaymentController) OrderDetail(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/payment/orders/{id}/complete [post]
 func (ctrl *PaymentController) CompleteOrder(c *gin.Context) {
-	orderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid order ID")
+	orderID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -158,9 +154,8 @@ func (ctrl *PaymentController) CompleteOrder(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/payment/orders/{id}/reconcile [post]
 func (ctrl *PaymentController) ReconcileOrder(c *gin.Context) {
-	orderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid order ID")
+	orderID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 	order, changed, err := services.ReconcilePaymentOrderByID(orderID)
@@ -184,9 +179,7 @@ func (ctrl *PaymentController) ReconcileOrder(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/payment/exceptions [get]
 func (ctrl *PaymentController) ListExceptions(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = utils.NormalizePagination(page, pageSize)
+	page, pageSize := utils.QueryPage(c)
 
 	var statusPtr *int
 	if s := c.Query("status"); s != "" {
@@ -221,9 +214,8 @@ func (ctrl *PaymentController) ListExceptions(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/payment/exceptions/{id}/resolve [post]
 func (ctrl *PaymentController) ResolveException(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid exception ID")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 	var req AdminResolveExceptionRequest
@@ -267,9 +259,8 @@ func (ctrl *PaymentController) ResolveException(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/payment/orders/{id}/cancel [post]
 func (ctrl *PaymentController) CancelOrder(c *gin.Context) {
-	orderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid order ID")
+	orderID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -313,9 +304,8 @@ func (ctrl *PaymentController) GetStats(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/payment/orders/{id} [delete]
 func (ctrl *PaymentController) DeleteOrder(c *gin.Context) {
-	orderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid order ID")
+	orderID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -391,9 +381,8 @@ func (ctrl *PaymentController) ListGateways(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/payment/gateways/{id} [get]
 func (ctrl *PaymentController) GetGateway(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid gateway ID")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -413,9 +402,8 @@ func (ctrl *PaymentController) GetGateway(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/payment/gateways/{id} [put]
 func (ctrl *PaymentController) UpdateGateway(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid gateway ID")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -441,9 +429,8 @@ func (ctrl *PaymentController) UpdateGateway(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/payment/gateways/{id} [delete]
 func (ctrl *PaymentController) DeleteGateway(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid gateway ID")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -650,9 +637,8 @@ func (ctrl *PaymentController) CreateExchangeRate(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/payment/currency/rates/{id} [put]
 func (ctrl *PaymentController) UpdateExchangeRate(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid rate ID")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -700,9 +686,8 @@ func (ctrl *PaymentController) UpdateExchangeRate(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/payment/currency/rates/{id} [delete]
 func (ctrl *PaymentController) DeleteExchangeRate(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid rate ID")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 	if err := models.DeleteExchangeRate(id); err != nil {
@@ -721,9 +706,8 @@ func (ctrl *PaymentController) DeleteExchangeRate(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/payment/currency/rates/{id}/refresh [post]
 func (ctrl *PaymentController) RefreshExchangeRate(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid rate ID")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -814,9 +798,8 @@ func (ctrl *PaymentController) RefreshExchangeRates(c *gin.Context) {
 // @Success 200 {object} utils.Response{data=map[string]interface{}}
 // @Router /v1/admin/payment/gateways/{id}/test-connection [post]
 func (ctrl *PaymentController) TestGatewayConnection(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid gateway ID")
+	id, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 

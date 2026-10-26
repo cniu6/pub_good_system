@@ -5,7 +5,6 @@ import (
 	"fst/backend/app/services"
 	"fst/backend/utils"
 	"log"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -71,15 +70,12 @@ func (ctrl *ProfileController) GetUserStats(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/user/money-logs [get]
 func (ctrl *ProfileController) GetMoneyLogs(c *gin.Context) {
-	uid, ok := utils.GetUserID(c)
+	uid, ok := utils.RequireUserID(c)
 	if !ok {
-		utils.Fail(c, 401, "User not logged in")
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = utils.NormalizePagination(page, pageSize)
+	page, pageSize := utils.QueryPage(c)
 	keyword := c.DefaultQuery("keyword", "")
 
 	logs, total, err := services.GetUserMoneyLogList(uid, page, pageSize, keyword)
@@ -103,15 +99,12 @@ func (ctrl *ProfileController) GetMoneyLogs(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/user/score-logs [get]
 func (ctrl *ProfileController) GetScoreLogs(c *gin.Context) {
-	uid, ok := utils.GetUserID(c)
+	uid, ok := utils.RequireUserID(c)
 	if !ok {
-		utils.Fail(c, 401, "User not logged in")
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = utils.NormalizePagination(page, pageSize)
+	page, pageSize := utils.QueryPage(c)
 	keyword := c.DefaultQuery("keyword", "")
 
 	logs, total, err := services.GetUserScoreLogList(uid, page, pageSize, keyword)

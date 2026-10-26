@@ -115,15 +115,12 @@ func (ctrl *PaymentController) CreateOrder(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/user/payment/orders [get]
 func (ctrl *PaymentController) GetOrders(c *gin.Context) {
-	uid, ok := utils.GetUserID(c)
+	uid, ok := utils.RequireUserID(c)
 	if !ok {
-		utils.Fail(c, 401, "Unauthorized")
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = utils.NormalizePagination(page, pageSize)
+	page, pageSize := utils.QueryPage(c)
 	status, _ := strconv.Atoi(c.DefaultQuery("status", "-1"))
 
 	orders, total, err := models.GetPaymentOrderList(uid, page, pageSize, status, "")
@@ -151,9 +148,8 @@ func (ctrl *PaymentController) GetOrderDetail(c *gin.Context) {
 	}
 	uid := userID.(uint64)
 
-	orderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid order ID")
+	orderID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 
@@ -195,9 +191,8 @@ func (ctrl *PaymentController) CheckOrderStatus(c *gin.Context) {
 	}
 	uid := userID.(uint64)
 
-	orderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(c, 400, "Invalid order ID")
+	orderID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 

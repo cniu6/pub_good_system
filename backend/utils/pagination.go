@@ -5,24 +5,17 @@ import (
 	"time"
 )
 
-// NormalizePagination 统一分页参数默认值/上限处理：page<=0 → 1；pageSize<=0 → 默认值；
-// pageSize 超过上限 → 裁剪到上限。项目里 10+ 个 admin/user controller 各自手写了同一套
-// 「page 默认 1、page_size 默认 20、上限 100」逻辑，这里统一收敛，避免有的地方漏加上限。
+// NormalizePagination 统一分页参数默认值/上限处理：page<=0 → 1；pageSize<=0 → 20；
+// pageSize 超过 100 → 裁剪到 100。
 func NormalizePagination(page, pageSize int) (int, int) {
-	return NormalizePaginationWithLimits(page, pageSize, 20, 100)
-}
-
-// NormalizePaginationWithLimits 同 NormalizePagination，但允许自定义默认每页数量与上限
-// （maxSize <= 0 表示不限制上限）。
-func NormalizePaginationWithLimits(page, pageSize, defaultSize, maxSize int) (int, int) {
 	if page <= 0 {
 		page = 1
 	}
 	if pageSize <= 0 {
-		pageSize = defaultSize
+		pageSize = 20
 	}
-	if maxSize > 0 && pageSize > maxSize {
-		pageSize = maxSize
+	if pageSize > 100 {
+		pageSize = 100
 	}
 	return page, pageSize
 }

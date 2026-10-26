@@ -6,7 +6,6 @@ import (
 	"fst/backend/pkg/presence"
 	"fst/backend/utils"
 	"log"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -62,9 +61,7 @@ func (ctrl *OnlineController) ListSessions(c *gin.Context) {
 	if !requirePresenceEnabled(c) {
 		return
 	}
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	page, pageSize = utils.NormalizePagination(page, pageSize)
+	page, pageSize := utils.QueryPage(c)
 	// 按用户归并：一行多设备，便于管理端展示
 	rows, total, err := models.ListOnlineUsersGrouped(
 		strings.TrimSpace(c.Query("keyword")),
@@ -87,9 +84,8 @@ func (ctrl *OnlineController) ListSessions(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/users/{id}/sessions [get]
 func (ctrl *OnlineController) UserSessions(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil || userID == 0 {
-		utils.Fail(c, 400, "Invalid user ID")
+	userID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 	authGuard := strings.TrimSpace(c.DefaultQuery("auth_guard", "user"))
@@ -132,9 +128,8 @@ func (ctrl *OnlineController) RevokeSession(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/users/{id}/sessions/revoke-all [post]
 func (ctrl *OnlineController) RevokeAllUserSessions(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil || userID == 0 {
-		utils.Fail(c, 400, "Invalid user ID")
+	userID, ok := utils.ParamID(c, "id")
+	if !ok {
 		return
 	}
 	var request struct {

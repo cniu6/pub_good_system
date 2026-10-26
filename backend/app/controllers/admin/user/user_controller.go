@@ -68,9 +68,8 @@ func (c *UserController) List(ctx *gin.Context) {
 // @Success 200 {object} utils.Response{data=AdminUserDetailResponse}
 // @Router /v1/admin/users/{id} [get]
 func (c *UserController) Detail(ctx *gin.Context) {
-	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(ctx, 400, "无效的用户ID")
+	id, ok := utils.ParamID(ctx, "id")
+	if !ok {
 		return
 	}
 
@@ -159,9 +158,8 @@ func (c *UserController) Create(ctx *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/users/{id} [put]
 func (c *UserController) Update(ctx *gin.Context) {
-	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(ctx, 400, "无效的用户ID")
+	id, ok := utils.ParamID(ctx, "id")
+	if !ok {
 		return
 	}
 
@@ -195,9 +193,8 @@ func (c *UserController) Update(ctx *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/users/{id} [delete]
 func (c *UserController) Delete(ctx *gin.Context) {
-	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(ctx, 400, "无效的用户ID")
+	id, ok := utils.ParamID(ctx, "id")
+	if !ok {
 		return
 	}
 
@@ -247,9 +244,8 @@ func (c *UserController) Delete(ctx *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/users/{id}/status [put]
 func (c *UserController) UpdateStatus(ctx *gin.Context) {
-	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(ctx, 400, "无效的用户ID")
+	id, ok := utils.ParamID(ctx, "id")
+	if !ok {
 		return
 	}
 
@@ -291,9 +287,8 @@ func (c *UserController) UpdateStatus(ctx *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/users/{id}/password [put]
 func (c *UserController) ResetPassword(ctx *gin.Context) {
-	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(ctx, 400, "无效的用户ID")
+	id, ok := utils.ParamID(ctx, "id")
+	if !ok {
 		return
 	}
 
@@ -390,9 +385,8 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 		return
 	}
 
-	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(ctx, 400, "无效的用户ID")
+	id, ok := utils.ParamID(ctx, "id")
+	if !ok {
 		return
 	}
 
@@ -539,9 +533,8 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /v1/admin/users/{id}/reset-apikey [post]
 func (c *UserController) ResetApiKey(ctx *gin.Context) {
-	id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
-	if err != nil {
-		utils.Fail(ctx, 400, "无效的用户ID")
+	id, ok := utils.ParamID(ctx, "id")
+	if !ok {
 		return
 	}
 
@@ -584,14 +577,14 @@ func (c *UserController) LookupUser(ctx *gin.Context) {
 	}
 
 	// 按用户名查找
-	user, err := models.GetUserByUsername(keyword)
+	user, err := c.userService.GetByUsername(keyword)
 	if err == nil && user != nil {
 		utils.Success(ctx, gin.H{"user": user})
 		return
 	}
 
 	// 按邮箱查找
-	user, err = models.GetUserByEmail(keyword)
+	user, err = c.userService.GetByEmail(keyword)
 	if err == nil && user != nil {
 		utils.Success(ctx, gin.H{"user": user})
 		return
