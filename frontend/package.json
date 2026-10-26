@@ -1,22 +1,11 @@
 {
-  "name": "nova-admin",
+  "name": "fst-frontend",
   "type": "module",
   "version": "0.9.18",
   "private": true,
-  "description": "a clean and concise back-end management template based on Vue3, Vite5, Typescript, and Naive UI.",
-  "author": {
-    "name": "chansee97",
-    "email": "chen.dev@foxmail.com",
-    "url": "https://github.com/chansee97"
-  },
+  "packageManager": "pnpm@10.34.9",
+  "description": "F.st 前台与管理端（Vue3 + Vite + TypeScript + Naive UI）",
   "license": "MIT",
-  "homepage": "https://github.com/chansee97/nova-admin",
-  "repository": {
-    "url": "https://github.com/chansee97/nova-admin.git"
-  },
-  "bugs": {
-    "url": "https://github.com/chansee97/nova-admin/issues"
-  },
   "keywords": [
     "Vue",
     "Vue3",
@@ -49,6 +38,7 @@
   },
   "dependencies": {
     "@iconify-json/icon-park-outline": "^1.2.2",
+    "@vicons/antd": "^0.13.0",
     "@vueuse/core": "^13.6.0",
     "alova": "^3.3.4",
     "colord": "^2.9.3",

@@ -5,14 +5,14 @@
 # ---------- 阶段 1：前端（产物落到 /src/dist，与 go:embed 一致）----------
 FROM node:20-alpine AS frontend
 WORKDIR /src/frontend
-RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN corepack enable && corepack prepare pnpm@10.34.9 --activate
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 COPY frontend/ ./
 ENV VITE_BUILD_MODE=embedded
 RUN pnpm install --frozen-lockfile && pnpm build
 
 # ---------- 阶段 2：Go embedded ----------
-FROM golang:1.24-alpine AS backend
+FROM golang:1.25-alpine AS backend
 WORKDIR /src
 RUN apk add --no-cache git ca-certificates
 COPY go.mod go.sum ./
