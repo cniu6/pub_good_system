@@ -38,10 +38,42 @@ func shouldSkipAPIAccessLog(path string) bool {
 		return true
 	}
 	// pprof 二进制输出体积大，跳过访问日志
-	if strings.HasPrefix(path, adminAPIBasePath()+"/debug/pprof") {
-		return true
-	}
 	return false
+}
+
+// isPaymentCallbackPath 判断是否为支付回调接口。
+// 这些路径的 body 与 query 携带支付签名（部分通道签名在 query 里），签名在时间窗内可重放，
+// 因此访问日志只保留元信息，不落签名明文。
+func isPaymentCallbackPath(path string) bool {
+	return strings.HasPrefix(path, "/api/v1/public/payment/notify") ||
+		path == "/api/v1/public/payment/return"
+}
+
+// accessLogQueryString 返回可入库的 query：支付回调的签名参数打码后落盘。
+func accessLogQueryString(c *gin.Context) string {
+	raw := c.Request.URL.RawQuery
+	if !isPaymentCallbackPath(c.Request.URL.Path) {
+		return raw
+	}
+	return redactPaymentQuery(raw)
+}
+
+// redactPaymentQuery 将回调 query 中的签名类参数打码，订单号/金额/状态照原样保留。
+func redactPaymentQuery(raw string) string {
+	if strings.TrimSpace(raw) == "" {
+		return ""
+	}
+	values, err := url.ParseQuery(raw)
+	if err != nil {
+		return "[query omitted: payment callback]"
+	}
+	for key := range values {
+		switch strings.ToLower(key) {
+		case "sign", "signature", "hmac", "auth":
+			values.Set(key, "***")
+		}
+	}
+	return values.Encode()
 }
 
 func resolveAPIScene(path string) string {
@@ -311,7 +343,10 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 		}
 
 		requestBody := ""
-		if shouldReadRequestBody(c) {
+		if isPaymentCallbackPath(path) {
+			// 回调体含可重放的支付签名，只记录占位，不落明文
+			requestBody = "[request body omitted: payment callback]"
+		} else if shouldReadRequestBody(c) {
 			bodyBytes, err := io.ReadAll(c.Request.Body)
 			if err == nil {
 				requestBody = string(bodyBytes)
@@ -396,7 +431,7 @@ func APIAccessLogMiddleware() gin.HandlerFunc {
 			HandlerName:         handlerName,
 			RequestContentType:  requestContentType,
 			ResponseContentType: responseContentType,
-			QueryString:         truncateForLog(c.Request.URL.RawQuery, 1000),
+			QueryString:         truncateForLog(accessLogQueryString(c), 1000),
 			PathParams:          pathParams,
 			IP:                  utils.ClampBytes(c.ClientIP(), maxLogIPLength),
 			SourceIP:            sourceIP,

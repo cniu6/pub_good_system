@@ -4,6 +4,7 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/app/services"
 	"fst/backend/pkg/config"
+	"fst/backend/utils"
 	"io"
 	"log"
 	"net/http"
@@ -64,8 +65,9 @@ func (ctrl *PaymentCallbackController) handleNotify(c *gin.Context, channelType 
 		}
 	}
 
-	// 回调参数明文落盘（含 sign/金额），便于对账排查；不做日志脱敏
-	log.Printf("[Payment Notify] 收到回调 channel=%s: %v", channelType, params)
+	// 回调参数用于对账，签名类字段打码后再落盘：支付签名绑定 timestamp/nonce，
+	// 明文进入日志采集会被长期留存，可在时间窗内重放。
+	log.Printf("[Payment Notify] 收到回调 channel=%s: %v", channelType, redactCallbackParams(params))
 
 	ok, err := services.HandlePaymentNotify(params, body, headers)
 	if err != nil {
@@ -94,7 +96,7 @@ func (ctrl *PaymentCallbackController) handleNotify(c *gin.Context, channelType 
 // @Router /v1/public/payment/return [get]
 func (ctrl *PaymentCallbackController) Return(c *gin.Context) {
 	params := extractCallbackParams(c)
-	log.Printf("[Payment Return] 收到跳转: %v", params)
+	log.Printf("[Payment Return] 收到跳转: %v", redactCallbackParams(params))
 
 	order, err := services.HandlePaymentReturn(params)
 
@@ -151,6 +153,36 @@ func extractCallbackParams(c *gin.Context) map[string]string {
 	}
 
 	return params
+}
+
+// callbackSensitiveKeys 整包入日志前必须打码的凭据/签名类字段。
+var callbackSensitiveKeys = map[string]struct{}{
+	"sign":         {},
+	"signature":    {},
+	"key":          {},
+	"api_key":      {},
+	"apikey":       {},
+	"secret":       {},
+	"token":        {},
+	"access_token": {},
+	"password":     {},
+	"auth_code":    {},
+}
+
+// redactCallbackParams 生成可安全落盘的参数副本：凭据类字段整体打码，其余值按审计日志上限截断。
+func redactCallbackParams(params map[string]string) map[string]string {
+	if len(params) == 0 {
+		return params
+	}
+	safe := make(map[string]string, len(params))
+	for k, v := range params {
+		if _, sensitive := callbackSensitiveKeys[strings.ToLower(strings.TrimSpace(k))]; sensitive {
+			safe[k] = "***"
+			continue
+		}
+		safe[k] = utils.TruncateString(v, 256)
+	}
+	return safe
 }
 
 // ========================================
