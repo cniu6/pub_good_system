@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"fst/backend/pkg/config"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -42,8 +44,13 @@ func getJWTSecretByGuard(authGuard string) (string, error) {
 	}
 
 	secret := cfg.JWTSecret
-	if authGuard == AdminAuthGuard && cfg.AdminJWTSecret != "" {
-		secret = cfg.AdminJWTSecret
+	if authGuard == AdminAuthGuard {
+		if cfg.AdminJWTSecret != "" {
+			secret = cfg.AdminJWTSecret
+		} else if config.IsProductionMode() && !strings.EqualFold(strings.TrimSpace(os.Getenv("ALLOW_ADMIN_JWT_SECRET_FALLBACK")), "true") {
+			// 启动校验之外的第二道防线：任何未经过 validateCriticalSecurityConfig 的入口也不能静默共用密钥。
+			return "", fmt.Errorf("admin JWT secret not configured")
+		}
 	}
 	if secret == "" {
 		return "", fmt.Errorf("JWT secret not configured")
@@ -238,4 +245,3 @@ func ParseRefreshTokenForGuard(tokenString, expectedGuard string) (*RefreshClaim
 	claims.AuthGuard = authGuard
 	return claims, nil
 }
-

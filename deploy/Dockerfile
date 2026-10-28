@@ -12,7 +12,7 @@ ENV VITE_BUILD_MODE=embedded
 RUN pnpm install --frozen-lockfile && pnpm build
 
 # ---------- 阶段 2：Go embedded ----------
-FROM golang:1.25-alpine AS backend
+FROM golang:1.27.3-alpine AS backend
 WORKDIR /src
 RUN apk add --no-cache git ca-certificates
 COPY go.mod go.sum ./

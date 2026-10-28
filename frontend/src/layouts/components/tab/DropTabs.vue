@@ -27,7 +27,7 @@ function renderDropTabsIcon(option: MenuOption) {
 }
 
 const router = useRouter()
-function handleDropTabs(key: string, option: MenuOption) {
+function handleDropTabs(_key: string, option: MenuOption) {
   if (!isTabRouteItem(option))
     return
   router.push(option.fullPath)

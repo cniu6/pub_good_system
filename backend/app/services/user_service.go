@@ -604,7 +604,7 @@ func ensureAdminPrivilegeSafe(target *models.User, newRole string, newStatus *ui
 
 // BatchDelete 批量软删除用户。
 // 之前的实现只改 delete_time，不像 Delete 一样同步禁用 status=0、也不做「最后一个管理员」保护，
-// 行为和单条删除不一致（历史遗留、当前无 controller 暴露）。现在直接复用 Delete 逐条校验+删除，
+// 行为和单条删除不一致（历史遗留，现由 /admin/users/batch-delete 暴露）。现在直接复用 Delete 逐条校验+删除，
 // 保证批量删除和单条删除的语义完全一致（包括会逐条检查是否会删空管理员）。
 func (s *UserService) BatchDelete(user_ids []uint64) error {
 	for _, uid := range user_ids {

@@ -132,3 +132,49 @@ func TestAuthGuardSeparationRefreshToken(t *testing.T) {
 	}
 }
 
+func TestAdminJWTSecretSeparatedInProduction(t *testing.T) {
+	old := config.CloneGlobalConfig()
+	defer config.SetGlobalConfig(old)
+	t.Setenv("ALLOW_ADMIN_JWT_SECRET_FALLBACK", "")
+
+	config.SetGlobalConfig(&config.Config{
+		JWTSecret:   "unit-test-user-secret-1234567890",
+		Environment: "production",
+		AppMode:     "prod",
+	})
+	if _, err := GenerateTokenForGuardWithTTL(1, "admin", AdminAuthGuard, time.Minute); err == nil {
+		t.Fatal("生产环境 AdminJWTSecret 为空时应拒绝签发 admin token")
+	}
+
+	config.SetGlobalConfig(&config.Config{
+		JWTSecret:      "unit-test-user-secret-1234567890",
+		AdminJWTSecret: "unit-test-admin-secret-0987654321",
+		Environment:    "production",
+		AppMode:        "prod",
+	})
+	token, err := GenerateTokenForGuardWithTTL(1, "admin", AdminAuthGuard, time.Minute)
+	if err != nil {
+		t.Fatalf("独立 admin 密钥应可签发 token: %v", err)
+	}
+	if _, err := ParseTokenForGuard(token, AdminAuthGuard); err != nil {
+		t.Fatalf("admin token 应通过 admin guard: %v", err)
+	}
+	if _, err := ParseTokenForGuard(token, UserAuthGuard); err == nil {
+		t.Fatal("admin token 不应通过 user guard")
+	}
+}
+
+func TestAdminJWTSecretFallbackRequiresExplicitOptIn(t *testing.T) {
+	old := config.CloneGlobalConfig()
+	defer config.SetGlobalConfig(old)
+	t.Setenv("ALLOW_ADMIN_JWT_SECRET_FALLBACK", "true")
+
+	config.SetGlobalConfig(&config.Config{
+		JWTSecret:   "unit-test-user-secret-1234567890",
+		Environment: "production",
+		AppMode:     "prod",
+	})
+	if _, err := GenerateTokenForGuardWithTTL(1, "admin", AdminAuthGuard, time.Minute); err != nil {
+		t.Fatalf("显式允许回退时应可签发 admin token: %v", err)
+	}
+}

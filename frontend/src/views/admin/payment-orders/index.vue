@@ -147,6 +147,15 @@ const columns: DataTableColumns<PaymentOrder> = [
         onClick: () => handleViewDetail(row),
       }, { default: () => t('moneyScore.detail') }))
 
+      if (row.status === 0 || row.status === 4) {
+        buttons.push(h(NButton, {
+          size: 'small',
+          type: 'primary',
+          text: true,
+          onClick: () => handleReconcile(row),
+        }, { default: () => t('adminPaymentOrders.reconcileOrder') }))
+      }
+
       if (row.status === 0) {
         buttons.push(h(NButton, {
           size: 'small',
@@ -324,6 +333,38 @@ async function handleCompleteSubmit() {
     catch {
       message.error(t('adminPaymentOrders.completeFailed'))
     }
+  })
+}
+
+// 主动对账：向支付通道查询订单最新状态，避免只能等回调或人工补单
+function handleReconcile(row: PaymentOrder) {
+  if (submitting.value)
+    return
+  dialog.info({
+    title: t('adminPaymentOrders.reconcileTitle'),
+    content: t('adminPaymentOrders.reconcileContent', { orderNo: row.order_no }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: () => withSubmitLock(submitting, async () => {
+      try {
+        const res = await adminPaymentApi.reconcileOrder(row.id)
+        if (res.isSuccess && res.data) {
+          if (res.data.changed)
+            message.success(t('adminPaymentOrders.reconcileChanged'))
+          else
+            message.info(t('adminPaymentOrders.reconcileUnchanged'))
+          fetchData()
+          fetchStats()
+          return
+        }
+        message.error(res.message || t('adminPaymentOrders.reconcileFailed'))
+        return false
+      }
+      catch {
+        message.error(t('adminPaymentOrders.reconcileFailed'))
+        return false
+      }
+    }),
   })
 }
 

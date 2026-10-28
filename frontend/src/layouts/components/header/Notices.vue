@@ -65,13 +65,20 @@ const noticeList = computed<Entity.Message[]>(() => {
   }))
 })
 
+const todoTitleKeys: Record<string, string> = {
+  pending_realname: 'adminTodo.pendingRealname',
+  payment_exception: 'adminTodo.paymentException',
+  failed_auto_job: 'adminTodo.failedAutoJob',
+  pending_withdraw: 'adminTodo.pendingWithdraw',
+}
+
 const todoList = computed<Entity.Message[]>(() => {
   return todos.value.map((item, idx) => ({
     id: idx + 1,
     type: 2,
-    title: `${item.title} (${item.count})`,
+    title: `${t(todoTitleKeys[item.type] || 'adminTodo.generic')} (${item.count})`,
     icon: 'icon-park-outline:list',
-    tagTitle: item.type,
+    tagTitle: t('adminTodo.tagType'),
     tagType: 'error' as any,
     description: '',
     date: '',

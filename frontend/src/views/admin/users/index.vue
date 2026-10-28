@@ -94,10 +94,13 @@ const {
 
 const {
   searchForm,
+  statusFilterOptions,
   realnameFilterOptions,
   pagination,
   userData,
   loading,
+  checkedRowKeys,
+  batchActionLoading,
   columnOptions,
   selectedColumnKeys,
   visibleColumns,
@@ -112,6 +115,8 @@ const {
   handlePageChange,
   handlePageSizeChange,
   handleRealnameStatusChange,
+  handleBatchStatus,
+  handleBatchDelete,
 } = useUserList({
   onEdit: handleEdit,
 })
@@ -206,7 +211,7 @@ function setFormRef(el: any) {
     <n-card class="search-card" :bordered="false">
       <n-form :model="searchForm" label-placement="left" :label-width="80">
         <n-grid :cols="24" :x-gap="16" responsive="screen">
-          <n-form-item-gi span="24 600:10 800:10" :label="t('adminRealname.keyword')">
+          <n-form-item-gi span="24 600:8 800:8" :label="t('adminRealname.keyword')">
             <n-input
               v-model:value="searchForm.keyword"
               :placeholder="t('adminUsers.searchPlaceholder')"
@@ -214,7 +219,16 @@ function setFormRef(el: any) {
               @keyup.enter="handleSearch"
             />
           </n-form-item-gi>
-          <n-form-item-gi span="24 600:6 800:6" :label="t('adminUsers.realnameStatus')">
+          <n-form-item-gi span="24 600:5 800:5" :label="t('adminUsers.status')">
+            <n-select
+              v-model:value="searchForm.status"
+              :options="statusFilterOptions"
+              clearable
+              :placeholder="t('common.all')"
+              @update:value="handleSearch"
+            />
+          </n-form-item-gi>
+          <n-form-item-gi span="24 600:5 800:5" :label="t('adminUsers.realnameStatus')">
             <n-select
               v-model:value="searchForm.realnameStatus"
               :options="realnameFilterOptions"
@@ -223,7 +237,7 @@ function setFormRef(el: any) {
               @update:value="handleRealnameStatusChange"
             />
           </n-form-item-gi>
-          <n-form-item-gi span="24 600:8 800:8" class="search-actions">
+          <n-form-item-gi span="24 600:6 800:6" class="search-actions">
             <NSpace justify="center">
               <NButton type="primary" class="search-btn" @click="handleSearch">
                 <template #icon>
@@ -244,7 +258,22 @@ function setFormRef(el: any) {
     </n-card>
 
     <n-card class="table-card" :bordered="false">
-      <NSpace justify="end" style="margin-bottom: 12px;">
+      <div class="table-toolbar">
+        <NSpace v-if="checkedRowKeys.length > 0" align="center" :size="8">
+          <n-text depth="3">
+            {{ t('adminUsers.batchSelected', { count: checkedRowKeys.length }) }}
+          </n-text>
+          <NButton size="small" type="primary" :loading="batchActionLoading" @click="handleBatchStatus(1)">
+            {{ t('adminUsers.batchEnable') }}
+          </NButton>
+          <NButton size="small" type="warning" :loading="batchActionLoading" @click="handleBatchStatus(0)">
+            {{ t('adminUsers.batchDisable') }}
+          </NButton>
+          <NButton size="small" type="error" :loading="batchActionLoading" @click="handleBatchDelete">
+            {{ t('adminUsers.batchDelete') }}
+          </NButton>
+        </NSpace>
+        <span v-else />
         <TableColumnSelector
           v-model="selectedColumnKeys"
           :options="columnOptions"
@@ -256,8 +285,9 @@ function setFormRef(el: any) {
           :reset-label="t('common.restoreDefaultFields')"
           @reset="resetSelectedColumns"
         />
-      </NSpace>
+      </div>
       <n-data-table
+        v-model:checked-row-keys="checkedRowKeys"
         :columns="visibleColumns"
         :data="userData"
         :loading="loading"
@@ -341,6 +371,15 @@ function setFormRef(el: any) {
 
 .header-actions {
   display: flex;
+}
+
+.table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
 }
 
 .header-title {

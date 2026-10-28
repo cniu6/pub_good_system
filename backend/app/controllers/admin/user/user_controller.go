@@ -259,6 +259,13 @@ func (c *UserController) UpdateStatus(ctx *gin.Context) {
 		return
 	}
 
+	// 与单条删除保持一致：当前登录管理员不能禁用自己，避免误操作后立即失去后台入口。
+	// 只拦截 status=0；status=1 对自身的幂等启用不受影响。
+	if req.Status == 0 && currentOperatorID(ctx) == id {
+		utils.Fail(ctx, 400, "不能禁用当前登录的管理员账号")
+		return
+	}
+
 	if err := c.userService.UpdateStatus(id, req.Status); err != nil {
 		if services.IsClientError(err) {
 			utils.Fail(ctx, 400, err.Error())
@@ -365,6 +372,150 @@ func (c *UserController) BatchGetSimpleInfo(ctx *gin.Context) {
 
 	utils.Success(ctx, gin.H{
 		"users": users,
+	})
+}
+
+const maxBatchActionUserIDs = 100
+
+// normalizeBatchUserIDs 去重、丢弃非法 ID，并限制批量上限。
+func normalizeBatchUserIDs(ids []uint64) []uint64 {
+	seen := make(map[uint64]struct{}, len(ids))
+	result := make([]uint64, 0, len(ids))
+	for _, id := range ids {
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+		if len(result) >= maxBatchActionUserIDs {
+			break
+		}
+	}
+	return result
+}
+
+func currentOperatorID(ctx *gin.Context) uint64 {
+	value, ok := ctx.Get("userID")
+	if !ok {
+		return 0
+	}
+	switch v := value.(type) {
+	case uint64:
+		return v
+	case int:
+		return uint64(v)
+	case int64:
+		return uint64(v)
+	default:
+		return 0
+	}
+}
+
+// BatchUpdateStatus 批量启用/禁用用户。
+// 逐条复用单条 UpdateStatus 的校验（含最后一个管理员保护、禁用时撤销会话），
+// 返回成功/失败计数，避免一个失败导致整批未执行却无法告知前端。
+// @Summary 批量更新用户状态
+// @Tags Admin-用户
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body map[string]interface{} true "{ids: [1,2], status: 0|1}"
+// @Success 200 {object} utils.Response
+// @Router /v1/admin/users/batch-status [post]
+func (c *UserController) BatchUpdateStatus(ctx *gin.Context) {
+	var req struct {
+		IDs    []uint64 `json:"ids"`
+		Status *uint8   `json:"status"`
+	}
+	if err := ctx.ShouldBindJSON(&req); err != nil || req.Status == nil || (*req.Status != 0 && *req.Status != 1) {
+		utils.Fail(ctx, 400, "参数错误: status 只能为 0（禁用）或 1（启用）")
+		return
+	}
+	if len(req.IDs) > maxBatchActionUserIDs {
+		utils.Fail(ctx, 400, fmt.Sprintf("单次最多处理 %d 个用户", maxBatchActionUserIDs))
+		return
+	}
+	ids := normalizeBatchUserIDs(req.IDs)
+	if len(ids) == 0 {
+		utils.Fail(ctx, 400, "请选择至少一个用户")
+		return
+	}
+
+	operatorID := currentOperatorID(ctx)
+	var succeeded int
+	failures := make([]gin.H, 0)
+	for _, id := range ids {
+		if *req.Status == 0 && id == operatorID {
+			failures = append(failures, gin.H{"id": id, "message": "不能禁用当前登录的管理员账号"})
+			continue
+		}
+		if err := c.userService.UpdateStatus(id, *req.Status); err != nil {
+			failures = append(failures, gin.H{"id": id, "message": err.Error()})
+			continue
+		}
+		succeeded++
+	}
+
+	log.Printf("[SECURITY AUDIT] admin batch update user status | admin_id=%d status=%d requested=%d succeeded=%d failed=%d ip=%s",
+		operatorID, *req.Status, len(ids), succeeded, len(failures), ctx.ClientIP())
+	utils.Success(ctx, gin.H{
+		"succeeded": succeeded,
+		"failed":    len(failures),
+		"errors":    failures,
+	})
+}
+
+// BatchDelete 批量软删除用户。
+// @Summary 批量删除用户
+// @Tags Admin-用户
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body map[string][]uint64 true "用户ID列表 {ids: [1, 2, 3]}"
+// @Success 200 {object} utils.Response
+// @Router /v1/admin/users/batch-delete [post]
+func (c *UserController) BatchDelete(ctx *gin.Context) {
+	var req struct {
+		IDs []uint64 `json:"ids"`
+	}
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.Fail(ctx, 400, "参数错误")
+		return
+	}
+	if len(req.IDs) > maxBatchActionUserIDs {
+		utils.Fail(ctx, 400, fmt.Sprintf("单次最多处理 %d 个用户", maxBatchActionUserIDs))
+		return
+	}
+	ids := normalizeBatchUserIDs(req.IDs)
+	if len(ids) == 0 {
+		utils.Fail(ctx, 400, "请选择至少一个用户")
+		return
+	}
+
+	operatorID := currentOperatorID(ctx)
+	var succeeded int
+	failures := make([]gin.H, 0)
+	for _, id := range ids {
+		if id == operatorID {
+			failures = append(failures, gin.H{"id": id, "message": "不能删除当前登录的管理员账号"})
+			continue
+		}
+		if err := c.userService.Delete(id); err != nil {
+			failures = append(failures, gin.H{"id": id, "message": err.Error()})
+			continue
+		}
+		succeeded++
+	}
+
+	log.Printf("[SECURITY AUDIT] admin batch delete users | admin_id=%d requested=%d succeeded=%d failed=%d ip=%s",
+		operatorID, len(ids), succeeded, len(failures), ctx.ClientIP())
+	utils.Success(ctx, gin.H{
+		"succeeded": succeeded,
+		"failed":    len(failures),
+		"errors":    failures,
 	})
 }
 

@@ -91,6 +91,12 @@ interface ResetApiKeyResponse {
   apikey: string
 }
 
+export interface BatchUserActionResult {
+  succeeded: number
+  failed: number
+  errors?: Array<{ id: number, message: string }>
+}
+
 interface UserMoneyChangeResponse {
   message: string
   log: Entity.UserMoneyLog
@@ -273,6 +279,16 @@ export const adminUserApi = {
   // 更新用户状态
   updateStatus(id: number, status: number) {
     return request.Put<Service.ResponseResult<null>>(`${baseUrl()}/${id}/status`, { status })
+  },
+
+  // 批量更新用户状态
+  batchUpdateStatus(ids: number[], status: number) {
+    return request.Post<Service.ResponseResult<BatchUserActionResult>>(`${baseUrl()}/batch-status`, { ids, status })
+  },
+
+  // 批量删除用户
+  batchDelete(ids: number[]) {
+    return request.Post<Service.ResponseResult<BatchUserActionResult>>(`${baseUrl()}/batch-delete`, { ids })
   },
 
   // 重置用户密码

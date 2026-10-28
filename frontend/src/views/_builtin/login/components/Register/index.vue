@@ -77,7 +77,7 @@ const rules = computed(() => {
         message: t('login.checkPasswordRuleTip'),
       },
       {
-        validator: (rule: any, value: string) => {
+        validator: (_rule: any, value: string) => {
           if (value !== formValue.value.pwd) {
             return new Error(t('login.passwordNotMatch'))
           }

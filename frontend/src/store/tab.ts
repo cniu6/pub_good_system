@@ -114,15 +114,15 @@ export const useTabStore = defineStore('tab-store', {
 
     closeOtherTabs(fullPath: string) {
       const index = this.getTabIndex(fullPath)
-      this.tabs = this.tabs.filter((item, i) => i === index)
+      this.tabs = this.tabs.filter((_, i) => i === index)
     },
     closeLeftTabs(fullPath: string) {
       const index = this.getTabIndex(fullPath)
-      this.tabs = this.tabs.filter((item, i) => i >= index)
+      this.tabs = this.tabs.filter((_, i) => i >= index)
     },
     closeRightTabs(fullPath: string) {
       const index = this.getTabIndex(fullPath)
-      this.tabs = this.tabs.filter((item, i) => i <= index)
+      this.tabs = this.tabs.filter((_, i) => i <= index)
     },
     clearAllTabs() {
       this.tabs.length = 0

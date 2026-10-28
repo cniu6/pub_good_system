@@ -30,6 +30,8 @@ func registerAdminRoutes(v1 *gin.RouterGroup) {
 			// 静态路径必须写在 /:id 之前，避免被参数路由吞掉（Gin 虽优先静态，显式顺序更清晰）
 			users.GET("/lookup", adminUserCtrl.LookupUser)
 			users.POST("/batch-simple", adminUserCtrl.BatchGetSimpleInfo)
+			users.POST("/batch-status", adminUserCtrl.BatchUpdateStatus)
+			users.POST("/batch-delete", adminUserCtrl.BatchDelete)
 			users.GET("/:id/sessions", adminOnlineCtrl.UserSessions)
 			users.POST("/:id/sessions/revoke-all", adminOnlineCtrl.RevokeAllUserSessions)
 			users.GET("/:id", adminUserCtrl.Detail)

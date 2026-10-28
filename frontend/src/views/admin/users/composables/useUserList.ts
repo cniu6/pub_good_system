@@ -9,6 +9,7 @@ import { useBaseCurrency } from '@/composables/useBaseCurrency'
 import type { DataTableColumns } from 'naive-ui'
 import { useRequestGuard, useTableColumnVisibility, withSubmitLock } from '@/hooks'
 import {
+  adminUserApi,
   deleteUser,
   fetchAdminUserPage,
   loginAsUser,
@@ -36,8 +37,14 @@ export function useUserList(options?: {
 
   const searchForm = reactive({
     keyword: '',
+    status: null as number | null,
     realnameStatus: null as 0 | 1 | 2 | null,
   })
+
+  const statusFilterOptions = computed(() => [
+    { label: t('adminUsers.enabled'), value: 1 },
+    { label: t('adminUsers.disabled'), value: 0 },
+  ])
 
   const realnameFilterOptions = computed(() => [
     { label: t('realname.pending'), value: 0 },
@@ -55,8 +62,10 @@ export function useUserList(options?: {
 
   const userData = ref<AdminUser[]>([])
   const loading = ref(false)
-  /** 删除等危险写操作防连点 */
+  /** 删除、批量操作等危险写操作防连点 */
   const actionLock = ref(false)
+  /** 表格勾选的用户 ID（Naive UI 的 checked-row-keys） */
+  const checkedRowKeys = ref<Array<string | number>>([])
   const { currencySymbol } = useBaseCurrency()
 
   /** 跳转详情页（唯一入口，不再弹窗） */
@@ -164,6 +173,7 @@ export function useUserList(options?: {
   }
 
   const columns: DataTableColumns<AdminUser> = [
+    { type: 'selection', fixed: 'left' },
     { title: 'ID', key: 'id', width: 80 },
     { title: t('adminUsers.username'), key: 'username', width: 120 },
     { title: t('adminUsers.nickname'), key: 'nickname', width: 120 },
@@ -390,6 +400,7 @@ export function useUserList(options?: {
         page: pagination.page,
         page_size: pagination.pageSize,
         keyword: searchForm.keyword || undefined,
+        status: searchForm.status ?? undefined,
         realname_status: searchForm.realnameStatus ?? undefined,
       })
       if (!isLatestFetch(token))
@@ -421,34 +432,118 @@ export function useUserList(options?: {
   }
 
   function handleRefresh() {
+    checkedRowKeys.value = []
     fetchData()
   }
 
   function handleSearch() {
+    checkedRowKeys.value = []
     pagination.page = 1
     fetchData()
   }
 
   function handleReset() {
-    Object.assign(searchForm, { keyword: '', realnameStatus: null })
+    Object.assign(searchForm, { keyword: '', status: null, realnameStatus: null })
+    checkedRowKeys.value = []
     pagination.page = 1
     fetchData()
   }
 
   function handlePageChange(page: number) {
+    checkedRowKeys.value = []
     pagination.page = page
     fetchData()
   }
 
   function handlePageSizeChange(pageSize: number) {
+    checkedRowKeys.value = []
     pagination.pageSize = pageSize
     pagination.page = 1
     fetchData()
   }
 
   function handleRealnameStatusChange() {
+    checkedRowKeys.value = []
     pagination.page = 1
     fetchData()
+  }
+
+  function selectedUserIds() {
+    return checkedRowKeys.value
+      .map(key => Number(key))
+      .filter(id => Number.isFinite(id) && id > 0)
+  }
+
+  function handleBatchStatus(status: 0 | 1) {
+    if (actionLock.value)
+      return
+    const ids = selectedUserIds()
+    if (!ids.length)
+      return
+    dialog.warning({
+      title: status === 1 ? t('adminUsers.batchEnableTitle') : t('adminUsers.batchDisableTitle'),
+      content: status === 1
+        ? t('adminUsers.batchEnableConfirm', { count: ids.length })
+        : t('adminUsers.batchDisableConfirm', { count: ids.length }),
+      positiveText: t('common.confirm'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: () => withSubmitLock(actionLock, async () => {
+        try {
+          const res = await adminUserApi.batchUpdateStatus(ids, status)
+          if (res.isSuccess && res.data) {
+            const { succeeded, failed } = res.data
+            if (failed === 0)
+              message.success(t('adminUsers.batchStatusSuccess', { count: succeeded }))
+            else
+              message.warning(t('adminUsers.batchPartialFailed', { succeeded, failed }))
+            checkedRowKeys.value = []
+            fetchData()
+            return
+          }
+          message.error(res.message || t('adminUsers.batchActionFailed'))
+          return false
+        }
+        catch {
+          message.error(t('adminUsers.batchActionFailed'))
+          return false
+        }
+      }),
+    })
+  }
+
+  function handleBatchDelete() {
+    if (actionLock.value)
+      return
+    const ids = selectedUserIds()
+    if (!ids.length)
+      return
+    dialog.warning({
+      title: t('adminUsers.batchDeleteTitle'),
+      content: t('adminUsers.batchDeleteConfirm', { count: ids.length }),
+      positiveText: t('common.confirm'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: () => withSubmitLock(actionLock, async () => {
+        try {
+          const res = await adminUserApi.batchDelete(ids)
+          if (res.isSuccess && res.data) {
+            const { succeeded, failed } = res.data
+            if (failed === 0)
+              message.success(t('adminUsers.batchDeleteSuccess', { count: succeeded }))
+            else
+              message.warning(t('adminUsers.batchPartialFailed', { succeeded, failed }))
+            checkedRowKeys.value = []
+            fetchData()
+            return
+          }
+          message.error(res.message || t('adminUsers.batchActionFailed'))
+          return false
+        }
+        catch {
+          message.error(t('adminUsers.batchActionFailed'))
+          return false
+        }
+      }),
+    })
   }
 
   onMounted(() => {
@@ -460,10 +555,15 @@ export function useUserList(options?: {
 
   return {
     searchForm,
+    statusFilterOptions,
     realnameFilterOptions,
     pagination,
     userData,
     loading,
+    checkedRowKeys,
+    batchActionLoading: actionLock,
+    handleBatchStatus,
+    handleBatchDelete,
     columnOptions,
     selectedColumnKeys,
     visibleColumns,

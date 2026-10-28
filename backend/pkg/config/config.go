@@ -198,7 +198,16 @@ func validateCriticalSecurityConfig(cfg *Config) {
 			log.Fatal("[Security] 生产环境拒绝启动：JWT_SECRET 为弱/占位值（过短或常见默认值），请换成长度>=16 的随机密钥")
 		}
 		adminSecret := strings.TrimSpace(cfg.AdminJWTSecret)
-		if adminSecret != "" && adminSecret != secret && isWeakJWTSecret(adminSecret) {
+		fallbackAllowed := strings.EqualFold(strings.TrimSpace(getEnv("ALLOW_ADMIN_JWT_SECRET_FALLBACK", "false")), "true")
+		if adminSecret == "" {
+			// 管理端与用户端应使用独立密钥；仅允许通过显式开关回退到 JWT_SECRET。
+			if !fallbackAllowed {
+				log.Fatal("[Security] 生产环境拒绝启动：JWT_ADMIN_SECRET 未配置；请配置独立密钥，或显式设置 ALLOW_ADMIN_JWT_SECRET_FALLBACK=true 允许共用")
+			}
+			log.Println("[Security Warning] 管理端与用户端共用 JWT_SECRET（已显式允许回退），建议尽快拆分")
+		} else if adminSecret == secret {
+			log.Fatal("[Security] 生产环境拒绝启动：JWT_ADMIN_SECRET 不能与 JWT_SECRET 相同，请配置独立密钥")
+		} else if isWeakJWTSecret(adminSecret) {
 			log.Fatal("[Security] 生产环境拒绝启动：JWT_ADMIN_SECRET 为弱/占位值，请换成强随机密钥")
 		}
 		return
