@@ -140,8 +140,8 @@ vulnerabilities.
 | `go build -tags embedded ./...` | 通过 |
 | `go vet ./backend/...` | 通过 |
 | `go test ./backend/... -count=1` | 通过 |
-| `go test ./... -count=1` | 仅 `fst/tools/payment_test [setup failed]`：`tools/payment_test/payment_test.go:9` 导入 `fst/backend/internal/migrate` 违反 internal 规则，属改动前既存问题，与本次变更无关 |
-| `go vet ./...` | 同上，仅该 tools 包报错 |
+| `go test ./... -count=1` | 通过（`payment_test` 已移入 `backend/tools/payment_test`，可合法导入 `backend/internal/migrate`） |
+| `go vet ./...` | 通过 |
 | `govulncheck ./...` | 0 条可达漏洞（修复前 16 条） |
 | `git diff --check` | 通过（仅 CRLF 提示） |
 | `docker build -f deploy/Dockerfile -t fst:security-check .` | 未执行：本机未安装 Docker（`docker` 不是可识别命令）；Dockerfile 已固定 `golang:1.27.3-alpine`，该 tag 经 Docker Hub 检索存在 |
@@ -149,7 +149,23 @@ vulnerabilities.
 ## 七、剩余风险
 
 1. **Docker 构建未实测**：当前主机无 Docker，无法完成镜像构建验证；需在具备 Docker 的环境补跑。
-2. **`tools/payment_test` 编译失败为既存问题**：不属于本次依赖/安全改动范围，未修改。
+2. ~~`tools/payment_test` 编译失败~~：已修复——该集成测试依赖 `backend/internal/migrate`，已移至 `backend/tools/payment_test`，`go test ./...` 与 `go vet ./...` 均通过。
 3. **生产部署需配置 `JWT_ADMIN_SECRET`**：升级后若生产 `.env` 仍为空，会按设计拒绝启动；可临时设 `ALLOW_ADMIN_JWT_SECRET_FALLBACK=true`，但不建议长期使用。
 4. `golang.org/x/net` v0.62.0 要求 `go 1.26.0`，因此 `go.mod` 的 `go` 指令从 1.25 升到 1.26.0；这是采用修复版本的必要条件，不是无关的大版本升级。
 5. **GO-2026-5932（x/crypto/openpgp，无修复版本）**：当前版本仍被 `govulncheck` 标为模块级公告，但项目未导入 `openpgp` 子包，无可达符号；如后续引入 openpgp，需单独评估或改为维护中的替代实现。
+
+## 八、易支付回调签名审计（2026-10-29）
+
+对照公开的「易支付签名串注入」攻击链复核本系统，结论：**不存在同款可利用漏洞**。
+
+攻击链成立需要同时满足三个条件，本系统均不满足：
+
+| 条件 | 本系统事实 | 证据 |
+|---|---|---|
+| 下单接口接受用户可控的 `return_url`，且 query 未净化 | `CreateOrder` 请求体只有 `gateway_id` / `amount` / `subject`；`notify_url`、`return_url` 由服务端用 `GetGlobalBackendAPIURL()` 拼固定路径生成 | `backend/app/controllers/user/payment/payment_controller.go:83-84` |
+| 攻击者能把任意键值对塞进参与验签的参数集合 | 回调只从固定白名单提取 9 个字段（`pid`、`trade_no`、`out_trade_no`、`type`、`name`、`money`、`trade_status`、`sign`、`sign_type`），额外参数不进入验签 | `backend/app/controllers/public/payment/payment_callback_controller.go:135-156` |
+| 签名在浏览器 URL 中可见，且可被复用于伪造回调 | 默认走 `mapi.php` 服务端 POST，签名不出现在浏览器；仅 `mapi` 失败回退 `submit.php` 时签名可见，但下单串含 `notify_url` / `return_url`，回调白名单不含；回调串含 `trade_no` / `trade_status`，下单串不含，无法构造逐字节相同的签名串 | `backend/app/plugins/pay_balance/epay/api.go:64`（BuildSubmitURL）、`:291`（APIPay） |
+
+纵深防御仍然生效：验签之后还有 `validateCallbackMoney`（按分比对金额）、`validatePaymentNotifyBinding`（PID / 网关 / 支付方式 / 交易号绑定）、订单状态机幂等，任一不满足都不会入账（`backend/app/services/payment_service.go:478-527`）。
+
+`buildParamString` 的裸拼接（值不做 URL 转义）与易支付上游协议一致，改成编码会破坏与网关的验签兼容性，因此保留。真正的安全边界是「签名参数集合中没有用户可控值」；后续若新增自定义 `return_url`、`subject` 之外的签名参数，必须先做白名单/规范化再进入签名。

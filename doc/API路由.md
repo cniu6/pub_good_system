@@ -88,8 +88,6 @@ import (
     "fst/backend/utils"
     
     "github.com/gin-gonic/gin"
-    scalarFiles "github.com/swaggo/files"
-    ginScalar "github.com/swaggo/gin-scalar"
 )
 
 func SetupRoutes(router *gin.Engine) {
@@ -97,9 +95,9 @@ func SetupRoutes(router *gin.Engine) {
     authCtrl := &controllers.AuthController{}
     systemCtrl := &controllers.SystemController{}
     
-    // Scalar API 文档路由
-    if config.GlobalConfig.EnableScalar {
-        router.GET("/scalar/*any", ginScalar.WrapHandler(scalarFiles.Handler))
+    // Scalar API 文档路由（实现见 routes.go 的 mountScalar）
+    if config.GlobalConfig.EnableSwagger {
+        mountScalar(router)
     }
     
     // API 路由组
@@ -580,20 +578,24 @@ func (ctrl *UserController) GetProfile(c *gin.Context) {
 ### 更新 Scalar API 文档
 
 ```bash
-# 在项目根目录执行
+# 在仓库根目录执行（main.go 在根目录）
 go run github.com/swaggo/swag/cmd/swag init \
-    -g backend/cmd/main.go \
-    -o backend/docs
+    -g main.go \
+    -o backend/docs \
+    --parseDependency --parseInternal
 
-# 或简写
-go run github.com/swaggo/swag/cmd/swag init -g backend/cmd/main.go
+# 开发模式下 backend/app/plugins/swagger_auto.go 也会在代码变更后自动执行同类命令
 ```
 
 ### 访问 Scalar UI
 
 ```
-http://localhost:8080/scalar/index.html
+http://localhost:{PORT}/scalar
 ```
+
+- 规范文件：`/scalar/openapi.json`（运行时按 `ADMIN_API_PATH` 改写管理端前缀）
+- Scalar 静态资源：`backend/static/scalar/dist/browser`（本地托管，不依赖 CDN）
+- 开关：`ENABLE_SWAGGER=true`（生产建议关闭）
 
 ---
 

@@ -6,7 +6,7 @@ FST (Full Stack Template) 是一个基于 Go (Gin) 和 Vue 3 (Naive UI) 构建�
 
 | 层 | 技术 |
 |---|------|
-| 后端 | Go 1.24+ · Gin · GORM（MySQL / SQLite / Postgres）· JWT · Scalar |
+| 后端 | Go 1.27.3（go.mod 要求 1.26+）· Gin · GORM（MySQL / PostgreSQL / SQLite）· JWT · Scalar |
 | 前端 | Vue 3 · TypeScript · Vite · Naive UI · UnoCSS · Pinia · Alova |
 | 构建 | Windows / Linux · amd64 / arm64 |
 
@@ -58,7 +58,7 @@ go test ./backend/app/services/ ./backend/utils/ ./backend/pkg/... -count=1
 
 ### 1. 环境准备
 
-- [Go](https://golang.org/) 1.24+
+- [Go](https://golang.org/) 1.27.3+（模块最低 1.26）
 - [Node.js](https://nodejs.org/) 18+ & [pnpm](https://pnpm.io/)
 - [MySQL](https://www.mysql.com/) 8.0+
 
@@ -71,7 +71,7 @@ cd frontend && pnpm install
 
 ### 3. 数据库与配置
 
-1. 创建数据库 `fst_platform`（或本地用 `DB_DRIVER=sqlite`）
+1. 创建数据库 `fst_platform`（或本地用 `DB_DRIVER=sqlite` + `DB_SQLITE_PATH`）
 2. 在**仓库根目录**复制 `.env.example` → `.env`，改库连接；**不要**再写 `backend/.env`
 3. 前端另配 `frontend/.env*`（Vite）；`VITE_ADMIN_BASE_PATH` 与后端 `ADMIN_PATH` 对齐
 4. 启动后自动迁移建表
@@ -124,7 +124,7 @@ WebSocket 心跳上报在线状态；管理端「在线用户」可查看/踢下
 
 ### Scalar API 文档
 
-启动时（dev）可自动检测代码变化并重新生成，自动包含插件 API。访问：`http://localhost:{PORT}/scalar/index.html`。  
+启动时（dev）可自动检测代码变化并重新生成，自动包含插件 API。访问：`http://localhost:{PORT}/scalar`（规范文件 `/scalar/openapi.json`）。
 管理端注解路径仍为 `/api/v1/admin/*`；若配置了自定义 `ADMIN_API_PATH`，`openapi.json` **运行时改写**为实际前缀。
 
 ### 管理端两套路径
@@ -178,7 +178,9 @@ controllers/
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `DB_DRIVER` | mysql / postgres / sqlite | mysql |
-| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | 数据库连接 | 127.0.0.1:3306 |
+| `DB_MYSQL_HOST` / `DB_MYSQL_PORT` / `DB_MYSQL_USER` / `DB_MYSQL_PASSWORD` / `DB_MYSQL_NAME` | MySQL 连接 | 127.0.0.1:3306 |
+| `DB_POSTGRES_HOST` / `DB_POSTGRES_PORT` / `DB_POSTGRES_USER` / `DB_POSTGRES_PASSWORD` / `DB_POSTGRES_NAME` / `DB_POSTGRES_SSLMODE` | PostgreSQL 连接 | 127.0.0.1:5432 |
+| `DB_SQLITE_PATH` | SQLite 数据文件 | ./data/fst.db |
 | `JWT_SECRET` | JWT 签名密钥 | 见 .env.example |
 | `ENABLE_SWAGGER` | 启用 Scalar | true |
 | `ENABLE_ADMIN_DEBUG` | 管理端 debug/pprof（生产强制关） | 非生产 true |

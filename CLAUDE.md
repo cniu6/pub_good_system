@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-FST (Full Stack Template)：Go 1.24 (Gin) + Vue 3 (TypeScript / Vite / Naive UI / UnoCSS / Pinia / Alova) 前后端分离的后台管理系统模板，支持插件化扩展。Go module 名为 `fst`。
+FST (Full Stack Template)：Go 1.27.3（模块最低 1.26）(Gin) + Vue 3 (TypeScript / Vite / Naive UI / UnoCSS / Pinia / Alova) 前后端分离的后台管理系统模板，支持插件化扩展。Go module 名为 `fst`。
 
 **与用户交流一律使用中文**（rules.md 要求）；解释原理/方案时尽量配 mermaid 图（语法自检、暗黑主题下清晰可见）。
 
@@ -15,7 +15,7 @@ FST (Full Stack Template)：Go 1.24 (Gin) + Vue 3 (TypeScript / Vite / Naive UI 
 go run .
 
 # 前后端一起：扫插件 + 生成 Scalar + 启动前端与后端
-./dev.bat            # 后端 :8080，前端 :9980，Scalar /scalar/index.html
+./dev.bat            # 后端 :8080，前端 :9980，Scalar /scalar
 
 # 前端单独
 cd frontend && pnpm install && pnpm dev

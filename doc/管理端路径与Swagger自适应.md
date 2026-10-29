@@ -67,7 +67,7 @@
 2. 重启后端  
 3. 验证：`/api/v1/public/app-config` 中 `admin_api_path`  
 4. 验证：管理端请求是否变为 `/api/v1/mgr-api/...`  
-5. 验证：`/scalar/index.html` 文档路径是否已改写  
+5. 验证：`/scalar/openapi.json` 文档路径是否已改写
 
 ### 只换页面入口（例如改成 `/console`）
 

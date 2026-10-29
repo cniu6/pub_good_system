@@ -12,7 +12,7 @@
 copy deploy\.env.example deploy\.env   # Windows
 # cp deploy/.env.example deploy/.env   # Linux/macOS
 
-# 2) 编辑 deploy/.env：至少改 JWT_SECRET、DB_PASSWORD、MYSQL_ROOT_PASSWORD
+# 2) 编辑 deploy/.env：至少改 JWT_SECRET、DB_MYSQL_PASSWORD、MYSQL_ROOT_PASSWORD
 
 # 3) 构建并启动（embedded 单二进制 + MySQL）
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
@@ -31,9 +31,9 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 ```bash
 # 修改 deploy/.env：
 #   DB_DRIVER=postgres
-#   DB_HOST=postgres
-#   DB_PORT=5432
-#   DB_SSLMODE=disable
+#   DB_POSTGRES_HOST=postgres
+#   DB_POSTGRES_PORT=5432
+#   DB_POSTGRES_SSLMODE=disable
 
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env --profile postgres up -d --build
 ```
@@ -58,7 +58,7 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 `deploy/Dockerfile` 为三阶段构建：
 
 1. Node 20 + pnpm 构建前端到根目录 `dist/`
-2. Go 1.24 `go build -tags embedded` 打入单文件
+2. Go 1.27.3 `go build -tags embedded` 打入单文件
 3. Alpine 运行时，健康检查打 `/health`
 
 容器内默认用户 `fst`（uid 10001），监听 `8080`。配置通过 `env_file` / `environment` 注入，**不要把含真实口令的 `.env` 打进镜像层**。

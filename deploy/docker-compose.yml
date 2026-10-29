@@ -20,11 +20,17 @@ services:
       APP_MODE: prod
       PORT: "8080"
       DB_DRIVER: ${DB_DRIVER:-mysql}
-      DB_HOST: ${DB_HOST:-mysql}
-      DB_PORT: ${DB_PORT:-3306}
-      DB_USER: ${DB_USER:-fst}
-      DB_PASSWORD: ${DB_PASSWORD:-fst_change_me}
-      DB_NAME: ${DB_NAME:-fst_platform}
+      DB_MYSQL_HOST: ${DB_MYSQL_HOST:-mysql}
+      DB_MYSQL_PORT: ${DB_MYSQL_PORT:-3306}
+      DB_MYSQL_USER: ${DB_MYSQL_USER:-fst}
+      DB_MYSQL_PASSWORD: ${DB_MYSQL_PASSWORD:-fst_change_me}
+      DB_MYSQL_NAME: ${DB_MYSQL_NAME:-fst_platform}
+      DB_POSTGRES_HOST: ${DB_POSTGRES_HOST:-postgres}
+      DB_POSTGRES_PORT: ${DB_POSTGRES_PORT:-5432}
+      DB_POSTGRES_USER: ${DB_POSTGRES_USER:-fst}
+      DB_POSTGRES_PASSWORD: ${DB_POSTGRES_PASSWORD:-fst_change_me}
+      DB_POSTGRES_NAME: ${DB_POSTGRES_NAME:-fst_platform}
+      DB_POSTGRES_SSLMODE: ${DB_POSTGRES_SSLMODE:-disable}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       JWT_SECRET: ${JWT_SECRET:-change_me_to_a_long_random_secret}
     depends_on:
@@ -43,7 +49,7 @@ services:
     networks:
       - fst-net
 
-  # 默认栈：MySQL。若只要 Postgres：加 --profile postgres，并把 DB_DRIVER/DB_HOST 改成 postgres，
+  # 默认栈：MySQL。若只要 Postgres：加 --profile postgres，并把 DB_DRIVER 改成 postgres、DB_POSTGRES_HOST 指向 postgres，
   # 同时可 docker compose stop mysql（或自行改 compose 给 mysql 加 profiles: [mysql]）。
   mysql:
     image: mysql:8.0
@@ -51,9 +57,9 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_change_me}
-      MYSQL_DATABASE: ${DB_NAME:-fst_platform}
-      MYSQL_USER: ${DB_USER:-fst}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-fst_change_me}
+      MYSQL_DATABASE: ${DB_MYSQL_NAME:-fst_platform}
+      MYSQL_USER: ${DB_MYSQL_USER:-fst}
+      MYSQL_PASSWORD: ${DB_MYSQL_PASSWORD:-fst_change_me}
     ports:
       - "${MYSQL_PUBLISH_PORT:-3306}:3306"
     volumes:
@@ -74,15 +80,15 @@ services:
     restart: unless-stopped
     profiles: ["postgres"]
     environment:
-      POSTGRES_DB: ${DB_NAME:-fst_platform}
-      POSTGRES_USER: ${DB_USER:-fst}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-fst_change_me}
+      POSTGRES_DB: ${DB_POSTGRES_NAME:-fst_platform}
+      POSTGRES_USER: ${DB_POSTGRES_USER:-fst}
+      POSTGRES_PASSWORD: ${DB_POSTGRES_PASSWORD:-fst_change_me}
     ports:
       - "${POSTGRES_PUBLISH_PORT:-5432}:5432"
     volumes:
       - fst_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-fst} -d ${DB_NAME:-fst_platform}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_POSTGRES_USER:-fst} -d ${DB_POSTGRES_NAME:-fst_platform}"]
       interval: 10s
       timeout: 5s
       retries: 10

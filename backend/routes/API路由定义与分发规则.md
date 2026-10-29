@@ -10,7 +10,9 @@
 ## 路由树（当前）
 
 ```text
-/scalar/*any          # 可选 EnableScalar + 管理路径改写中间件
+/scalar               # 可选 Scalar UI（ENABLE_SWAGGER=true）
+/scalar/openapi.json  # OpenAPI 规范，运行时改写管理端前缀
+/scalar-static/*      # Scalar 本地静态资源
 /api/v1/
 ├── public/            # 无需登录：登录注册、app-config、geo、session 强退、支付回调
 ├── user/              # 需 user 或 admin token：资料/支付/实名/提现
@@ -50,13 +52,12 @@ adminGroup := v1.Group(adminAPIPath)
 ## Scalar
 
 ```go
-router.GET("/scalar/*any",
-  middleware.ScalarAdminPathRewriteMiddleware(),
-  ginScalar.WrapHandler(scalarFiles.Handler),
-)
+router.GET("/scalar/openapi.json", middleware.ScalarAdminPathRewriteMiddleware())
+router.Static("/scalar-static", "./backend/static/scalar/dist/browser")
+router.GET("/scalar", scalarReferenceHTML)
 ```
 
-注解路径保持 `/api/v1/admin/...`；非默认前缀时 openapi.json 运行时改写。
+注解路径保持 `/api/v1/admin/...`；非默认前缀时 `openapi.json` 运行时改写。Scalar UI 使用本地静态资源，不依赖 CDN。
 
 ## 规范
 
