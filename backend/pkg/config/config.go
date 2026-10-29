@@ -5,13 +5,16 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"log"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
+	mysqlDriver "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 )
 
@@ -39,6 +42,10 @@ type Config struct {
 	DBDriver                     string
 	// DBDSN 已包含字符集/排序规则连接参数。
 	DBDSN string
+	// 连接池参数；SQLite 固定单连接，以下配置仅对 MySQL/Postgres 生效。
+	DBMaxOpenConns           int
+	DBMaxIdleConns           int
+	DBConnMaxLifetimeMinutes int
 	// DBCollation 当前使用的 MySQL 排序规则；SQLite/Postgres 下无意义。
 	DBCollation    string
 	GeetestEnabled bool
@@ -516,9 +523,12 @@ func InitConfig() {
 		APILogBatchSize:              getEnvAsPositiveInt("API_LOG_BATCH_SIZE", 100),
 		APILogFlushIntervalMillis:    getEnvAsPositiveInt("API_LOG_FLUSH_INTERVAL_MILLISECONDS", 2000),
 		APILogWALDir:                 getEnv("API_LOG_WAL_DIR", "./api-access-log-wal"),
-		DBDriver:                     getEnv("DB_DRIVER", "mysql"),
+		DBDriver:                     normalizeDBDriver(getEnv("DB_DRIVER", "mysql")),
 		DBDSN:                        buildDSN(),
-		DBCollation:                  getEnv("DB_COLLATION", DefaultMySQLCollation),
+		DBMaxOpenConns:               getEnvAsPositiveInt("DB_MAX_OPEN_CONNS", 100),
+		DBMaxIdleConns:               getEnvAsPositiveInt("DB_MAX_IDLE_CONNS", 10),
+		DBConnMaxLifetimeMinutes:     getEnvAsPositiveInt("DB_CONN_MAX_LIFETIME_MINUTES", 30),
+		DBCollation:                  dbEnv("MYSQL", "COLLATION", "DB_COLLATION", DefaultMySQLCollation),
 		GeetestEnabled:               geetestEnabled && geetestID != "" && geetestKey != "",
 		GeetestID:                    geetestID,
 		GeetestKey:                   geetestKey,
@@ -652,46 +662,152 @@ func parsePositiveIntValue(raw string, fallback int) int {
 	return v
 }
 
-func buildDSN() string {
-	driver := strings.ToLower(strings.TrimSpace(getEnv("DB_DRIVER", "mysql")))
-	switch driver {
+func normalizeDBDriver(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", "mysql":
+		return "mysql"
 	case "sqlite", "sqlite3":
-		return buildSQLiteDSN()
+		return "sqlite"
 	case "postgres", "postgresql", "pg":
-		return buildPostgresDSN()
+		return "postgres"
 	default:
-		user := getEnv("DB_USER", "root")
-		pass := getEnv("DB_PASSWORD", "")
-		host := getEnv("DB_HOST", "127.0.0.1")
-		port := getEnv("DB_PORT", "3306")
-		name := getEnv("DB_NAME", "fst_platform")
-
-		collation := getEnv("DB_COLLATION", DefaultMySQLCollation)
-		return user + ":" + pass + "@tcp(" + host + ":" + port + ")/" + name + "?charset=utf8mb4&collation=" + collation + "&parseTime=True&loc=Local"
+		return strings.ToLower(strings.TrimSpace(raw))
 	}
 }
 
-// buildPostgresDSN 组装 PostgreSQL DSN（pgx 认识的 key=value 或 URL 均可，这里用更易读的 URL 形式）。
-// DB_SSLMODE 默认 disable，本地/内网部署最常见；生产连公网 Postgres 建议在 .env 里显式设成 require。
-func buildPostgresDSN() string {
-	user := getEnv("DB_USER", "postgres")
-	pass := getEnv("DB_PASSWORD", "")
-	host := getEnv("DB_HOST", "127.0.0.1")
-	port := getEnv("DB_PORT", "5432")
-	name := getEnv("DB_NAME", "fst_platform")
-	sslMode := getEnv("DB_SSLMODE", "disable")
-
-	return "postgres://" + url.QueryEscape(user) + ":" + url.QueryEscape(pass) +
-		"@" + host + ":" + port + "/" + name + "?sslmode=" + url.QueryEscape(sslMode)
+// dbEnv 读取分驱动变量（DB_MYSQL_HOST / DB_POSTGRES_HOST / DB_SQLITE_PATH），
+// 未配置时回退旧的 DB_HOST 等变量，保证旧 .env 不用改就能继续启动。
+func dbEnv(prefix, key, legacyKey, fallback string) string {
+	if v := strings.TrimSpace(os.Getenv("DB_" + prefix + "_" + key)); v != "" {
+		return v
+	}
+	return getEnv(legacyKey, fallback)
 }
 
-// buildSQLiteDSN 组装 SQLite DSN（供 glebarez/sqlite / GORM 使用）。
-// 优先级：DB_PATH > 看起来像路径的 DB_NAME > 默认 data/fst.db
+type dbDSNValues struct {
+	Driver     string
+	Host       string
+	Port       string
+	User       string
+	Password   string
+	Name       string
+	Collation  string
+	SSLMode    string
+	SQLitePath string
+}
+
+func buildDSN() string {
+	driver := normalizeDBDriver(getEnv("DB_DRIVER", "mysql"))
+	values := dbDSNValues{
+		Driver:    driver,
+		Collation: dbEnv("MYSQL", "COLLATION", "DB_COLLATION", DefaultMySQLCollation),
+	}
+	switch driver {
+	case "sqlite":
+		values.SQLitePath = dbEnv("SQLITE", "PATH", "DB_PATH", "")
+		values.Name = dbEnv("SQLITE", "NAME", "DB_NAME", "")
+	case "postgres":
+		values.Host = dbEnv("POSTGRES", "HOST", "DB_HOST", "127.0.0.1")
+		values.Port = dbEnv("POSTGRES", "PORT", "DB_PORT", "5432")
+		values.User = dbEnv("POSTGRES", "USER", "DB_USER", "postgres")
+		values.Password = dbEnv("POSTGRES", "PASSWORD", "DB_PASSWORD", "")
+		values.Name = dbEnv("POSTGRES", "NAME", "DB_NAME", "fst_platform")
+		values.SSLMode = dbEnv("POSTGRES", "SSLMODE", "DB_SSLMODE", "disable")
+	default:
+		values.Host = dbEnv("MYSQL", "HOST", "DB_HOST", "127.0.0.1")
+		values.Port = dbEnv("MYSQL", "PORT", "DB_PORT", "3306")
+		values.User = dbEnv("MYSQL", "USER", "DB_USER", "root")
+		values.Password = dbEnv("MYSQL", "PASSWORD", "DB_PASSWORD", "")
+		values.Name = dbEnv("MYSQL", "NAME", "DB_NAME", "fst_platform")
+	}
+	return buildDSNFromValues(values)
+}
+
+// buildDSNFromValues 供环境变量与 JSON .env 共用，避免两条加载路径拼出不同的 DSN。
+func buildDSNFromValues(v dbDSNValues) string {
+	switch normalizeDBDriver(v.Driver) {
+	case "sqlite":
+		return buildSQLiteDSNFrom(v.SQLitePath, v.Name)
+	case "postgres":
+		return buildPostgresDSNFrom(v.Host, v.Port, v.User, v.Password, v.Name, v.SSLMode)
+	default:
+		return buildMySQLDSNFrom(v.Host, v.Port, v.User, v.Password, v.Name, v.Collation)
+	}
+}
+
+func buildMySQLDSNFrom(host, port, user, pass, name, collation string) string {
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	if port == "" {
+		port = "3306"
+	}
+	if user == "" {
+		user = "root"
+	}
+	if name == "" {
+		name = "fst_platform"
+	}
+	if collation == "" {
+		collation = DefaultMySQLCollation
+	}
+
+	cfg := mysqlDriver.NewConfig()
+	cfg.User = user
+	cfg.Passwd = pass
+	cfg.Net = "tcp"
+	cfg.Addr = net.JoinHostPort(host, port)
+	cfg.DBName = name
+	cfg.ParseTime = true
+	cfg.Loc = time.Local
+	cfg.Collation = collation
+	// 连接/读写超时：MySQL 不可达或半死不活时尽快失败，避免启动与请求无限等待。
+	// 生产 wait_timeout 较短时，配合 db.InitDB 的 ConnMaxIdleTime/ConnMaxLifetime 回收旧连接。
+	cfg.Timeout = 5 * time.Second
+	cfg.ReadTimeout = 30 * time.Second
+	cfg.WriteTimeout = 30 * time.Second
+	cfg.Params = map[string]string{"charset": "utf8mb4"}
+	return cfg.FormatDSN()
+}
+
+// buildPostgresDSNFrom 组装 PostgreSQL URL DSN。
+func buildPostgresDSNFrom(host, port, user, pass, name, sslMode string) string {
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	if port == "" {
+		port = "5432"
+	}
+	if user == "" {
+		user = "postgres"
+	}
+	if name == "" {
+		name = "fst_platform"
+	}
+	if sslMode == "" {
+		sslMode = "disable"
+	}
+	// 用 url.UserPassword 编码 userinfo：QueryEscape 会把空格编成 +，而 userinfo 里的 + 不会被还原成空格。
+	u := url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(user, pass),
+		Host:     net.JoinHostPort(host, port),
+		Path:     "/" + name,
+		RawQuery: url.Values{
+			"sslmode":         {sslMode},
+			"connect_timeout": {"5"},
+		}.Encode(),
+	}
+	return u.String()
+}
+
+// buildSQLiteDSNFrom 组装 SQLite DSN。
+// 优先级：DB_SQLITE_PATH（兼容 DB_PATH）> 看起来像路径的 DB_NAME > 默认 data/fst.db。
 // Windows 下会转成绝对路径 + file: URI，避免相对路径/反斜杠踩坑。
-func buildSQLiteDSN() string {
-	path := strings.TrimSpace(getEnv("DB_PATH", ""))
+func buildSQLiteDSNFrom(path, name string) string {
+	path = strings.TrimSpace(path)
 	if path == "" {
-		name := strings.TrimSpace(getEnv("DB_NAME", ""))
+		name = strings.TrimSpace(name)
 		switch {
 		case name == "" || name == "fst_platform":
 			path = filepath.Join("data", "fst.db")
@@ -713,11 +829,14 @@ func buildSQLiteDSN() string {
 }
 
 type jsonDotEnv struct {
+	DBDriver                     string `json:"db_driver"`
 	DBHost                       string `json:"db_host"`
 	DBPort                       string `json:"db_port"`
 	DBUser                       string `json:"db_user"`
 	DBPassword                   string `json:"db_password"`
 	DBName                       string `json:"db_name"`
+	DBPath                       string `json:"db_path"`
+	DBSSLMode                    string `json:"db_sslmode"`
 	DBCollation                  string `json:"db_collation"`
 	Port                         string `json:"port"`
 	HTTPReadHeaderTimeoutSeconds string `json:"http_read_header_timeout_seconds"`
@@ -823,20 +942,8 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 		}
 	}
 
-	user := raw.DBUser
-	if user == "" {
-		user = "root"
-	}
-	pass := raw.DBPassword
-	host := raw.DBHost
-	if host == "" {
-		host = "127.0.0.1"
-	}
-	dbPort := raw.DBPort
-	if dbPort == "" {
-		dbPort = "3306"
-	}
-	name := raw.DBName
+	driver := normalizeDBDriver(raw.DBDriver)
+	name := strings.TrimSpace(raw.DBName)
 	if name == "" {
 		name = "fst_platform"
 	}
@@ -844,7 +951,17 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 	if collation == "" {
 		collation = DefaultMySQLCollation
 	}
-	dsn := user + ":" + pass + "@tcp(" + host + ":" + dbPort + ")/" + name + "?charset=utf8mb4&collation=" + collation + "&parseTime=True&loc=Local"
+	dsn := buildDSNFromValues(dbDSNValues{
+		Driver:     driver,
+		Host:       raw.DBHost,
+		Port:       raw.DBPort,
+		User:       raw.DBUser,
+		Password:   raw.DBPassword,
+		Name:       name,
+		Collation:  collation,
+		SSLMode:    raw.DBSSLMode,
+		SQLitePath: raw.DBPath,
+	})
 
 	cfg := &Config{
 		AppName:                      "F.st",
@@ -863,8 +980,12 @@ func loadJSONDotEnv(path string) (*Config, bool) {
 		APILogBatchSize:              100,
 		APILogFlushIntervalMillis:    2000,
 		APILogWALDir:                 "./api-access-log-wal",
-		DBDriver:                     "mysql",
+		DBDriver:                     driver,
 		DBDSN:                        dsn,
+		DBMaxOpenConns:               100,
+		DBMaxIdleConns:               10,
+		DBConnMaxLifetimeMinutes:     30,
+		DBCollation:                  collation,
 		GeetestEnabled:               geetestEnabled && raw.GeetestCaptchaID != "" && raw.GeetestCaptchaKey != "",
 		GeetestID:                    raw.GeetestCaptchaID,
 		GeetestKey:                   raw.GeetestCaptchaKey,

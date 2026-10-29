@@ -108,12 +108,6 @@ func normalizeInternationalMobile(s string) (string, error) {
 	return "", ErrInvalidMobile
 }
 
-// IsValidMobile 仅校验，不返回规范化结果
-func IsValidMobile(raw string, cnOnly bool) bool {
-	_, err := NormalizeAndValidateMobile(raw, cnOnly)
-	return err == nil
-}
-
 // MobileLookupVariants 同一号码在库中可能出现的写法（CN 11 位 / +86 E.164），用于唯一性查询。
 // 避免开关切换后「138xxxx」与「+86138xxxx」被当成两个号。
 func MobileLookupVariants(normalized string) []string {

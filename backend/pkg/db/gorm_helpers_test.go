@@ -24,6 +24,9 @@ func TestCastToTextAndQuoteIdent(t *testing.T) {
 	if got := QuoteIdent("contact"); got != `"contact"` {
 		t.Fatalf("postgres QuoteIdent: %s", got)
 	}
+	if got := QuoteIdent(`we"ird`); got != `"we""ird"` {
+		t.Fatalf("postgres QuoteIdent escaping: %s", got)
+	}
 
 	activeDriver = "sqlite"
 	if got := CastToText("SUM(x)"); !strings.Contains(got, "AS TEXT") {

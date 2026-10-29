@@ -142,6 +142,10 @@ func CreatePaymentOrder(userID uint64, req *CreatePaymentOrderRequest, notifyURL
 
 	// 10. 根据通道类型发起支付：优先 pkg/payment Provider，兼容旧 PaymentChannel
 	gwNotifyURL := notifyURL
+	// 每个通道有独立的回调路径，不再复用旧的统一 /payment/notify 入口。
+	if meta := payment.GetChannelMeta(gateway.Type); meta != nil && strings.TrimSpace(meta.DefaultNotifyPath) != "" {
+		gwNotifyURL = strings.TrimRight(GetGlobalBackendAPIURL(), "/") + meta.DefaultNotifyPath
+	}
 	if gateway.NotifyURL != "" {
 		gwNotifyURL = gateway.NotifyURL
 	}

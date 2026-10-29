@@ -13,6 +13,8 @@ package appinit
 
 import (
 	"log"
+	"os"
+	"strings"
 
 	"fst/backend/app/plugins"
 	"fst/backend/app/services"
@@ -36,14 +38,12 @@ func Bootstrap() {
 	log.Println("[AppInit] 配置初始化完成")
 	// 生产误配强警告（CORS=* / Swagger / 弱 JWT 等），不中断启动
 	config.WarnProductionMisconfig()
-	if config.IsProductionMode() {
-		gin.SetMode(gin.ReleaseMode)
-		log.Println("[AppInit] 生产模式")
-	} else {
+	production := config.IsProductionMode()
+	gin.SetMode(gin.ReleaseMode)
+	if !production && strings.EqualFold(strings.TrimSpace(os.Getenv("GIN_MODE")), gin.DebugMode) {
 		gin.SetMode(gin.DebugMode)
-		log.Println("[AppInit] 开发模式")
 	}
-	log.Println("[AppInit] GIN模式初始化完成")
+	log.Printf("[AppInit] Gin 模式: %s，生产安全模式: %t", gin.Mode(), production)
 
 	// ---------- 2. 数据库连接（只连库，不建表） ----------
 	db.InitDB()

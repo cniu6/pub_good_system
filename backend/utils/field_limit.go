@@ -22,8 +22,11 @@ const (
 	MaxSubjectLength       = 255
 	MaxDescriptionLength   = 255
 	MaxSignNameLength      = 64
-	MaxAnnouncementTitle   = 200
-	MaxAnnouncementSummary = 255
+	MaxAnnouncementTitle        = 200
+	MaxAnnouncementSummary      = 255
+	// MaxAnnouncementContentBytes 公告正文按字节限制；MySQL TEXT 上限 65,535，
+	// 留出 utf8mb4 与换行余量，三库统一按 60KB 约束。
+	MaxAnnouncementContentBytes = 60 * 1024
 	MaxCommentLength       = 500
 	MaxResolveRemarkLength = 500
 	MaxRejectReasonLength  = 255

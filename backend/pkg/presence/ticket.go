@@ -18,8 +18,9 @@ type WSTicket struct {
 }
 
 type ticketStore struct {
-	mu   sync.Mutex
-	data map[string]WSTicket
+	mu        sync.Mutex
+	data      map[string]WSTicket
+	lastSweep time.Time
 }
 
 var globalTickets = &ticketStore{data: make(map[string]WSTicket)}
@@ -36,12 +37,16 @@ func IssueWSTicket(userID uint64, guard string, sessionID uint64) (string, time.
 	exp := time.Now().Add(wsTicketTTL)
 	globalTickets.mu.Lock()
 	defer globalTickets.mu.Unlock()
-	// 顺带清理过期项，避免无限增长
+	// 过期项按固定间隔清理，不能每次签发都全表扫：5 万连接下会退化成 O(N²)。
+	// 未及时清理的过期票据仍会被 ConsumeWSTicket 的 ExpiresAt 校验拒绝。
 	now := time.Now()
-	for k, v := range globalTickets.data {
-		if now.After(v.ExpiresAt) {
-			delete(globalTickets.data, k)
+	if globalTickets.lastSweep.IsZero() || now.Sub(globalTickets.lastSweep) >= wsTicketTTL/2 {
+		for k, v := range globalTickets.data {
+			if now.After(v.ExpiresAt) {
+				delete(globalTickets.data, k)
+			}
 		}
+		globalTickets.lastSweep = now
 	}
 	globalTickets.data[id] = WSTicket{
 		Token:     id,

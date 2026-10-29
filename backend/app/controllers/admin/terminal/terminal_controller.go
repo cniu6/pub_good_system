@@ -81,8 +81,8 @@ func writeTerminalAudit(c *gin.Context, cmd, output string, status int) {
 		IP:           utils.GetClientIP(c),
 		UserAgent:    c.Request.UserAgent(),
 		HandlerName:  "admin.(*TerminalController).exec",
-		RequestBody:  &rb,
-		ResponseBody: &sb,
+		RequestBody:  models.NewLongTextPtr(rb),
+		ResponseBody: models.NewLongTextPtr(sb),
 		StatusCode:   status,
 	})
 }

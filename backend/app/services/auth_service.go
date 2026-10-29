@@ -478,12 +478,3 @@ func (s *AuthService) ChangePassword(userID uint64, oldPassword, newPassword str
 	return nil
 }
 
-// ValidateToken 验证Token
-func (s *AuthService) ValidateToken(token string) (*utils.Claims, error) {
-	return utils.ParseToken(token)
-}
-
-// GetUserInfo 获取用户信息
-func (s *AuthService) GetUserInfo(userID uint64) (*models.User, error) {
-	return models.GetUserByID(userID)
-}

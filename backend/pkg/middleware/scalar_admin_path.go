@@ -678,19 +678,3 @@ var modelNameCN = map[string]string{
 	"DialCountry":                  "国际区号",
 	"Response":                     "通用响应",
 }
-
-// Scalar / Redoc 支持 x-tagGroups 实现分组侧边栏。
-func injectTagGroups(root map[string]any) {
-	root["x-tagGroups"] = []map[string]any{
-		{"name": "📢 Public 公共接口", "tags": []string{"Public-认证", "Public-配置", "Public-区号", "Public-回调", "Public-会话"}},
-		{"name": "👤 User 用户接口", "tags": []string{"User-资料", "User-支付", "User-实名", "User-提现", "User-公告", "User-会话", "User-设置"}},
-		{"name": "🔧 Admin 管理员接口", "tags": []string{
-			"Admin-公告", "Admin-邮件日志", "Admin-邮件模板", "Admin-短信日志", "Admin-短信模板",
-			"Admin-用户", "Admin-用户等级", "Admin-用户积分", "Admin-支付", "Admin-实名",
-			"Admin-设置", "Admin-操作日志", "Admin-API日志", "Admin-仪表盘", "Admin-自动任务",
-			"Admin-在线用户", "Admin-调试", "Admin-终端", "Admin-待办", "Admin-数据库",
-		}},
-		{"name": "⚙ System 系统管理", "tags": []string{"System-管理"}},
-		{"name": "🧪 V2 测试", "tags": []string{"V2-测试"}},
-	}
-}

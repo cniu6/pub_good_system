@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -65,10 +66,10 @@ func CastToText(expr string) string {
 	return "CAST(" + expr + " AS TEXT)"
 }
 
-// QuoteIdent 按当前驱动给标识符加引号（DDL 用）。
+// QuoteIdent 按当前驱动给标识符加引号并转义内部引号（DDL 用）。
 func QuoteIdent(name string) string {
 	if IsMySQL() {
-		return "`" + name + "`"
+		return "`" + strings.ReplaceAll(name, "`", "``") + "`"
 	}
-	return `"` + name + `"`
+	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 }

@@ -7,6 +7,8 @@ import (
 	"fst/backend/app/models"
 	"fst/backend/pkg/db"
 	"fst/backend/utils"
+	"log"
+	"slices"
 	"strings"
 	"time"
 
@@ -44,6 +46,7 @@ type AdminUserListItem struct {
 	// IsOnline 当前是否在线（依据 LastSeenAt 与在线心跳容忍窗口判定，与专门的在线用户页口径一致）。
 	IsOnline bool `gorm:"-" json:"is_online"`
 }
+
 //@name 管理端用户列表项
 
 // UserListResult 用户列表返回结果
@@ -70,63 +73,32 @@ func (s *UserService) GetList(query *UserListQuery) (*UserListResult, error) {
 		query.PageSize = 100
 	}
 
-	// 构建查询条件
 	// 显式带上 users. 前缀，避免与联表字段（如 rv.status）产生歧义或误命中。
-	where := "WHERE users.delete_time IS NULL"
-	args := []interface{}{}
-
-	if query.Keyword != "" {
-		where += " AND (users.username LIKE ? OR users.nickname LIKE ? OR users.email LIKE ? OR users.mobile LIKE ? OR users.admin_remark LIKE ?)"
-		kw := "%" + query.Keyword + "%"
-		args = append(args, kw, kw, kw, kw, kw)
-	}
-	if query.Status != nil {
-		where += " AND users.status = ?"
-		args = append(args, *query.Status)
-	}
-	if query.GroupID > 0 {
-		where += " AND users.group_id = ?"
-		args = append(args, query.GroupID)
-	}
-	if query.RealnameStatus != nil {
-		where += " AND rv.status = ?"
-		args = append(args, *query.RealnameStatus)
+	filtered := func() *gorm.DB {
+		q := adminUserQuery()
+		if query.Keyword != "" {
+			kw := "%" + query.Keyword + "%"
+			q = q.Where("users.username LIKE ? OR users.nickname LIKE ? OR users.email LIKE ? OR users.mobile LIKE ? OR users.admin_remark LIKE ?", kw, kw, kw, kw, kw)
+		}
+		if query.Status != nil {
+			q = q.Where("users.status = ?", *query.Status)
+		}
+		if query.GroupID > 0 {
+			q = q.Where("users.group_id = ?", query.GroupID)
+		}
+		if query.RealnameStatus != nil {
+			q = q.Where("rv.status = ?", *query.RealnameStatus)
+		}
+		return q
 	}
 
-	fromClause := fmt.Sprintf(` FROM users
-		LEFT JOIN (
-			SELECT t.user_id, t.status
-			FROM user_realname_verifications t
-			INNER JOIN (
-				SELECT user_id, MAX(id) AS max_id
-				FROM user_realname_verifications
-				WHERE delete_time IS NULL
-				GROUP BY user_id
-			) latest ON latest.max_id = t.id
-		) rv ON rv.user_id = users.id
-		LEFT JOIN (
-			SELECT user_id, COALESCE(SUM(pay_amount), 0) AS total_paid_amount
-			FROM payment_orders
-			WHERE status = ? AND %s
-			GROUP BY user_id
-		) p ON p.user_id = users.id `, models.RealPaidOrderFilterSQL)
-
-	baseArgs := append([]interface{}{models.PaymentStatusPaid}, args...)
-
-	// 查询总数
-	count_query := "SELECT COUNT(*)" + fromClause + where
-	err := db.DB.Raw(count_query, baseArgs...).Scan(&total).Error
-	if err != nil {
+	if err := filtered().Count(&total).Error; err != nil {
 		return nil, err
 	}
-
-	// 分页查询
-	offset := (query.Page - 1) * query.PageSize
-	list_query := "SELECT " + models.BuildUserSelectColumns("users") + ", rv.status AS realname_status, COALESCE(p.total_paid_amount, 0) AS total_paid_amount, CASE WHEN COALESCE(p.total_paid_amount, 0) > 0 THEN COALESCE(users.money, 0) / p.total_paid_amount ELSE 0 END AS balance_paid_ratio" + fromClause + where + " ORDER BY users.id DESC LIMIT ? OFFSET ?"
-	listArgs := append(baseArgs, query.PageSize, offset)
-
-	err = db.DB.Raw(list_query, listArgs...).Scan(&users).Error
-	if err != nil {
+	if err := filtered().Select(adminUserColumns()).
+		Order("users.id DESC").
+		Limit(query.PageSize).Offset((query.Page - 1) * query.PageSize).
+		Scan(&users).Error; err != nil {
 		return nil, err
 	}
 
@@ -164,33 +136,29 @@ func (s *UserService) GetByID(id uint64) (*models.User, error) {
 	return models.GetUserByID(id)
 }
 
+// adminUserQuery 管理端用户列表/详情共用的联表：最新一条实名状态 + 真实已付金额。
+func adminUserQuery() *gorm.DB {
+	latest := db.DB.Model(&models.RealnameVerification{}).
+		Select("user_id, MAX(id) AS max_id").Where("delete_time IS NULL").Group("user_id")
+	rv := db.DB.Table("user_realname_verifications t").
+		Select("t.user_id, t.status").Joins("INNER JOIN (?) latest ON latest.max_id = t.id", latest)
+	return db.DB.Table("users").
+		Joins("LEFT JOIN (?) rv ON rv.user_id = users.id", rv).
+		Joins("LEFT JOIN (?) p ON p.user_id = users.id", models.PaidAmountByUserQuery()).
+		Where("users.delete_time IS NULL")
+}
+
+func adminUserColumns() string {
+	return models.BuildUserSelectColumns("users") +
+		", rv.status AS realname_status, COALESCE(p.total_paid_amount, 0) AS total_paid_amount" +
+		", CASE WHEN COALESCE(p.total_paid_amount, 0) > 0 THEN COALESCE(users.money, 0) / p.total_paid_amount ELSE 0 END AS balance_paid_ratio"
+}
+
 func (s *UserService) GetAdminDetail(id uint64) (*AdminUserListItem, error) {
 	var user AdminUserListItem
-	query := fmt.Sprintf(`SELECT
-		%s,
-		rv.status AS realname_status,
-		COALESCE(p.total_paid_amount, 0) AS total_paid_amount,
-		CASE WHEN COALESCE(p.total_paid_amount, 0) > 0 THEN COALESCE(users.money, 0) / p.total_paid_amount ELSE 0 END AS balance_paid_ratio
-	FROM users
-	LEFT JOIN (
-		SELECT t.user_id, t.status
-		FROM user_realname_verifications t
-		INNER JOIN (
-			SELECT user_id, MAX(id) AS max_id
-			FROM user_realname_verifications
-			WHERE delete_time IS NULL
-			GROUP BY user_id
-		) latest ON latest.max_id = t.id
-	) rv ON rv.user_id = users.id
-	LEFT JOIN (
-		SELECT user_id, COALESCE(SUM(pay_amount), 0) AS total_paid_amount
-		FROM payment_orders
-		WHERE status = ? AND %s
-		GROUP BY user_id
-	) p ON p.user_id = users.id
-	WHERE users.id = ? AND users.delete_time IS NULL`, models.BuildUserSelectColumns("users"), models.RealPaidOrderFilterSQL)
-
-	if err := db.DB.Raw(query, models.PaymentStatusPaid, id).Scan(&user).Error; err != nil {
+	// 用 FindOne 而不是 Scan：Scan 查不到行时既不改 user 也不返回错误，
+	// 控制器会误返回 200 + 空用户；FindOne 在 0 行时返回 sql.ErrNoRows。
+	if err := db.FindOne(adminUserQuery().Select(adminUserColumns()).Where("users.id = ?", id), &user); err != nil {
 		return nil, db.MapGormNotFound(err)
 	}
 	user.AdminRemark = user.User.AdminRemark
@@ -230,6 +198,7 @@ type UserCreateRequest struct {
 	Status  *uint8 `json:"status"`
 	GroupID uint64 `json:"group_id"`
 }
+
 //@name 创建用户请求
 
 // Create 创建用户
@@ -332,23 +301,24 @@ func (s *UserService) Create(req *UserCreateRequest) (*models.User, error) {
 
 // UserUpdateRequest 更新用户请求
 type UserUpdateRequest struct {
-	ID         uint64  `json:"id"`
-	Nickname   *string `json:"nickname"`
-	Email      *string `json:"email"`
-	Mobile     *string `json:"mobile"`
-	Avatar     *string `json:"avatar"`
-	Gender     *uint8  `json:"gender"`     // 指针类型，允许设置为0（保密）
-	Birthday   *int64  `json:"birthday"`
-	Motto      *string `json:"motto"`
-	BackGround *string `json:"back_ground"`
-	Language   *string `json:"language"`
-	Country    *string `json:"country"`
+	ID          uint64  `json:"id"`
+	Nickname    *string `json:"nickname"`
+	Email       *string `json:"email"`
+	Mobile      *string `json:"mobile"`
+	Avatar      *string `json:"avatar"`
+	Gender      *uint8  `json:"gender"` // 指针类型，允许设置为0（保密）
+	Birthday    *int64  `json:"birthday"`
+	Motto       *string `json:"motto"`
+	BackGround  *string `json:"back_ground"`
+	Language    *string `json:"language"`
+	Country     *string `json:"country"`
 	AdminRemark *string `json:"admin_remark"`
-	Level      *uint64 `json:"level"`
-	Role       *string `json:"role"`
-	Status     *uint8  `json:"status"`
-	GroupID    *uint64 `json:"group_id"`
+	Level       *uint64 `json:"level"`
+	Role        *string `json:"role"`
+	Status      *uint8  `json:"status"`
+	GroupID     *uint64 `json:"group_id"`
 }
+
 //@name 更新用户请求
 
 // Update 更新用户
@@ -370,10 +340,6 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 	if req.Status != nil {
 		newStatus = req.Status
 	}
-	if err := ensureAdminPrivilegeSafe(user, newRole, newStatus, false); err != nil {
-		return err
-	}
-
 	// 检查邮箱是否被其他用户使用（DB 查询本身出错要直接拒绝，不能当成「邮箱不存在」放过）
 	if req.Email != nil && *req.Email != user.Email {
 		if err := validateClientRuneLen(*req.Email, "邮箱", utils.MaxEmailLength); err != nil {
@@ -468,24 +434,31 @@ func (s *UserService) Update(req *UserUpdateRequest) error {
 	now := time.Now().Unix()
 	user.UpdateTime = &now
 
-	if err := db.DB.Model(&models.User{}).Where("id = ?", user.ID).Updates(map[string]interface{}{
-		"nickname":     user.Nickname,
-		"email":        user.Email,
-		"mobile":       user.Mobile,
-		"avatar":       user.Avatar,
-		"gender":       user.Gender,
-		"birthday":     user.Birthday,
-		"motto":        user.Motto,
-		"admin_remark": user.AdminRemark,
-		"back_ground":  user.BackGround,
-		"language":     user.Language,
-		"country":      user.Country,
-		"level":        user.Level,
-		"role":         user.Role,
-		"status":       user.Status,
-		"group_id":     user.GroupId,
-		"update_time":  user.UpdateTime,
-	}).Error; err != nil {
+	if err := db.DB.Transaction(func(tx *gorm.DB) error {
+		// user.Role 已经被改成新角色，必须用 previousRole 判断「当前是否管理员」，
+		// 否则把最后一个管理员降级时会被误判为「本来就不是管理员」而放行。
+		if err := ensureAdminPrivilegeSafe(tx, user, previousRole, newRole, newStatus, false); err != nil {
+			return err
+		}
+		return tx.Model(&models.User{}).Where("id = ?", user.ID).Updates(map[string]interface{}{
+			"nickname":     user.Nickname,
+			"email":        user.Email,
+			"mobile":       user.Mobile,
+			"avatar":       user.Avatar,
+			"gender":       user.Gender,
+			"birthday":     user.Birthday,
+			"motto":        user.Motto,
+			"admin_remark": user.AdminRemark,
+			"back_ground":  user.BackGround,
+			"language":     user.Language,
+			"country":      user.Country,
+			"level":        user.Level,
+			"role":         user.Role,
+			"status":       user.Status,
+			"group_id":     user.GroupId,
+			"update_time":  user.UpdateTime,
+		}).Error
+	}); err != nil {
 		return err
 	}
 
@@ -502,15 +475,16 @@ func (s *UserService) UpdateStatus(user_id uint64, status uint8) error {
 	if err != nil {
 		return NewClientError("用户不存在")
 	}
-	if err := ensureAdminPrivilegeSafe(user, user.Role, &status, false); err != nil {
-		return err
-	}
-
 	now := time.Now().Unix()
-	if err := db.DB.Model(&models.User{}).Where("id = ? AND delete_time IS NULL", user_id).Updates(map[string]interface{}{
-		"status":      status,
-		"update_time": now,
-	}).Error; err != nil {
+	if err := db.DB.Transaction(func(tx *gorm.DB) error {
+		if err := ensureAdminPrivilegeSafe(tx, user, user.Role, user.Role, &status, false); err != nil {
+			return err
+		}
+		return tx.Model(&models.User{}).Where("id = ? AND delete_time IS NULL", user_id).Updates(map[string]interface{}{
+			"status":      status,
+			"update_time": now,
+		}).Error
+	}); err != nil {
 		return err
 	}
 	if status == 0 {
@@ -543,41 +517,30 @@ func (s *UserService) Delete(user_id uint64) error {
 	if err != nil {
 		return NewClientError("用户不存在")
 	}
-	if err := ensureAdminPrivilegeSafe(user, user.Role, nil, true); err != nil {
-		return err
-	}
-
 	now := time.Now().Unix()
-	if err := db.DB.Model(&models.User{}).Where("id = ?", user_id).Updates(map[string]interface{}{
-		"delete_time": now,
-		"status":      0,
-		"update_time": now,
-	}).Error; err != nil {
+	if err := db.DB.Transaction(func(tx *gorm.DB) error {
+		if err := ensureAdminPrivilegeSafe(tx, user, user.Role, user.Role, nil, true); err != nil {
+			return err
+		}
+		return tx.Model(&models.User{}).Where("id = ?", user_id).Updates(map[string]interface{}{
+			"delete_time": now,
+			"status":      0,
+			"update_time": now,
+		}).Error
+	}); err != nil {
 		return err
 	}
 	revokeAllGuardSessions(user_id)
 	return nil
 }
 
-// countActiveAdmins 统计启用中且未删除的管理员数量
-func countActiveAdmins() (int, error) {
-	var count int64
-	err := db.DB.Raw(`
-		SELECT COUNT(*) FROM users
-		WHERE LOWER(role) = 'admin'
-		  AND status = 1
-		  AND delete_time IS NULL
-	`).Scan(&count).Error
-	return int(count), err
-}
-
-// ensureAdminPrivilegeSafe 防止误删/禁用/降级「最后一个启用中的管理员」导致系统锁死
-func ensureAdminPrivilegeSafe(target *models.User, newRole string, newStatus *uint8, deleting bool) error {
-	if target == nil || !strings.EqualFold(strings.TrimSpace(target.Role), "admin") {
-		return nil
-	}
-	if target.Status != 1 {
-		// 目标本身已不是启用管理员，不影响「最后一个管理员」
+// ensureAdminPrivilegeSafe 防止误删/禁用/降级「最后一个启用中的管理员」导致系统锁死。
+// 必须在写入同一事务内调用：先按 id 顺序锁住全部启用管理员行再计数，
+// 并发的另一个禁用/删除会等本事务提交后读到最新状态，避免两边都「看到还有两个」后同时放行。
+// currentRole 是操作前的角色（调用方可能已把 target.Role 改成新值，不能直接读它），
+// newRole 是操作后的角色。
+func ensureAdminPrivilegeSafe(tx *gorm.DB, target *models.User, currentRole, newRole string, newStatus *uint8, deleting bool) error {
+	if target == nil || !strings.EqualFold(strings.TrimSpace(currentRole), "admin") {
 		return nil
 	}
 
@@ -592,11 +555,17 @@ func ensureAdminPrivilegeSafe(target *models.User, newRole string, newStatus *ui
 		return nil
 	}
 
-	count, err := countActiveAdmins()
-	if err != nil {
+	var activeIDs []uint64
+	if err := db.ForUpdate(tx).Model(&models.User{}).
+		Where("LOWER(role) = ? AND status = ? AND delete_time IS NULL", "admin", 1).
+		Order("id").Pluck("id", &activeIDs).Error; err != nil {
 		return fmt.Errorf("Failed to check admin count: %w", err)
 	}
-	if count <= 1 {
+	if !slices.Contains(activeIDs, target.ID) {
+		// 目标当前已不是启用管理员，不影响「最后一个管理员」
+		return nil
+	}
+	if len(activeIDs) <= 1 {
 		return NewClientError("不能删除、禁用或降级最后一个启用中的管理员")
 	}
 	return nil
@@ -634,8 +603,8 @@ func (s *UserService) BatchUpdateStatus(user_ids []uint64, status uint8) error {
 func revokeAllGuardSessions(user_id uint64) {
 	for _, guard := range []string{"user", "admin"} {
 		if err := models.RevokeAllUserSessionsWithGuard(user_id, guard, ""); err != nil {
-			// 这里属于清理动作，失败仅日志化即可
-			continue
+			// 清理失败不能回滚管理员操作，但必须留痕：否则禁用/降级后旧 token 仍可用而无人知道。
+			log.Printf("[UserService] 撤销 %s 会话失败 user_id=%d: %v", guard, user_id, err)
 		}
 	}
 }
@@ -710,7 +679,10 @@ func (s *UserService) BatchGetUserSimpleInfo(userIDs []uint64) (map[uint64]UserS
 	}
 
 	var users []UserSimpleInfo
-	err := db.DB.Raw("SELECT id, username, nickname, email, role, status FROM users WHERE id IN ? AND delete_time IS NULL", userIDs).Scan(&users).Error
+	err := db.DB.Model(&models.User{}).
+		Select("id, username, nickname, email, role, status").
+		Where("id IN ? AND delete_time IS NULL", userIDs).
+		Scan(&users).Error
 	if err != nil {
 		return nil, err
 	}
@@ -723,4 +695,3 @@ func (s *UserService) BatchGetUserSimpleInfo(userIDs []uint64) (map[uint64]UserS
 
 	return result, nil
 }
-

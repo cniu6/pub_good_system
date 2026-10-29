@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"fst/backend/app/models"
 	"fst/backend/pkg/config"
-	"fst/backend/pkg/panicsafe"
 	"fst/backend/utils"
 	"log"
 	"strings"
@@ -141,62 +140,6 @@ func (s *EmailService) RenderTemplateMail(templateName, lang string, vars map[st
 	return subject, content, nil
 }
 
-// SendVerificationCode 发送验证码邮件
-func (s *EmailService) SendVerificationCode(to, code, lang string, expire_minutes int) error {
-	// 默认中文
-	if lang == "" {
-		lang = "zh-CN"
-	}
-
-	vars := map[string]string{
-		"code":           code,
-		"expire_minutes": fmt.Sprintf("%d", expire_minutes),
-	}
-
-	return s.SendTemplateEmail(to, "register_code", lang, vars)
-}
-
-// SendPasswordReset 发送密码重置邮件
-func (s *EmailService) SendPasswordReset(to, link, code, lang string) error {
-	// 默认中文
-	if lang == "" {
-		lang = "zh-CN"
-	}
-
-	vars := map[string]string{
-		"link": link,
-		"code": code,
-	}
-
-	return s.SendTemplateEmail(to, "reset_password", lang, vars)
-}
-
-// SendEmailAsync 异步发送邮件
-func (s *EmailService) SendEmailAsync(to, subject, body string, callback func(SendResult)) {
-	panicsafe.Go("EmailService.SendEmailAsync", func() {
-		err := s.SendEmail(to, subject, body)
-		if callback != nil {
-			callback(SendResult{
-				Success: err == nil,
-				Error:   err,
-			})
-		}
-	})
-}
-
-// SendTemplateEmailAsync 异步发送模板邮件
-func (s *EmailService) SendTemplateEmailAsync(to, template_name, lang string, vars map[string]string, callback func(SendResult)) {
-	panicsafe.Go("EmailService.SendTemplateEmailAsync", func() {
-		err := s.SendTemplateEmail(to, template_name, lang, vars)
-		if callback != nil {
-			callback(SendResult{
-				Success: err == nil,
-				Error:   err,
-			})
-		}
-	})
-}
-
 // buildDefaultVars 构建默认变量
 func (s *EmailService) buildDefaultVars(vars map[string]string) map[string]string {
 	cfg := config.GlobalConfig
@@ -310,48 +253,9 @@ func htmlEscapeStr(raw string) string {
 	return replacer.Replace(raw)
 }
 
-// BatchSendEmail 批量发送邮件
-func (s *EmailService) BatchSendEmail(recipients []string, subject, body string) map[string]error {
-	results := make(map[string]error)
-
-	for _, to := range recipients {
-		err := s.SendEmail(to, subject, body)
-		results[to] = err
-	}
-
-	return results
-}
-
-// BatchSendTemplateEmail 批量发送模板邮件
-func (s *EmailService) BatchSendTemplateEmail(recipients []string, template_name, lang string, vars map[string]string) map[string]error {
-	results := make(map[string]error)
-
-	for _, to := range recipients {
-		err := s.SendTemplateEmail(to, template_name, lang, vars)
-		results[to] = err
-	}
-
-	return results
-}
-
 // CheckTemplateExists 检查模板是否存在
 func (s *EmailService) CheckTemplateExists(name, lang string) bool {
 	return models.CheckTemplateExists(name, lang)
-}
-
-// GetTemplate 获取模板
-func (s *EmailService) GetTemplate(name, lang string) (*models.EmailTemplate, error) {
-	return models.GetEmailTemplate(name, lang)
-}
-
-// CreateTemplate 创建模板
-func (s *EmailService) CreateTemplate(tpl *models.EmailTemplate) error {
-	return models.CreateEmailTemplate(tpl)
-}
-
-// UpdateTemplateContent 更新模板内容
-func (s *EmailService) UpdateTemplateContent(name, lang, content string) error {
-	return models.UpdateEmailTemplateContent(name, lang, content)
 }
 
 // ValidateEmailConfig 验证邮件配置

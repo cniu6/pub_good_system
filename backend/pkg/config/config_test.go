@@ -58,7 +58,7 @@ func TestInitConfig_PostgresEnv(t *testing.T) {
 	if cfg.DBDriver != "postgres" {
 		t.Fatalf("DBDriver=%q want postgres", cfg.DBDriver)
 	}
-	want := "postgres://pguser:pgpass@127.0.0.1:5432/fst_platform?sslmode=disable"
+	want := "postgres://pguser:pgpass@127.0.0.1:5432/fst_platform?connect_timeout=5&sslmode=disable"
 	if cfg.DBDSN != want {
 		t.Fatalf("DBDSN=%q want %q", cfg.DBDSN, want)
 	}

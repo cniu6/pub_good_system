@@ -71,17 +71,6 @@ func jwtSigningKeyByGuard(authGuard string) jwt.Keyfunc {
 	}
 }
 
-func jwtSigningKey(token *jwt.Token) (interface{}, error) {
-	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
-		return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-	}
-	secret, err := getJWTSecretByGuard(UserAuthGuard)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(secret), nil
-}
-
 func GenerateTokenWithTTL(userID uint64, role string, ttl time.Duration) (string, error) {
 	return GenerateTokenForGuardWithTTL(userID, role, UserAuthGuard, ttl)
 }

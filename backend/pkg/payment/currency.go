@@ -60,22 +60,6 @@ func (er *ExchangeRates) Marshal() string {
 	return string(b)
 }
 
-// UnmarshalRates 从 JSON 反序列化
-func UnmarshalRates(s string) (*ExchangeRates, error) {
-	var er ExchangeRates
-	if s == "" {
-		er.Rates = make(map[string]ExchangeRate)
-		return &er, nil
-	}
-	if err := json.Unmarshal([]byte(s), &er); err != nil {
-		return nil, err
-	}
-	if er.Rates == nil {
-		er.Rates = make(map[string]ExchangeRate)
-	}
-	return &er, nil
-}
-
 // TargetMoneyResult 转换 + 目标手续费计算结果
 type TargetMoneyResult struct {
 	SourceAmount    float64 // 原币种金额
@@ -173,12 +157,6 @@ func yuanToFen(yuan float64) (int64, error) {
 		return 0, err
 	}
 	return int64(math.Round(d * 100)), nil
-}
-
-// yuanToFenFast 元转分（快速，忽略错误，用于固定手续费）
-func yuanToFenFast(yuan float64) int64 {
-	n, _ := yuanToFen(yuan)
-	return n
 }
 
 // fenToYuan 分转元

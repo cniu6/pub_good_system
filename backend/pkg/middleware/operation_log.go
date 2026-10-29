@@ -64,8 +64,8 @@ func SimpleLogMiddleware(module string) gin.HandlerFunc {
 			IP:           utils.ClampBytes(c.ClientIP(), maxLogIPLength),
 			UserAgent:    truncateForLog(c.Request.UserAgent(), 1000),
 			HandlerName:  handlerName,
-			RequestBody:  &reqPtr,
-			ResponseBody: &respPtr,
+			RequestBody:  models.NewLongTextPtr(reqPtr),
+			ResponseBody: models.NewLongTextPtr(respPtr),
 			StatusCode:   c.Writer.Status(),
 			Duration:     int(duration),
 		}

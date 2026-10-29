@@ -379,38 +379,3 @@ func AdminOnly() gin.HandlerFunc {
 		c.Next()
 	}
 }
-
-// RequireRole 通用角色验证中间件
-func RequireRole(allowedRoles ...string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		role, exists := c.Get("role")
-		if !exists {
-			utils.Fail(c, 403, "Role not found")
-			c.Abort()
-			return
-		}
-
-		roleStr, ok := role.(string)
-		if !ok {
-			utils.Fail(c, 403, "Invalid role type")
-			c.Abort()
-			return
-		}
-
-		allowed := false
-		for _, r := range allowedRoles {
-			if roleStr == r {
-				allowed = true
-				break
-			}
-		}
-
-		if !allowed {
-			utils.Fail(c, 403, "Insufficient permissions")
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
-}

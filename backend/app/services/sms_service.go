@@ -45,13 +45,6 @@ func InitSMSService() {
 	log.Println("[SMSService] Initialized with console provider")
 }
 
-func (s *SMSService) RegisterProvider(name string, provider SMSProvider) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.providers[name] = provider
-	log.Printf("[SMSService] Registered provider: %s", name)
-}
-
 func (s *SMSService) SetConfig(cfg SMSConfig) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

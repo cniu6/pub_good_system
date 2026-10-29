@@ -621,8 +621,8 @@ func (c *UserController) LoginToUser(ctx *gin.Context) {
 		IP:           clientIP,
 		UserAgent:    userAgent,
 		HandlerName:  "admin.(*UserController).LoginToUser",
-		RequestBody:  &reqBody,
-		ResponseBody: &respBody,
+		RequestBody:  models.NewLongTextPtr(reqBody),
+		ResponseBody: models.NewLongTextPtr(respBody),
 		StatusCode:   200,
 		Duration:     0,
 	}); err != nil {

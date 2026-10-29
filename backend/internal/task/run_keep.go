@@ -5,6 +5,8 @@ import (
 	"log"
 
 	"fst/backend/pkg/db"
+
+	"gorm.io/gorm"
 )
 
 // KeepRun 把指定执行记录复制到独立保留表。
@@ -20,7 +22,7 @@ func KeepRun(id uint64) (int64, error) {
 
 	// 已保留过同一 source_run_id 则不再重复复制
 	var exists int64
-	if err := db.DB.Raw(`SELECT COUNT(*) FROM auto_job_runs_keep WHERE source_run_id = ?`, id).Scan(&exists).Error; err != nil {
+	if err := db.DB.Model(&JobRunKeep{}).Where("source_run_id = ?", id).Count(&exists).Error; err != nil {
 		return 0, err
 	}
 	if exists > 0 {
@@ -71,75 +73,54 @@ func ListKeptRuns(page, pageSize int, keyword, status, category, jobCode string,
 		pageSize = 100
 	}
 
-	where := `WHERE 1=1`
-	args := []interface{}{}
+	q := db.DB.Model(&JobRunKeep{})
 	if keyword != "" {
 		like := "%" + keyword + "%"
-		where += ` AND (job_code LIKE ? OR run_uid LIKE ? OR message LIKE ? OR error_text LIKE ? OR detail_json LIKE ?)`
-		args = append(args, like, like, like, like, like)
+		q = q.Where("job_code LIKE ? OR run_uid LIKE ? OR message LIKE ? OR error_text LIKE ? OR detail_json LIKE ?", like, like, like, like, like)
 	}
 	if status != "" {
-		where += ` AND status=?`
-		args = append(args, status)
+		q = q.Where("status = ?", status)
 	}
 	if category != "" {
-		where += ` AND category=?`
-		args = append(args, category)
+		q = q.Where("category = ?", category)
 	}
 	if jobCode != "" {
-		where += ` AND job_code=?`
-		args = append(args, jobCode)
+		q = q.Where("job_code = ?", jobCode)
 	}
 	if startAt > 0 {
-		where += ` AND run_timestamp>=?`
-		args = append(args, startAt)
+		q = q.Where("run_timestamp >= ?", startAt)
 	}
 	if endAt > 0 {
-		where += ` AND run_timestamp<=?`
-		args = append(args, endAt)
+		q = q.Where("run_timestamp <= ?", endAt)
 	}
 
 	var total int64
-	if err := db.DB.Raw(`SELECT COUNT(*) FROM auto_job_runs_keep `+where, args...).Scan(&total).Error; err != nil {
+	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-
-	offset := (page - 1) * pageSize
-	q := `SELECT * FROM auto_job_runs_keep ` + where + ` ORDER BY kept_at DESC, id DESC LIMIT ? OFFSET ?`
-	args2 := append(append([]interface{}{}, args...), pageSize, offset)
 	var list []JobRunKeep
-	err := db.DB.Raw(q, args2...).Scan(&list).Error
+	err := q.Order("kept_at DESC, id DESC").Limit(pageSize).Offset((page - 1) * pageSize).Find(&list).Error
 	return list, total, err
-}
-
-// CountKeptRuns 保留记录总行数
-func CountKeptRuns() (int64, error) {
-	var n int64
-	err := db.DB.Raw(`SELECT COUNT(*) FROM auto_job_runs_keep`).Scan(&n).Error
-	return n, err
 }
 
 // DeleteKeptRuns 批量删除保留记录（支持按 scope 与 job_code 筛选）
 func DeleteKeptRuns(scope, jobCode string) (int64, error) {
-	where := `WHERE 1=1`
-	args := []interface{}{}
+	// scope=all 且不限 job_code 时是有意的全表删除，需显式允许（GORM 默认拦截无条件 DELETE）。
+	q := db.DB.Session(&gorm.Session{AllowGlobalUpdate: true})
 	switch scope {
 	case "success":
-		where += ` AND status=?`
-		args = append(args, StatusSuccess)
+		q = q.Where("status = ?", StatusSuccess)
 	case "failed":
-		where += ` AND status IN (?,?)`
-		args = append(args, StatusFailed, StatusTimeout)
+		q = q.Where("status IN ?", []string{StatusFailed, StatusTimeout})
 	case "all", "":
 		// 不限制状态
 	default:
 		return 0, fmt.Errorf("scope only supports success|failed|all")
 	}
 	if jobCode != "" {
-		where += ` AND job_code=?`
-		args = append(args, jobCode)
+		q = q.Where("job_code = ?", jobCode)
 	}
-	r := db.DB.Exec(`DELETE FROM auto_job_runs_keep `+where, args...)
+	r := q.Delete(&JobRunKeep{})
 	if r.Error != nil {
 		return 0, r.Error
 	}

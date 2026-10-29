@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"fmt"
 	"fst/backend/app/models"
 	"log"
 	"time"
@@ -112,41 +111,28 @@ func aggregateUnixTimestamps(timestamps []int64) map[string]int64 {
 	return result
 }
 
-// loadTrendCountByUnixField 查原始时间戳后在 Go 层按天聚合
-func loadTrendCountByUnixField(database *gorm.DB, table, field string, startUnix int64) (map[string]int64, error) {
-	type tsRow struct {
-		Ts int64 `gorm:"column:ts"`
-	}
-	var rows []tsRow
-	q := fmt.Sprintf("SELECT %s AS ts FROM %s WHERE %s >= ?", field, table, field)
-	if err := database.Raw(q, startUnix).Scan(&rows).Error; err != nil {
-		log.Printf("[Dashboard] 趋势计数查询失败(%s.%s): %v", table, field, err)
+// loadTrendCountByUnixField 查原始时间戳后在 Go 层按天聚合（按本地时区切天，避免各库日期函数差异）
+func loadTrendCountByUnixField(database *gorm.DB, model any, field string, startUnix int64) (map[string]int64, error) {
+	var timestamps []int64
+	if err := database.Model(model).Where(field+" >= ?", startUnix).Pluck(field, &timestamps).Error; err != nil {
+		log.Printf("[Dashboard] 趋势计数查询失败(%T.%s): %v", model, field, err)
 		return map[string]int64{}, err
-	}
-	timestamps := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		timestamps = append(timestamps, row.Ts)
 	}
 	return aggregateUnixTimestamps(timestamps), nil
 }
 
 // loadTrendCountByTimeField 按天聚合 time.Time 类型时间列（email_logs/sms_logs 的 created_at 非 unix 秒）
-func loadTrendCountByTimeField(database *gorm.DB, table, field string, start time.Time) (map[string]int64, error) {
-	type tRow struct {
-		Ts time.Time `gorm:"column:ts"`
-	}
-	var rows []tRow
-	q := fmt.Sprintf("SELECT %s AS ts FROM %s WHERE %s >= ?", field, table, field)
-	if err := database.Raw(q, start).Scan(&rows).Error; err != nil {
-		log.Printf("[Dashboard] 趋势计数查询失败(%s.%s): %v", table, field, err)
+func loadTrendCountByTimeField(database *gorm.DB, model any, field string, start time.Time) (map[string]int64, error) {
+	var times []time.Time
+	if err := database.Model(model).Where(field+" >= ?", start).Pluck(field, &times).Error; err != nil {
+		log.Printf("[Dashboard] 趋势计数查询失败(%T.%s): %v", model, field, err)
 		return map[string]int64{}, err
 	}
 	result := make(map[string]int64)
-	for _, row := range rows {
-		if row.Ts.IsZero() {
-			continue
+	for _, ts := range times {
+		if !ts.IsZero() {
+			result[ts.Format("2006-01-02")]++
 		}
-		result[row.Ts.Format("2006-01-02")]++
 	}
 	return result, nil
 }
@@ -159,11 +145,10 @@ type dashboardPaidRow struct {
 // loadTrendPaidOrders 已支付订单按天计数与金额汇总（应用层聚合）
 func loadTrendPaidOrders(database *gorm.DB, startUnix int64) (map[string]int64, map[string]float64, error) {
 	var rows []dashboardPaidRow
-	q := fmt.Sprintf(`
-		SELECT paid_at, pay_amount
-		FROM payment_orders
-		WHERE status = ? AND paid_at IS NOT NULL AND %s AND paid_at >= ?`, models.RealPaidOrderFilterSQL)
-	if err := database.Raw(q, models.PaymentStatusPaid, startUnix).Scan(&rows).Error; err != nil {
+	if err := database.Model(&models.PaymentOrder{}).Select("paid_at, pay_amount").
+		Where("status = ? AND paid_at IS NOT NULL AND paid_at >= ?", models.PaymentStatusPaid, startUnix).
+		Where(models.RealPaidOrderFilterSQL).
+		Scan(&rows).Error; err != nil {
 		log.Printf("[Dashboard] 趋势支付订单查询失败: %v", err)
 		return map[string]int64{}, map[string]float64{}, err
 	}
@@ -185,11 +170,11 @@ func buildDashboardTrends(database *gorm.DB, start time.Time, days int) ([]Dashb
 	startUnix := start.Unix()
 	var firstErr error
 
-	newUsers, err := loadTrendCountByUnixField(database, "users", "create_time", startUnix)
+	newUsers, err := loadTrendCountByUnixField(database, &models.User{}, "create_time", startUnix)
 	if err != nil && firstErr == nil {
 		firstErr = err
 	}
-	activeUsers, err := loadTrendCountByUnixField(database, "users", "last_login_time", startUnix)
+	activeUsers, err := loadTrendCountByUnixField(database, &models.User{}, "last_login_time", startUnix)
 	if err != nil && firstErr == nil {
 		firstErr = err
 	}
@@ -197,19 +182,19 @@ func buildDashboardTrends(database *gorm.DB, start time.Time, days int) ([]Dashb
 	if err != nil && firstErr == nil {
 		firstErr = err
 	}
-	operationLogs, err := loadTrendCountByUnixField(database, "operation_logs", "create_time", startUnix)
+	operationLogs, err := loadTrendCountByUnixField(database, &models.OperationLog{}, "create_time", startUnix)
 	if err != nil && firstErr == nil {
 		firstErr = err
 	}
-	apiLogs, err := loadTrendCountByUnixField(database, "api_access_logs", "create_time", startUnix)
+	apiLogs, err := loadTrendCountByUnixField(database, &models.APIAccessLog{}, "create_time", startUnix)
 	if err != nil && firstErr == nil {
 		firstErr = err
 	}
-	emailLogs, err := loadTrendCountByTimeField(database, "email_logs", "created_at", start)
+	emailLogs, err := loadTrendCountByTimeField(database, &models.EmailLog{}, "created_at", start)
 	if err != nil && firstErr == nil {
 		firstErr = err
 	}
-	smsLogs, err := loadTrendCountByTimeField(database, "sms_logs", "created_at", start)
+	smsLogs, err := loadTrendCountByTimeField(database, &models.SMSLog{}, "created_at", start)
 	if err != nil && firstErr == nil {
 		firstErr = err
 	}
@@ -234,31 +219,22 @@ func buildDashboardTrends(database *gorm.DB, start time.Time, days int) ([]Dashb
 	return trends, firstErr
 }
 
-func loadDashboardUsers(database *gorm.DB, orderBy string) ([]RecentUser, error) {
+// loadDashboardUsers 读取仪表盘用户列表。
+// loggedInOnly 用于「最近登录」：PostgreSQL 的 DESC 默认把 NULL 排在最前，
+// 若不过滤掉从未登录的用户，PG 下会把 NULL 用户当成最近登录展示。
+func loadDashboardUsers(database *gorm.DB, orderBy string, loggedInOnly bool) ([]RecentUser, error) {
 	users := make([]RecentUser, 0)
-	query := fmt.Sprintf(`SELECT
-		u.id,
-		u.username,
-		COALESCE(u.nickname, '') AS nickname,
-		COALESCE(u.email, '') AS email,
-		u.role,
-		u.status,
-		COALESCE(u.money, 0) AS money,
-		COALESCE(p.total_paid_amount, 0) AS total_paid_amount,
-		CASE WHEN COALESCE(p.total_paid_amount, 0) > 0 THEN COALESCE(u.money, 0) / p.total_paid_amount ELSE 0 END AS balance_paid_ratio,
-		u.create_time,
-		u.last_login_time
-	FROM users u
-	LEFT JOIN (
-		SELECT user_id, COALESCE(SUM(pay_amount), 0) AS total_paid_amount
-		FROM payment_orders
-		WHERE status = ? AND %s
-		GROUP BY user_id
-	) p ON p.user_id = u.id
-	WHERE u.delete_time IS NULL
-	ORDER BY %s
-	LIMIT 5`, models.RealPaidOrderFilterSQL, orderBy)
-	if err := database.Raw(query, models.PaymentStatusPaid).Scan(&users).Error; err != nil {
+	q := database.Table("users u").
+		Select(`u.id, u.username, COALESCE(u.nickname, '') AS nickname, COALESCE(u.email, '') AS email, u.role, u.status,
+			COALESCE(u.money, 0) AS money, COALESCE(p.total_paid_amount, 0) AS total_paid_amount,
+			CASE WHEN COALESCE(p.total_paid_amount, 0) > 0 THEN COALESCE(u.money, 0) / p.total_paid_amount ELSE 0 END AS balance_paid_ratio,
+			u.create_time, u.last_login_time`).
+		Joins("LEFT JOIN (?) p ON p.user_id = u.id", models.PaidAmountByUserQuery()).
+		Where("u.delete_time IS NULL")
+	if loggedInOnly {
+		q = q.Where("u.last_login_time IS NOT NULL")
+	}
+	if err := q.Order(orderBy).Limit(5).Scan(&users).Error; err != nil {
 		log.Printf("[Dashboard] 最近用户列表查询失败: %v", err)
 		return users, err
 	}
@@ -273,12 +249,11 @@ func NewDashboardController() *DashboardController {
 // dashboardErrTracker 统一记录各指标查询失败：之前每条静默吞错误，
 // DB 故障时接口仍返回 200 + 全零统计，运维/前端没法区分「真没数据」和「查库失败」。
 type dashboardErrTracker struct {
-	database *gorm.DB
-	failed   []string
+	failed []string
 }
 
-func (t *dashboardErrTracker) get(name string, dest any, query string, args ...any) {
-	if err := t.database.Raw(query, args...).Scan(dest).Error; err != nil {
+func (t *dashboardErrTracker) track(name string, err error) {
+	if err != nil {
 		log.Printf("[Dashboard] 查询指标 %s 失败: %v", name, err)
 		t.failed = append(t.failed, name)
 	}
@@ -311,28 +286,28 @@ func (ctrl *DashboardController) GetDashboard(ctx *gin.Context) {
 	todayStartUnix := todayStart.Unix()
 	sevenDaysAgoUnix := sevenDaysAgo.Unix()
 
-	tracker := &dashboardErrTracker{database: database}
+	tracker := &dashboardErrTracker{}
 
 	// 用户统计（排除软删，与 total_user_balance 一致）
-	tracker.get("total_users", &stats.TotalUsers, "SELECT COUNT(*) FROM users WHERE delete_time IS NULL")
-	tracker.get("today_new_users", &stats.TodayNewUsers, "SELECT COUNT(*) FROM users WHERE delete_time IS NULL AND create_time >= ?", todayStartUnix)
-	tracker.get("today_active_users", &stats.TodayActiveUsers, "SELECT COUNT(*) FROM users WHERE delete_time IS NULL AND last_login_time >= ?", todayStartUnix)
-	tracker.get("active_users_7d", &stats.ActiveUsers7d, "SELECT COUNT(*) FROM users WHERE delete_time IS NULL AND last_login_time >= ?", sevenDaysAgoUnix)
-	tracker.get("total_user_balance", &stats.TotalUserBalance, "SELECT COALESCE(SUM(money), 0) FROM users WHERE delete_time IS NULL")
+	users := func() *gorm.DB { return database.Model(&models.User{}).Where("delete_time IS NULL") }
+	tracker.track("total_users", users().Count(&stats.TotalUsers).Error)
+	tracker.track("today_new_users", users().Where("create_time >= ?", todayStartUnix).Count(&stats.TodayNewUsers).Error)
+	tracker.track("today_active_users", users().Where("last_login_time >= ?", todayStartUnix).Count(&stats.TodayActiveUsers).Error)
+	tracker.track("active_users_7d", users().Where("last_login_time >= ?", sevenDaysAgoUnix).Count(&stats.ActiveUsers7d).Error)
+	tracker.track("total_user_balance", users().Select("COALESCE(SUM(money), 0)").Scan(&stats.TotalUserBalance).Error)
 
 	// 日志统计（排除软删）
-	tracker.get("total_money_logs", &stats.TotalMoneyLogs, "SELECT COUNT(*) FROM user_money_logs WHERE delete_time IS NULL")
-	tracker.get("total_score_logs", &stats.TotalScoreLogs, "SELECT COUNT(*) FROM user_score_logs WHERE delete_time IS NULL")
+	tracker.track("total_money_logs", database.Model(&models.UserMoneyLog{}).Where("delete_time IS NULL").Count(&stats.TotalMoneyLogs).Error)
+	tracker.track("total_score_logs", database.Model(&models.UserScoreLog{}).Where("delete_time IS NULL").Count(&stats.TotalScoreLogs).Error)
 
 	// 操作日志
-	tracker.get("total_operation_logs", &stats.TotalOperationLogs, "SELECT COUNT(*) FROM operation_logs")
-	tracker.get("today_operation_logs", &stats.TodayOperationLogs, "SELECT COUNT(*) FROM operation_logs WHERE create_time >= ?", todayStartUnix)
+	tracker.track("total_operation_logs", database.Model(&models.OperationLog{}).Count(&stats.TotalOperationLogs).Error)
+	tracker.track("today_operation_logs", database.Model(&models.OperationLog{}).Where("create_time >= ?", todayStartUnix).Count(&stats.TodayOperationLogs).Error)
 
-	// 活跃会话
-	// 活跃会话（与在线模块口径一致：未撤销 + 心跳窗口内）
-	tracker.get("active_sessions", &stats.ActiveSessions,
-		"SELECT COUNT(*) FROM user_sessions WHERE is_active = ? AND last_seen_at >= ?",
-		true, now.Unix()-models.GetOnlineHeartbeatGraceSeconds())
+	// 活跃会话（与在线模块同一口径：未撤销 + 心跳窗口内）
+	activeSessions, err := models.CountOnlineSessions()
+	stats.ActiveSessions = activeSessions
+	tracker.track("active_sessions", err)
 
 	if paymentStats, err := models.GetPaymentStats(); err == nil && paymentStats != nil {
 		stats.TotalPaymentOrders = paymentStats.TotalOrders
@@ -359,23 +334,22 @@ func (ctrl *DashboardController) GetDashboard(ctx *gin.Context) {
 	}
 
 	realnameStats := dashboardRealnameStats{}
-	tracker.get("realname_stats", &realnameStats, `SELECT
-		COUNT(*) AS total_count,
-		COALESCE(SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END), 0) AS pending_count,
-		COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) AS approved_count,
-		COALESCE(SUM(CASE WHEN status = 2 THEN 1 ELSE 0 END), 0) AS rejected_count
-		FROM user_realname_verifications
-		WHERE delete_time IS NULL`)
+	tracker.track("realname_stats", database.Model(&models.RealnameVerification{}).
+		Select(`COUNT(*) AS total_count,
+			COALESCE(SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END), 0) AS pending_count,
+			COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) AS approved_count,
+			COALESCE(SUM(CASE WHEN status = 2 THEN 1 ELSE 0 END), 0) AS rejected_count`).
+		Where("delete_time IS NULL").Scan(&realnameStats).Error)
 	stats.TotalRealnameRequests = realnameStats.TotalCount
 	stats.PendingRealnameCount = realnameStats.PendingCount
 	stats.ApprovedRealnameCount = realnameStats.ApprovedCount
 	stats.RejectedRealnameCount = realnameStats.RejectedCount
 
-	recentUsers, err := loadDashboardUsers(database, "u.create_time DESC")
+	recentUsers, err := loadDashboardUsers(database, "u.create_time DESC", false)
 	if err != nil {
 		tracker.failed = append(tracker.failed, "recent_users")
 	}
-	recentLoginUsers, err := loadDashboardUsers(database, "u.last_login_time DESC, u.create_time DESC")
+	recentLoginUsers, err := loadDashboardUsers(database, "u.last_login_time DESC, u.create_time DESC", true)
 	if err != nil {
 		tracker.failed = append(tracker.failed, "recent_login_users")
 	}

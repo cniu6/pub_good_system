@@ -333,20 +333,18 @@ func estimateLogBytes(item *models.APIAccessLog) int64 {
 		len(item.RoutePath) + len(item.HandlerName) + len(item.RequestContentType) + len(item.ResponseContentType) +
 		len(item.QueryString) + len(item.IP) + len(item.SourceIP) + len(item.XIP) + len(item.XForwardedFor) +
 		len(item.XRealIP) + len(item.UserAgent) + len(item.Referer)
-	for _, value := range []*string{item.PathParams, item.RequestHeaders, item.RequestBody, item.ResponseBody} {
-		if value != nil {
-			size += len(*value)
-		}
+	if item.PathParams != nil {
+		size += len(*item.PathParams)
+	}
+	if item.RequestHeaders != nil {
+		size += len(*item.RequestHeaders)
+	}
+	if item.RequestBody != nil {
+		size += len(*item.RequestBody)
+	}
+	if item.ResponseBody != nil {
+		size += len(*item.ResponseBody)
 	}
 	return int64(size)
 }
 
-// Pending 返回当前内存队列中的条数，仅用于监控与测试。
-func (w *Writer) Pending() int {
-	return len(w.queue)
-}
-
-// QueueBytes 返回当前内存队列预估字节数，仅用于监控与测试。
-func (w *Writer) QueueBytes() int64 {
-	return w.queuedBytes.Load()
-}

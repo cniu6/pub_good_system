@@ -2,6 +2,7 @@ package routes
 
 // routes.go 是路由文件，负责将各个控制器注册到路由中。
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -40,6 +41,7 @@ import (
 	userwithdraw "fst/backend/app/controllers/user/withdraw"
 	_ "fst/backend/docs"
 	"fst/backend/pkg/config"
+	"fst/backend/pkg/db"
 	"fst/backend/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -138,8 +140,24 @@ func SetupRoutes(router *gin.Engine) {
 	registerWSRoutes(v1)     // WebSocket（自行鉴权，不挂 HTTP AuthMiddleware）
 	registerV2Routes(v2)     // V2 测试接口
 
-	// 健康检查：轻量、不碰库（负载均衡探活）
+	// 健康检查：进程存活 + 数据库可用。DB 不可用返回 503，
+	// 让 Nginx/守护进程能区分“进程在但业务全挂”和真正健康。
 	router.GET("/health", func(c *gin.Context) {
+		if db.DB == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": 503, "message": "database not initialized"})
+			return
+		}
+		sqlDB, err := db.DB.DB()
+		if err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": 503, "message": "database unavailable"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(c.Request.Context(), time.Second)
+		defer cancel()
+		if err := sqlDB.PingContext(ctx); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": 503, "message": "database ping failed"})
+			return
+		}
 		c.JSON(200, gin.H{
 			"code":    0,
 			"message": "ok",

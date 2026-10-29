@@ -59,7 +59,9 @@ func InitDB() {
 
 	switch driver {
 	case "mysql":
-		gdb, err = gorm.Open(mysqlDriver.Open(cfg.DBDSN), gormCfg)
+		gdb, err = openWithRetry("MySQL", func() (*gorm.DB, error) {
+			return gorm.Open(mysqlDriver.Open(cfg.DBDSN), gormCfg)
+		})
 		if err != nil {
 			logMySQLConnectFailure(err)
 			log.Fatalf("[数据库连接错误] 无法连接 MySQL，请检查服务与配置后重试")
@@ -79,7 +81,9 @@ func InitDB() {
 		}
 		log.Printf("[DB] SQLite 连接已建立（GORM / glebarez；生产请改用 MySQL/Postgres）")
 	case "postgres":
-		gdb, err = gorm.Open(postgresDriver.Open(cfg.DBDSN), gormCfg)
+		gdb, err = openWithRetry("PostgreSQL", func() (*gorm.DB, error) {
+			return gorm.Open(postgresDriver.Open(cfg.DBDSN), gormCfg)
+		})
 		if err != nil {
 			log.Fatalf("[数据库连接错误] 无法连接 PostgreSQL: %v", err)
 		}
@@ -94,11 +98,29 @@ func InitDB() {
 	}
 
 	if driver == "sqlite" {
+		// SQLite 单写者，多连接只会放大部分锁竞争，固定单连接。
 		sqlDB.SetMaxOpenConns(1)
 		sqlDB.SetMaxIdleConns(1)
 	} else {
-		sqlDB.SetMaxOpenConns(100)
-		sqlDB.SetMaxIdleConns(10)
+		maxOpen := cfg.DBMaxOpenConns
+		if maxOpen <= 0 {
+			maxOpen = 100
+		}
+		maxIdle := cfg.DBMaxIdleConns
+		if maxIdle <= 0 {
+			maxIdle = 10
+		}
+		if maxIdle > maxOpen {
+			maxIdle = maxOpen
+		}
+		sqlDB.SetMaxOpenConns(maxOpen)
+		sqlDB.SetMaxIdleConns(maxIdle)
+		// MySQL 会主动断开空闲连接（日志里的 closing bad idle connection: EOF）。
+		// 空闲 1 分钟就回收，配合 ConnMaxLifetime（应小于 MySQL wait_timeout）避免池里全是死连接。
+		sqlDB.SetConnMaxIdleTime(time.Minute)
+		if cfg.DBConnMaxLifetimeMinutes > 0 {
+			sqlDB.SetConnMaxLifetime(time.Duration(cfg.DBConnMaxLifetimeMinutes) * time.Minute)
+		}
 	}
 
 	// MySQL 统一字符集/排序规则：DSN 已带 collation 参数，
@@ -111,6 +133,28 @@ func InitDB() {
 	}
 
 	DB = gdb
+}
+
+// openWithRetry 在 MySQL/PostgreSQL 暂时不可用时短暂重试：
+// 数据库重启或网络抖动不该让进程启动失败，但重试后仍失败必须退出，
+// 避免“进程活着、端口在听，但所有业务请求都报 500”。
+func openWithRetry(name string, open func() (*gorm.DB, error)) (*gorm.DB, error) {
+	const attempts = 3
+	const delay = 2 * time.Second
+
+	var gdb *gorm.DB
+	var err error
+	for i := 1; i <= attempts; i++ {
+		gdb, err = open()
+		if err == nil {
+			return gdb, nil
+		}
+		if i < attempts {
+			log.Printf("[DB] %s 连接失败（第 %d/%d 次），%s 后重试: %v", name, i, attempts, delay, err)
+			time.Sleep(delay)
+		}
+	}
+	return nil, err
 }
 
 // applyMySQLSessionCollation 对连接池中的连接执行 SET NAMES，统一会话排序规则。

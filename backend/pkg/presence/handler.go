@@ -184,13 +184,3 @@ func HandlePresence(c *gin.Context) {
 		}
 	}
 }
-
-func parsePresenceToken(token string) (*utils.Claims, string) {
-	for _, guard := range []string{utils.UserAuthGuard, utils.AdminAuthGuard} {
-		claims, err := utils.ParseTokenForGuard(token, guard)
-		if err == nil {
-			return claims, guard
-		}
-	}
-	return nil, ""
-}

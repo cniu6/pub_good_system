@@ -1,8 +1,10 @@
 package settings
 
 import (
+	"encoding/json"
 	"fst/backend/app/models"
 	"fst/backend/utils"
+	"log"
 	"regexp"
 	"strings"
 
@@ -262,6 +264,7 @@ func (ctrl *SettingsController) Update(c *gin.Context) {
 	}
 
 	ctrl.refreshRuntimeConfig()
+	writeSettingsAudit(c, "update", []string{key})
 
 	utils.Success(c, gin.H{"message": "Setting updated successfully"})
 }
@@ -435,6 +438,11 @@ func (ctrl *SettingsController) BatchUpdate(c *gin.Context) {
 	}
 
 	ctrl.refreshRuntimeConfig()
+	keys := make([]string, 0, len(resolvedSettings))
+	for key := range resolvedSettings {
+		keys = append(keys, key)
+	}
+	writeSettingsAudit(c, "batch_update", keys)
 
 	utils.Success(c, gin.H{"message": "Settings updated successfully"})
 }
@@ -591,6 +599,34 @@ func (ctrl *SettingsController) Delete(c *gin.Context) {
 	ctrl.refreshRuntimeConfig()
 
 	utils.Success(c, gin.H{"message": "Setting deleted successfully"})
+}
+
+// writeSettingsAudit 记录设置变更的 key，不记录 value，避免 SMTP/支付密钥明文入库。
+func writeSettingsAudit(c *gin.Context, action string, keys []string) {
+	if c == nil || len(keys) == 0 {
+		return
+	}
+	uid, name := utils.GetAdminAuditUser(c)
+	payload, err := json.Marshal(gin.H{"keys": keys})
+	if err != nil {
+		return
+	}
+	body := string(payload)
+	if err := models.CreateOperationLog(&models.OperationLog{
+		UserID:      uid,
+		Username:    name,
+		Module:      "系统设置",
+		Action:      action,
+		Method:      c.Request.Method,
+		Path:        c.FullPath(),
+		IP:          utils.GetClientIP(c),
+		UserAgent:   c.Request.UserAgent(),
+		HandlerName: "admin.(*SettingsController)." + action,
+		RequestBody: models.NewLongTextPtr(body),
+		StatusCode:  c.Writer.Status(),
+	}); err != nil {
+		log.Printf("[Settings] 写操作日志失败 action=%s keys=%v: %v", action, keys, err)
+	}
 }
 
 // RegisterRoutes 注册管理端配置路由

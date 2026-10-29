@@ -59,14 +59,14 @@ func TestGenerateSign(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sign := GenerateSign(tt.params, tt.key)
+			sign := testGenerateSign(tt.params, tt.key)
 			if sign == "" {
 				t.Error("签名结果不应为空")
 			}
 			if len(sign) != 32 {
 				t.Errorf("MD5签名长度应为32，实际为 %d", len(sign))
 			}
-			sign2 := GenerateSign(tt.params, tt.key)
+			sign2 := testGenerateSign(tt.params, tt.key)
 			if sign != sign2 {
 				t.Errorf("相同参数两次签名不一致: %s != %s", sign, sign2)
 			}
@@ -84,21 +84,21 @@ func TestGenerateSign_Deterministic(t *testing.T) {
 	}
 	key := "abc"
 
-	sign1 := GenerateSign(params, key)
-	sign2 := GenerateSign(params, key)
+	sign1 := testGenerateSign(params, key)
+	sign2 := testGenerateSign(params, key)
 
 	if sign1 != sign2 {
 		t.Fatalf("确定性签名失败: %s != %s", sign1, sign2)
 	}
 
 	params["money"] = "2.00"
-	sign3 := GenerateSign(params, key)
+	sign3 := testGenerateSign(params, key)
 	if sign1 == sign3 {
 		t.Error("不同参数产生了相同签名")
 	}
 
 	params["money"] = "1.00"
-	sign4 := GenerateSign(params, "different_key")
+	sign4 := testGenerateSign(params, "different_key")
 	if sign1 == sign4 {
 		t.Error("不同密钥产生了相同签名")
 	}
@@ -117,12 +117,12 @@ func TestVerifySign(t *testing.T) {
 		"trade_status": "TRADE_SUCCESS",
 	}
 
-	sign := GenerateNotifySign(params, key)
+	sign := testGenerateNotifySign(params, key)
 	params["sign"] = sign
 	params["sign_type"] = "MD5"
 
 	t.Run("正确签名验证通过", func(t *testing.T) {
-		if !VerifySign(params, key) {
+		if !testVerifySign(params, key) {
 			t.Error("正确签名应验证通过")
 		}
 	})
@@ -132,8 +132,8 @@ func TestVerifySign(t *testing.T) {
 		for k, v := range params {
 			genericParams[k] = v
 		}
-		genericParams["sign"] = GenerateSign(genericParams, key)
-		if !VerifySign(genericParams, key) {
+		genericParams["sign"] = testGenerateSign(genericParams, key)
+		if !testVerifySign(genericParams, key) {
 			t.Error("包含type的回调签名也应验证通过")
 		}
 	})
@@ -144,7 +144,7 @@ func TestVerifySign(t *testing.T) {
 			badParams[k] = v
 		}
 		badParams["sign"] = "0000000000000000000000000000000"
-		if VerifySign(badParams, key) {
+		if testVerifySign(badParams, key) {
 			t.Error("错误签名不应验证通过")
 		}
 	})
@@ -155,7 +155,7 @@ func TestVerifySign(t *testing.T) {
 			tamperedParams[k] = v
 		}
 		tamperedParams["money"] = "99999.00"
-		if VerifySign(tamperedParams, key) {
+		if testVerifySign(tamperedParams, key) {
 			t.Error("篡改金额后签名不应验证通过")
 		}
 	})
@@ -166,13 +166,13 @@ func TestVerifySign(t *testing.T) {
 			tamperedParams[k] = v
 		}
 		tamperedParams["out_trade_no"] = "FAKE_ORDER"
-		if VerifySign(tamperedParams, key) {
+		if testVerifySign(tamperedParams, key) {
 			t.Error("篡改订单号后签名不应验证通过")
 		}
 	})
 
 	t.Run("错误密钥验证失败", func(t *testing.T) {
-		if VerifySign(params, "wrong_key") {
+		if testVerifySign(params, "wrong_key") {
 			t.Error("错误密钥不应验证通过")
 		}
 	})
@@ -184,7 +184,7 @@ func TestVerifySign(t *testing.T) {
 				noSignParams[k] = v
 			}
 		}
-		if VerifySign(noSignParams, key) {
+		if testVerifySign(noSignParams, key) {
 			t.Error("缺少sign字段不应验证通过")
 		}
 	})
@@ -195,7 +195,7 @@ func TestVerifySign(t *testing.T) {
 			emptySignParams[k] = v
 		}
 		emptySignParams["sign"] = ""
-		if VerifySign(emptySignParams, key) {
+		if testVerifySign(emptySignParams, key) {
 			t.Error("空sign字段不应验证通过")
 		}
 	})
@@ -203,7 +203,7 @@ func TestVerifySign(t *testing.T) {
 
 func TestGenerateSign_EmptyParams(t *testing.T) {
 	t.Run("空参数map", func(t *testing.T) {
-		sign := GenerateSign(map[string]string{}, "key")
+		sign := testGenerateSign(map[string]string{}, "key")
 		if sign == "" {
 			t.Error("空参数也应生成签名（仅含key的MD5）")
 		}
@@ -214,7 +214,7 @@ func TestGenerateSign_EmptyParams(t *testing.T) {
 			"pid":  "",
 			"type": "",
 		}
-		sign := GenerateSign(params, "key")
+		sign := testGenerateSign(params, "key")
 		if sign == "" {
 			t.Error("所有值为空时也应生成签名")
 		}
@@ -266,7 +266,7 @@ func TestSignFilterFields(t *testing.T) {
 		"pid":   "1",
 		"money": "10.00",
 	}
-	baseSig := GenerateSign(baseParams, key)
+	baseSig := testGenerateSign(baseParams, key)
 
 	withSignParams := map[string]string{
 		"pid":       "1",
@@ -274,7 +274,7 @@ func TestSignFilterFields(t *testing.T) {
 		"sign":      "whatever",
 		"sign_type": "MD5",
 	}
-	withSignSig := GenerateSign(withSignParams, key)
+	withSignSig := testGenerateSign(withSignParams, key)
 
 	if baseSig != withSignSig {
 		t.Errorf("sign/sign_type 未被正确过滤: base=%s, withSign=%s", baseSig, withSignSig)
@@ -287,7 +287,7 @@ func TestSignFilterFields(t *testing.T) {
 		"type":    "",
 		"garbage": "",
 	}
-	withEmptySig := GenerateSign(withEmptyParams, key)
+	withEmptySig := testGenerateSign(withEmptyParams, key)
 
 	if baseSig != withEmptySig {
 		t.Errorf("空值字段未被正确过滤: base=%s, withEmpty=%s", baseSig, withEmptySig)
@@ -357,7 +357,7 @@ func TestSignVerifyRoundTrip(t *testing.T) {
 		"money":        "50.00",
 	}
 
-	submitSign := GenerateSign(submitParams, key)
+	submitSign := testGenerateSign(submitParams, key)
 	if submitSign == "" {
 		t.Fatal("生成提交签名失败")
 	}
@@ -372,11 +372,11 @@ func TestSignVerifyRoundTrip(t *testing.T) {
 		"trade_status": "TRADE_SUCCESS",
 	}
 
-	callbackSign := GenerateNotifySign(callbackParams, key)
+	callbackSign := testGenerateNotifySign(callbackParams, key)
 	callbackParams["sign"] = callbackSign
 	callbackParams["sign_type"] = "MD5"
 
-	if !VerifySign(callbackParams, key) {
+	if !testVerifySign(callbackParams, key) {
 		t.Fatal("回调验签失败")
 	}
 
@@ -385,7 +385,7 @@ func TestSignVerifyRoundTrip(t *testing.T) {
 		attackParams[k] = v
 	}
 	attackParams["money"] = "0.01"
-	if VerifySign(attackParams, key) {
+	if testVerifySign(attackParams, key) {
 		t.Fatal("篡改金额后验签不应通过")
 	}
 
@@ -394,17 +394,17 @@ func TestSignVerifyRoundTrip(t *testing.T) {
 		attack2[k] = v
 	}
 	attack2["out_trade_no"] = "ATTACKER_ORDER"
-	if VerifySign(attack2, key) {
+	if testVerifySign(attack2, key) {
 		t.Fatal("篡改订单号后验签不应通过")
 	}
 
-	fakeSign := GenerateNotifySign(callbackParams, "fake_key")
+	fakeSign := testGenerateNotifySign(callbackParams, "fake_key")
 	fakeParams := make(map[string]string)
 	for k, v := range callbackParams {
 		fakeParams[k] = v
 	}
 	fakeParams["sign"] = fakeSign
-	if VerifySign(fakeParams, key) {
+	if testVerifySign(fakeParams, key) {
 		t.Fatal("伪造密钥签名不应通过验签")
 	}
 }
@@ -558,7 +558,7 @@ func TestChannelQueryOrderAndVerifyNotify(t *testing.T) {
 		"money":        "9.90",
 		"trade_status": "TRADE_SUCCESS",
 	}
-	params["sign"] = GenerateNotifySign(params, "k")
+	params["sign"] = testGenerateNotifySign(params, "k")
 	if !ch.VerifyNotify(params, "k") {
 		t.Fatal("VerifyNotify should pass")
 	}
@@ -603,7 +603,7 @@ func BenchmarkGenerateSign(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		GenerateSign(params, key)
+		testGenerateSign(params, key)
 	}
 }
 
@@ -618,11 +618,26 @@ func BenchmarkVerifySign(b *testing.B) {
 		"trade_no":     "2024010112345678",
 		"trade_status": "TRADE_SUCCESS",
 	}
-	params["sign"] = GenerateNotifySign(params, key)
+	params["sign"] = testGenerateNotifySign(params, key)
 	params["sign_type"] = "MD5"
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		VerifySign(params, key)
+		testVerifySign(params, key)
 	}
 }
+
+// 测试专用：旧单 key 接口已删除，统一走显式签名配置。
+func testGenerateSign(params map[string]string, key string) string {
+	return GenerateSignWithConfig(params, SignTypeMD5, map[string]string{"key": key})
+}
+
+func testGenerateNotifySign(params map[string]string, key string) string {
+	return GenerateNotifySignWithConfig(params, SignTypeMD5, map[string]string{"key": key})
+}
+
+func testVerifySign(params map[string]string, key string) bool {
+	return VerifySignWithConfig(params, SignTypeMD5, map[string]string{"key": key})
+}
+
+

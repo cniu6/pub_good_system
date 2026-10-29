@@ -279,12 +279,14 @@ func (ctrl *AuthController) Register(c *gin.Context) {
 	// 检查用户名/邮箱是否存在。
 	// 安全考虑：统一说辞，避免用户名/邮箱枚举——无论是用户名还是邮箱已被占用，
 	// 都返回同一条模糊提示，让攻击者无法据此区分「用户名存在」还是「邮箱存在」。
-	if _, err := models.GetUserByUsername(req.Username); err == nil {
+	// 必须包含软删除用户：users.username/email 唯一索引不区分 delete_time，
+	// 只查未删除用户会放行后撞唯一键，最终变成 500。
+	if _, err := models.GetUserByUsernameIncludingDeleted(req.Username); err == nil {
 		utils.Fail(c, 400, "Username or email already registered")
 		return
 	}
 
-	if _, err := models.GetUserByEmail(req.Email); err == nil {
+	if _, err := models.GetUserByEmailIncludingDeleted(req.Email); err == nil {
 		utils.Fail(c, 400, "Username or email already registered")
 		return
 	}

@@ -172,62 +172,12 @@ func (s *SettingsService) GetBoolWithDefault(key string, defaultValue bool) bool
 	return val == "true" || val == "1"
 }
 
-// GetIntWithDefault returns int setting value or fallback.
-func (s *SettingsService) GetIntWithDefault(key string, defaultValue int) int {
-	val, ok := s.Get(key)
-	if !ok {
-		return defaultValue
-	}
-	var result int
-	if err := json.Unmarshal([]byte(val), &result); err != nil {
-		return defaultValue
-	}
-	return result
-}
-
 // getEffectiveGlobalConfig 返回全局配置快照（值拷贝），避免与运行时热更新并发读写。
 func getEffectiveGlobalConfig() *config.Config {
 	if cfg := config.CloneGlobalConfig(); cfg != nil {
 		return cfg
 	}
 	return &config.Config{}
-}
-
-// GetSetting returns full setting model by key from cache.
-func (s *SettingsService) GetSetting(key string) *models.SystemSetting {
-	if s == nil {
-		return nil
-	}
-	s.ensureFreshCache()
-
-	s.cacheMu.RLock()
-	defer s.cacheMu.RUnlock()
-
-	return s.cache[key]
-}
-
-// GetAllFromCache returns a shallow copy of cache map.
-func (s *SettingsService) GetAllFromCache() map[string]*models.SystemSetting {
-	if s == nil {
-		return map[string]*models.SystemSetting{}
-	}
-	s.ensureFreshCache()
-
-	s.cacheMu.RLock()
-	defer s.cacheMu.RUnlock()
-
-	result := make(map[string]*models.SystemSetting)
-	for k, v := range s.cache {
-		result[k] = v
-	}
-	return result
-}
-
-// IsCacheExpired returns whether current cache is expired.
-func (s *SettingsService) IsCacheExpired() bool {
-	s.cacheMu.RLock()
-	defer s.cacheMu.RUnlock()
-	return time.Since(s.cacheTime) > s.ttl
 }
 
 // InvalidateCache marks cache as expired immediately.
@@ -494,35 +444,6 @@ func GetGlobalGeetestRuntimeConfig() GeetestRuntimeConfig {
 		Enabled:    cfg.GeetestEnabled && captchaID != "" && captchaKey != "",
 		CaptchaID:  captchaID,
 		CaptchaKey: captchaKey,
-	}
-}
-
-// GetRealnameAPIRuntimeConfig returns effective realname API config.
-func (s *SettingsService) GetRealnameAPIRuntimeConfig() RealnameAPIRuntimeConfig {
-	enabled := s.getRuntimeBool("realname_api_enabled", false)
-	appKey := s.getRuntimeString("realname_api_app_key", "")
-	appSecret := s.getRuntimeString("realname_api_app_secret", "")
-
-	// 只有当启用且有密钥时才认为真正启用
-	enabled = enabled && appKey != "" && appSecret != ""
-
-	return RealnameAPIRuntimeConfig{
-		Enabled:   enabled,
-		Provider:  s.getRuntimeString("realname_api_provider", "aliyun"),
-		AppKey:    appKey,
-		AppSecret: appSecret,
-		Endpoint:  s.getRuntimeString("realname_api_endpoint", ""),
-	}
-}
-
-// GetGlobalRealnameAPIRuntimeConfig returns effective realname API config with global cache.
-func GetGlobalRealnameAPIRuntimeConfig() RealnameAPIRuntimeConfig {
-	if GlobalSettingsService != nil {
-		return GlobalSettingsService.GetRealnameAPIRuntimeConfig()
-	}
-	return RealnameAPIRuntimeConfig{
-		Enabled:  false,
-		Provider: "aliyun",
 	}
 }
 
@@ -1014,15 +935,6 @@ func (s *SettingsService) refreshAfterWrite() error {
 		ApplyGlobalRuntimeConfig()
 	}
 	return nil
-}
-
-// UpdateSettingsWithCache 批量更新配置并刷新缓存。
-func (s *SettingsService) UpdateSettingsWithCache(settings map[string]string) error {
-	err := models.BatchUpdateSettings(settings)
-	if err != nil {
-		return err
-	}
-	return s.refreshAfterWrite()
 }
 
 // UpdateSingleSettingWithCache 更新单项配置并刷新缓存。

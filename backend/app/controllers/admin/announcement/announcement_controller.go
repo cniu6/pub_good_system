@@ -123,10 +123,14 @@ func (ctrl *AnnouncementController) Create(c *gin.Context) {
 		utils.Fail(c, 400, err.Error())
 		return
 	}
+	if len(req.Content) > utils.MaxAnnouncementContentBytes {
+		utils.Fail(c, 400, "正文不能超过 60KB")
+		return
+	}
 	a := &models.Announcement{
 		Title:       title,
 		Summary:     summary,
-		Content:     req.Content, // 管理员可信内容，保留 Markdown/HTML
+		Content:     models.LongText(req.Content), // 管理员可信内容，保留 Markdown/HTML
 		Type:        normalizeAnnouncementType(req.Type),
 		Status:      models.AnnouncementStatusDraft,
 		Priority:    req.Priority,
@@ -182,7 +186,11 @@ func (ctrl *AnnouncementController) Update(c *gin.Context) {
 		utils.Fail(c, 400, err.Error())
 		return
 	}
-	existing.Content = req.Content
+	if len(req.Content) > utils.MaxAnnouncementContentBytes {
+		utils.Fail(c, 400, "正文不能超过 60KB")
+		return
+	}
+	existing.Content = models.LongText(req.Content)
 	existing.Type = normalizeAnnouncementType(req.Type)
 	existing.Priority = req.Priority
 	if req.Popup != nil {

@@ -369,13 +369,4 @@ func sendEmailSSL(host, port, from, to, message string, auth smtp.Auth, smtpUser
 	return sendSMTPMessage(client, from, to, message, auth, smtpUser, smtpPass)
 }
 
-// ReplaceTemplateVars 替换模板变量
-func ReplaceTemplateVars(template string, vars map[string]string) string {
-	result := template
-	for k, v := range vars {
-		placeholder := fmt.Sprintf("{%s}", k)
-		result = strings.ReplaceAll(result, placeholder, v)
-	}
-	return result
-}
 

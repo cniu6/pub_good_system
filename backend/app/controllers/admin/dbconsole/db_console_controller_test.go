@@ -251,7 +251,7 @@ func TestDBConsoleAuditKeepsPlaintext(t *testing.T) {
 		t.Fatalf("load operation log: %v", err)
 	}
 	// 操作日志按产品要求明文落库，不做字段脱敏
-	if logItem.RequestBody == nil || !strings.Contains(*logItem.RequestBody, "super-secret") {
+	if logItem.RequestBody == nil || !strings.Contains(string(*logItem.RequestBody), "super-secret") {
 		t.Fatalf("audit request body=%v, want plaintext password kept", logItem.RequestBody)
 	}
 }

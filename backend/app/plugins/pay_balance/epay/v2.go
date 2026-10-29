@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"fst/backend/app/models"
-	"fst/backend/pkg/payment"
 	"io"
 	"log"
 	"net/http"
@@ -248,9 +247,4 @@ func postFormAndParsePayURL(apiURL string, params map[string]string) (string, st
 		return payResp.URLScheme, normalizedTradeNo, nil
 	}
 	return "", normalizedTradeNo, fmt.Errorf("Epay V2 did not return a usable payment link")
-}
-
-// parseMoneyMinorToYuan 把分整数格式化为元（两位小数），退款用
-func parseMoneyMinorToYuan(minor int64) string {
-	return payment.FormatMoneyYuan(minor)
 }

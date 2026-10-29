@@ -1,8 +1,8 @@
 package presence
 
 import (
-	"encoding/json"
 	"fst/backend/app/models"
+	"fst/backend/pkg/db"
 	"sync"
 	"time"
 
@@ -97,12 +97,6 @@ func (h *Hub) KickMany(sessionIDs []uint64, reason ...string) {
 	}
 }
 
-// MarshalForceLogout 供测试或其它传输层复用退出消息格式。
-func MarshalForceLogout(reason string) []byte {
-	data, _ := json.Marshal(map[string]string{"type": "force_logout", "reason": reason})
-	return data
-}
-
 // writeJSON 向单个连接写 JSON（带写锁）
 func (c *Client) writeJSON(v interface{}) {
 	c.writeMu.Lock()
@@ -111,54 +105,56 @@ func (c *Client) writeJSON(v interface{}) {
 	_ = c.conn.WriteJSON(v)
 }
 
-// canReceiveBroadcast 在业务推送前复核 DB 会话状态。
-// 主动撤销不一定发生在能直接访问 Hub 的控制器里；这里兜底防止已撤销/已过期的 WS
-// 在下一个心跳到来前继续收到公告等广播。查询异常时不误踢所有正常用户，由心跳复核再次处理。
-func (h *Hub) canReceiveBroadcast(client *Client) bool {
-	active, err := models.IsUserSessionActiveByID(client.SessionID)
-	if err != nil {
-		return true
+// broadcastSessionCheckBatch 广播前批量复核会话的每批大小。
+// 单条连接逐次查库在 5 万在线时会变成 5 万次 COUNT，必须按批查询。
+const broadcastSessionCheckBatch = 500
+
+// activeSessionIDs 批量返回仍未撤销且未过期的会话 ID。
+// 查询异常时按“活跃”处理，保持原行为：不因一次 DB 抖动踢掉全体在线用户，由心跳继续兜底。
+func activeSessionIDs(sessionIDs []uint64) map[uint64]bool {
+	active := make(map[uint64]bool, len(sessionIDs))
+	now := time.Now().Unix()
+	for start := 0; start < len(sessionIDs); start += broadcastSessionCheckBatch {
+		end := min(start+broadcastSessionCheckBatch, len(sessionIDs))
+		chunk := sessionIDs[start:end]
+		var found []uint64
+		err := db.DB.Model(&models.UserSession{}).
+			Where("id IN ? AND is_active = ? AND expires_at > ?", chunk, true, now).
+			Pluck("id", &found).Error
+		if err != nil {
+			for _, id := range chunk {
+				active[id] = true
+			}
+			continue
+		}
+		for _, id := range found {
+			active[id] = true
+		}
 	}
-	if active {
-		return true
-	}
-	client.forceClose("session_revoked")
-	return false
+	return active
 }
 
 // BroadcastJSON 向所有在线连接广播一条业务消息（如公告发布）。单机 Hub；多实例需总线。
 func (h *Hub) BroadcastJSON(v interface{}) {
 	h.mu.Lock()
 	clients := make([]*Client, 0, len(h.bySession))
+	ids := make([]uint64, 0, len(h.bySession))
 	for _, c := range h.bySession {
 		clients = append(clients, c)
+		ids = append(ids, c.SessionID)
 	}
 	h.mu.Unlock()
+
+	active := activeSessionIDs(ids)
 	for _, c := range clients {
-		if !h.canReceiveBroadcast(c) {
+		if !active[c.SessionID] {
+			c.forceClose("session_revoked")
 			continue
 		}
 		c.writeJSON(v)
 	}
 }
 
-// BroadcastToUserJSON 向指定用户的所有在线连接推送
-func (h *Hub) BroadcastToUserJSON(userID uint64, v interface{}) {
-	h.mu.Lock()
-	clients := make([]*Client, 0)
-	for _, c := range h.bySession {
-		if c.UserID == userID {
-			clients = append(clients, c)
-		}
-	}
-	h.mu.Unlock()
-	for _, c := range clients {
-		if !h.canReceiveBroadcast(c) {
-			continue
-		}
-		c.writeJSON(v)
-	}
-}
 
 var defaultHub = NewHub()
 

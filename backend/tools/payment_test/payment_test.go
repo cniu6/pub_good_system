@@ -82,6 +82,12 @@ func probeSQLiteDSN(dsn string) string {
 
 // TestMain 集成测试入口：初始化数据库和路由
 func TestMain(m *testing.M) {
+	// 没有根 .env 时 InitConfig 会因 CORS_ORIGINS 为空直接终止进程，导致
+	// “无数据库则跳过”的路径走不到；这里只补一个测试用宽松值，是否跳过仍由
+	// 下面的 databaseAvailable 决定。
+	if strings.TrimSpace(os.Getenv("CORS_ORIGINS")) == "" {
+		_ = os.Setenv("CORS_ORIGINS", "*")
+	}
 	// 初始化配置（需要 .env 文件或环境变量）
 	config.InitConfig()
 	if !databaseAvailable() {
@@ -105,9 +111,8 @@ func TestMain(m *testing.M) {
 	testToken = getTestToken()
 
 	exitCode := m.Run()
-	if db.DB != nil {
-		_ = db.DB.Close()
-	}
+	// gorm.DB 没有 Close 方法，统一走 db.Close（内部取底层 *sql.DB 关闭并把 DB 置空）。
+	_ = db.Close()
 	os.Exit(exitCode)
 }
 

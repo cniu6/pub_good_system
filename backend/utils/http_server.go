@@ -15,7 +15,8 @@ import (
 // 创建HTTP服务器
 func NewHTTPServer(addr string, handler http.Handler) *http.Server {
 	readHeaderTimeout := 5 * time.Second
-	readTimeout := 5 * time.Second
+	// 5s 会把慢网络/较大请求体的正常请求误杀；ReadHeaderTimeout 仍是 5s，能挡住慢速攻击。
+	readTimeout := 30 * time.Second
 	writeTimeout := 60 * time.Second
 	idleTimeout := 120 * time.Second
 	maxHeaderBytes := 1 << 20
@@ -71,7 +72,10 @@ func ServeHTTPServer(srv *http.Server, shutdownHook func() error) error {
 		log.Printf("[Server] 正在关闭，收到信号: %s", sig.String())
 
 		shutdownErr := shutdownHTTPServer(srv)
-		hookErr := runShutdownHook(shutdownHook)
+		var hookErr error
+		if shutdownHook != nil {
+			hookErr = shutdownHook()
+		}
 		if shutdownErr != nil || hookErr != nil {
 			return errors.Join(shutdownErr, hookErr)
 		}
@@ -97,9 +101,3 @@ func shutdownHTTPServer(srv *http.Server) error {
 	return nil
 }
 
-func runShutdownHook(shutdownHook func() error) error {
-	if shutdownHook == nil {
-		return nil
-	}
-	return shutdownHook()
-}

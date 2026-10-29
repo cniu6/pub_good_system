@@ -3,6 +3,7 @@ package migrate
 import (
 	"log"
 
+	"fst/backend/app/models"
 	"fst/backend/pkg/db"
 )
 
@@ -24,7 +25,7 @@ func dropObsoleteFinanceApprovalArtifacts() {
 	if !db.CheckTableExists("system_settings") {
 		return
 	}
-	res := db.DB.Exec("DELETE FROM system_settings WHERE setting_key = ?", "finance_dual_approval")
+	res := db.DB.Where("setting_key = ?", "finance_dual_approval").Delete(&models.SystemSetting{})
 	if res.Error != nil {
 		log.Printf("[Migrate] 删除废弃设置 finance_dual_approval 失败: %v", res.Error)
 		return

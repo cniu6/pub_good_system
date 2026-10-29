@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strings"
 	"sync"
 
 	"fst/backend/pkg/db"
@@ -48,56 +47,46 @@ func ListRuns(page, pageSize int, keyword, status, category, jobCode string, sta
 	if pageSize > 100 {
 		pageSize = 100
 	}
-	where := `WHERE 1=1`
-	args := []interface{}{}
+	q := db.DB.Model(&JobRun{})
 	if keyword != "" {
 		like := "%" + keyword + "%"
-		where += ` AND (job_code LIKE ? OR message LIKE ? OR error_text LIKE ? OR run_uid LIKE ?)`
-		args = append(args, like, like, like, like)
+		q = q.Where("job_code LIKE ? OR message LIKE ? OR error_text LIKE ? OR run_uid LIKE ?", like, like, like, like)
 	}
 	if status != "" {
-		where += ` AND status=?`
-		args = append(args, status)
+		q = q.Where("status = ?", status)
 	}
 	if category != "" {
-		where += ` AND category=?`
-		args = append(args, category)
+		q = q.Where("category = ?", category)
 	}
 	if jobCode != "" {
-		where += ` AND job_code=?`
-		args = append(args, jobCode)
+		q = q.Where("job_code = ?", jobCode)
 	}
 	if startAt > 0 {
-		where += ` AND started_at>=?`
-		args = append(args, startAt)
+		q = q.Where("started_at >= ?", startAt)
 	}
 	if endAt > 0 {
-		where += ` AND started_at<=?`
-		args = append(args, endAt)
+		q = q.Where("started_at <= ?", endAt)
 	}
 	var total int64
-	if err := db.DB.Raw(`SELECT COUNT(*) FROM auto_job_runs `+where, args...).Scan(&total).Error; err != nil {
+	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	offset := (page - 1) * pageSize
-	q := `SELECT * FROM auto_job_runs ` + where + ` ORDER BY started_at DESC, id DESC LIMIT ? OFFSET ?`
-	args2 := append(append([]interface{}{}, args...), pageSize, offset)
 	var list []JobRun
-	err := db.DB.Raw(q, args2...).Scan(&list).Error
+	err := q.Order("started_at DESC, id DESC").Limit(pageSize).Offset((page - 1) * pageSize).Find(&list).Error
 	return list, total, err
 }
 
 // CountRuns 执行记录总行数
 func CountRuns() (int64, error) {
 	var n int64
-	err := db.DB.Raw(`SELECT COUNT(*) FROM auto_job_runs`).Scan(&n).Error
+	err := db.DB.Model(&JobRun{}).Count(&n).Error
 	return n, err
 }
 
 // CountRunsByStatusToday 今日某状态记录数（started_at >= dayStart）
 func CountRunsByStatusToday(status string, dayStart int64) (int64, error) {
 	var n int64
-	err := db.DB.Raw(`SELECT COUNT(*) FROM auto_job_runs WHERE status=? AND started_at>=?`, status, dayStart).Scan(&n).Error
+	err := db.DB.Model(&JobRun{}).Where("status = ? AND started_at >= ?", status, dayStart).Count(&n).Error
 	return n, err
 }
 
@@ -141,23 +130,11 @@ func deleteOldestRuns(limit int64, statuses []string) (int64, error) {
 	if limit <= 0 || len(statuses) == 0 {
 		return 0, nil
 	}
-	ph := make([]string, len(statuses))
-	args := make([]interface{}, 0, len(statuses)+1)
-	for i, s := range statuses {
-		ph[i] = "?"
-		args = append(args, s)
-	}
-	args = append(args, limit)
-	r := db.DB.Exec(`
-		DELETE FROM auto_job_runs
-		WHERE id IN (
-			SELECT id FROM (
-				SELECT id FROM auto_job_runs
-				WHERE keep_forever=0 AND status IN (`+strings.Join(ph, ",")+`)
-				ORDER BY started_at ASC, id ASC
-				LIMIT ?
-			) t
-		)`, args...)
+	oldest := db.DB.Model(&JobRun{}).Select("id").
+		Where("keep_forever = 0 AND status IN ?", statuses).
+		Order("started_at ASC, id ASC").Limit(int(limit))
+	// 外包一层派生表：MySQL 不允许 IN 子查询里直接带 LIMIT，也不允许删除时子查询引用同一张表。
+	r := db.DB.Where("id IN (?)", db.DB.Table("(?) AS t", oldest).Select("id")).Delete(&JobRun{})
 	if r.Error != nil {
 		return 0, r.Error
 	}
@@ -252,7 +229,7 @@ func runsIDWatermark() (autoInc, maxID uint64, err error) {
 		autoInc = uint64(ai.Int64)
 	}
 	var mx sql.NullInt64
-	_ = db.DB.Raw(`SELECT MAX(id) FROM auto_job_runs`).Scan(&mx).Error
+	_ = db.DB.Model(&JobRun{}).Select("MAX(id)").Scan(&mx).Error
 	if mx.Valid && mx.Int64 > 0 {
 		maxID = uint64(mx.Int64)
 	}
@@ -261,27 +238,23 @@ func runsIDWatermark() (autoInc, maxID uint64, err error) {
 
 // CleanRuns scope = success|failed|all（只删 keep_forever=0 的终态记录）
 func CleanRuns(req CleanRunsRequest) (int64, error) {
-	where := `WHERE keep_forever=0`
-	args := []interface{}{}
+	var statuses []string
 	switch req.Scope {
 	case "success", "":
-		where += ` AND status=?`
-		args = append(args, StatusSuccess)
+		statuses = []string{StatusSuccess}
 	case "failed":
-		where += ` AND status IN (?,?)`
-		args = append(args, StatusFailed, StatusTimeout)
+		statuses = []string{StatusFailed, StatusTimeout}
 	case "all":
 		// 终态：success / failed / timeout（runs 不会有 running）
-		where += ` AND status IN (?,?,?)`
-		args = append(args, StatusSuccess, StatusFailed, StatusTimeout)
+		statuses = []string{StatusSuccess, StatusFailed, StatusTimeout}
 	default:
 		return 0, fmt.Errorf("scope only supports success|failed|all")
 	}
+	q := db.DB.Where("keep_forever = 0 AND status IN ?", statuses)
 	if req.JobCode != "" {
-		where += ` AND job_code=?`
-		args = append(args, req.JobCode)
+		q = q.Where("job_code = ?", req.JobCode)
 	}
-	r := db.DB.Exec(`DELETE FROM auto_job_runs `+where, args...)
+	r := q.Delete(&JobRun{})
 	if r.Error != nil {
 		return 0, r.Error
 	}
@@ -298,14 +271,7 @@ func MarkKeepForever(ids []uint64, keep bool) (int64, error) {
 	if keep {
 		v = 1
 	}
-	ph := make([]string, len(ids))
-	args := make([]interface{}, 0, len(ids)+1)
-	args = append(args, v)
-	for i, id := range ids {
-		ph[i] = "?"
-		args = append(args, id)
-	}
-	r := db.DB.Exec(`UPDATE auto_job_runs SET keep_forever=? WHERE id IN (`+strings.Join(ph, ",")+`)`, args...)
+	r := db.DB.Model(&JobRun{}).Where("id IN ?", ids).Update("keep_forever", v)
 	if r.Error != nil {
 		return 0, r.Error
 	}
@@ -322,11 +288,8 @@ func MarkKeepForever(ids []uint64, keep bool) (int64, error) {
 func RepairBadRunUIDs() (int64, error) {
 	var ids []uint64
 	// LENGTH 在 MySQL/SQLite/Postgres 均可用，避免依赖 CHAR_LENGTH + db.Q
-	if err := db.DB.Raw(`
-		SELECT id FROM auto_job_runs
-		WHERE run_uid = '' OR LENGTH(run_uid) <> 36
-		ORDER BY id ASC
-		LIMIT 5000`).Scan(&ids).Error; err != nil {
+	if err := db.DB.Model(&JobRun{}).Where("run_uid = '' OR LENGTH(run_uid) <> 36").
+		Order("id ASC").Limit(5000).Pluck("id", &ids).Error; err != nil {
 		return 0, err
 	}
 	var aff int64

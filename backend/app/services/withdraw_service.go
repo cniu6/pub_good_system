@@ -159,13 +159,15 @@ func (s *WithdrawService) Create(userID uint64, req *CreateWithdrawRequest) (*mo
 			return NewClientError("账户余额不足")
 		}
 
-		var pendingCount int64
-		if err := db.ForUpdate(tx).Model(&models.WithdrawRequest{}).
+		// 同用户的创建已被上面的用户行锁串行化，这里不需要再锁提现行。
+		// 审核/打款是「先锁提现行、再锁用户行」，若这里也锁提现行会形成 AB-BA 死锁。
+		var pendingIDs []uint64
+		if err := tx.Model(&models.WithdrawRequest{}).
 			Where("user_id = ? AND status IN (?, ?) AND delete_time IS NULL", userID, models.WithdrawStatusPending, models.WithdrawStatusApproved).
-			Count(&pendingCount).Error; err != nil {
+			Limit(1).Pluck("id", &pendingIDs).Error; err != nil {
 			return err
 		}
-		if pendingCount > 0 {
+		if len(pendingIDs) > 0 {
 			return NewClientError("您有待处理的提现申请，请勿重复提交")
 		}
 

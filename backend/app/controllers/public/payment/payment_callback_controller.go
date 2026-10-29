@@ -21,12 +21,8 @@ func NewPaymentCallbackController() *PaymentCallbackController {
 	return &PaymentCallbackController{}
 }
 
-// Notify 旧统一回调入口，兜底兼容未带通道类型的网关
-// 默认按 "epay" 处理；新接入通道应使用 NotifyByChannel
-// @Summary 支付异步通知回调（旧入口，兼容 epay）
-// @Tags Public-回调
-// @Success 200 {string} string
-// @Router /v1/public/payment/notify [post]
+// Notify 兼容网关动态配置的回调地址：部分网关的 notify_url 仍指向不带通道的统一入口。
+// 验签与订单归属仍由订单关联的 PayGateway 决定，channelType 只用于日志。
 func (ctrl *PaymentCallbackController) Notify(c *gin.Context) {
 	ctrl.handleNotify(c, "epay")
 }
@@ -195,11 +191,11 @@ func redactCallbackParams(params map[string]string) map[string]string {
 func (ctrl *PaymentCallbackController) RegisterRoutes(group *gin.RouterGroup) {
 	paymentGroup := group.Group("/payment")
 	{
-		// 异步通知（旧入口，兼容 epay 等未按通道配置回调的网关）
+		// 异步通知（网关 notify_url 可能是动态配置的统一入口）
 		paymentGroup.POST("/notify", ctrl.Notify)
 		paymentGroup.GET("/notify", ctrl.Notify)
 
-		// 异步通知（分通道入口，新接入通道推荐）
+		// 异步通知（按通道）
 		paymentGroup.POST("/notify/:channel_type", ctrl.NotifyByChannel)
 		paymentGroup.GET("/notify/:channel_type", ctrl.NotifyByChannel)
 

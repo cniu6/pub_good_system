@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"fst/backend/pkg/db"
@@ -33,28 +34,23 @@ func ListDefinitions(keyword, category string, enabled *bool) ([]JobDefinition, 
 	if db.DB == nil {
 		return nil, fmt.Errorf("db not ready")
 	}
-	q := `SELECT * FROM auto_job_definitions WHERE 1=1`
-	args := []interface{}{}
+	q := db.DB.Model(&JobDefinition{})
 	if keyword != "" {
 		like := "%" + keyword + "%"
-		q += ` AND (job_code LIKE ? OR name LIKE ? OR description LIKE ?)`
-		args = append(args, like, like, like)
+		q = q.Where("job_code LIKE ? OR name LIKE ? OR description LIKE ?", like, like, like)
 	}
 	if category != "" {
-		q += ` AND category = ?`
-		args = append(args, category)
+		q = q.Where("category = ?", category)
 	}
 	if enabled != nil {
 		v := 0
 		if *enabled {
 			v = 1
 		}
-		q += ` AND enabled = ?`
-		args = append(args, v)
+		q = q.Where("enabled = ?", v)
 	}
-	q += ` ORDER BY category ASC, job_code ASC`
 	var list []JobDefinition
-	err := db.DB.Raw(q, args...).Scan(&list).Error
+	err := q.Order("category ASC, job_code ASC").Find(&list).Error
 	return list, err
 }
 
@@ -63,10 +59,10 @@ func CountDefinitions() (total, enabled int64, err error) {
 	if db.DB == nil {
 		return 0, 0, fmt.Errorf("db not ready")
 	}
-	if err = db.DB.Raw(`SELECT COUNT(*) FROM auto_job_definitions`).Scan(&total).Error; err != nil {
+	if err = db.DB.Model(&JobDefinition{}).Count(&total).Error; err != nil {
 		return
 	}
-	err = db.DB.Raw(`SELECT COUNT(*) FROM auto_job_definitions WHERE enabled = 1`).Scan(&enabled).Error
+	err = db.DB.Model(&JobDefinition{}).Where("enabled = 1").Count(&enabled).Error
 	return
 }
 
@@ -112,17 +108,17 @@ func UpdateDefinitionMeta(def *JobDefinition) error {
 	}
 	def.MaxConcurrency = 1
 	return db.DB.Model(&JobDefinition{}).Where("job_code = ?", def.JobCode).Updates(map[string]interface{}{
-		"name":              def.Name,
-		"description":       def.Description,
-		"category":          def.Category,
-		"handler_key":       def.HandlerKey,
-		"cron_expr":         def.CronExpr,
-		"interval_seconds":  def.IntervalSeconds,
-		"timezone":          def.Timezone,
-		"timeout_sec":       def.TimeoutSec,
-		"max_concurrency":   def.MaxConcurrency,
-		"params_json":       def.ParamsJSON,
-		"update_time":       def.UpdateTime,
+		"name":             def.Name,
+		"description":      def.Description,
+		"category":         def.Category,
+		"handler_key":      def.HandlerKey,
+		"cron_expr":        def.CronExpr,
+		"interval_seconds": def.IntervalSeconds,
+		"timezone":         def.Timezone,
+		"timeout_sec":      def.TimeoutSec,
+		"max_concurrency":  def.MaxConcurrency,
+		"params_json":      def.ParamsJSON,
+		"update_time":      def.UpdateTime,
 	}).Error
 }
 
@@ -280,29 +276,30 @@ func bumpDefinitionAfterRun(jobCode, status string, startedAt, finished int64, e
 // CountRunning 当前运行中任务数（看定义表 last_status；runs 跑完才落库）
 func CountRunning() (int64, error) {
 	var n int64
-	err := db.DB.Raw(`SELECT COUNT(*) FROM auto_job_definitions WHERE last_status=?`, StatusRunning).Scan(&n).Error
+	err := db.DB.Model(&JobDefinition{}).Where("last_status = ?", StatusRunning).Count(&n).Error
 	return n, err
 }
 
 // ListRunningDefinitions 当前运行中的任务（定义表视角）
 func ListRunningDefinitions() ([]JobDefinition, error) {
 	var list []JobDefinition
-	err := db.DB.Raw(`
-		SELECT * FROM auto_job_definitions
-		WHERE last_status=?
-		ORDER BY last_started_at DESC, job_code ASC`, StatusRunning).Scan(&list).Error
+	err := db.DB.Where("last_status = ?", StatusRunning).Order("last_started_at DESC, job_code ASC").Find(&list).Error
 	return list, err
 }
 
-// SumLifetimeRuns 所有任务终身执行次数合计
+// SumLifetimeRuns 所有任务终身执行次数合计。
+// lifetime_run_count 是字符串列（避免计数溢出），PostgreSQL 不支持对字符串 SUM，
+// 任务定义只有少量行，直接在 Go 里用大整数累加，三库结果一致。
 func SumLifetimeRuns() (string, error) {
-	var s sql.NullString
-	err := db.DB.Raw(`SELECT COALESCE(`+db.CastToText("SUM(lifetime_run_count)")+`, '0') FROM auto_job_definitions`).Scan(&s).Error
-	if err != nil {
+	var counts []string
+	if err := db.DB.Model(&JobDefinition{}).Pluck("lifetime_run_count", &counts).Error; err != nil {
 		return "0", err
 	}
-	if !s.Valid || s.String == "" {
-		return "0", nil
+	total := new(big.Int)
+	for _, c := range counts {
+		if n, ok := new(big.Int).SetString(strings.TrimSpace(c), 10); ok {
+			total.Add(total, n)
+		}
 	}
-	return s.String, nil
+	return total.String(), nil
 }

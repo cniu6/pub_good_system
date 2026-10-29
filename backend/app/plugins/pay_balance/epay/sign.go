@@ -13,23 +13,12 @@ const (
 	SignTypeRSA = "RSA"
 )
 
-// GenerateSign 生成易支付 MD5 签名（兼容旧接口：单 key 字符串）
-// 用于测试和旧调用点；新代码请使用 GenerateSignWithConfig
-func GenerateSign(params map[string]string, key string) string {
-	return GenerateSignWithConfig(params, SignTypeMD5, map[string]string{"key": key})
-}
-
 // GenerateSignWithConfig 生成易支付签名（创建支付订单，包含 type）
 // 按 signType 分发 MD5 / RSA：
 //   - MD5: 参数排序拼接 key=value&...，末尾拼 merchant_key，取 MD5
 //   - RSA: 参数排序拼接（不含末尾密钥），用 merchant_private_key 做 SHA256WithRSA，Base64
 func GenerateSignWithConfig(params map[string]string, signType string, extConfig map[string]string) string {
 	return generateSignInternal(params, signType, extConfig, false)
-}
-
-// GenerateNotifySign 生成易支付回调验签用 MD5 签名（兼容旧接口：单 key）
-func GenerateNotifySign(params map[string]string, key string) string {
-	return GenerateNotifySignWithConfig(params, SignTypeMD5, map[string]string{"key": key})
 }
 
 // GenerateNotifySignWithConfig 生成易支付回调验签用签名（排除 type）
@@ -144,11 +133,6 @@ func buildV2SignString(params map[string]string) string {
 		filtered[k] = v
 	}
 	return buildParamString(filtered)
-}
-
-// VerifySign 验证易支付回调签名（兼容旧接口：单 key 字符串）
-func VerifySign(params map[string]string, key string) bool {
-	return VerifySignWithConfig(params, SignTypeMD5, map[string]string{"key": key})
 }
 
 // VerifySignWithConfig 验证易支付回调签名（兼容包含/不包含 type 的不同实现）

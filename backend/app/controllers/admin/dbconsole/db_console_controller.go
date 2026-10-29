@@ -84,8 +84,8 @@ func writeDBConsoleAudit(c *gin.Context, action, reqBody, respBody string, statu
 		IP:           utils.GetClientIP(c),
 		UserAgent:    c.Request.UserAgent(),
 		HandlerName:  "admin.(*DBConsoleController)." + action,
-		RequestBody:  &rb,
-		ResponseBody: &sb,
+		RequestBody:  models.NewLongTextPtr(rb),
+		ResponseBody: models.NewLongTextPtr(sb),
 		StatusCode:   status,
 	})
 }
@@ -548,11 +548,7 @@ func (ctrl *DBConsoleController) TableDDL(c *gin.Context) {
 }
 
 func quoteIdent(name string) string {
-	if db.IsPostgres() {
-		return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
-	}
-	// MySQL / SQLite 用反引号
-	return "`" + strings.ReplaceAll(name, "`", "``") + "`"
+	return db.QuoteIdent(name)
 }
 
 func scanRowsLimited(rows *sql.Rows, limit int) ([]string, []map[string]interface{}, error) {

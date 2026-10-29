@@ -87,32 +87,6 @@ func BuildMemo(memo string, memoI18n map[string]string) string {
 	return memo
 }
 
-// ParseMemo 解析备注字符串，返回指定语言的文本
-// 如果 memo 是 JSON 格式的多语言对象，返回对应语言版本
-// 否则原样返回纯文本
-func ParseMemo(memo string, lang string) string {
-	if memo == "" || memo[0] != '{' {
-		return memo
-	}
-	var i18n map[string]string
-	if err := json.Unmarshal([]byte(memo), &i18n); err != nil {
-		return memo
-	}
-	// 精确匹配
-	if text, ok := i18n[lang]; ok {
-		return text
-	}
-	// 回退到中文
-	if text, ok := i18n["zhCN"]; ok {
-		return text
-	}
-	// 回退到第一个可用语言
-	for _, text := range i18n {
-		return text
-	}
-	return memo
-}
-
 // ========================================
 // 统一余额操作入口
 // ========================================

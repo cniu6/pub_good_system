@@ -169,18 +169,6 @@ func ParseExtConfigMap(extConfigJSON string) map[string]interface{} {
 	return result
 }
 
-// MarshalExtConfig 将 map[string]string 序列化为 ext_config JSON 字符串。空 map 返回空字符串。
-func MarshalExtConfig(extConfig map[string]string) string {
-	if len(extConfig) == 0 {
-		return ""
-	}
-	data, err := json.Marshal(extConfig)
-	if err != nil {
-		return ""
-	}
-	return string(data)
-}
-
 // MarshalExtConfigMap 将 map[string]interface{} 序列化为 ext_config JSON 字符串。空 map 返回空字符串。
 func MarshalExtConfigMap(extConfig map[string]interface{}) string {
 	if len(extConfig) == 0 {
@@ -336,11 +324,6 @@ func HMACWithSHA256(data, key string) string {
 	h := hmac.New(sha256.New, []byte(key))
 	h.Write([]byte(data))
 	return fmt.Sprintf("%x", h.Sum(nil))
-}
-
-// VerifyHMACWithSHA256 验证 HMAC-SHA256 签名
-func VerifyHMACWithSHA256(data, sign, key string) bool {
-	return hmac.Equal([]byte(sign), []byte(HMACWithSHA256(data, key)))
 }
 
 // RSAVerify 使用平台 RSA 公钥验证 SHA256WithRSA 签名

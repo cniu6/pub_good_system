@@ -43,19 +43,6 @@ func ChangeUserMoney(userID uint64, amount float64, memo string) (*models.UserMo
 	return result.MoneyLog, nil
 }
 
-// ChangeUserMoneyI18n 变更用户余额（多语言备注版本）
-func ChangeUserMoneyI18n(userID uint64, amount float64, memoI18n map[string]string) (*models.UserMoneyLog, error) {
-	result, err := utils.ExecuteBalanceOp(&utils.BalanceReq{
-		UserID:   userID,
-		Amount:   amount,
-		MemoI18n: memoI18n,
-	}, utils.OpChangeAndLog)
-	if err != nil {
-		return nil, err
-	}
-	return result.MoneyLog, nil
-}
-
 // SetUserMoney 直接设置用户余额（管理员用，同时记录日志）
 // 内部先按「分」计算差值，再通过 ExecuteBalanceOp(OpChangeAndLog) 处理
 func SetUserMoney(userID uint64, newMoney float64, memo string) (*models.UserMoneyLog, error) {
@@ -211,6 +198,8 @@ func OperateUserMoney(userID uint64, req MoneyOperationRequest) (*utils.BalanceR
 
 	var operateResult *utils.BalanceResult
 	if txErr := db.DB.Transaction(func(tx *gorm.DB) error {
+		// 订单补建不能吞唯一键冲突：并发同 order_no 时让后到者回滚报错，
+		// 否则 SQLite/MySQL 会在冲突后继续入账，造成重复加款。
 		if createErr := createOrderForMoneyOperationTx(tx, userID, req); createErr != nil {
 			return createErr
 		}
@@ -230,7 +219,7 @@ func OperateUserMoney(userID uint64, req MoneyOperationRequest) (*utils.BalanceR
 	return operateResult, nil
 }
 
-// createOrderForMoneyOperationTx 在事务内补建缺失订单（与余额操作同事务）
+// createOrderForMoneyOperationTx 在事务内补建缺失订单（与余额操作同事务）。
 func createOrderForMoneyOperationTx(tx *gorm.DB, userID uint64, req MoneyOperationRequest) error {
 	// 订单金额记录本次操作的绝对金额（扣款为负数时取其绝对值），避免审计记录里显示为 0 元、丢失操作幅度；
 	// 加款/扣款方向已由 req.OrderStatus / 余额日志本身体现，订单表这里只需要金额大小。
@@ -242,7 +231,7 @@ func createOrderForMoneyOperationTx(tx *gorm.DB, userID uint64, req MoneyOperati
 	if err := validateClientRuneLen(subject, "订单标题", utils.MaxSubjectLength); err != nil {
 		return err
 	}
-	err := models.CreatePaymentOrderTx(tx, &models.PaymentOrder{
+	order := &models.PaymentOrder{
 		OrderNo:        req.OrderNo,
 		UserID:         userID,
 		GatewayID:      0,
@@ -260,14 +249,11 @@ func createOrderForMoneyOperationTx(tx *gorm.DB, userID uint64, req MoneyOperati
 		ExpireAt:       0,
 		ClientIP:       "admin",
 		Extra:          "",
-	})
-	if err == nil {
-		return nil
 	}
-	if db.IsDuplicateKeyError(err) {
-		return nil
+	if err := models.CreatePaymentOrderTx(tx, order); err != nil {
+		return errors.New("自动创建订单失败: " + err.Error())
 	}
-	return errors.New("自动创建订单失败: " + err.Error())
+	return nil
 }
 
 func mapMoneyOperationType(operation string) (utils.BalanceOpType, bool, error) {

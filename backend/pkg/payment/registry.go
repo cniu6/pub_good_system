@@ -88,7 +88,7 @@ func RegisterChannel(meta ChannelMeta, providerFn func() Provider) {
 	registry[meta.Type] = channelEntry{Meta: meta, ProviderFn: providerFn}
 }
 
-// GetChannelMeta 取通道元数据，未注册返回 nil
+// GetChannelMeta 取通道元数据（回调路径等），未注册返回 nil
 func GetChannelMeta(channelType string) *ChannelMeta {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
