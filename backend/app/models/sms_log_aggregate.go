@@ -59,11 +59,6 @@ type smsLogAggregateGlobal struct {
 	FailCount    int64 `gorm:"column:fail_count"`
 }
 
-type smsLogAggregateDailyRow struct {
-	DayKey     int   `gorm:"column:day_key"`
-	TotalCount int64 `gorm:"column:total_count"`
-}
-
 type smsLogAggregateTemplateRow struct {
 	TemplateName string `gorm:"column:template_name"`
 	TotalCount   int64  `gorm:"column:total_count"`
@@ -127,11 +122,7 @@ func rebuildSMSLogAggregate(tx *gorm.DB) error {
 
 	now := time.Now().Unix()
 	var global smsLogAggregateGlobal
-	if err := tx.Raw(`SELECT
-    COUNT(*) AS total_count,
-    COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) AS success_count,
-    COALESCE(SUM(CASE WHEN status = 1 THEN 0 ELSE 1 END), 0) AS fail_count
-    FROM sms_logs`).Scan(&global).Error; err != nil {
+	if err := tx.Model(&SMSLog{}).Select("COUNT(*) AS total_count, " + aggSuccessFailColumns).Scan(&global).Error; err != nil {
 		return err
 	}
 
@@ -158,14 +149,7 @@ func rebuildSMSLogAggregate(tx *gorm.DB) error {
 	}
 
 	var templateRows []smsLogAggregateTemplateRow
-	if err := tx.Raw(`SELECT
-    COALESCE(NULLIF(template_name, ''), 'unknown') AS template_name,
-    COUNT(*) AS total_count,
-    COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) AS success_count,
-    COALESCE(SUM(CASE WHEN status = 1 THEN 0 ELSE 1 END), 0) AS fail_count
-    FROM sms_logs
-    GROUP BY COALESCE(NULLIF(template_name, ''), 'unknown')
-    ORDER BY total_count DESC`).Scan(&templateRows).Error; err != nil {
+	if err := aggCountBy(tx.Model(&SMSLog{}), aggTemplateExpr, "template_name", "total_count", ", "+aggSuccessFailColumns).Scan(&templateRows).Error; err != nil {
 		return err
 	}
 	for _, row := range templateRows {
@@ -178,7 +162,7 @@ func rebuildSMSLogAggregate(tx *gorm.DB) error {
 	}
 
 	var providerRows []smsLogAggregateProviderRow
-	if err := tx.Raw(`SELECT COALESCE(NULLIF(provider, ''), 'unknown') AS provider, COUNT(*) AS total_count FROM sms_logs GROUP BY COALESCE(NULLIF(provider, ''), 'unknown') ORDER BY total_count DESC`).Scan(&providerRows).Error; err != nil {
+	if err := aggCountBy(tx.Model(&SMSLog{}), aggProviderExpr, "provider", "total_count", "").Scan(&providerRows).Error; err != nil {
 		return err
 	}
 	for _, row := range providerRows {
@@ -291,10 +275,12 @@ func getSMSLogStatsFromAggregate() (*SMSLogStatsDetail, error) {
 		return nil, err
 	}
 
-	if err := db.DB.Raw(`SELECT template_name, total_count AS count FROM sms_log_template_stats ORDER BY total_count DESC, template_name ASC LIMIT 10`).Scan(&stats.TopTemplates).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw(`SELECT provider, total_count AS count FROM sms_log_provider_stats ORDER BY total_count DESC, provider ASC`).Scan(&stats.ProviderStats).Error; err != nil {
+	if err := errors.Join(
+		db.DB.Model(&SMSLogTemplateStatRow{}).Select("template_name, total_count AS count").
+			Order("total_count DESC, template_name ASC").Limit(10).Scan(&stats.TopTemplates).Error,
+		db.DB.Model(&SMSLogProviderStatRow{}).Select("provider, total_count AS count").
+			Order("total_count DESC, provider ASC").Scan(&stats.ProviderStats).Error,
+	); err != nil {
 		return nil, err
 	}
 
@@ -308,22 +294,15 @@ func getSMSLogStatsFromLogsFallback() (*SMSLogStatsDetail, error) {
 	}
 	todayStart := resolveSMSLogStartOfLocalDay(time.Now())
 
-	if err := db.DB.Raw("SELECT COUNT(*) FROM sms_logs").Scan(&stats.TotalCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COUNT(*) FROM sms_logs WHERE created_at >= ?", todayStart).Scan(&stats.TodayCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COUNT(*) FROM sms_logs WHERE status = 1").Scan(&stats.SuccessCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COUNT(*) FROM sms_logs WHERE status != 1").Scan(&stats.FailCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw(`SELECT COALESCE(NULLIF(template_name, ''), 'unknown') AS template_name, COUNT(*) AS count FROM sms_logs GROUP BY COALESCE(NULLIF(template_name, ''), 'unknown') ORDER BY count DESC LIMIT 10`).Scan(&stats.TopTemplates).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw(`SELECT COALESCE(NULLIF(provider, ''), 'unknown') AS provider, COUNT(*) AS count FROM sms_logs GROUP BY COALESCE(NULLIF(provider, ''), 'unknown') ORDER BY count DESC`).Scan(&stats.ProviderStats).Error; err != nil {
+	logs := func() *gorm.DB { return db.DB.Model(&SMSLog{}) }
+	if err := errors.Join(
+		logs().Count(&stats.TotalCount).Error,
+		logs().Where("created_at >= ?", todayStart).Count(&stats.TodayCount).Error,
+		logs().Where("status = 1").Count(&stats.SuccessCount).Error,
+		logs().Where("status != 1").Count(&stats.FailCount).Error,
+		aggCountBy(logs(), aggTemplateExpr, "template_name", "count", "").Limit(10).Scan(&stats.TopTemplates).Error,
+		aggCountBy(logs(), aggProviderExpr, "provider", "count", "").Scan(&stats.ProviderStats).Error,
+	); err != nil {
 		return nil, err
 	}
 	return stats, nil

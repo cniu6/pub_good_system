@@ -164,21 +164,12 @@ func DeleteEmailLogsBefore(before string) (int64, error) {
 
 // CleanExcessEmailLogs 清理超出全局上限的旧邮件日志（只保留最新 maxCount 条）
 func CleanExcessEmailLogs(maxCount int) (int64, error) {
-	return cleanExcessRowsGeneric("email_logs", "created_at", maxCount)
+	return cleanExcessRowsGeneric(&EmailLog{}, "created_at", maxCount)
 }
 
 // CleanExcessEmailLogsPerRecipient 按收件邮箱清理超出上限的邮件日志（每个收件邮箱最多保留 maxPerRecipient 条）
 func CleanExcessEmailLogsPerRecipient(maxPerRecipient int) (int64, error) {
-	return cleanExcessRowsPerGroupGeneric[string]("email_logs", "to_email", "created_at", maxPerRecipient, "to_email != ''")
-}
-
-// GetEmailLogStats 邮件日志统计（兼容旧接口）
-func GetEmailLogStats() (total int64, success int64, fail int64, err error) {
-	stats, statsErr := GetEmailLogStatsDetail()
-	if statsErr != nil {
-		return 0, 0, 0, statsErr
-	}
-	return stats.TotalCount, stats.SuccessCount, stats.FailCount, nil
+	return cleanExcessRowsPerGroupGeneric[string](&EmailLog{}, "to_email", "created_at", maxPerRecipient, "to_email != ''")
 }
 
 // GetEmailTemplateNames 获取所有模板名（去重），用于前端筛选
@@ -211,11 +202,6 @@ func GetEmailTemplate(name, lang string) (*EmailTemplate, error) {
 		return nil, err
 	}
 	return &tpl, nil
-}
-
-// UpdateEmailTemplateContent 更新模板内容
-func UpdateEmailTemplateContent(name, lang, content string) error {
-	return db.DB.Model(&EmailTemplate{}).Where("name = ? AND lang = ?", name, lang).Update("content", content).Error
 }
 
 // defaultEmailTemplateSeed 默认邮件模板种子（Init / Reset 共用同一份内容，不再各写各的）

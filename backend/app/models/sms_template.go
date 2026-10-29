@@ -159,15 +159,6 @@ func GetSMSTemplateByID(id uint64) (*SMSTemplate, error) {
 	return &tpl, nil
 }
 
-// GetSMSTemplateByNameLang 按 name+lang 获取（仅启用；缺模板用 FindOne）
-func GetSMSTemplateByNameLang(name, lang string) (*SMSTemplate, error) {
-	var tpl SMSTemplate
-	if err := db.FindOne(db.DB.Where("name = ? AND lang = ? AND status = 1", name, lang), &tpl); err != nil {
-		return nil, err
-	}
-	return &tpl, nil
-}
-
 // UpdateSMSTemplate 更新短信模板可编辑字段
 func UpdateSMSTemplate(id uint64, signName, content, description string, status uint8) error {
 	return db.DB.Model(&SMSTemplate{}).Where("id = ?", id).Updates(map[string]any{

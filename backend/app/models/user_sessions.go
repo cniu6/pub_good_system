@@ -21,11 +21,13 @@ const ImpersonationDeviceLabel = "Admin Impersonation"
 
 // UserSession 用户会话模型
 type UserSession struct {
-	ID               uint64 `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
-	UserID           uint64 `gorm:"column:user_id;index:idx_us_user_id" json:"user_id"`
-	AuthGuard        string `gorm:"column:auth_guard;size:16" json:"auth_guard"`
-	TokenHash        string `gorm:"column:token_hash;size:128" json:"-"`
-	RefreshTokenHash string `gorm:"column:refresh_token_hash;size:128" json:"-"`
+	ID        uint64 `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	UserID    uint64 `gorm:"column:user_id;index:idx_us_user_id" json:"user_id"`
+	AuthGuard string `gorm:"column:auth_guard;size:16" json:"auth_guard"`
+	// 认证中间件每个请求都按 token_hash 命中会话，刷新按 refresh_token_hash 命中；
+	// 两列都必须建索引，否则会话表增长后每次鉴权都会全表扫描。
+	TokenHash        string `gorm:"column:token_hash;size:128;index:idx_us_token_hash" json:"-"`
+	RefreshTokenHash string `gorm:"column:refresh_token_hash;size:128;index:idx_us_refresh_token_hash" json:"-"`
 	IP               string `gorm:"column:ip;size:64" json:"ip"`
 	UserAgent        string `gorm:"column:user_agent;type:text" json:"user_agent"`
 	Device           string `gorm:"column:device;size:128" json:"device"`
@@ -34,17 +36,19 @@ type UserSession struct {
 	// BrowserSessionKey 仅 browser_id 非空的 Web 会话写入。NULL 保留给旧会话、原生客户端与代登录，
 	// 让三种数据库都允许多个 NULL，同时用唯一索引确保同用户/guard/浏览器最终只保留一条活跃会话。
 	BrowserSessionKey *string `gorm:"column:browser_session_key;size:128;uniqueIndex:idx_us_browser_session_key" json:"-"`
-	IsActive          bool    `gorm:"column:is_active" json:"is_active"`
-	LoginAt           int64   `gorm:"column:login_at" json:"login_at"`
-	LastSeenAt        int64   `gorm:"column:last_seen_at" json:"last_seen_at"`
-	ExpiresAt         int64   `gorm:"column:expires_at" json:"expires_at"`
-	RefreshExpiresAt  int64   `gorm:"column:refresh_expires_at" json:"-"`
-	CreatedAt         int64   `gorm:"column:created_at" json:"created_at"`
+	// 在线人数/在线列表按 is_active + last_seen_at 过滤，复合索引可避免扫描全部历史会话。
+	IsActive         bool  `gorm:"column:is_active;index:idx_us_active_last_seen,priority:1" json:"is_active"`
+	LoginAt          int64 `gorm:"column:login_at" json:"login_at"`
+	LastSeenAt       int64 `gorm:"column:last_seen_at;index:idx_us_active_last_seen,priority:2" json:"last_seen_at"`
+	ExpiresAt        int64 `gorm:"column:expires_at;index:idx_us_expires_at" json:"expires_at"`
+	RefreshExpiresAt int64 `gorm:"column:refresh_expires_at" json:"-"`
+	CreatedAt        int64 `gorm:"column:created_at" json:"created_at"`
 	// 以下字段仅用于 API 返回，不能持久化。
-	IsOnline  bool   `gorm:"-" json:"is_online"`
-	IsCurrent bool   `gorm:"-" json:"is_current"`
-	Username  string `gorm:"-" json:"username,omitempty"`
-	Nickname  string `gorm:"-" json:"nickname,omitempty"`
+	IsOnline  bool `gorm:"-" json:"is_online"`
+	IsCurrent bool `gorm:"-" json:"is_current"`
+	// 在线列表 JOIN users 时读取；只读且不建列（gorm:"-" 会让 Scan 也忽略该列，导致用户名始终为空）。
+	Username string `gorm:"column:username;->;-:migration" json:"username,omitempty"`
+	Nickname string `gorm:"column:nickname;->;-:migration" json:"nickname,omitempty"`
 }
 
 func (UserSession) TableName() string {
@@ -76,7 +80,11 @@ func TouchSessionLastSeen(sessionID uint64) (bool, error) {
 	if result.Error != nil {
 		return false, result.Error
 	}
-	return result.RowsAffected > 0, nil
+	if result.RowsAffected > 0 {
+		return true, nil
+	}
+	// MySQL 在值未变化时 RowsAffected 为 0；不能据此判定会话被撤销，需复核一次。
+	return IsUserSessionActiveByID(sessionID)
 }
 
 // IsUserSessionActiveByID 判断会话是否仍可使用。用于向已建连的 Presence WS 推送业务消息前复核；
@@ -320,11 +328,6 @@ func RotateUserSessionTokens(userID uint64, authGuard, currentRefreshTokenHash, 
 	return storedHash == newRefreshTokenHash, nil
 }
 
-// GetUserSessions 获取用户的活跃会话列表
-func GetUserSessions(userID uint64) ([]UserSession, error) {
-	return GetUserSessionsWithGuard(userID, "user", "")
-}
-
 // GetUserSessionsWithGuard 返回用户未过期的活动会话，不会向调用方泄露 token 哈希。
 func GetUserSessionsWithGuard(userID uint64, authGuard, currentTokenHash string) ([]UserSession, error) {
 	var sessions []UserSession
@@ -354,11 +357,6 @@ func GetUserSessionsWithGuard(userID uint64, authGuard, currentTokenHash string)
 	return sessions, nil
 }
 
-// RevokeUserSession 撤销指定会话
-func RevokeUserSession(userID uint64, sessionID string) error {
-	return RevokeUserSessionWithGuard(userID, "user", sessionID)
-}
-
 func RevokeUserSessionWithGuard(userID uint64, authGuard, sessionID string) error {
 	if authGuard == "" {
 		authGuard = "user"
@@ -381,11 +379,6 @@ func RevokeSessionByTokenHash(userID uint64, authGuard, tokenHash string) error 
 		Updates(map[string]interface{}{"is_active": false, "browser_session_key": nil}).Error
 }
 
-// RevokeAllUserSessions 撤销用户所有会话（除当前）
-func RevokeAllUserSessions(userID uint64, currentTokenHash string) error {
-	return RevokeAllUserSessionsWithGuard(userID, "user", currentTokenHash)
-}
-
 func RevokeAllUserSessionsWithGuard(userID uint64, authGuard, currentTokenHash string) error {
 	if authGuard == "" {
 		authGuard = "user"
@@ -397,22 +390,33 @@ func RevokeAllUserSessionsWithGuard(userID uint64, authGuard, currentTokenHash s
 	return q.Updates(map[string]interface{}{"is_active": false, "browser_session_key": nil}).Error
 }
 
-// CleanupExpiredSessions 清理过期会话，返回删除行数
+// CleanupExpiredSessions 分批清理过期会话，返回删除行数。
+// 不用单条无界 DELETE：5 万+ 会话时一次事务删除会长时间持锁并放大 WAL。
 func CleanupExpiredSessions() (int64, error) {
+	const batchSize = 500
 	now := time.Now().Unix()
-	var aff int64
-	err := db.DB.Transaction(func(tx *gorm.DB) error {
-		result := tx.Where(
-			"is_active = ? OR (refresh_expires_at > 0 AND refresh_expires_at <= ?) OR (refresh_expires_at = 0 AND expires_at <= ?)",
-			false, now, now,
-		).Delete(&UserSession{})
-		if result.Error != nil {
-			return result.Error
+	where := "is_active = ? OR (refresh_expires_at > 0 AND refresh_expires_at <= ?) OR (refresh_expires_at = 0 AND expires_at <= ?)"
+	var total int64
+	for {
+		var ids []uint64
+		if err := db.DB.Model(&UserSession{}).Where(where, false, now, now).
+			Limit(batchSize).Pluck("id", &ids).Error; err != nil {
+			return total, err
 		}
-		aff = result.RowsAffected
-		return nil
-	})
-	return aff, err
+		if len(ids) == 0 {
+			break
+		}
+		result := db.DB.Where("id IN ?", ids).Delete(&UserSession{})
+		if result.Error != nil {
+			return total, result.Error
+		}
+		total += result.RowsAffected
+		// RowsAffected 为 0 时再查还是同一批 id，必须退出，避免删除被约束挡住时死循环。
+		if result.RowsAffected == 0 || len(ids) < batchSize {
+			break
+		}
+	}
+	return total, nil
 }
 
 // GetUserLoginCount 获取用户登录次数
@@ -544,38 +548,39 @@ func CountOnlineUsers() (int64, error) {
 
 // OnlineUserRow 管理端在线列表：同一用户+登录端归并为一行，多设备挂在 Devices。
 type OnlineUserRow struct {
-	UserID      uint64        `json:"user_id"`
-	Username    string        `json:"username,omitempty"`
-	Nickname    string        `json:"nickname,omitempty"`
-	AuthGuard   string        `json:"auth_guard"`
-	DeviceCount int           `json:"device_count"`
-	LastSeenAt  int64         `json:"last_seen_at"`
-	IsOnline    bool          `json:"is_online"`
-	Devices     []UserSession `json:"devices"`
+	UserID      uint64 `json:"user_id"`
+	Username    string `json:"username,omitempty"`
+	Nickname    string `json:"nickname,omitempty"`
+	AuthGuard   string `json:"auth_guard"`
+	DeviceCount int    `json:"device_count"`
+	LastSeenAt  int64  `json:"last_seen_at"`
+	IsOnline    bool   `json:"is_online"`
+	// 由分页后的设备查询手工填充，GORM 不把它当关联表。
+	Devices []UserSession `gorm:"-" json:"devices"`
 }
 
 // onlineSessionListSelect 在线列表 JOIN users 的公共 SELECT 片段。
 const onlineSessionListSelect = `s.id, s.user_id, s.auth_guard, s.ip, s.user_agent, s.device, s.client_type, s.browser_id, s.is_active, s.login_at, s.last_seen_at, s.expires_at, s.created_at,
 		COALESCE(u.username, '') AS username, COALESCE(u.nickname, '') AS nickname`
 
-// buildOnlineSessionsWhere 构造在线会话筛选条件（keyword/clientType/authGuard）。
-func buildOnlineSessionsWhere(keyword, clientType, authGuard string) (string, []interface{}) {
-	where := ` WHERE s.is_active = ? AND s.last_seen_at >= ?`
-	args := []interface{}{true, time.Now().Unix() - GetOnlineHeartbeatGraceSeconds()}
+// onlineSessionsQuery 在线会话 JOIN users 的公共查询（keyword/clientType/authGuard 筛选）。
+// 每次调用返回新链，计数与列表各用一条，避免 Count 污染后续查询。
+func onlineSessionsQuery(keyword, clientType, authGuard string) *gorm.DB {
+	q := db.DB.Table("user_sessions s").
+		Joins("INNER JOIN users u ON u.id = s.user_id AND u.delete_time IS NULL").
+		Where("s.is_active = ? AND s.last_seen_at >= ?", true, time.Now().Unix()-GetOnlineHeartbeatGraceSeconds())
 	if clientType = strings.TrimSpace(clientType); clientType != "" {
-		where += ` AND s.client_type = ?`
-		args = append(args, NormalizeClientType(clientType))
+		q = q.Where("s.client_type = ?", NormalizeClientType(clientType))
 	}
 	if authGuard = strings.TrimSpace(authGuard); authGuard != "" {
-		where += ` AND s.auth_guard = ?`
-		args = append(args, authGuard)
+		q = q.Where("s.auth_guard = ?", authGuard)
 	}
 	if keyword = strings.TrimSpace(keyword); keyword != "" {
-		where += ` AND (` + db.CastToText("s.user_id") + ` LIKE ? OR s.ip LIKE ? OR s.device LIKE ? OR COALESCE(s.user_agent, '') LIKE ? OR COALESCE(u.username, '') LIKE ? OR COALESCE(u.nickname, '') LIKE ?)`
 		like := "%" + keyword + "%"
-		args = append(args, like, like, like, like, like, like)
+		q = q.Where(db.CastToText("s.user_id")+" LIKE ? OR s.ip LIKE ? OR s.device LIKE ? OR COALESCE(s.user_agent, '') LIKE ? OR COALESCE(u.username, '') LIKE ? OR COALESCE(u.nickname, '') LIKE ?",
+			like, like, like, like, like, like)
 	}
-	return where, args
+	return q
 }
 
 // ListOnlineSessions 分页查询在线会话（原始会话行，不做用户归并）。
@@ -586,17 +591,14 @@ func ListOnlineSessions(keyword, clientType, authGuard string, page, pageSize in
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
-	where, args := buildOnlineSessionsWhere(keyword, clientType, authGuard)
 	var total int64
-	if err := db.DB.Raw(`SELECT COUNT(*) FROM user_sessions s INNER JOIN users u ON u.id = s.user_id AND u.delete_time IS NULL`+where, args...).Scan(&total).Error; err != nil {
+	if err := onlineSessionsQuery(keyword, clientType, authGuard).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	sessions := make([]UserSession, 0)
-	listArgs := append(append([]interface{}{}, args...), pageSize, (page-1)*pageSize)
-	err := db.DB.Raw(`SELECT `+onlineSessionListSelect+`
-		FROM user_sessions s
-		INNER JOIN users u ON u.id = s.user_id AND u.delete_time IS NULL`+where+
-		` ORDER BY s.last_seen_at DESC LIMIT ? OFFSET ?`, listArgs...).Scan(&sessions).Error
+	err := onlineSessionsQuery(keyword, clientType, authGuard).Select(onlineSessionListSelect).
+		Order("s.last_seen_at DESC").Limit(pageSize).Offset((page - 1) * pageSize).
+		Scan(&sessions).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -607,6 +609,8 @@ func ListOnlineSessions(keyword, clientType, authGuard string, page, pageSize in
 }
 
 // ListOnlineUsersGrouped 按 user_id + auth_guard 归并在线用户，一行多设备。
+// 分组、排序、总数全部交给数据库，避免先取固定条数再在内存归并导致总数/分页失真；
+// 设备明细只查当前页涉及的 (user_id, auth_guard)，不再受在线会话总量影响。
 func ListOnlineUsersGrouped(keyword, clientType, authGuard string, page, pageSize int) ([]OnlineUserRow, int64, error) {
 	if page < 1 {
 		page = 1
@@ -614,15 +618,40 @@ func ListOnlineUsersGrouped(keyword, clientType, authGuard string, page, pageSiz
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
-	where, args := buildOnlineSessionsWhere(keyword, clientType, authGuard)
 
-	const maxGroupedSessionRows = 5000
+	// 分组键是 (user_id, auth_guard)；username/nickname 必须进入 GROUP BY，兼容 PostgreSQL 与 MySQL ONLY_FULL_GROUP_BY。
+	groupedQuery := onlineSessionsQuery(keyword, clientType, authGuard).
+		Select("s.user_id, s.auth_guard, COALESCE(u.username, '') AS username, COALESCE(u.nickname, '') AS nickname, COUNT(*) AS device_count, MAX(s.last_seen_at) AS last_seen_at").
+		Group("s.user_id, s.auth_guard, u.username, u.nickname")
+
+	var total int64
+	countQuery := onlineSessionsQuery(keyword, clientType, authGuard).
+		Select("s.user_id, s.auth_guard").Group("s.user_id, s.auth_guard")
+	if err := db.DB.Table("(?) AS grouped_online", countQuery).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	rows := make([]OnlineUserRow, 0)
+	if err := groupedQuery.Order("MAX(s.last_seen_at) DESC").Limit(pageSize).Offset((page - 1) * pageSize).
+		Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	if len(rows) == 0 {
+		return rows, total, nil
+	}
+
+	// 只取当前页的分组，避免把全部在线会话拉进内存。
+	pairs := make([]string, 0, len(rows))
+	args := make([]any, 0, len(rows)*2)
+	for _, row := range rows {
+		pairs = append(pairs, "(s.user_id = ? AND s.auth_guard = ?)")
+		args = append(args, row.UserID, row.AuthGuard)
+	}
 	sessions := make([]UserSession, 0)
-	err := db.DB.Raw(`SELECT `+onlineSessionListSelect+`
-		FROM user_sessions s
-		INNER JOIN users u ON u.id = s.user_id AND u.delete_time IS NULL`+where+
-		` ORDER BY s.last_seen_at DESC LIMIT ?`, append(append([]interface{}{}, args...), maxGroupedSessionRows)...).Scan(&sessions).Error
-	if err != nil {
+	if err := onlineSessionsQuery(keyword, clientType, authGuard).
+		Where(strings.Join(pairs, " OR "), args...).
+		Select(onlineSessionListSelect).Order("s.last_seen_at DESC").
+		Scan(&sessions).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -630,44 +659,18 @@ func ListOnlineUsersGrouped(keyword, clientType, authGuard string, page, pageSiz
 		UserID    uint64
 		AuthGuard string
 	}
-	order := make([]groupKey, 0)
-	grouped := make(map[groupKey]*OnlineUserRow)
+	devices := make(map[groupKey][]UserSession, len(rows))
 	for i := range sessions {
-		s := sessions[i]
-		s.IsOnline = true
-		key := groupKey{UserID: s.UserID, AuthGuard: s.AuthGuard}
-		row, ok := grouped[key]
-		if !ok {
-			row = &OnlineUserRow{
-				UserID:    s.UserID,
-				Username:  s.Username,
-				Nickname:  s.Nickname,
-				AuthGuard: s.AuthGuard,
-				IsOnline:  true,
-				Devices:   make([]UserSession, 0, 2),
-			}
-			grouped[key] = row
-			order = append(order, key)
+		sessions[i].IsOnline = true
+		key := groupKey{UserID: sessions[i].UserID, AuthGuard: sessions[i].AuthGuard}
+		devices[key] = append(devices[key], sessions[i])
+	}
+	for i := range rows {
+		rows[i].IsOnline = true
+		rows[i].Devices = devices[groupKey{UserID: rows[i].UserID, AuthGuard: rows[i].AuthGuard}]
+		if rows[i].Devices == nil {
+			rows[i].Devices = []UserSession{}
 		}
-		row.Devices = append(row.Devices, s)
-		if s.LastSeenAt > row.LastSeenAt {
-			row.LastSeenAt = s.LastSeenAt
-		}
-		row.DeviceCount = len(row.Devices)
 	}
-
-	total := int64(len(order))
-	start := (page - 1) * pageSize
-	if start >= len(order) {
-		return []OnlineUserRow{}, total, nil
-	}
-	end := start + pageSize
-	if end > len(order) {
-		end = len(order)
-	}
-	result := make([]OnlineUserRow, 0, end-start)
-	for _, key := range order[start:end] {
-		result = append(result, *grouped[key])
-	}
-	return result, total, nil
+	return rows, total, nil
 }

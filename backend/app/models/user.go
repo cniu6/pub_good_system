@@ -34,12 +34,12 @@ func mobileLookupVariants(normalized string) []string {
 
 type User struct {
 	ID      uint64 `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
-	GroupId uint64 `gorm:"column:group_id" json:"group_id"`
+	GroupId uint64 `gorm:"column:group_id;index:idx_users_group_id" json:"group_id"`
 	// MySQL：string 未指定 size 时 GORM 会迁成 longtext，无法建唯一索引（Error 1170）
 	Username      string  `gorm:"column:username;size:64;not null;uniqueIndex:idx_users_username" json:"username"`
 	Nickname      string  `gorm:"column:nickname;size:64" json:"nickname"`
 	Email         string  `gorm:"column:email;size:255;uniqueIndex:idx_users_email" json:"email"`
-	Mobile        string  `gorm:"column:mobile;size:32" json:"mobile"`
+	Mobile        string  `gorm:"column:mobile;size:32;index:idx_users_mobile" json:"mobile"`
 	Avatar        string  `gorm:"column:avatar;size:512" json:"avatar"`
 	BackGround    string  `gorm:"column:back_ground;size:512" json:"back_ground"`
 	Gender        uint8   `gorm:"column:gender" json:"gender"`
@@ -48,7 +48,7 @@ type User struct {
 	Score         int64   `gorm:"column:score" json:"score"`
 	Level         uint64  `gorm:"column:level" json:"level"`
 	Role          string  `gorm:"column:role;size:20" json:"role"` // 'user' or 'admin'
-	LastLoginTime *int64  `gorm:"column:last_login_time" json:"last_login_time"`
+	LastLoginTime *int64  `gorm:"column:last_login_time;index:idx_users_last_login_time" json:"last_login_time"`
 	LastLoginIp   string  `gorm:"column:last_login_ip;size:64" json:"last_login_ip"`
 	LoginFailure  uint8   `gorm:"column:login_failure" json:"login_failure"`
 	LockUntil     *int64  `gorm:"column:lock_until" json:"lock_until"` // 账户锁定到期时间（时间戳）
@@ -61,14 +61,14 @@ type User struct {
 
 	// Apikey 存明文（用户端可随时回显/复制）；json:"-" 禁止随用户列表等通用 JSON 泄漏。
 	// 管理端列表/详情走 MaskedApikey()；用户本人 GET /apikey 走 PlainApikeyForOwner()。
-	Apikey     *string `gorm:"column:apikey;size:128" json:"-"`
+	Apikey     *string `gorm:"column:apikey;size:128;index:idx_users_apikey" json:"-"`
 	ApikeyHint *string `gorm:"column:apikey_hint;size:8" json:"-"` // 明文末4位，管理端掩码用
 	// API Key 收紧：过期时间、IP 白名单（逗号分隔）、scope（user,admin,*）
 	ApikeyExpiresAt *int64  `gorm:"column:apikey_expires_at" json:"-"`
 	ApikeyAllowIPs  *string `gorm:"column:apikey_allow_ips;size:1024" json:"-"`
 	ApikeyScopes    *string `gorm:"column:apikey_scopes;size:64" json:"-"`
 	UpdateTime      *int64  `gorm:"column:update_time" json:"update_time"`
-	CreateTime      *int64  `gorm:"column:create_time" json:"create_time"`
+	CreateTime      *int64  `gorm:"column:create_time;index:idx_users_create_time" json:"create_time"`
 	DeleteTime      *int64  `gorm:"column:delete_time" json:"-"`
 
 	Language string `gorm:"column:language;size:20" json:"language"`
@@ -209,6 +209,17 @@ func GetUserByUsername(username string) (*User, error) {
 // GetUserByEmail finds a user by email
 func GetUserByEmail(email string) (*User, error) {
 	return firstUser("email = ? AND delete_time IS NULL", email)
+}
+
+// GetUserByUsernameIncludingDeleted 注册查重用：软删除账号的 username 仍被唯一索引占用，
+// 必须按全表查重，否则查重通过后在插入时会撞唯一键并返回 500。
+func GetUserByUsernameIncludingDeleted(username string) (*User, error) {
+	return firstUser("username = ?", username)
+}
+
+// GetUserByEmailIncludingDeleted 注册查重用：理由同 GetUserByUsernameIncludingDeleted。
+func GetUserByEmailIncludingDeleted(email string) (*User, error) {
+	return firstUser("email = ?", email)
 }
 
 // GetUserByMobile finds a user by mobile number（兼容 11 位与 +86 E.164 等价写法）
@@ -359,28 +370,3 @@ func RepairHashedApiKeys() {
 	}
 }
 
-// IncrementLoginFailure 增加登录失败次数，如果达到最大失败次数则锁定账户
-func IncrementLoginFailure(userID uint64, maxFailureCount int, lockDurationMinutes int) error {
-	now := time.Now().Unix()
-	if err := db.DB.Model(&User{}).Where("id = ? AND delete_time IS NULL", userID).Updates(map[string]interface{}{
-		"login_failure": gorm.Expr("login_failure + 1"),
-		"update_time":   now,
-	}).Error; err != nil {
-		return err
-	}
-
-	var user User
-	if err := db.DB.Model(&User{}).Select("login_failure").Where("id = ? AND delete_time IS NULL", userID).First(&user).Error; err != nil {
-		return err
-	}
-
-	if int(user.LoginFailure) >= maxFailureCount {
-		lockUntil := now + int64(lockDurationMinutes*60)
-		return db.DB.Model(&User{}).Where("id = ? AND delete_time IS NULL", userID).Updates(map[string]interface{}{
-			"lock_until":  lockUntil,
-			"update_time": now,
-		}).Error
-	}
-
-	return nil
-}

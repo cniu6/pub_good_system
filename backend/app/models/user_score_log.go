@@ -24,23 +24,6 @@ func (UserScoreLog) TableName() string {
 	return "user_score_logs"
 }
 
-// CreateUserScoreLog 创建积分变动记录
-func CreateUserScoreLog(userID uint64, score, before, after int64, memo string) (*UserScoreLog, error) {
-	now := time.Now().Unix()
-	entry := &UserScoreLog{
-		UserID:     userID,
-		Score:      score,
-		Before:     before,
-		After:      after,
-		Memo:       memo,
-		CreateTime: now,
-	}
-	if err := db.DB.Create(entry).Error; err != nil {
-		return nil, err
-	}
-	return entry, nil
-}
-
 // GetUserScoreLogByID 获取指定ID的积分变动记录
 func GetUserScoreLogByID(id uint64) (*UserScoreLog, error) {
 	var logEntry UserScoreLog
@@ -98,17 +81,6 @@ func DeleteUserScoreLog(id uint64) error {
 		return sql.ErrNoRows
 	}
 	return nil
-}
-
-// UpdateUserScore 直接更新用户积分字段
-func UpdateUserScore(userID uint64, newScore int64) error {
-	now := time.Now().Unix()
-	return db.DB.Model(&User{}).
-		Where("id = ? AND delete_time IS NULL", userID).
-		Updates(map[string]interface{}{
-			"score":       newScore,
-			"update_time": now,
-		}).Error
 }
 
 // UpdateUserScoreTx 在事务中更新用户积分字段

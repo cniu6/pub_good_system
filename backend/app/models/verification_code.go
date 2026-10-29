@@ -1,8 +1,6 @@
 package models
 
 import (
-	"database/sql"
-	"errors"
 	"fst/backend/pkg/db"
 	"log"
 	"time"
@@ -161,11 +159,6 @@ func GetValidVerificationCode(contact, codeType string) (*VerificationCode, erro
 	return &vc, nil
 }
 
-// MarkVerificationCodeAsUsed 标记验证码为已使用
-func MarkVerificationCodeAsUsed(id uint64) error {
-	return db.DB.Model(&VerificationCode{}).Where("id = ?", id).Update("is_used", 1).Error
-}
-
 // maxVerificationAttempts 单个验证码允许的最大验证失败次数
 const maxVerificationAttempts = 5
 
@@ -210,11 +203,6 @@ func ConsumeVerificationCode(contact, code, codeType string) (bool, error) {
 	return false, nil
 }
 
-// MarkVerificationCodeAsDeleted 软删除验证码
-func MarkVerificationCodeAsDeleted(id uint64) error {
-	return db.DB.Model(&VerificationCode{}).Where("id = ?", id).Update("is_deleted", 1).Error
-}
-
 // DeleteVerificationCodesByContact 彻底删除指定联系方式的验证码（注册/重置成功后清理）
 func DeleteVerificationCodesByContact(contact string, codeType string) error {
 	q := db.DB.Where("contact = ?", contact)
@@ -246,20 +234,3 @@ func CleanupOldVerificationCodes() (int64, error) {
 	return result.RowsAffected, nil
 }
 
-// VerifyCode 验证验证码是否正确（直接匹配）。查无是常态，用 FindOne。
-func VerifyCode(contact, code, codeType string) (bool, uint64, error) {
-	var vc VerificationCode
-	err := db.FindOne(db.DB.Select("id", "code", "expires_at").
-		Where("contact = ? AND code = ? AND code_type = ? AND is_used = 0 AND is_deleted = 0", contact, code, codeType).
-		Order("created_at DESC"), &vc)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, 0, sql.ErrNoRows
-	}
-	if err != nil {
-		return false, 0, err
-	}
-	if vc.ExpiresAt.Before(time.Now()) {
-		return false, 0, nil
-	}
-	return true, vc.ID, nil
-}

@@ -78,3 +78,4 @@ func TestRepairHashedApiKeysRotatesLegacyHash(t *testing.T) {
 		t.Fatalf("新明文应可鉴权: err=%v", err)
 	}
 }
+

@@ -102,50 +102,6 @@ func GetRealnameVerificationByIDForUpdate(tx *gorm.DB, id uint64) (*RealnameVeri
 	return &verification, nil
 }
 
-// GetRealnameVerificationByIDIncludeDeleted 根据ID获取实名认证记录（包含已删除的）
-func GetRealnameVerificationByIDIncludeDeleted(id uint64) (*RealnameVerification, error) {
-	var verification RealnameVerification
-	err := db.DB.Where("id = ?", id).First(&verification).Error
-	if err != nil {
-		return nil, db.MapGormNotFound(err)
-	}
-	return &verification, nil
-}
-
-// UpdateRealnameVerificationStatus 更新实名认证状态
-func UpdateRealnameVerificationStatus(id uint64, status uint8, rejectReason string, reviewedBy uint64) error {
-	now := time.Now().Unix()
-	var certKey interface{}
-	if status == 0 || status == 1 {
-		var row RealnameVerification
-		if err := db.DB.Select("certificate_no").
-			Where("id = ? AND delete_time IS NULL", id).
-			First(&row).Error; err != nil {
-			return db.MapGormNotFound(err)
-		}
-		certKey = strings.ToUpper(strings.TrimSpace(row.CertificateNo))
-	} else {
-		certKey = nil
-	}
-	res := db.DB.Model(&RealnameVerification{}).
-		Where("id = ? AND delete_time IS NULL", id).
-		Updates(map[string]interface{}{
-			"status":          status,
-			"reject_reason":   rejectReason,
-			"reviewed_at":     now,
-			"reviewed_by":     reviewedBy,
-			"cert_unique_key": certKey,
-			"update_time":     now,
-		})
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return sql.ErrNoRows
-	}
-	return nil
-}
-
 // UpdateRealnameVerificationStatusTx 在事务中更新实名认证状态
 func UpdateRealnameVerificationStatusTx(tx *gorm.DB, id uint64, status uint8, rejectReason string, reviewedBy uint64) error {
 	now := time.Now().Unix()
@@ -180,18 +136,6 @@ func UpdateRealnameVerificationStatusTx(tx *gorm.DB, id uint64, status uint8, re
 	return nil
 }
 
-// SoftDeleteRealnameVerification 软删除实名认证记录
-func SoftDeleteRealnameVerification(id uint64) error {
-	now := time.Now().Unix()
-	return db.DB.Model(&RealnameVerification{}).
-		Where("id = ? AND delete_time IS NULL", id).
-		Updates(map[string]interface{}{
-			"delete_time":     now,
-			"cert_unique_key": nil,
-			"update_time":     now,
-		}).Error
-}
-
 // SoftDeleteRealnameVerificationTx 在事务中软删除实名认证记录
 func SoftDeleteRealnameVerificationTx(tx *gorm.DB, id uint64) error {
 	now := time.Now().Unix()
@@ -224,16 +168,17 @@ func EnsureRealnameCertUniqueConstraint() {
 		return
 	}
 	// 回填有效记录唯一键
-	if err := db.DB.Exec(`UPDATE user_realname_verifications
-		SET cert_unique_key = UPPER(TRIM(certificate_no))
-		WHERE delete_time IS NULL AND status IN (0, 1)
-		  AND (cert_unique_key IS NULL OR cert_unique_key = '')
-		  AND certificate_no IS NOT NULL AND TRIM(certificate_no) <> ''`).Error; err != nil {
+	if err := db.DB.Model(&RealnameVerification{}).
+		Where("delete_time IS NULL AND status IN (0, 1)").
+		Where("cert_unique_key IS NULL OR cert_unique_key = ''").
+		Where("certificate_no IS NOT NULL AND TRIM(certificate_no) <> ''").
+		Update("cert_unique_key", gorm.Expr("UPPER(TRIM(certificate_no))")).Error; err != nil {
 		log.Printf("[Migrate] backfill cert_unique_key failed: %v", err)
 	}
 	// 拒绝/软删记录清空唯一键
-	if err := db.DB.Exec(`UPDATE user_realname_verifications SET cert_unique_key = NULL
-		WHERE (delete_time IS NOT NULL OR status = 2) AND cert_unique_key IS NOT NULL`).Error; err != nil {
+	if err := db.DB.Model(&RealnameVerification{}).
+		Where("(delete_time IS NOT NULL OR status = 2) AND cert_unique_key IS NOT NULL").
+		Update("cert_unique_key", nil).Error; err != nil {
 		log.Printf("[Migrate] clear inactive cert_unique_key failed: %v", err)
 	}
 }
@@ -247,18 +192,6 @@ func CountOtherUsersByCertificateNoTx(tx *gorm.DB, certificateNo string, exclude
 			certificateNo, excludeUserID, 0, 1).
 		Count(&count).Error
 	return count, err
-}
-
-// GetUserRealnameVerifications 获取用户的实名认证记录列表
-func GetUserRealnameVerifications(userID uint64) ([]RealnameVerification, error) {
-	var list []RealnameVerification
-	err := db.DB.Where("user_id = ? AND delete_time IS NULL", userID).
-		Order("id DESC").
-		Find(&list).Error
-	if err != nil {
-		return nil, err
-	}
-	return list, nil
 }
 
 // RealnameVerificationListQuery 实名认证列表查询参数

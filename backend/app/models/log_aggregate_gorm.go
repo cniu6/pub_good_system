@@ -8,6 +8,33 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// 日志聚合回填/兜底统计共用的列表达式（标准 SQL，三库通用）。
+const (
+	// aggHTTPStatusColumns API/操作日志按状态码分段计数，口径与 Record*Aggregate 增量更新一致
+	aggHTTPStatusColumns = "COUNT(*) AS total_count" +
+		", COALESCE(SUM(CASE WHEN status_code >= 200 AND status_code < 400 THEN 1 ELSE 0 END), 0) AS success_count" +
+		", COALESCE(SUM(CASE WHEN status_code >= 400 AND status_code < 500 THEN 1 ELSE 0 END), 0) AS client_error_count" +
+		", COALESCE(SUM(CASE WHEN status_code >= 500 THEN 1 ELSE 0 END), 0) AS server_error_count" +
+		", COALESCE(SUM(duration), 0) AS total_duration"
+	// aggSuccessFailColumns 邮件/短信日志成功、失败计数（status=1 为成功）
+	aggSuccessFailColumns = "COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) AS success_count" +
+		", COALESCE(SUM(CASE WHEN status = 1 THEN 0 ELSE 1 END), 0) AS fail_count"
+
+	// 空值归为默认值的分组表达式，与 resolve*Aggregate* 的归一化保持一致
+	aggRouteExpr    = "COALESCE(NULLIF(COALESCE(NULLIF(route_path, ''), path), ''), '/')"
+	aggMethodExpr   = "COALESCE(NULLIF(method, ''), 'UNKNOWN')"
+	aggSceneExpr    = "COALESCE(NULLIF(scene, ''), 'unknown')"
+	aggModuleExpr   = "COALESCE(NULLIF(module, ''), 'unknown')"
+	aggActionExpr   = "COALESCE(NULLIF(action, ''), 'unknown')"
+	aggTemplateExpr = "COALESCE(NULLIF(template_name, ''), 'unknown')"
+	aggProviderExpr = "COALESCE(NULLIF(provider, ''), 'unknown')"
+)
+
+// aggCountBy 按表达式分组计数并按次数降序：SELECT <expr> AS <alias>, COUNT(*) AS <countAs><cols>。
+func aggCountBy(q *gorm.DB, expr, alias, countAs, cols string) *gorm.DB {
+	return q.Select(expr + " AS " + alias + ", COUNT(*) AS " + countAs + cols).Group(expr).Order(countAs + " DESC")
+}
+
 // aggregateDailyRow 按天汇总行（回填聚合表时在应用层计算 day_key，避免 DATE_FORMAT 等方言 SQL）
 type aggregateDailyRow struct {
 	DayKey     int

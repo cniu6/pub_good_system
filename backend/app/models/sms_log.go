@@ -144,21 +144,12 @@ func DeleteSMSLogsBefore(before string) (int64, error) {
 
 // CleanExcessSMSLogs 清理超出全局上限的旧短信日志
 func CleanExcessSMSLogs(maxCount int) (int64, error) {
-	return cleanExcessRowsGeneric("sms_logs", "created_at", maxCount)
+	return cleanExcessRowsGeneric(&SMSLog{}, "created_at", maxCount)
 }
 
 // CleanExcessSMSLogsPerRecipient 按手机号清理超出上限的短信日志
 func CleanExcessSMSLogsPerRecipient(maxPerRecipient int) (int64, error) {
-	return cleanExcessRowsPerGroupGeneric[string]("sms_logs", "phone", "created_at", maxPerRecipient, "phone != ''")
-}
-
-// GetSMSLogStats 短信日志统计（兼容旧接口，优先读聚合表）
-func GetSMSLogStats() (total int64, success int64, fail int64, err error) {
-	stats, statsErr := GetSMSLogStatsDetail()
-	if statsErr != nil {
-		return 0, 0, 0, statsErr
-	}
-	return stats.TotalCount, stats.SuccessCount, stats.FailCount, nil
+	return cleanExcessRowsPerGroupGeneric[string](&SMSLog{}, "phone", "created_at", maxPerRecipient, "phone != ''")
 }
 
 // GetSMSTemplateNames 获取短信日志中所有模板名（去重）

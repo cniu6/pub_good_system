@@ -63,7 +63,7 @@ const RealPaidOrderFilterSQL = "gateway_id > 0 AND payment_channel <> 'admin' AN
 type PaymentOrder struct {
 	ID                  uint64  `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
 	OrderNo             string  `gorm:"column:order_no;size:64;not null;uniqueIndex:idx_order_no" json:"order_no"`
-	UserID              uint64  `gorm:"column:user_id;not null;default:0;index:idx_po_user_id;index:idx_po_user_status_create,priority:1" json:"user_id"`
+	UserID              uint64  `gorm:"column:user_id;not null;default:0;index:idx_po_user_id;index:idx_po_user_status_create,priority:1;index:idx_po_status_user,priority:2" json:"user_id"`
 	GatewayID           uint64  `gorm:"column:gateway_id;not null;default:0;index:idx_po_gateway_id;index:idx_po_gateway_status,priority:1" json:"gateway_id"`
 	TradeNo             string  `gorm:"column:trade_no;size:64;not null;default:'';index:idx_po_trade_no" json:"trade_no"`
 	PaymentChannel      string  `gorm:"column:payment_channel;size:20;not null;default:'epay'" json:"payment_channel"`
@@ -80,10 +80,10 @@ type PaymentOrder struct {
 	ExchangeRate        float64 `gorm:"column:exchange_rate;type:decimal(18,8);not null;default:0" json:"exchange_rate"`
 	ExchangeFixedAmount float64 `gorm:"column:exchange_fixed_amount;type:decimal(10,2);not null;default:0" json:"exchange_fixed_amount"`
 	Subject             string  `gorm:"column:subject;size:255;not null;default:''" json:"subject"`
-	Status              int     `gorm:"column:status;not null;default:0;index:idx_po_status;index:idx_po_gateway_status,priority:2;index:idx_po_status_expire,priority:1;index:idx_po_user_status_create,priority:2" json:"status"`
+	Status              int     `gorm:"column:status;not null;default:0;index:idx_po_status;index:idx_po_gateway_status,priority:2;index:idx_po_status_expire,priority:1;index:idx_po_user_status_create,priority:2;index:idx_po_status_paid_at,priority:1;index:idx_po_status_user,priority:1" json:"status"`
 	NotifyCount         int     `gorm:"column:notify_count;not null;default:0" json:"notify_count"`
 	PayURL              string  `gorm:"column:pay_url;type:text" json:"pay_url"`
-	PaidAt              *int64  `gorm:"column:paid_at" json:"paid_at"`
+	PaidAt              *int64  `gorm:"column:paid_at;index:idx_po_status_paid_at,priority:2" json:"paid_at"`
 	ExpireAt            int64   `gorm:"column:expire_at;not null;default:0;index:idx_po_status_expire,priority:2" json:"expire_at"`
 	ClientIP            string  `gorm:"column:client_ip;size:64;not null;default:''" json:"client_ip"`
 	Extra               string  `gorm:"column:extra;type:text" json:"extra"`
@@ -322,29 +322,31 @@ func GetPaymentStats() (*PaymentStats, error) {
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Unix()
 	yearStart := time.Date(now.Year(), time.January, 1, 0, 0, 0, 0, now.Location()).Unix()
 
-	query := fmt.Sprintf(`
-		SELECT 
-			COUNT(*) as total_orders,
-			COALESCE(SUM(CASE WHEN status = 1 AND %s THEN 1 ELSE 0 END), 0) as paid_orders,
-			COALESCE(SUM(CASE WHEN status = 1 AND %s THEN pay_amount ELSE 0 END), 0) as total_amount,
-			COALESCE(SUM(CASE WHEN status = 1 AND %s AND paid_at >= ? THEN 1 ELSE 0 END), 0) as today_orders,
-			COALESCE(SUM(CASE WHEN status = 1 AND %s AND paid_at >= ? THEN pay_amount ELSE 0 END), 0) as today_amount,
-			COALESCE(SUM(CASE WHEN status = 1 AND %s AND paid_at >= ? THEN pay_amount ELSE 0 END), 0) as month_amount,
-			COALESCE(SUM(CASE WHEN status = 1 AND %s AND paid_at >= ? THEN pay_amount ELSE 0 END), 0) as year_amount,
-			COALESCE(SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END), 0) as pending_orders
-		FROM payment_orders
-	`, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL, RealPaidOrderFilterSQL)
-
-	err := db.DB.Raw(query, todayStart, todayStart, monthStart, yearStart).Scan(&stats).Error
+	paid := "status = 1 AND " + RealPaidOrderFilterSQL
+	err := db.DB.Model(&PaymentOrder{}).Select(
+		"COUNT(*) AS total_orders"+
+			", COALESCE(SUM(CASE WHEN "+paid+" THEN 1 ELSE 0 END), 0) AS paid_orders"+
+			", COALESCE(SUM(CASE WHEN "+paid+" THEN pay_amount ELSE 0 END), 0) AS total_amount"+
+			", COALESCE(SUM(CASE WHEN "+paid+" AND paid_at >= ? THEN 1 ELSE 0 END), 0) AS today_orders"+
+			", COALESCE(SUM(CASE WHEN "+paid+" AND paid_at >= ? THEN pay_amount ELSE 0 END), 0) AS today_amount"+
+			", COALESCE(SUM(CASE WHEN "+paid+" AND paid_at >= ? THEN pay_amount ELSE 0 END), 0) AS month_amount"+
+			", COALESCE(SUM(CASE WHEN "+paid+" AND paid_at >= ? THEN pay_amount ELSE 0 END), 0) AS year_amount"+
+			", COALESCE(SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END), 0) AS pending_orders",
+		todayStart, todayStart, monthStart, yearStart,
+	).Scan(&stats).Error
 	if err != nil {
 		return nil, err
 	}
 	return &stats, nil
 }
 
-// DeletePaymentOrder 删除订单（仅管理员）
-func DeletePaymentOrder(id uint64) error {
-	return db.DB.Delete(&PaymentOrder{}, id).Error
+// PaidAmountByUserQuery 按用户汇总「真实已付」金额的子查询（user_id, total_paid_amount），
+// 供管理端用户列表、仪表盘等 LEFT JOIN 复用。
+func PaidAmountByUserQuery() *gorm.DB {
+	return db.DB.Model(&PaymentOrder{}).
+		Select("user_id, COALESCE(SUM(pay_amount), 0) AS total_paid_amount").
+		Where("status = ?", PaymentStatusPaid).Where(RealPaidOrderFilterSQL).
+		Group("user_id")
 }
 
 func CountPendingOrdersByGatewayID(gatewayID uint64) (int64, error) {

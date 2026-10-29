@@ -70,11 +70,6 @@ type operationLogAggregateGlobal struct {
 	TotalDuration    int64 `gorm:"column:total_duration"`
 }
 
-type operationLogAggregateDailyRow struct {
-	DayKey     int   `gorm:"column:day_key"`
-	TotalCount int64 `gorm:"column:total_count"`
-}
-
 type operationLogAggregateModuleRow struct {
 	Module     string `gorm:"column:module"`
 	TotalCount int64  `gorm:"column:total_count"`
@@ -141,18 +136,12 @@ func rebuildOperationLogAggregate(tx *gorm.DB) error {
 
 	now := time.Now().Unix()
 	var global operationLogAggregateGlobal
-	if err := tx.Raw(`SELECT
-    COUNT(*) AS total_count,
-    COALESCE(SUM(CASE WHEN status_code >= 200 AND status_code < 400 THEN 1 ELSE 0 END), 0) AS success_count,
-    COALESCE(SUM(CASE WHEN status_code >= 400 AND status_code < 500 THEN 1 ELSE 0 END), 0) AS client_error_count,
-    COALESCE(SUM(CASE WHEN status_code >= 500 THEN 1 ELSE 0 END), 0) AS server_error_count,
-    COALESCE(SUM(duration), 0) AS total_duration
-    FROM operation_logs`).Scan(&global).Error; err != nil {
+	if err := tx.Model(&OperationLog{}).Select(aggHTTPStatusColumns).Scan(&global).Error; err != nil {
 		return err
 	}
 
 	if err := tx.Create(&OperationLogStat{
-		StatKey: operationLogAggregateGlobalKey,
+		StatKey:    operationLogAggregateGlobalKey,
 		TotalCount: global.TotalCount, SuccessCount: global.SuccessCount,
 		ClientErrorCount: global.ClientErrorCount, ServerErrorCount: global.ServerErrorCount,
 		TotalDuration: global.TotalDuration, UpdatedAt: now,
@@ -176,7 +165,7 @@ func rebuildOperationLogAggregate(tx *gorm.DB) error {
 	}
 
 	var moduleRows []operationLogAggregateModuleRow
-	if err := tx.Raw(`SELECT COALESCE(NULLIF(module, ''), 'unknown') AS module, COUNT(*) AS total_count FROM operation_logs GROUP BY COALESCE(NULLIF(module, ''), 'unknown') ORDER BY total_count DESC`).Scan(&moduleRows).Error; err != nil {
+	if err := aggCountBy(tx.Model(&OperationLog{}), aggModuleExpr, "module", "total_count", "").Scan(&moduleRows).Error; err != nil {
 		return err
 	}
 	for _, row := range moduleRows {
@@ -186,7 +175,7 @@ func rebuildOperationLogAggregate(tx *gorm.DB) error {
 	}
 
 	var actionRows []operationLogAggregateActionRow
-	if err := tx.Raw(`SELECT COALESCE(NULLIF(action, ''), 'unknown') AS action, COUNT(*) AS total_count FROM operation_logs GROUP BY COALESCE(NULLIF(action, ''), 'unknown') ORDER BY total_count DESC`).Scan(&actionRows).Error; err != nil {
+	if err := aggCountBy(tx.Model(&OperationLog{}), aggActionExpr, "action", "total_count", "").Scan(&actionRows).Error; err != nil {
 		return err
 	}
 	for _, row := range actionRows {
@@ -196,7 +185,7 @@ func rebuildOperationLogAggregate(tx *gorm.DB) error {
 	}
 
 	var methodRows []operationLogAggregateMethodRow
-	if err := tx.Raw(`SELECT COALESCE(NULLIF(method, ''), 'UNKNOWN') AS method, COUNT(*) AS total_count FROM operation_logs GROUP BY COALESCE(NULLIF(method, ''), 'UNKNOWN') ORDER BY total_count DESC`).Scan(&methodRows).Error; err != nil {
+	if err := aggCountBy(tx.Model(&OperationLog{}), aggMethodExpr, "method", "total_count", "").Scan(&methodRows).Error; err != nil {
 		return err
 	}
 	for _, row := range methodRows {
@@ -312,13 +301,14 @@ func getOperationLogStatsFromAggregate() (*OperationLogStatsDetail, error) {
 		return nil, err
 	}
 
-	if err := db.DB.Raw(`SELECT module, total_count AS count FROM operation_log_module_stats ORDER BY total_count DESC, module ASC LIMIT 10`).Scan(&stats.TopModules).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw(`SELECT action, total_count AS count FROM operation_log_action_stats ORDER BY total_count DESC, action ASC LIMIT 10`).Scan(&stats.TopActions).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw(`SELECT method, total_count AS count FROM operation_log_method_stats ORDER BY total_count DESC, method ASC`).Scan(&stats.MethodStats).Error; err != nil {
+	if err := errors.Join(
+		db.DB.Model(&OperationLogModuleStatRow{}).Select("module, total_count AS count").
+			Order("total_count DESC, module ASC").Limit(10).Scan(&stats.TopModules).Error,
+		db.DB.Model(&OperationLogActionStatRow{}).Select("action, total_count AS count").
+			Order("total_count DESC, action ASC").Limit(10).Scan(&stats.TopActions).Error,
+		db.DB.Model(&OperationLogMethodStatRow{}).Select("method, total_count AS count").
+			Order("total_count DESC, method ASC").Scan(&stats.MethodStats).Error,
+	); err != nil {
 		return nil, err
 	}
 
@@ -333,31 +323,18 @@ func getOperationLogStatsFromLogsFallback() (*OperationLogStatsDetail, error) {
 	}
 	todayStart := resolveOperationLogStartOfLocalDay(time.Now()).Unix()
 
-	if err := db.DB.Raw("SELECT COUNT(*) FROM operation_logs").Scan(&stats.TotalCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COUNT(*) FROM operation_logs WHERE create_time >= ?", todayStart).Scan(&stats.TodayCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COUNT(*) FROM operation_logs WHERE status_code >= 200 AND status_code < 400").Scan(&stats.SuccessCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COUNT(*) FROM operation_logs WHERE status_code >= 400 AND status_code < 500").Scan(&stats.ClientErrorCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COUNT(*) FROM operation_logs WHERE status_code >= 500").Scan(&stats.ServerErrorCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COALESCE(AVG(duration), 0) FROM operation_logs").Scan(&stats.AvgDuration).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw(`SELECT COALESCE(NULLIF(module, ''), 'unknown') AS module, COUNT(*) AS count FROM operation_logs GROUP BY COALESCE(NULLIF(module, ''), 'unknown') ORDER BY count DESC LIMIT 10`).Scan(&stats.TopModules).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw(`SELECT COALESCE(NULLIF(action, ''), 'unknown') AS action, COUNT(*) AS count FROM operation_logs GROUP BY COALESCE(NULLIF(action, ''), 'unknown') ORDER BY count DESC LIMIT 10`).Scan(&stats.TopActions).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw(`SELECT COALESCE(NULLIF(method, ''), 'UNKNOWN') AS method, COUNT(*) AS count FROM operation_logs GROUP BY COALESCE(NULLIF(method, ''), 'UNKNOWN') ORDER BY count DESC`).Scan(&stats.MethodStats).Error; err != nil {
+	logs := func() *gorm.DB { return db.DB.Model(&OperationLog{}) }
+	if err := errors.Join(
+		logs().Count(&stats.TotalCount).Error,
+		logs().Where("create_time >= ?", todayStart).Count(&stats.TodayCount).Error,
+		logs().Where("status_code >= 200 AND status_code < 400").Count(&stats.SuccessCount).Error,
+		logs().Where("status_code >= 400 AND status_code < 500").Count(&stats.ClientErrorCount).Error,
+		logs().Where("status_code >= 500").Count(&stats.ServerErrorCount).Error,
+		logs().Select("COALESCE(AVG(duration), 0)").Scan(&stats.AvgDuration).Error,
+		aggCountBy(logs(), aggModuleExpr, "module", "count", "").Limit(10).Scan(&stats.TopModules).Error,
+		aggCountBy(logs(), aggActionExpr, "action", "count", "").Limit(10).Scan(&stats.TopActions).Error,
+		aggCountBy(logs(), aggMethodExpr, "method", "count", "").Scan(&stats.MethodStats).Error,
+	); err != nil {
 		return nil, err
 	}
 	return stats, nil

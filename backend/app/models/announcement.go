@@ -20,24 +20,25 @@ const (
 
 // Announcement 站内公告（管理员发布，按用户记已读）
 type Announcement struct {
-	ID          uint64 `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
-	Title       string `gorm:"column:title;size:200;not null" json:"title"`
-	Summary     string `gorm:"column:summary;size:255;not null;default:''" json:"summary"`
-	Content     string `gorm:"column:content;type:mediumtext;not null" json:"content"`
-	Type        string `gorm:"column:type;size:20;not null;default:'info'" json:"type"`
-	Status      uint8  `gorm:"column:status;not null;default:0;index:idx_ann_status_time,priority:1;index:idx_ann_deleted_status,priority:2" json:"status"`
-	Priority    int    `gorm:"column:priority;not null;default:0;index:idx_ann_priority_pub,priority:1" json:"priority"`
-	Popup       uint8  `gorm:"column:popup;not null;default:0" json:"popup"`
-	TargetType  string `gorm:"column:target_type;size:20;not null;default:'all'" json:"target_type"`
-	TargetValue string `gorm:"column:target_value;size:50;not null;default:''" json:"target_value"`
-	StartAt     int64  `gorm:"column:start_at;not null;default:0;index:idx_ann_status_time,priority:2" json:"start_at"`
-	EndAt       int64  `gorm:"column:end_at;not null;default:0;index:idx_ann_status_time,priority:3" json:"end_at"`
-	PublishedAt int64  `gorm:"column:published_at;not null;default:0;index:idx_ann_priority_pub,priority:2" json:"published_at"`
-	CreatedBy   uint64 `gorm:"column:created_by;not null;default:0" json:"created_by"`
-	UpdatedBy   uint64 `gorm:"column:updated_by;not null;default:0" json:"updated_by"`
-	CreatedAt   int64  `gorm:"column:created_at;not null;default:0" json:"created_at"`
-	UpdatedAt   int64  `gorm:"column:updated_at;not null;default:0" json:"updated_at"`
-	DeletedAt   int64  `gorm:"column:deleted_at;not null;default:0;index:idx_ann_deleted_status,priority:1" json:"deleted_at"`
+	ID      uint64 `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	Title   string `gorm:"column:title;size:200;not null" json:"title"`
+	Summary string `gorm:"column:summary;size:255;not null;default:''" json:"summary"`
+	// LongText：MySQL 用 mediumtext，PostgreSQL/SQLite 用 text。
+	Content     LongText `gorm:"column:content;not null" json:"content"`
+	Type        string   `gorm:"column:type;size:20;not null;default:'info'" json:"type"`
+	Status      uint8    `gorm:"column:status;not null;default:0;index:idx_ann_status_time,priority:1;index:idx_ann_deleted_status,priority:2" json:"status"`
+	Priority    int      `gorm:"column:priority;not null;default:0;index:idx_ann_priority_pub,priority:1" json:"priority"`
+	Popup       uint8    `gorm:"column:popup;not null;default:0" json:"popup"`
+	TargetType  string   `gorm:"column:target_type;size:20;not null;default:'all'" json:"target_type"`
+	TargetValue string   `gorm:"column:target_value;size:50;not null;default:''" json:"target_value"`
+	StartAt     int64    `gorm:"column:start_at;not null;default:0;index:idx_ann_status_time,priority:2" json:"start_at"`
+	EndAt       int64    `gorm:"column:end_at;not null;default:0;index:idx_ann_status_time,priority:3" json:"end_at"`
+	PublishedAt int64    `gorm:"column:published_at;not null;default:0;index:idx_ann_priority_pub,priority:2" json:"published_at"`
+	CreatedBy   uint64   `gorm:"column:created_by;not null;default:0" json:"created_by"`
+	UpdatedBy   uint64   `gorm:"column:updated_by;not null;default:0" json:"updated_by"`
+	CreatedAt   int64    `gorm:"column:created_at;not null;default:0" json:"created_at"`
+	UpdatedAt   int64    `gorm:"column:updated_at;not null;default:0" json:"updated_at"`
+	DeletedAt   int64    `gorm:"column:deleted_at;not null;default:0;index:idx_ann_deleted_status,priority:1" json:"deleted_at"`
 }
 
 // TableName 表名
@@ -93,7 +94,7 @@ func prepareAnnouncement(a *Announcement) {
 	if a.TargetType == "" {
 		a.TargetType = "all"
 	}
-	a.Summary = NormalizeAnnouncementSummary(a.Summary, a.Content)
+	a.Summary = NormalizeAnnouncementSummary(a.Summary, string(a.Content))
 }
 
 // CreateAnnouncement 创建公告（默认草稿）
@@ -108,7 +109,7 @@ func CreateAnnouncement(a *Announcement) (uint64, error) {
 // UpdateAnnouncement 更新公告（不含发布状态流转）
 func UpdateAnnouncement(a *Announcement) error {
 	a.UpdatedAt = time.Now().Unix()
-	a.Summary = NormalizeAnnouncementSummary(a.Summary, a.Content)
+	a.Summary = NormalizeAnnouncementSummary(a.Summary, string(a.Content))
 	return db.DB.Model(&Announcement{}).Where("id = ? AND deleted_at = 0", a.ID).Updates(map[string]any{
 		"title": a.Title, "summary": a.Summary, "content": a.Content, "type": a.Type,
 		"priority": a.Priority, "popup": a.Popup, "target_type": a.TargetType, "target_value": a.TargetValue,
@@ -187,32 +188,35 @@ func AdminListAnnouncements(page, pageSize int, status *uint8, typ, keyword stri
 	return list, int(total), err
 }
 
-func visibleAnnouncementSQL(popupOnly, unreadOnly bool) string {
-	vis := `a.deleted_at=0 AND a.status=? AND (a.start_at=0 OR a.start_at<=?) AND (a.end_at=0 OR a.end_at>=?)
-		AND (a.target_type='all' OR (a.target_type='role' AND a.target_value=?))`
-	if popupOnly {
-		vis += " AND a.popup=1"
-	}
-	if unreadOnly {
-		vis += " AND r.id IS NULL"
-	}
-	return vis
+// visibleAnnouncementsQuery 当前用户可见的公告（已发布、在有效期内、目标匹配），LEFT JOIN 本人的已读记录。
+func visibleAnnouncementsQuery(userID uint64, userRole string) *gorm.DB {
+	now := time.Now().Unix()
+	return db.DB.Table("announcements a").
+		Joins("LEFT JOIN user_announcement_reads r ON r.announcement_id = a.id AND r.user_id = ?", userID).
+		Where("a.deleted_at = 0 AND a.status = ?", AnnouncementStatusPublished).
+		Where("a.start_at = 0 OR a.start_at <= ?", now).
+		Where("a.end_at = 0 OR a.end_at >= ?", now).
+		Where("a.target_type = 'all' OR (a.target_type = 'role' AND a.target_value = ?)", userRole)
 }
+
+const announcementReadColumns = announcementSelectColumns + ", CASE WHEN r.id IS NULL THEN 0 ELSE 1 END AS is_read"
 
 // ListVisibleAnnouncementsForUser 用户可见公告列表（含已读）
 func ListVisibleAnnouncementsForUser(userID uint64, userRole string, unreadOnly, popupOnly bool, limit int) ([]AnnouncementWithRead, error) {
-	now := time.Now().Unix()
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
-	q := `SELECT ` + announcementSelectColumns + `, CASE WHEN r.id IS NULL THEN 0 ELSE 1 END AS is_read
-		FROM announcements a
-		LEFT JOIN user_announcement_reads r ON r.announcement_id=a.id AND r.user_id=?
-		WHERE ` + visibleAnnouncementSQL(popupOnly, unreadOnly) + `
-		ORDER BY a.priority DESC, a.published_at DESC, a.id DESC
-		LIMIT ?`
+	q := visibleAnnouncementsQuery(userID, userRole)
+	if popupOnly {
+		q = q.Where("a.popup = 1")
+	}
+	if unreadOnly {
+		q = q.Where("r.id IS NULL")
+	}
 	var list []AnnouncementWithRead
-	err := db.DB.Raw(q, userID, AnnouncementStatusPublished, now, now, userRole, limit).Scan(&list).Error
+	err := q.Select(announcementReadColumns).
+		Order("a.priority DESC, a.published_at DESC, a.id DESC").Limit(limit).
+		Scan(&list).Error
 	for i := range list {
 		list[i].normalizeReadFlag()
 	}
@@ -221,15 +225,9 @@ func ListVisibleAnnouncementsForUser(userID uint64, userRole string, unreadOnly,
 
 // GetVisibleAnnouncementForUser 用户取单条可见公告
 func GetVisibleAnnouncementForUser(userID, id uint64, userRole string) (*AnnouncementWithRead, error) {
-	now := time.Now().Unix()
 	var item AnnouncementWithRead
-	err := db.DB.Raw(`SELECT `+announcementSelectColumns+`, CASE WHEN r.id IS NULL THEN 0 ELSE 1 END AS is_read
-		FROM announcements a
-		LEFT JOIN user_announcement_reads r ON r.announcement_id=a.id AND r.user_id=?
-		WHERE a.id=? AND a.deleted_at=0 AND a.status=?
-		  AND (a.start_at=0 OR a.start_at<=?) AND (a.end_at=0 OR a.end_at>=?)
-		  AND (a.target_type='all' OR (a.target_type='role' AND a.target_value=?))`,
-		userID, id, AnnouncementStatusPublished, now, now, userRole).Scan(&item).Error
+	err := visibleAnnouncementsQuery(userID, userRole).Where("a.id = ?", id).
+		Select(announcementReadColumns).Scan(&item).Error
 	if err != nil {
 		return nil, err
 	}
@@ -242,15 +240,8 @@ func GetVisibleAnnouncementForUser(userID, id uint64, userRole string) (*Announc
 
 // CountUnreadAnnouncements 未读数
 func CountUnreadAnnouncements(userID uint64, userRole string) (int, error) {
-	now := time.Now().Unix()
 	var n int64
-	err := db.DB.Raw(`SELECT COUNT(*) FROM announcements a
-		LEFT JOIN user_announcement_reads r ON r.announcement_id=a.id AND r.user_id=?
-		WHERE a.deleted_at=0 AND a.status=?
-		  AND (a.start_at=0 OR a.start_at<=?) AND (a.end_at=0 OR a.end_at>=?)
-		  AND (a.target_type='all' OR (a.target_type='role' AND a.target_value=?))
-		  AND r.id IS NULL`,
-		userID, AnnouncementStatusPublished, now, now, userRole).Scan(&n).Error
+	err := visibleAnnouncementsQuery(userID, userRole).Where("r.id IS NULL").Count(&n).Error
 	return int(n), err
 }
 
@@ -277,15 +268,8 @@ func MarkAnnouncementRead(userID, announcementID uint64) error {
 
 // MarkAllAnnouncementsRead 将当前可见未读全部标已读
 func MarkAllAnnouncementsRead(userID uint64, userRole string) error {
-	now := time.Now().Unix()
 	var ids []uint64
-	err := db.DB.Raw(`SELECT a.id FROM announcements a
-		LEFT JOIN user_announcement_reads r ON r.announcement_id=a.id AND r.user_id=?
-		WHERE a.deleted_at=0 AND a.status=?
-		  AND (a.start_at=0 OR a.start_at<=?) AND (a.end_at=0 OR a.end_at>=?)
-		  AND (a.target_type='all' OR (a.target_type='role' AND a.target_value=?))
-		  AND r.id IS NULL`,
-		userID, AnnouncementStatusPublished, now, now, userRole).Scan(&ids).Error
+	err := visibleAnnouncementsQuery(userID, userRole).Where("r.id IS NULL").Pluck("a.id", &ids).Error
 	if err != nil {
 		return err
 	}
@@ -349,5 +333,5 @@ func DisplaySummary(a Announcement) string {
 	if strings.TrimSpace(a.Summary) != "" {
 		return NormalizeAnnouncementSummary(a.Summary, "")
 	}
-	return PlainTextSummary(a.Content, AnnouncementSummaryMaxRunes)
+	return PlainTextSummary(string(a.Content), AnnouncementSummaryMaxRunes)
 }

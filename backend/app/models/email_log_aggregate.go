@@ -50,11 +50,6 @@ type emailLogAggregateGlobal struct {
 	FailCount    int64 `gorm:"column:fail_count"`
 }
 
-type emailLogAggregateDailyRow struct {
-	DayKey     int   `gorm:"column:day_key"`
-	TotalCount int64 `gorm:"column:total_count"`
-}
-
 type emailLogAggregateTemplateRow struct {
 	TemplateName string `gorm:"column:template_name"`
 	TotalCount   int64  `gorm:"column:total_count"`
@@ -106,11 +101,7 @@ func rebuildEmailLogAggregate(tx *gorm.DB) error {
 
 	now := time.Now().Unix()
 	var global emailLogAggregateGlobal
-	if err := tx.Raw(`SELECT
-    COUNT(*) AS total_count,
-    COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) AS success_count,
-    COALESCE(SUM(CASE WHEN status = 1 THEN 0 ELSE 1 END), 0) AS fail_count
-    FROM email_logs`).Scan(&global).Error; err != nil {
+	if err := tx.Model(&EmailLog{}).Select("COUNT(*) AS total_count, " + aggSuccessFailColumns).Scan(&global).Error; err != nil {
 		return err
 	}
 
@@ -137,14 +128,7 @@ func rebuildEmailLogAggregate(tx *gorm.DB) error {
 	}
 
 	var templateRows []emailLogAggregateTemplateRow
-	if err := tx.Raw(`SELECT
-    COALESCE(NULLIF(template_name, ''), 'unknown') AS template_name,
-    COUNT(*) AS total_count,
-    COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) AS success_count,
-    COALESCE(SUM(CASE WHEN status = 1 THEN 0 ELSE 1 END), 0) AS fail_count
-    FROM email_logs
-    GROUP BY COALESCE(NULLIF(template_name, ''), 'unknown')
-    ORDER BY total_count DESC`).Scan(&templateRows).Error; err != nil {
+	if err := aggCountBy(tx.Model(&EmailLog{}), aggTemplateExpr, "template_name", "total_count", ", "+aggSuccessFailColumns).Scan(&templateRows).Error; err != nil {
 		return err
 	}
 	for _, row := range templateRows {
@@ -254,7 +238,8 @@ func getEmailLogStatsFromAggregate() (*EmailLogStatsDetail, error) {
 		return nil, err
 	}
 
-	if err := db.DB.Raw(`SELECT template_name, total_count AS count FROM email_log_template_stats ORDER BY total_count DESC, template_name ASC LIMIT 10`).Scan(&stats.TopTemplates).Error; err != nil {
+	if err := db.DB.Model(&EmailLogTemplateStatRow{}).Select("template_name, total_count AS count").
+		Order("total_count DESC, template_name ASC").Limit(10).Scan(&stats.TopTemplates).Error; err != nil {
 		return nil, err
 	}
 
@@ -267,19 +252,14 @@ func getEmailLogStatsFromLogsFallback() (*EmailLogStatsDetail, error) {
 	}
 	todayStart := resolveEmailLogStartOfLocalDay(time.Now())
 
-	if err := db.DB.Raw("SELECT COUNT(*) FROM email_logs").Scan(&stats.TotalCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COUNT(*) FROM email_logs WHERE created_at >= ?", todayStart).Scan(&stats.TodayCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COUNT(*) FROM email_logs WHERE status = 1").Scan(&stats.SuccessCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COUNT(*) FROM email_logs WHERE status != 1").Scan(&stats.FailCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw(`SELECT COALESCE(NULLIF(template_name, ''), 'unknown') AS template_name, COUNT(*) AS count FROM email_logs GROUP BY COALESCE(NULLIF(template_name, ''), 'unknown') ORDER BY count DESC LIMIT 10`).Scan(&stats.TopTemplates).Error; err != nil {
+	logs := func() *gorm.DB { return db.DB.Model(&EmailLog{}) }
+	if err := errors.Join(
+		logs().Count(&stats.TotalCount).Error,
+		logs().Where("created_at >= ?", todayStart).Count(&stats.TodayCount).Error,
+		logs().Where("status = 1").Count(&stats.SuccessCount).Error,
+		logs().Where("status != 1").Count(&stats.FailCount).Error,
+		aggCountBy(logs(), aggTemplateExpr, "template_name", "count", "").Limit(10).Scan(&stats.TopTemplates).Error,
+	); err != nil {
 		return nil, err
 	}
 	return stats, nil

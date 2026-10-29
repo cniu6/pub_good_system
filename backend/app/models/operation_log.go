@@ -14,21 +14,22 @@ import (
 
 // OperationLog 操作日志模型
 type OperationLog struct {
-	ID           uint64  `gorm:"column:id;primaryKey;autoIncrement;index:idx_op_create_time_id,priority:2" json:"id"`
-	UserID       uint64  `gorm:"column:user_id;not null;default:0;index:idx_op_user_create_time,priority:1" json:"user_id"`
-	Username     string  `gorm:"column:username;size:100;not null;default:''" json:"username"`
-	Module       string  `gorm:"column:module;size:100;not null;default:'';index:idx_op_module_create_time,priority:1" json:"module"`
-	Action       string  `gorm:"column:action;size:100;not null;default:'';index:idx_op_action_create_time,priority:1" json:"action"`
-	Method       string  `gorm:"column:method;size:20;not null;default:'';index:idx_op_method_create_time,priority:1" json:"method"`
-	Path         string  `gorm:"column:path;size:255;not null;default:''" json:"path"`
-	IP           string  `gorm:"column:ip;size:64;not null;default:'';index:idx_op_ip_create_time,priority:1" json:"ip"`
-	UserAgent    string  `gorm:"column:user_agent;type:text" json:"user_agent"`
-	HandlerName  string  `gorm:"column:handler_name;size:255;not null;default:'';index:idx_op_handler_create_time,priority:1" json:"handler_name"`
-	RequestBody  *string `gorm:"column:request_body;type:mediumtext" json:"request_body,omitempty"`
-	ResponseBody *string `gorm:"column:response_body;type:mediumtext" json:"response_body,omitempty"`
-	StatusCode   int     `gorm:"column:status_code;not null;default:0" json:"status_code"`
-	Duration     int     `gorm:"column:duration;not null;default:0" json:"duration"`
-	CreateTime   *int64  `gorm:"column:create_time;not null;default:0;index:idx_op_create_time_id,priority:1;index:idx_op_user_create_time,priority:2;index:idx_op_module_create_time,priority:2;index:idx_op_action_create_time,priority:2;index:idx_op_method_create_time,priority:2;index:idx_op_ip_create_time,priority:2;index:idx_op_handler_create_time,priority:2" json:"create_time"`
+	ID          uint64 `gorm:"column:id;primaryKey;autoIncrement;index:idx_op_create_time_id,priority:2" json:"id"`
+	UserID      uint64 `gorm:"column:user_id;not null;default:0;index:idx_op_user_create_time,priority:1" json:"user_id"`
+	Username    string `gorm:"column:username;size:100;not null;default:''" json:"username"`
+	Module      string `gorm:"column:module;size:100;not null;default:'';index:idx_op_module_create_time,priority:1" json:"module"`
+	Action      string `gorm:"column:action;size:100;not null;default:'';index:idx_op_action_create_time,priority:1" json:"action"`
+	Method      string `gorm:"column:method;size:20;not null;default:'';index:idx_op_method_create_time,priority:1" json:"method"`
+	Path        string `gorm:"column:path;size:255;not null;default:''" json:"path"`
+	IP          string `gorm:"column:ip;size:64;not null;default:'';index:idx_op_ip_create_time,priority:1" json:"ip"`
+	UserAgent   string `gorm:"column:user_agent;type:text" json:"user_agent"`
+	HandlerName string `gorm:"column:handler_name;size:255;not null;default:'';index:idx_op_handler_create_time,priority:1" json:"handler_name"`
+	// LongText：MySQL 用 mediumtext，PostgreSQL/SQLite 用 text。
+	RequestBody  *LongText `gorm:"column:request_body" json:"request_body,omitempty"`
+	ResponseBody *LongText `gorm:"column:response_body" json:"response_body,omitempty"`
+	StatusCode   int       `gorm:"column:status_code;not null;default:0" json:"status_code"`
+	Duration     int       `gorm:"column:duration;not null;default:0" json:"duration"`
+	CreateTime   *int64    `gorm:"column:create_time;not null;default:0;index:idx_op_create_time_id,priority:1;index:idx_op_user_create_time,priority:2;index:idx_op_module_create_time,priority:2;index:idx_op_action_create_time,priority:2;index:idx_op_method_create_time,priority:2;index:idx_op_ip_create_time,priority:2;index:idx_op_handler_create_time,priority:2" json:"create_time"`
 }
 
 func (OperationLog) TableName() string {
@@ -161,12 +162,12 @@ func DeleteOperationLogsBefore(beforeTime int64) (int64, error) {
 
 // CleanExcessOperationLogs 清理超出上限的旧日志
 func CleanExcessOperationLogs(maxCount int) (int64, error) {
-	return cleanExcessRowsGeneric("operation_logs", "create_time", maxCount)
+	return cleanExcessRowsGeneric(&OperationLog{}, "create_time", maxCount)
 }
 
 // CleanExcessOperationLogsPerUser 按用户清理超出上限的操作日志
 func CleanExcessOperationLogsPerUser(maxPerUser int) (int64, error) {
-	return cleanExcessRowsPerGroupGeneric[uint64]("operation_logs", "user_id", "create_time", maxPerUser, "")
+	return cleanExcessRowsPerGroupGeneric[uint64](&OperationLog{}, "user_id", "create_time", maxPerUser, "")
 }
 
 // LogStats 操作日志统计
@@ -187,36 +188,3 @@ type MethodStat struct {
 	Count  int64  `gorm:"column:count" json:"count"`
 }
 
-// GetOperationLogStats 获取日志统计信息
-func GetOperationLogStats() (*LogStats, error) {
-	stats := &LogStats{}
-
-	if err := db.DB.Model(&OperationLog{}).Count(&stats.TotalCount).Error; err != nil {
-		return nil, err
-	}
-
-	now := time.Now()
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Unix()
-	if err := db.DB.Model(&OperationLog{}).Where("create_time >= ?", todayStart).Count(&stats.TodayCount).Error; err != nil {
-		return nil, err
-	}
-
-	if err := db.DB.Model(&OperationLog{}).
-		Select("module, COUNT(*) as count").
-		Group("module").
-		Order("count DESC").
-		Limit(10).
-		Scan(&stats.ModuleStats).Error; err != nil {
-		return nil, err
-	}
-
-	if err := db.DB.Model(&OperationLog{}).
-		Select("method, COUNT(*) as count").
-		Group("method").
-		Order("count DESC").
-		Scan(&stats.MethodStats).Error; err != nil {
-		return nil, err
-	}
-
-	return stats, nil
-}

@@ -1,8 +1,6 @@
 package models
 
 import (
-	"database/sql"
-	"errors"
 	"fmt"
 	"fst/backend/pkg/db"
 	"strings"
@@ -121,19 +119,6 @@ func ListPaymentExceptions(page, pageSize int, status *int, exceptionType, order
 		Offset((page - 1) * pageSize).
 		Find(&list).Error
 	return list, total, err
-}
-
-// GetPaymentExceptionByID 按 ID 取异常
-func GetPaymentExceptionByID(id uint64) (*PaymentException, error) {
-	var ex PaymentException
-	err := db.DB.Where("id = ?", id).First(&ex).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, sql.ErrNoRows
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &ex, nil
 }
 
 // ResolvePaymentException 人工处理/忽略异常

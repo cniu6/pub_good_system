@@ -215,3 +215,4 @@ func ListWithdrawLegacyBalanceRisk(limit int) ([]WithdrawRequest, error) {
 		Find(&list).Error
 	return list, err
 }
+

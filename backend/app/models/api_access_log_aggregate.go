@@ -80,11 +80,6 @@ type apiAccessLogAggregateGlobal struct {
 	TotalDuration    int64 `gorm:"column:total_duration"`
 }
 
-type apiAccessLogAggregateDailyRow struct {
-	DayKey     int   `gorm:"column:day_key"`
-	TotalCount int64 `gorm:"column:total_count"`
-}
-
 type apiAccessLogAggregatePathRow struct {
 	RoutePath     string `gorm:"column:route_path"`
 	TotalCount    int64  `gorm:"column:total_count"`
@@ -140,13 +135,7 @@ func rebuildAPIAccessLogAggregate(tx *gorm.DB) error {
 
 	now := time.Now().Unix()
 	var global apiAccessLogAggregateGlobal
-	if err := tx.Raw(`SELECT
-    COUNT(*) AS total_count,
-    COALESCE(SUM(CASE WHEN status_code >= 200 AND status_code < 400 THEN 1 ELSE 0 END), 0) AS success_count,
-    COALESCE(SUM(CASE WHEN status_code >= 400 AND status_code < 500 THEN 1 ELSE 0 END), 0) AS client_error_count,
-    COALESCE(SUM(CASE WHEN status_code >= 500 THEN 1 ELSE 0 END), 0) AS server_error_count,
-    COALESCE(SUM(duration), 0) AS total_duration
-    FROM api_access_logs`).Scan(&global).Error; err != nil {
+	if err := tx.Model(&APIAccessLog{}).Select(aggHTTPStatusColumns).Scan(&global).Error; err != nil {
 		return err
 	}
 
@@ -175,7 +164,7 @@ func rebuildAPIAccessLogAggregate(tx *gorm.DB) error {
 	}
 
 	var pathRows []apiAccessLogAggregatePathRow
-	if err := tx.Raw(`SELECT COALESCE(NULLIF(COALESCE(NULLIF(route_path, ''), path), ''), '/') AS route_path, COUNT(*) AS total_count, COALESCE(SUM(duration), 0) AS total_duration FROM api_access_logs GROUP BY COALESCE(NULLIF(COALESCE(NULLIF(route_path, ''), path), ''), '/') ORDER BY total_count DESC`).Scan(&pathRows).Error; err != nil {
+	if err := aggCountBy(tx.Model(&APIAccessLog{}), aggRouteExpr, "route_path", "total_count", ", COALESCE(SUM(duration), 0) AS total_duration").Scan(&pathRows).Error; err != nil {
 		return err
 	}
 	for _, row := range pathRows {
@@ -185,7 +174,7 @@ func rebuildAPIAccessLogAggregate(tx *gorm.DB) error {
 	}
 
 	var methodRows []apiAccessLogAggregateMethodRow
-	if err := tx.Raw(`SELECT COALESCE(NULLIF(method, ''), 'UNKNOWN') AS method, COUNT(*) AS total_count FROM api_access_logs GROUP BY COALESCE(NULLIF(method, ''), 'UNKNOWN') ORDER BY total_count DESC`).Scan(&methodRows).Error; err != nil {
+	if err := aggCountBy(tx.Model(&APIAccessLog{}), aggMethodExpr, "method", "total_count", "").Scan(&methodRows).Error; err != nil {
 		return err
 	}
 	for _, row := range methodRows {
@@ -195,7 +184,7 @@ func rebuildAPIAccessLogAggregate(tx *gorm.DB) error {
 	}
 
 	var sceneRows []apiAccessLogAggregateSceneRow
-	if err := tx.Raw(`SELECT COALESCE(NULLIF(scene, ''), 'unknown') AS scene, COUNT(*) AS total_count FROM api_access_logs GROUP BY COALESCE(NULLIF(scene, ''), 'unknown') ORDER BY total_count DESC`).Scan(&sceneRows).Error; err != nil {
+	if err := aggCountBy(tx.Model(&APIAccessLog{}), aggSceneExpr, "scene", "total_count", "").Scan(&sceneRows).Error; err != nil {
 		return err
 	}
 	for _, row := range sceneRows {
@@ -205,7 +194,8 @@ func rebuildAPIAccessLogAggregate(tx *gorm.DB) error {
 	}
 
 	var ipRows []apiAccessLogAggregateIPRow
-	if err := tx.Raw(`SELECT ip, MIN(create_time) AS first_seen_at, MAX(create_time) AS last_seen_at FROM api_access_logs WHERE ip != '' GROUP BY ip ORDER BY MAX(create_time) DESC`).Scan(&ipRows).Error; err != nil {
+	if err := tx.Model(&APIAccessLog{}).Select("ip, MIN(create_time) AS first_seen_at, MAX(create_time) AS last_seen_at").
+		Where("ip != ''").Group("ip").Order("MAX(create_time) DESC").Scan(&ipRows).Error; err != nil {
 		return err
 	}
 	for _, row := range ipRows {
@@ -345,13 +335,15 @@ func getAPIAccessLogStatsFromAggregate() (*APIAccessLogStats, error) {
 	if err := db.DB.Model(&APIAccessLogIPStatRow{}).Count(&stats.DistinctIPCount).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Raw(`SELECT route_path, total_count AS count, COALESCE(total_duration / NULLIF(total_count, 0), 0) AS avg_duration FROM api_access_log_path_stats ORDER BY total_count DESC, route_path ASC LIMIT 10`).Scan(&stats.TopPaths).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw(`SELECT method, total_count AS count FROM api_access_log_method_stats ORDER BY total_count DESC, method ASC`).Scan(&stats.MethodStats).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw(`SELECT scene, total_count AS count FROM api_access_log_scene_stats ORDER BY total_count DESC, scene ASC`).Scan(&stats.SceneStats).Error; err != nil {
+	if err := errors.Join(
+		db.DB.Model(&APIAccessLogPathStatRow{}).
+			Select("route_path, total_count AS count, COALESCE(total_duration / NULLIF(total_count, 0), 0) AS avg_duration").
+			Order("total_count DESC, route_path ASC").Limit(10).Scan(&stats.TopPaths).Error,
+		db.DB.Model(&APIAccessLogMethodStatRow{}).Select("method, total_count AS count").
+			Order("total_count DESC, method ASC").Scan(&stats.MethodStats).Error,
+		db.DB.Model(&APIAccessLogSceneStatRow{}).Select("scene, total_count AS count").
+			Order("total_count DESC, scene ASC").Scan(&stats.SceneStats).Error,
+	); err != nil {
 		return nil, err
 	}
 
@@ -362,34 +354,19 @@ func getAPIAccessLogStatsFromLogsFallback() (*APIAccessLogStats, error) {
 	stats := &APIAccessLogStats{}
 	todayStart := resolveAPIAccessLogStartOfLocalDay(time.Now()).Unix()
 
-	if err := db.DB.Raw("SELECT COUNT(*) FROM api_access_logs").Scan(&stats.TotalCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COUNT(*) FROM api_access_logs WHERE create_time >= ?", todayStart).Scan(&stats.TodayCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COUNT(*) FROM api_access_logs WHERE status_code >= 200 AND status_code < 400").Scan(&stats.SuccessCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COUNT(*) FROM api_access_logs WHERE status_code >= 400 AND status_code < 500").Scan(&stats.ClientErrorCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COUNT(*) FROM api_access_logs WHERE status_code >= 500").Scan(&stats.ServerErrorCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COUNT(DISTINCT ip) FROM api_access_logs WHERE ip != ''").Scan(&stats.DistinctIPCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COALESCE(AVG(duration), 0) FROM api_access_logs").Scan(&stats.AvgDuration).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw(`SELECT COALESCE(NULLIF(COALESCE(NULLIF(route_path, ''), path), ''), '/') AS route_path, COUNT(*) AS count, COALESCE(AVG(duration), 0) AS avg_duration FROM api_access_logs GROUP BY COALESCE(NULLIF(COALESCE(NULLIF(route_path, ''), path), ''), '/') ORDER BY count DESC LIMIT 10`).Scan(&stats.TopPaths).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COALESCE(NULLIF(method, ''), 'UNKNOWN') AS method, COUNT(*) AS count FROM api_access_logs GROUP BY COALESCE(NULLIF(method, ''), 'UNKNOWN') ORDER BY count DESC").Scan(&stats.MethodStats).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Raw("SELECT COALESCE(NULLIF(scene, ''), 'unknown') AS scene, COUNT(*) AS count FROM api_access_logs GROUP BY COALESCE(NULLIF(scene, ''), 'unknown') ORDER BY count DESC").Scan(&stats.SceneStats).Error; err != nil {
+	logs := func() *gorm.DB { return db.DB.Model(&APIAccessLog{}) }
+	if err := errors.Join(
+		logs().Count(&stats.TotalCount).Error,
+		logs().Where("create_time >= ?", todayStart).Count(&stats.TodayCount).Error,
+		logs().Where("status_code >= 200 AND status_code < 400").Count(&stats.SuccessCount).Error,
+		logs().Where("status_code >= 400 AND status_code < 500").Count(&stats.ClientErrorCount).Error,
+		logs().Where("status_code >= 500").Count(&stats.ServerErrorCount).Error,
+		logs().Where("ip != ''").Distinct("ip").Count(&stats.DistinctIPCount).Error,
+		logs().Select("COALESCE(AVG(duration), 0)").Scan(&stats.AvgDuration).Error,
+		aggCountBy(logs(), aggRouteExpr, "route_path", "count", ", COALESCE(AVG(duration), 0) AS avg_duration").Limit(10).Scan(&stats.TopPaths).Error,
+		aggCountBy(logs(), aggMethodExpr, "method", "count", "").Scan(&stats.MethodStats).Error,
+		aggCountBy(logs(), aggSceneExpr, "scene", "count", "").Scan(&stats.SceneStats).Error,
+	); err != nil {
 		return nil, err
 	}
 	return stats, nil

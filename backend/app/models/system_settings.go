@@ -265,15 +265,6 @@ func GetSettingByKey(key string) (*SystemSetting, error) {
 	return &setting, nil
 }
 
-// IsPresenceEnabled 读取系统开关 presence_enabled（默认关闭：缺 key / 读失败均视为关闭）
-func IsPresenceEnabled() bool {
-	s, err := GetSettingByKey("presence_enabled")
-	if err != nil || s == nil {
-		return false
-	}
-	return s.Value == "true" || s.Value == "1"
-}
-
 // GetSettingsByCategory 根据分类获取配置列表
 func GetSettingsByCategory(category string) ([]SystemSetting, error) {
 	var settings []SystemSetting

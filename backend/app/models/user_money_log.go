@@ -103,21 +103,6 @@ func DeleteUserMoneyLog(id uint64) error {
 	return nil
 }
 
-// UpdateUserMoney 直接更新用户余额字段（写入前按分规范化）
-func UpdateUserMoney(userID uint64, newMoney float64) error {
-	normalized, err := normalizeMoneyYuan(newMoney)
-	if err != nil {
-		return err
-	}
-	now := time.Now().Unix()
-	return db.DB.Model(&User{}).
-		Where("id = ? AND delete_time IS NULL", userID).
-		Updates(map[string]interface{}{
-			"money":       normalized,
-			"update_time": now,
-		}).Error
-}
-
 // UpdateUserMoneyTx 在事务中更新用户余额字段（写入前按分规范化）
 func UpdateUserMoneyTx(tx *gorm.DB, userID uint64, newMoney float64) error {
 	normalized, err := normalizeMoneyYuan(newMoney)

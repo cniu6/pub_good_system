@@ -18,10 +18,10 @@ const apiAccessLogWriteMaxAttempts = 3
 type APIAccessLog struct {
 	ID                  uint64  `gorm:"column:id;primaryKey;autoIncrement;index:idx_aal_create_time_id,priority:2" json:"id"`
 	RequestID           string  `gorm:"column:request_id;size:36;not null;uniqueIndex:uk_request_id" json:"request_id"`
-	UserID              uint64  `gorm:"column:user_id;not null;default:0;index:idx_aal_user_create_time,priority:1" json:"user_id"`
+	UserID              uint64  `gorm:"column:user_id;not null;default:0;index:idx_aal_user_create_time,priority:1;index:idx_aal_user_auth_create,priority:1" json:"user_id"`
 	Username            string  `gorm:"column:username;size:100;not null;default:''" json:"username"`
 	Role                string  `gorm:"column:role;size:32;not null;default:''" json:"role"`
-	AuthMethod          string  `gorm:"column:auth_method;size:16;not null;default:'';index:idx_aal_auth_method_create_time,priority:1" json:"auth_method"`
+	AuthMethod          string  `gorm:"column:auth_method;size:16;not null;default:'';index:idx_aal_auth_method_create_time,priority:1;index:idx_aal_user_auth_create,priority:2" json:"auth_method"`
 	Scene               string  `gorm:"column:scene;size:32;not null;default:'';index:idx_aal_scene_create_time,priority:1" json:"scene"`
 	Method              string  `gorm:"column:method;size:20;not null;default:'';index:idx_aal_method_create_time,priority:1" json:"method"`
 	Transport           string  `gorm:"column:transport;size:32;not null;default:'http';index:idx_aal_transport_create_time,priority:1" json:"transport"`
@@ -40,14 +40,15 @@ type APIAccessLog struct {
 	XRealIP             string  `gorm:"column:x_real_ip;size:64;not null;default:''" json:"x_real_ip"`
 	UserAgent           string  `gorm:"column:user_agent;type:text" json:"user_agent"`
 	Referer             string  `gorm:"column:referer;size:500;not null;default:''" json:"referer"`
-	RequestHeaders      *string `gorm:"column:request_headers;type:mediumtext" json:"request_headers,omitempty"`
-	RequestBody         *string `gorm:"column:request_body;type:mediumtext" json:"request_body,omitempty"`
-	ResponseBody        *string `gorm:"column:response_body;type:mediumtext" json:"response_body,omitempty"`
-	StatusCode          int     `gorm:"column:status_code;not null;default:0;index:idx_aal_status_create_time,priority:1" json:"status_code"`
-	Duration            int     `gorm:"column:duration;not null;default:0" json:"duration"`
-	RequestSize         int64   `gorm:"column:request_size;not null;default:0" json:"request_size"`
-	ResponseSize        int64   `gorm:"column:response_size;not null;default:0" json:"response_size"`
-	CreateTime          *int64  `gorm:"column:create_time;not null;default:0;index:idx_aal_create_time_id,priority:1;index:idx_aal_scene_create_time,priority:2;index:idx_aal_auth_method_create_time,priority:2;index:idx_aal_user_create_time,priority:2;index:idx_aal_method_create_time,priority:2;index:idx_aal_transport_create_time,priority:2;index:idx_aal_status_create_time,priority:2;index:idx_aal_ip_create_time,priority:2;index:idx_aal_handler_create_time,priority:2" json:"create_time"`
+	// LongText：MySQL 用 mediumtext，PostgreSQL/SQLite 用 text。
+	RequestHeaders *LongText `gorm:"column:request_headers" json:"request_headers,omitempty"`
+	RequestBody    *LongText `gorm:"column:request_body" json:"request_body,omitempty"`
+	ResponseBody   *LongText `gorm:"column:response_body" json:"response_body,omitempty"`
+	StatusCode     int       `gorm:"column:status_code;not null;default:0;index:idx_aal_status_create_time,priority:1" json:"status_code"`
+	Duration       int       `gorm:"column:duration;not null;default:0" json:"duration"`
+	RequestSize    int64     `gorm:"column:request_size;not null;default:0" json:"request_size"`
+	ResponseSize   int64     `gorm:"column:response_size;not null;default:0" json:"response_size"`
+	CreateTime     *int64    `gorm:"column:create_time;not null;default:0;index:idx_aal_create_time_id,priority:1;index:idx_aal_scene_create_time,priority:2;index:idx_aal_auth_method_create_time,priority:2;index:idx_aal_user_create_time,priority:2;index:idx_aal_method_create_time,priority:2;index:idx_aal_transport_create_time,priority:2;index:idx_aal_status_create_time,priority:2;index:idx_aal_ip_create_time,priority:2;index:idx_aal_handler_create_time,priority:2;index:idx_aal_user_auth_create,priority:3" json:"create_time"`
 }
 
 func (APIAccessLog) TableName() string {
@@ -266,12 +267,12 @@ func DeleteAPIAccessLogsBefore(beforeTime int64) (int64, error) {
 
 // CleanExcessAPIAccessLogs 清理超出全局上限的旧 API 访问日志
 func CleanExcessAPIAccessLogs(maxCount int) (int64, error) {
-	return cleanExcessRowsGeneric("api_access_logs", "create_time", maxCount)
+	return cleanExcessRowsGeneric(&APIAccessLog{}, "create_time", maxCount)
 }
 
 // CleanExcessAPIAccessLogsPerUser 按用户清理超出上限的 API 访问日志
 func CleanExcessAPIAccessLogsPerUser(maxPerUser int) (int64, error) {
-	return cleanExcessRowsPerGroupGeneric[uint64]("api_access_logs", "user_id", "create_time", maxPerUser, "user_id > 0")
+	return cleanExcessRowsPerGroupGeneric[uint64](&APIAccessLog{}, "user_id", "create_time", maxPerUser, "user_id > 0")
 }
 
 // APIAccessLogStats API 访问日志统计
@@ -316,27 +317,32 @@ func GetAPIAccessLogStatsByUserID(userID uint64) (*APIAccessLogStats, error) {
 		MethodStats: []APIAccessMethodStat{},
 	}
 	todayStart := resolveAPIAccessLogStartOfLocalDay(time.Now()).Unix()
-	// 用户中心统计仅统计 API Key 调用（不含 JWT 网页请求）
-	base := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND auth_method = ?", userID, "apikey")
-
-	if err := base.Count(&stats.TotalCount).Error; err != nil {
+	// 用户中心统计仅统计 API Key 调用（不含 JWT 网页请求）。
+	// 6 个标量指标合并成一条条件聚合，避免同一张表连续扫 6 次。
+	var agg struct {
+		TotalCount       int64   `gorm:"column:total_count"`
+		TodayCount       int64   `gorm:"column:today_count"`
+		SuccessCount     int64   `gorm:"column:success_count"`
+		ClientErrorCount int64   `gorm:"column:client_error_count"`
+		ServerErrorCount int64   `gorm:"column:server_error_count"`
+		AvgDuration      float64 `gorm:"column:avg_duration"`
+	}
+	if err := db.DB.Model(&APIAccessLog{}).
+		Select(`COUNT(*) AS total_count,
+			COALESCE(SUM(CASE WHEN create_time >= ? THEN 1 ELSE 0 END), 0) AS today_count,
+			COALESCE(SUM(CASE WHEN status_code >= 200 AND status_code < 400 THEN 1 ELSE 0 END), 0) AS success_count,
+			COALESCE(SUM(CASE WHEN status_code >= 400 AND status_code < 500 THEN 1 ELSE 0 END), 0) AS client_error_count,
+			COALESCE(SUM(CASE WHEN status_code >= 500 THEN 1 ELSE 0 END), 0) AS server_error_count,
+			COALESCE(AVG(duration), 0) AS avg_duration`, todayStart).
+		Where("user_id = ? AND auth_method = ?", userID, "apikey").Scan(&agg).Error; err != nil {
 		return nil, err
 	}
-	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND auth_method = ? AND create_time >= ?", userID, "apikey", todayStart).Count(&stats.TodayCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND auth_method = ? AND status_code >= 200 AND status_code < 400", userID, "apikey").Count(&stats.SuccessCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND auth_method = ? AND status_code >= 400 AND status_code < 500", userID, "apikey").Count(&stats.ClientErrorCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND auth_method = ? AND status_code >= 500", userID, "apikey").Count(&stats.ServerErrorCount).Error; err != nil {
-		return nil, err
-	}
-	if err := db.DB.Model(&APIAccessLog{}).Where("user_id = ? AND auth_method = ?", userID, "apikey").Select("COALESCE(AVG(duration), 0)").Scan(&stats.AvgDuration).Error; err != nil {
-		return nil, err
-	}
+	stats.TotalCount = agg.TotalCount
+	stats.TodayCount = agg.TodayCount
+	stats.SuccessCount = agg.SuccessCount
+	stats.ClientErrorCount = agg.ClientErrorCount
+	stats.ServerErrorCount = agg.ServerErrorCount
+	stats.AvgDuration = agg.AvgDuration
 	if err := db.DB.Model(&APIAccessLog{}).
 		Select("COALESCE(NULLIF(COALESCE(NULLIF(route_path, ''), path), ''), '/') AS route_path, COUNT(*) AS count, COALESCE(AVG(duration), 0) AS avg_duration").
 		Where("user_id = ? AND auth_method = ?", userID, "apikey").
