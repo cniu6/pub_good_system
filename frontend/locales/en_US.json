@@ -3062,6 +3062,13 @@
     "summaryPlaceholder": "Short text for bell/list (max ~2 lines). Leave empty to auto-cut from body."
   },
   "adminProfile": {
+    "accountTitle": "Account",
+    "username": "Username",
+    "userId": "User ID",
+    "role": "Role",
+    "sessionHint": "Session",
+    "sessionHintText": "Changing the password does not sign out the current session",
+    "loadFailed": "Failed to load account information",
     "passwordTitle": "Change Password",
     "oldPassword": "Current Password",
     "newPassword": "New Password",

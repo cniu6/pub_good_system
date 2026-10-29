@@ -3070,6 +3070,13 @@
     "summaryPlaceholder": "显示在铃铛/列表里的短文案，最多约 2 行；不填则自动从正文截取"
   },
   "adminProfile": {
+    "accountTitle": "账号信息",
+    "username": "用户名",
+    "userId": "用户 ID",
+    "role": "角色",
+    "sessionHint": "会话说明",
+    "sessionHintText": "修改密码不会退出当前会话",
+    "loadFailed": "加载账号信息失败",
     "passwordTitle": "修改密码",
     "oldPassword": "当前密码",
     "newPassword": "新密码",

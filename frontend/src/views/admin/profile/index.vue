@@ -2,19 +2,43 @@
  * 管理端个人设置：修改密码
  */
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMessage } from 'naive-ui'
+import type { AdminMeInfo } from '@/service/api/admin/profile'
 import { adminProfileApi } from '@/service/api/admin/profile'
 
 const { t } = useI18n()
 const message = useMessage()
+
+const me = ref<AdminMeInfo | null>(null)
+const meLoading = ref(false)
 
 const pwdForm = reactive({
   old_password: '',
   new_password: '',
   confirm: '',
 })
+
+async function loadMe() {
+  meLoading.value = true
+  try {
+    const res = await adminProfileApi.me()
+    if (res.isSuccess && res.data) {
+      me.value = res.data
+      return
+    }
+    message.error(res.message || t('adminProfile.loadFailed'))
+  }
+  catch {
+    message.error(t('adminProfile.loadFailed'))
+  }
+  finally {
+    meLoading.value = false
+  }
+}
+
+onMounted(loadMe)
 
 async function changePassword() {
   if (!pwdForm.old_password || !pwdForm.new_password) {
@@ -43,6 +67,24 @@ async function changePassword() {
 
 <template>
   <n-space vertical :size="16">
+    <n-card :title="t('adminProfile.accountTitle')" :bordered="false">
+      <n-spin :show="meLoading">
+        <n-descriptions :column="2" label-placement="left" bordered size="small">
+          <n-descriptions-item :label="t('adminProfile.username')">
+            {{ me?.username || '-' }}
+          </n-descriptions-item>
+          <n-descriptions-item :label="t('adminProfile.userId')">
+            {{ me?.id ?? '-' }}
+          </n-descriptions-item>
+          <n-descriptions-item :label="t('adminProfile.role')">
+            {{ me?.role === 'admin' ? t('adminUsers.admin') : (me?.role || '-') }}
+          </n-descriptions-item>
+          <n-descriptions-item :label="t('adminProfile.sessionHint')">
+            {{ t('adminProfile.sessionHintText') }}
+          </n-descriptions-item>
+        </n-descriptions>
+      </n-spin>
+    </n-card>
     <n-card :title="t('adminProfile.passwordTitle')" :bordered="false">
       <n-form label-placement="left" label-width="120">
         <n-form-item :label="t('adminProfile.oldPassword')">
